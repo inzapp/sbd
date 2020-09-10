@@ -66,8 +66,8 @@ Then you can get a labeled image.<br>
 <img src="/md/res.jpg" width="500">
 
 ## Structure
-The output value is a one-channel image of n * m. Before extracting the output, use one filter and a 1 * 1 kernel to perform the conversion.
+The output value is a one-channel image of n * m.<br>
+Before extracting the output, use one filter and a 1 * 1 kernel to perform the convolution.<br>
 
-The number of output layers equals the number of training classes.<br>
 The number of output layers is the same as the number of training classes and generates training data for each class in the sbd.load function when loading training data.<br>
 <img src="/md/structure.jpg" width="800">
