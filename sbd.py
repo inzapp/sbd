@@ -34,7 +34,7 @@ epoch = 500
 grid = (32, 32)
 size = (256, 256)
 bbox_percentage_threshold = 0.5
-bounding_box_padding_val = 10
+bbox_padding_val = 10
 
 font = cv2.FONT_HERSHEY_DUPLEX
 font_scale = 0.5
@@ -114,7 +114,7 @@ def epoch_end_multiple_output_callback(cur_epoch, logs):
 
 
 def predict(img):
-    global model, bbox_percentage_threshold, bounding_box_padding_val
+    global model, bbox_percentage_threshold, bbox_padding_val
     x = cv2.resize(img, size)
     x = np.array(x).reshape(1, size[0], size[1], img_channels).astype('float32') / 255
     res_list = model.predict(x=x, batch_size=1)
@@ -123,7 +123,7 @@ def predict(img):
         res = np.array(res).reshape(grid[0], grid[1], 1).astype('float32') * 255
         res = cv2.resize(res, (img.shape[1], img.shape[0])).astype('uint8')
         _, res = cv2.threshold(res, int(bbox_percentage_threshold * 255), 255, cv2.THRESH_BINARY)
-        res = cv2.dilate(res, np.ones((bounding_box_padding_val, bounding_box_padding_val), dtype=np.uint8))
+        res = cv2.dilate(res, np.ones((bbox_padding_val, bbox_padding_val), dtype=np.uint8))
         contours, _ = cv2.findContours(res, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
         for contour in contours:
             x, y, w, h = cv2.boundingRect(contour)
