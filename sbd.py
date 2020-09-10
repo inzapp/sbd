@@ -123,10 +123,10 @@ def predict(img):
         res = np.array(res).reshape(grid[0], grid[1], 1).astype('float32') * 255
         res = cv2.resize(res, (img.shape[1], img.shape[0])).astype('uint8')
         _, res = cv2.threshold(res, int(bbox_percentage_threshold * 255), 255, cv2.THRESH_BINARY)
-        res = cv2.dilate(res, np.ones((bbox_padding_val, bbox_padding_val), dtype=np.uint8))
         contours, _ = cv2.findContours(res, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
         for contour in contours:
             x, y, w, h = cv2.boundingRect(contour)
+            x, y, w, h = x - bbox_padding_val, y - bbox_padding_val, w + 2 * bbox_padding_val, h + 2 * bbox_padding_val
             predict_res.append({
                 'class': i,
                 'box': [x, y, x + w, y + h]
