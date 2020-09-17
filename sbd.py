@@ -18,6 +18,7 @@ import cv2
 import numpy as np
 from tensorflow.python.keras import layers, Input, Model
 from tensorflow.python.keras.optimizer_v2.gradient_descent import SGD
+from tqdm import tqdm
 
 from sbd_box_colors import colors
 
@@ -56,7 +57,7 @@ def load(root_path):
 
     img_paths = glob(rf'{root_path}\*.jpg') + glob(rf'{root_path}\*.png')
     total_x, total_y = [], [[] for _ in range(class_count)]
-    for cur_img_path in img_paths:
+    for cur_img_path in tqdm(img_paths):
         file_name_without_extension = cur_img_path.replace('\\', '/').split('/').pop().split('.')[0]
         x = cv2.imread(cur_img_path, img_type)
         x = cv2.resize(x, size)
