@@ -212,7 +212,7 @@ def train():
     model = Model(model_input, model_outputs)
 
     model.summary()
-    model.compile(optimizer=SGD(lr=lr, momentum=momentum, nesterov=True), loss='binary_crossentropy')
+    model.compile(optimizer=SGD(lr=lr, momentum=momentum), loss='binary_crossentropy')
     model.fit(
         x=total_x,
         y=total_y,
