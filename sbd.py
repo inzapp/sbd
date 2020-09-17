@@ -137,7 +137,7 @@ def predict(img):
 def get_text_label_width_height(text):
     global font, font_scale, thickness
     black = np.zeros(50 * 300).reshape(50, 300).astype('uint8')
-    cv2.putText(black, text, (30, 30), font, fontScale=font_scale, color=(255, 255, 255), thickness=thickness)
+    cv2.putText(black, text, (30, 30), font, fontScale=font_scale, color=(255, 255, 255), thickness=thickness, lineType=cv2.LINE_AA)
     black = cv2.resize(black, (0, 0), fx=0.5, fy=0.5)
     black = cv2.dilate(black, np.ones((2, 3), dtype=np.uint8), iterations=2)
     black = cv2.resize(black, (0, 0), fx=2, fy=2)
@@ -145,7 +145,7 @@ def get_text_label_width_height(text):
     contours, _ = cv2.findContours(black, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
     hull = cv2.convexHull(contours[0])
     x, y, w, h = cv2.boundingRect(hull)
-    return w, h
+    return w - 5, h
 
 
 def is_background_color_bright(bgr):
@@ -163,7 +163,7 @@ def bounding_box(img, predict_res):
         x1, y1, x2, y2 = cur_res['box']
         cv2.rectangle(img, (x1, y1), (x2, y2), label_background_color, 2)
         cv2.rectangle(img, (x1 - 1, y1 - label_height), (x1 - 1 + label_width, y1), colors[class_index], -1)
-        cv2.putText(img, class_name, (x1 - 1, y1 - 5), font, fontScale=font_scale, color=label_font_color, thickness=thickness)
+        cv2.putText(img, class_name, (x1 - 1, y1 - 5), font, fontScale=font_scale, color=label_font_color, thickness=thickness, lineType=cv2.LINE_AA)
     return img
 
 
