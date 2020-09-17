@@ -172,7 +172,7 @@ def bounding_box(img, predict_res):
     return img
 
 
-def main():
+def train():
     global train_img_path, alpha, lr, momentum, batch_size, epoch, test_img_path, model
     total_x, total_y = load(train_img_path)
 
@@ -233,4 +233,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    train()
