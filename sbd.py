@@ -149,7 +149,11 @@ def get_text_label_width_height(text):
 
 
 def is_background_color_bright(bgr):
-    return (bgr[0] + bgr[1] + bgr[2]) / 3 > 127
+    tmp = np.zeros((1, 1), dtype=np.uint8)
+    tmp = cv2.cvtColor(tmp, cv2.COLOR_GRAY2BGR)
+    cv2.rectangle(tmp, (0, 0), (1, 1), bgr, -1)
+    tmp = cv2.cvtColor(tmp, cv2.COLOR_BGR2GRAY)
+    return tmp[0][0] > 127
 
 
 def bounding_box(img, predict_res):
