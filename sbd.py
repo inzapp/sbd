@@ -49,20 +49,20 @@ class_names = []
 model = None
 
 
-def load(root_path):
-    global class_count, class_names
-    with open(rf'{root_path}\classes.txt', 'rt') as classes_file:
+def load():
+    global train_img_path, class_count, class_names
+    with open(rf'{train_img_path}\classes.txt', 'rt') as classes_file:
         class_names = classes_file.readlines()
         class_count = len(class_names)
 
-    img_paths = glob(rf'{root_path}\*.jpg') + glob(rf'{root_path}\*.png')
+    img_paths = glob(rf'{train_img_path}\*.jpg') + glob(rf'{train_img_path}\*.png')
     total_x, total_y = [], [[] for _ in range(class_count)]
     for cur_img_path in tqdm(img_paths):
         file_name_without_extension = cur_img_path.replace('\\', '/').split('/').pop().split('.')[0]
         x = cv2.imread(cur_img_path, img_type)
         x = cv2.resize(x, size)
         total_x.append(x)
-        with open(rf'{root_path}\{file_name_without_extension}.txt') as file:
+        with open(rf'{train_img_path}\{file_name_without_extension}.txt') as file:
             masks = [np.zeros(size[0] * size[1]).reshape(size[0], size[1]) for _ in range(class_count)]
             for line in file.readlines():
                 class_index, cx, cy, w, h = np.array(line.split(' ')).astype('float32')
@@ -173,8 +173,8 @@ def bounding_box(img, predict_res):
 
 
 def train():
-    global train_img_path, alpha, lr, momentum, batch_size, epoch, test_img_path, model
-    total_x, total_y = load(train_img_path)
+    global alpha, lr, momentum, batch_size, epoch, test_img_path, model
+    total_x, total_y = load()
 
     model_input = Input(shape=(size[0], size[1], img_channels))
 
