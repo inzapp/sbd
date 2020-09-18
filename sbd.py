@@ -46,7 +46,6 @@ grid_height = int(size[1] / grid[1])
 img_channels = 3 if img_type == cv2.IMREAD_COLOR else 1
 class_count = 0
 class_names = []
-model = None
 
 
 def load():
@@ -173,7 +172,7 @@ def bounding_box(img, predict_res):
 
 
 def train():
-    global alpha, lr, momentum, batch_size, epoch, test_img_path, model
+    global alpha, lr, momentum, batch_size, epoch, test_img_path
     total_x, total_y = load()
 
     model_input = Input(shape=(size[0], size[1], img_channels))
