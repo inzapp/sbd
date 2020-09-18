@@ -48,7 +48,8 @@ class_names = []
 def load():
     global train_img_path, class_count, class_names
     with open(rf'{train_img_path}\classes.txt', 'rt') as classes_file:
-        class_names = classes_file.readlines()
+        class_names = classes_file.read().split('\n')
+        class_names.remove('')
         class_count = len(class_names)
 
     img_paths = glob(rf'{train_img_path}\*.jpg') + glob(rf'{train_img_path}\*.png')
@@ -169,7 +170,7 @@ def bounding_box(img, predict_res):
 
 
 def train():
-    global alpha, lr, momentum, batch_size, epoch, test_img_path
+    global alpha, lr, momentum, batch_size, epoch, test_img_path, class_names
     total_x, total_y = load()
 
     model_input = Input(shape=(size[0], size[1], img_channels))
@@ -202,7 +203,7 @@ def train():
     model_outputs = []
     for i in range(class_count):
         model_output = layers.Conv2D(filters=1, kernel_size=(1, 1), padding='same', activation='sigmoid')(x)
-        model_output = layers.Reshape(target_shape=(grid[0], grid[1]), name=f'r{i}')(model_output)
+        model_output = layers.Reshape(target_shape=(grid[0], grid[1]), name=f'{class_names[i]}')(model_output)
         model_outputs.append(model_output)
 
     model = Model(model_input, model_outputs)
