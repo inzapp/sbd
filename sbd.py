@@ -37,7 +37,7 @@ size = (256, 256)
 bbox_percentage_threshold = 0.5
 bbox_padding_val = 5
 
-font_scale = 0.5
+font_scale = 0.4
 grid_width = int(size[0] / grid[0])
 grid_height = int(size[1] / grid[1])
 img_channels = 3 if img_type == cv2.IMREAD_COLOR else 1
