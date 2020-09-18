@@ -35,12 +35,9 @@ epoch = 500
 grid = (32, 32)
 size = (256, 256)
 bbox_percentage_threshold = 0.5
-bbox_padding_val = 10
+bbox_padding_val = 5
 
-font = cv2.FONT_HERSHEY_DUPLEX
 font_scale = 0.5
-thickness = 1
-
 grid_width = int(size[0] / grid[0])
 grid_height = int(size[1] / grid[1])
 img_channels = 3 if img_type == cv2.IMREAD_COLOR else 1
@@ -135,9 +132,9 @@ def predict(model, img):
 
 
 def get_text_label_width_height(text):
-    global font, font_scale, thickness
+    global font_scale
     black = np.zeros(50 * 300).reshape(50, 300).astype('uint8')
-    cv2.putText(black, text, (30, 30), font, fontScale=font_scale, color=(255, 255, 255), thickness=thickness, lineType=cv2.LINE_AA)
+    cv2.putText(black, text, (30, 30), cv2.FONT_HERSHEY_DUPLEX, fontScale=font_scale, color=(255, 255, 255), thickness=1, lineType=cv2.LINE_AA)
     black = cv2.resize(black, (0, 0), fx=0.5, fy=0.5)
     black = cv2.dilate(black, np.ones((2, 3), dtype=np.uint8), iterations=2)
     black = cv2.resize(black, (0, 0), fx=2, fy=2)
@@ -157,7 +154,7 @@ def is_background_color_bright(bgr):
 
 
 def bounding_box(img, predict_res):
-    global font, font_scale, thickness
+    global font_scale
     for i, cur_res in enumerate(predict_res):
         class_index = int(cur_res['class'])
         class_name = class_names[class_index].replace('\n', '')
@@ -167,7 +164,7 @@ def bounding_box(img, predict_res):
         x1, y1, x2, y2 = cur_res['box']
         cv2.rectangle(img, (x1, y1), (x2, y2), label_background_color, 2)
         cv2.rectangle(img, (x1 - 1, y1 - label_height), (x1 - 1 + label_width, y1), colors[class_index], -1)
-        cv2.putText(img, class_name, (x1 - 1, y1 - 5), font, fontScale=font_scale, color=label_font_color, thickness=thickness, lineType=cv2.LINE_AA)
+        cv2.putText(img, class_name, (x1 - 1, y1 - 5), cv2.FONT_HERSHEY_DUPLEX, fontScale=font_scale, color=label_font_color, thickness=1, lineType=cv2.LINE_AA)
     return img
 
 
