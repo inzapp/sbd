@@ -114,8 +114,8 @@ def epoch_end_multiple_output_callback(cur_epoch, logs):
     print()
 
 
-def predict(img):
-    global model, bbox_percentage_threshold, bbox_padding_val
+def predict(model, img):
+    global bbox_percentage_threshold, bbox_padding_val
     x = cv2.resize(img, size)
     x = np.array(x).reshape(1, size[0], size[1], img_channels).astype('float32') / 255
     res_list = model.predict(x=x, batch_size=1)
@@ -224,7 +224,7 @@ def train():
 
     for cur_img_path in glob(rf'{test_img_path}\*.jpg') + glob(rf'{test_img_path}\*.png'):
         img = cv2.imread(cur_img_path, img_type)
-        res = predict(img)
+        res = predict(model, img)
         img = bounding_box(img, res)
         print(res)
         cv2.imshow('img', img)
