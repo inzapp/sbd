@@ -8,6 +8,9 @@ import numpy as np
 
 
 def test_label():
+    """
+    test sbd label(yolo format) is validate
+    """
     with open(rf'{sbd.train_img_path}\classes.txt', 'rt') as classes_file:
         sbd.class_names = classes_file.readlines()
     img_paths = glob(rf'{sbd.train_img_path}\*.jpg') + glob(rf'{sbd.train_img_path}\*.png')

@@ -2,15 +2,15 @@
 
 SBD is an object detector based on segmentation.<br>
 
-The output of SBD inner network is a one-channel image.<br>
+The output of SBD inner network is a n-classes channel images.<br>
 In the output image, the part where trained objects are likely to exist is closer to white.<br>
 And the part where there seems to be no trained object gets closer to black.<br>
 
 SBD apply threshold to the output image and set it as the probability that you want to detect threshold value.<br>
 Then, SBD detect contours from the binary image and return the bounding box values for the detected contours.<br>
 To detect multiple objects in an image, SBD has multiple output layers.<br>
-SBD, which detects one object, has one output layer and SBD, which detect three objects, has three output layers.<br>
-Each output layer detects each class.<br>
+SBD, which detects one object, has one channel output and SBD, which detect three objects, has three channel output.<br>
+Each channel detects each class.<br>
 
 SBD is fully compatible with the yolo label.<br>
 Refer to [**LabelImg**](https://github.com/tzutalin/labelImg) for image labeling.<br>

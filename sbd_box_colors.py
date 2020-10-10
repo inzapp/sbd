@@ -1,3 +1,6 @@
+"""
+sbd bounding box colors
+"""
 colors = [
     (255, 0, 0),
     (255, 255, 0),
