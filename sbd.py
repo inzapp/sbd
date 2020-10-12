@@ -31,7 +31,7 @@ img_type = cv2.IMREAD_COLOR
 train_img_path = r'.'
 test_img_path = r'.'
 lr = 0.01
-momentum = 0.9
+momentum = 0.95
 batch_size = 2
 epoch = 500
 output_shape = (32, 32)
@@ -61,7 +61,6 @@ def load():
         file_name_without_extension = cur_img_path.replace('\\', '/').split('/').pop()[:-4]
         x = cv2.imread(cur_img_path, img_type)
         x = cv2.resize(x, (input_shape[1], input_shape[0]))
-        x = np.moveaxis(x, -1, 0)
         total_x.append(x)
         with open(rf'{train_img_path}\{file_name_without_extension}.txt') as file:
             label_lines = file.readlines()
@@ -71,10 +70,11 @@ def load():
             x1, y1, x2, y2 = cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2
             x1, y1, x2, y2 = int(x1 * output_shape[1]), int(y1 * output_shape[0]), int(x2 * output_shape[1]), int(y2 * output_shape[0])
             cv2.rectangle(y[int(class_index)], (x1, y1), (x2, y2), (255, 255, 255), -1)
+        y = np.moveaxis(np.asarray(y), 0, -1)
         total_y.append(y)
 
-    total_x = np.asarray(total_x).reshape(len(total_x), img_channels, input_shape[0], input_shape[1]).astype('float32') / 255.
-    total_y = np.asarray(total_y).reshape(len(total_y), class_count, output_shape[0], output_shape[1]).astype('float32') / 255.
+    total_x = np.asarray(total_x).reshape(len(total_x), input_shape[0], input_shape[1], img_channels).astype('float32') / 255.
+    total_y = np.asarray(total_y).reshape(len(total_y), output_shape[0], output_shape[1], class_count).astype('float32') / 255.
     r = np.arange(len(total_x))
     np.random.shuffle(r)
     total_x = total_x[r]
@@ -92,9 +92,9 @@ def predict(model, img):
     """
     global bbox_percentage_threshold, bbox_padding_val
     x = cv2.resize(img, (input_shape[1], input_shape[0]))
-    x = np.moveaxis(x, -1, 0)
-    x = np.array(x).reshape(1, img_channels, input_shape[0], input_shape[1]).astype('float32') / 255
+    x = np.array(x).reshape(1, input_shape[0], input_shape[1], img_channels).astype('float32') / 255
     res_list = model.predict(x=x, batch_size=1)[0]
+    res_list = np.moveaxis(res_list, -1, 0)
     predict_res = []
     for i, res in enumerate(res_list):
         res = np.array(res).reshape(output_shape).astype('float32') * 255
@@ -171,29 +171,29 @@ def train():
     global lr, momentum, batch_size, epoch, test_img_path, class_names
     total_x, total_y = load()
 
-    model_input = Input(shape=(img_channels, input_shape[0], input_shape[1]))
-    x = layers.Conv2D(filters=8, kernel_size=(3, 3), kernel_initializer='he_normal', padding='same', data_format='channels_first', activation='relu')(model_input)
+    model_input = Input(shape=(input_shape[0], input_shape[1], img_channels))
+    x = layers.Conv2D(filters=8, kernel_size=(3, 3), kernel_initializer='he_normal', padding='same', activation='relu')(model_input)
     x = layers.BatchNormalization()(x)
-    x = layers.MaxPool2D(data_format='channels_first')(x)
+    x = layers.MaxPool2D()(x)
 
-    x = layers.Conv2D(filters=16, kernel_size=(3, 3), kernel_initializer='he_normal', padding='same', data_format='channels_first', activation='relu')(x)
+    x = layers.Conv2D(filters=16, kernel_size=(3, 3), kernel_initializer='he_normal', padding='same', activation='relu')(x)
     x = layers.BatchNormalization()(x)
-    x = layers.MaxPool2D(data_format='channels_first')(x)
+    x = layers.MaxPool2D()(x)
 
-    x = layers.Conv2D(filters=32, kernel_size=(3, 3), kernel_initializer='he_normal', padding='same', data_format='channels_first', activation='relu')(x)
-    x = layers.Conv2D(filters=32, kernel_size=(3, 3), kernel_initializer='he_normal', padding='same', data_format='channels_first', activation='relu')(x)
+    x = layers.Conv2D(filters=32, kernel_size=(3, 3), kernel_initializer='he_normal', padding='same', activation='relu')(x)
+    x = layers.Conv2D(filters=32, kernel_size=(3, 3), kernel_initializer='he_normal', padding='same', activation='relu')(x)
     x = layers.BatchNormalization()(x)
-    x = layers.MaxPool2D(data_format='channels_first')(x)
+    x = layers.MaxPool2D()(x)
 
-    x = layers.Conv2D(filters=64, kernel_size=(3, 3), kernel_initializer='he_normal', padding='same', data_format='channels_first', activation='relu')(x)
-    x = layers.Conv2D(filters=64, kernel_size=(3, 3), kernel_initializer='he_normal', padding='same', data_format='channels_first', activation='relu')(x)
-    x = layers.BatchNormalization()(x)
-
-    x = layers.Conv2D(filters=128, kernel_size=(3, 3), kernel_initializer='he_normal', padding='same', data_format='channels_first', activation='relu')(x)
-    x = layers.Conv2D(filters=128, kernel_size=(3, 3), kernel_initializer='he_normal', padding='same', data_format='channels_first', activation='relu')(x)
+    x = layers.Conv2D(filters=64, kernel_size=(3, 3), kernel_initializer='he_normal', padding='same', activation='relu')(x)
+    x = layers.Conv2D(filters=64, kernel_size=(3, 3), kernel_initializer='he_normal', padding='same', activation='relu')(x)
     x = layers.BatchNormalization()(x)
 
-    x = layers.Conv2D(filters=class_count, kernel_size=(1, 1), padding='same', data_format='channels_first', activation='sigmoid')(x)
+    x = layers.Conv2D(filters=128, kernel_size=(3, 3), kernel_initializer='he_normal', padding='same', activation='relu')(x)
+    x = layers.Conv2D(filters=128, kernel_size=(3, 3), kernel_initializer='he_normal', padding='same', activation='relu')(x)
+    x = layers.BatchNormalization()(x)
+
+    x = layers.Conv2D(filters=class_count, kernel_size=(1, 1), padding='same', activation='sigmoid')(x)
 
     model = Model(model_input, x)
     model.summary()
