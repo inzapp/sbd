@@ -19,8 +19,7 @@ from time import time
 
 import cv2
 import numpy as np
-from tensorflow.python.keras import layers, Input, Model
-from tensorflow.python.keras.optimizer_v2.gradient_descent import SGD
+import tensorflow as tf
 from tqdm import tqdm
 
 from sbd_box_colors import colors
@@ -50,7 +49,7 @@ def load():
     generate train data for sbd training.
     :return: train_x, train_y
     """
-    global train_img_path, class_count, class_names
+    global train_img_path, class_count, class_names, input_shape, img_channels
     with open(rf'{train_img_path}\classes.txt', 'rt') as classes_file:
         class_names = [s.replace('\n', '') for s in classes_file.readlines()]
         class_count = len(class_names)
@@ -58,18 +57,19 @@ def load():
     img_paths = glob(rf'{train_img_path}\*.jpg') + glob(rf'{train_img_path}\*.png')
     total_x, total_y = [], []
     for cur_img_path in tqdm(img_paths):
-        file_name_without_extension = cur_img_path.replace('\\', '/').split('/').pop()[:-4]
         x = cv2.imread(cur_img_path, img_type)
-        x = cv2.resize(x, (input_shape[1], input_shape[0]))
+        x = resize(x, (input_shape[1], input_shape[0]))
         total_x.append(x)
-        with open(rf'{train_img_path}\{file_name_without_extension}.txt') as file:
+        with open(rf'{cur_img_path[:-4]}.txt', mode='rt') as file:
             label_lines = file.readlines()
-        y = [np.zeros(output_shape, dtype=np.uint8) for _ in range(class_count)]
+        y = [np.zeros(input_shape, dtype=np.uint8) for _ in range(class_count)]
         for label_line in label_lines:
             class_index, cx, cy, w, h = list(map(float, label_line.split(' ')))
             x1, y1, x2, y2 = cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2
-            x1, y1, x2, y2 = int(x1 * output_shape[1]), int(y1 * output_shape[0]), int(x2 * output_shape[1]), int(y2 * output_shape[0])
+            x1, y1, x2, y2 = int(x1 * input_shape[1]), int(y1 * input_shape[0]), int(x2 * input_shape[1]), int(y2 * input_shape[0])
             cv2.rectangle(y[int(class_index)], (x1, y1), (x2, y2), (255, 255, 255), -1)
+        for i in range(len(y)):
+            y[i] = resize(y[i], (output_shape[1], output_shape[0]))
         y = np.moveaxis(np.asarray(y), 0, -1)
         total_y.append(y)
 
@@ -80,6 +80,13 @@ def load():
     total_x = total_x[r]
     total_y = total_y[r]
     return total_x, total_y
+
+
+def resize(img, size):
+    if img.shape[1] > size[0] or img.shape[0] > size[1]:
+        return cv2.resize(img, size, interpolation=cv2.INTER_AREA)
+    else:
+        return cv2.resize(img, size, interpolation=cv2.INTER_LINEAR)
 
 
 def predict(model, img):
@@ -120,9 +127,9 @@ def get_text_label_width_height(text):
     global font_scale
     black = np.zeros((50, 500), dtype=np.uint8)
     cv2.putText(black, text, (30, 30), cv2.FONT_HERSHEY_DUPLEX, fontScale=font_scale, color=(255, 255, 255), thickness=1, lineType=cv2.LINE_AA)
-    black = cv2.resize(black, (0, 0), fx=0.5, fy=0.5)
-    black = cv2.dilate(black, np.ones((2, 3), dtype=np.uint8), iterations=2)
-    black = cv2.resize(black, (0, 0), fx=2, fy=2)
+    black = resize(black, (int(black.shape[1] / 2), int(black.shape[0] / 2)))
+    black = cv2.dilate(black, np.ones((2, 2), dtype=np.uint8), iterations=2)
+    black = resize(black, (int(black.shape[1] * 2), int(black.shape[0] * 2)))
     _, black = cv2.threshold(black, 1, 255, cv2.THRESH_BINARY)
     contours, _ = cv2.findContours(black, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
     hull = cv2.convexHull(contours[0])
@@ -171,33 +178,30 @@ def train():
     global lr, momentum, batch_size, epoch, test_img_path, class_names
     total_x, total_y = load()
 
-    model_input = Input(shape=(input_shape[0], input_shape[1], img_channels))
-    x = layers.Conv2D(filters=8, kernel_size=(3, 3), kernel_initializer='he_normal', padding='same', activation='relu')(model_input)
-    x = layers.BatchNormalization()(x)
-    x = layers.MaxPool2D()(x)
+    model_input = tf.keras.layers.Input(shape=(input_shape[0], input_shape[1], img_channels))
+    x = tf.keras.layers.Conv2D(filters=8, kernel_size=(3, 3), kernel_initializer='he_normal', padding='same', activation='relu')(model_input)
+    x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.layers.MaxPool2D()(x)
 
-    x = layers.Conv2D(filters=16, kernel_size=(3, 3), kernel_initializer='he_normal', padding='same', activation='relu')(x)
-    x = layers.BatchNormalization()(x)
-    x = layers.MaxPool2D()(x)
+    x = tf.keras.layers.Conv2D(filters=16, kernel_size=(3, 3), kernel_initializer='he_normal', padding='same', activation='relu')(x)
+    x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.layers.MaxPool2D()(x)
 
-    x = layers.Conv2D(filters=32, kernel_size=(3, 3), kernel_initializer='he_normal', padding='same', activation='relu')(x)
-    x = layers.Conv2D(filters=32, kernel_size=(3, 3), kernel_initializer='he_normal', padding='same', activation='relu')(x)
-    x = layers.BatchNormalization()(x)
-    x = layers.MaxPool2D()(x)
+    x = tf.keras.layers.Conv2D(filters=32, kernel_size=(3, 3), kernel_initializer='he_normal', padding='same', activation='relu')(x)
+    x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.layers.MaxPool2D()(x)
 
-    x = layers.Conv2D(filters=64, kernel_size=(3, 3), kernel_initializer='he_normal', padding='same', activation='relu')(x)
-    x = layers.Conv2D(filters=64, kernel_size=(3, 3), kernel_initializer='he_normal', padding='same', activation='relu')(x)
-    x = layers.BatchNormalization()(x)
+    x = tf.keras.layers.Conv2D(filters=64, kernel_size=(3, 3), kernel_initializer='he_normal', padding='same', activation='relu')(x)
+    x = tf.keras.layers.BatchNormalization()(x)
 
-    x = layers.Conv2D(filters=128, kernel_size=(3, 3), kernel_initializer='he_normal', padding='same', activation='relu')(x)
-    x = layers.Conv2D(filters=128, kernel_size=(3, 3), kernel_initializer='he_normal', padding='same', activation='relu')(x)
-    x = layers.BatchNormalization()(x)
+    x = tf.keras.layers.Conv2D(filters=128, kernel_size=(3, 3), kernel_initializer='he_normal', padding='same', activation='relu')(x)
+    x = tf.keras.layers.BatchNormalization()(x)
 
-    x = layers.Conv2D(filters=class_count, kernel_size=(1, 1), padding='same', activation='sigmoid')(x)
+    x = tf.keras.layers.Conv2D(filters=class_count, kernel_size=(1, 1), padding='same', activation='sigmoid')(x)
 
-    model = Model(model_input, x)
+    model = tf.keras.models.Model(model_input, x)
     model.summary()
-    model.compile(optimizer=SGD(lr=lr, momentum=momentum), loss='binary_crossentropy')
+    model.compile(optimizer=tf.keras.optimizers.SGD(lr=lr, momentum=momentum), loss='binary_crossentropy')
     model.fit(
         x=total_x,
         y=total_y,
@@ -208,9 +212,13 @@ def train():
     model.save('sbd.h5')
 
     for cur_img_path in glob(rf'{test_img_path}\*.jpg') + glob(rf'{test_img_path}\*.png'):
+        print(cur_img_path)
         img = cv2.imread(cur_img_path, img_type)
+        st = time()
         res = predict(model, img)
+        et = time()
         img = bounding_box(img, res)
+        print(f'[Inference Time] : {(et - st):.3f} s')
         print(res)
         cv2.imshow('img', img)
         cv2.waitKey(0)
