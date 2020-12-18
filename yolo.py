@@ -38,7 +38,7 @@ input_shape = (368, 640)
 output_shape = (46, 80)
 bbox_percentage_threshold = 0.25
 bbox_padding_val = 0
-theta = 100.0
+theta = 1.0
 
 font_scale = 0.4
 img_channels = 3 if img_type == cv2.IMREAD_COLOR else 1
@@ -175,39 +175,6 @@ def resize(img, size):
         return cv2.resize(img, size, interpolation=cv2.INTER_LINEAR)
 
 
-def predict(model, x):
-    """
-    Detect object in image using trained YOLO model.
-    :param model: YOLO keras h5 model.
-    :param x: image to be predicted.
-    :return: dictionary array sorted by x position.
-    each dictionary has class index and box info: [x1, y1, x2, y2].
-    """
-    global bbox_percentage_threshold, bbox_padding_val, img_channels
-    raw_width, raw_height = x.shape[1], x.shape[0]
-    if img_channels == 1:
-        x = cv2.cvtColor(x, cv2.COLOR_BGR2GRAY)
-    x = resize(x, (input_shape[1], input_shape[0]))
-    x = np.array(x).reshape(1, input_shape[0], input_shape[1], img_channels).astype('float32') / 255.
-    y = model.predict(x=x, batch_size=1)[0]
-    y = np.moveaxis(y, -1, 0)
-    predict_res = []
-
-    for i, channel in enumerate(y):
-        channel = np.array(channel).reshape(output_shape).astype('float32') * 255
-        channel = cv2.resize(channel, (raw_width, raw_height), interpolation=cv2.INTER_BITS).astype('uint8')
-        _, channel = cv2.threshold(channel, int(bbox_percentage_threshold * 255), 255, cv2.THRESH_BINARY)
-        contours, _ = cv2.findContours(channel, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        for contour in contours:
-            x, y, w, h = cv2.boundingRect(contour)
-            x, y, w, h = x - bbox_padding_val, y - bbox_padding_val, w + 2 * bbox_padding_val, h + 2 * bbox_padding_val
-            predict_res.append({
-                'class': i,
-                'box': [x, y, x + w, y + h]
-            })
-    return sorted(predict_res, key=lambda __x: __x['box'][0])
-
-
 def forward_yolo(net, x):
     """
     Detect object in image using trained YOLO model.
@@ -241,14 +208,14 @@ def forward_yolo(net, x):
             w = y[3][i][j]
             h = y[4][i][j]
 
-            xmin_f = cx_f - w / 2
-            ymin_f = cy_f - h / 2
-            xmax_f = cx_f + w / 2
-            ymax_f = cy_f + h / 2
-            xmin = int(xmin_f * raw_width)
-            ymin = int(ymin_f * raw_height)
-            xmax = int(xmax_f * raw_width)
-            ymax = int(ymax_f * raw_height)
+            x_min_f = cx_f - w / 2
+            y_min_f = cy_f - h / 2
+            x_max_f = cx_f + w / 2
+            y_max_f = cy_f + h / 2
+            x_min = int(x_min_f * raw_width)
+            y_min = int(y_min_f * raw_height)
+            x_max = int(x_max_f * raw_width)
+            y_max = int(y_max_f * raw_height)
             class_index = -1
             max_percentage = -1
             for cur_channel_index in range(5, len(y)):
@@ -257,7 +224,7 @@ def forward_yolo(net, x):
                     max_percentage = y[cur_channel_index][i][j]
             predict_res.append({
                 'class': class_index - 5,
-                'box': [xmin, ymin, xmax, ymax],
+                'box': [x_min, y_min, x_max, y_max],
                 'p': p
             })
     return sorted(predict_res, key=lambda __x: __x['box'][0])
@@ -471,20 +438,23 @@ def train():
     x = tf.keras.layers.Concatenate()([x, sc])
     x = tf.keras.layers.BatchNormalization()(x)
 
+    # x = tf.keras.layers.Conv2D(
+    #     filters=class_count + 5,
+    #     kernel_size=1,
+    #     kernel_initializer='he_uniform',
+    # )(x)
+    # x = tf.keras.layers.ThresholdedReLU(theta=theta)(x)
     x = tf.keras.layers.Conv2D(
         filters=class_count + 5,
         kernel_size=1,
-        kernel_initializer='he_uniform',
-        padding='same'
+        activation='sigmoid',
     )(x)
-    x = tf.keras.layers.ThresholdedReLU(theta=theta)(x)
 
     model = tf.keras.models.Model(model_input, x)
-    # model = tf.keras.models.load_model('checkpoints/fp_g2b_epoch_31_loss_0.0012_val_loss_0.0022.h5', compile=False)
 
     model.summary()
-    model.compile(optimizer=tf.keras.optimizers.SGD(lr=lr, momentum=0.99), loss=tf.keras.losses.MeanSquaredError())
-    # model.compile(optimizer=tf.keras.optimizers.RMSprop(lr=lr), loss=tf.keras.losses.BinaryCrossentropy())
+    model.compile(optimizer=tf.keras.optimizers.SGD(lr=lr, momentum=0.9), loss=MeanAbsoluteLogError())
+    # model.compile(optimizer=tf.keras.optimizers.SGD(lr=lr, momentum=0.9), loss=tf.keras.losses.MeanSquaredError())
     model.save('model.h5')
 
     live_view(total_image_paths)
@@ -534,6 +504,11 @@ def freeze(model_name):
         name="model.pb",
         as_text=False
     )
+
+    net = cv2.dnn.readNet('model.pb')
+    print('net layers')
+    for layer in net.layers:
+        print(layer)
 
 
 def test_video():
