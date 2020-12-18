@@ -30,7 +30,7 @@ img_type = cv2.IMREAD_GRAYSCALE
 train_image_path = r'C:\inz\train_data\lp_detection\done'
 test_img_path = r'C:\inz\train_data\lp_detection\done'
 
-lr = 0.01
+lr = 1e-2
 batch_size = 2
 epoch = 300
 validation_ratio = 0.2
@@ -161,6 +161,23 @@ class MeanAbsoluteLogError(tf.keras.losses.Loss):
         loss = -tf.math.log(1.0 + 1e-7 - loss)
         loss = tf.keras.backend.mean(tf.keras.backend.mean(loss, axis=-1))
         return loss
+
+
+class SumSquaredError(tf.keras.losses.Loss):
+    """
+    Sum over squared loss function.
+    f(x) = SUM(MAE(x)^2)
+    Usage:
+     model.compile(loss=[SumSquaredError()], optimizer="sgd")
+    """
+
+    def call(self, y_true, y_pred):
+        from tensorflow.python.framework.ops import convert_to_tensor_v2
+        y_pred = convert_to_tensor_v2(y_pred)
+        y_true = tf.cast(y_true, y_pred.dtype)
+        loss = tf.math.square(tf.math.abs(y_true - y_pred))
+        loss = tf.keras.backend.mean(tf.keras.backend.sum(loss, axis=-1))
+        return loss * 5.0
 
 
 def resize(img, size):
@@ -453,8 +470,8 @@ def train():
     model = tf.keras.models.Model(model_input, x)
 
     model.summary()
-    model.compile(optimizer=tf.keras.optimizers.SGD(lr=lr, momentum=0.9), loss=MeanAbsoluteLogError())
-    # model.compile(optimizer=tf.keras.optimizers.SGD(lr=lr, momentum=0.9), loss=tf.keras.losses.MeanSquaredError())
+    model.compile(optimizer=tf.keras.optimizers.SGD(lr=lr, momentum=0.99), loss=MeanAbsoluteLogError())
+    # model.compile(optimizer=tf.keras.optimizers.RMSprop(lr=lr), loss=MeanAbsoluteLogError())
     model.save('model.h5')
 
     live_view(total_image_paths)
@@ -504,11 +521,8 @@ def freeze(model_name):
         name="model.pb",
         as_text=False
     )
-
     net = cv2.dnn.readNet('model.pb')
-    print('net layers')
-    for layer in net.layers:
-        print(layer)
+    print(f'\nconvert pb success. {len(net.getLayerNames())} layers')
 
 
 def test_video():
@@ -519,9 +533,9 @@ def test_video():
     # out = cv2.VideoWriter('output.mp4', cv2.VideoWriter_fourcc(*'MP4V'), 20.0, (640, 368))
 
     # cap = cv2.VideoCapture('rtsp://admin:samsungg2b!@samsungg2bcctv.iptime.org:1500/video1s1')
-    cap = cv2.VideoCapture(r'C:\inz\videos\truen.mkv')
+    # cap = cv2.VideoCapture(r'C:\inz\videos\truen.mkv')
     # cap = cv2.VideoCapture(r'C:\inz\videos\hc_4k_18_day.mp4')
-    # cap = cv2.VideoCapture(r'C:\inz\videos\noon_not_trained.mp4')
+    cap = cv2.VideoCapture(r'C:\inz\videos\noon_not_trained.mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\noon.mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\noon (2).mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\noon (3).mp4')
@@ -588,4 +602,3 @@ if __name__ == '__main__':
     train()
     # freeze('model.h5')
     # test_video()
-    # test_loss()
