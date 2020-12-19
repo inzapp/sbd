@@ -173,7 +173,7 @@ class CustomLoss(tf.keras.losses.Loss):
         p_loss = MeanAbsoluteLogError()(y_true[:, :, :, 0], y_pred[:, :, :, 0])
         xy_loss = MeanAbsoluteLogError()(y_true[:, :, :, 1:3], y_pred[:, :, :, 1:3])
         # wh_loss = MeanAbsoluteLogError()(tf.sqrt(y_true[:, :, :, 3:5]), tf.sqrt(y_pred[:, :, :, 3:5]))
-        wh_loss = MeanAbsoluteLogError()(y_true[:, :, :, 3:5], y_pred[:, :, :, 3:5]) * 2.718
+        wh_loss = MeanAbsoluteLogError()(y_true[:, :, :, 3:5], y_pred[:, :, :, 3:5])
         c_loss = MeanAbsoluteLogError()(y_true[:, :, :, 5:], y_pred[:, :, :, 5:])
         return p_loss + xy_loss + wh_loss + c_loss
 
