@@ -27,15 +27,15 @@ from yolo_box_color import colors
 os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
 img_type = cv2.IMREAD_GRAYSCALE
-train_image_path = r'C:\inz\train_data\lp_detection'
-test_img_path = r'C:\inz\train_data\lp_detection'
+train_image_path = r'C:\inz\train_data\loon_detection_train'
+test_img_path = r'C:\inz\train_data\loon_detection_test'
 
 lr = 1e-2
 batch_size = 2
 epoch = 300
 validation_ratio = 0.2
-input_shape = (368, 640)
-output_shape = (23, 40)
+input_shape = (128, 512)
+output_shape = (8, 32)
 bbox_percentage_threshold = 0.25
 bbox_padding_val = 0
 
@@ -172,7 +172,8 @@ class CustomLoss(tf.keras.losses.Loss):
     def call(self, y_true, y_pred):
         p_loss = MeanAbsoluteLogError()(y_true[:, :, :, 0], y_pred[:, :, :, 0])
         xy_loss = MeanAbsoluteLogError()(y_true[:, :, :, 1:3], y_pred[:, :, :, 1:3])
-        wh_loss = MeanAbsoluteLogError()(tf.sqrt(y_true[:, :, :, 3:5]), tf.sqrt(y_pred[:, :, :, 3:5]))
+        # wh_loss = MeanAbsoluteLogError()(tf.sqrt(y_true[:, :, :, 3:5]), tf.sqrt(y_pred[:, :, :, 3:5]))
+        wh_loss = MeanAbsoluteLogError()(y_true[:, :, :, 3:5], y_pred[:, :, :, 3:5]) * 2.718
         c_loss = MeanAbsoluteLogError()(y_true[:, :, :, 5:], y_pred[:, :, :, 5:])
         return p_loss + xy_loss + wh_loss + c_loss
 
@@ -290,7 +291,7 @@ def bounding_box(img, predict_res):
         class_name = class_names[class_index].replace('/n', '')
         label_background_color = colors[class_index]
         label_font_color = (0, 0, 0) if is_background_color_bright(label_background_color) else (255, 255, 255)
-        label_text = f'{class_name} {int(cur_res["p"] * 100)}%'
+        label_text = f'{class_name} {round(cur_res["p"] * 100.0)}%'
         label_width, label_height = get_text_label_width_height(label_text)
         x1, y1, x2, y2 = cur_res['box']
         cv2.rectangle(img, (x1, y1), (x2, y2), label_background_color, 2)
@@ -346,7 +347,7 @@ def train():
     """
     global lr, batch_size, epoch, test_img_path, class_names, class_count, validation_ratio, new_model_saved
 
-    total_image_paths = glob(f'{train_image_path}/*crime*etc*/*.jpg')
+    total_image_paths = glob(f'{train_image_path}/*.jpg')
     random.shuffle(total_image_paths)
     train_image_count = int(len(total_image_paths) * (1 - validation_ratio))
     train_image_paths = total_image_paths[:train_image_count]
@@ -404,7 +405,7 @@ def train():
     model = tf.keras.models.Model(model_input, x)
 
     model.summary()
-    model.compile(optimizer=tf.keras.optimizers.RMSprop(lr=lr, rho=0.9), loss=MeanAbsoluteLogError())
+    model.compile(optimizer=tf.keras.optimizers.RMSprop(lr=lr, rho=0.9), loss=CustomLoss())
     model.save('model.h5')
 
     live_view(total_image_paths)
