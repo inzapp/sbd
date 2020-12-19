@@ -32,7 +32,7 @@ test_img_path = r'C:\inz\train_data\lp_detection'
 
 lr = 1e-2
 batch_size = 2
-epoch = 300
+epoch = 2000
 validation_ratio = 0.2
 input_shape = (368, 640)
 output_shape = (23, 40)
