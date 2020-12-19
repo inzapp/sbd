@@ -27,8 +27,8 @@ from yolo_box_color import colors
 os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
 img_type = cv2.IMREAD_GRAYSCALE
-train_image_path = r'C:\inz\train_data\loon_detection_train'
-test_img_path = r'C:\inz\train_data\loon_detection_test'
+train_image_path = r'C:\inz\train_data\lp_detection'
+test_img_path = r'C:\inz\train_data\lp_detection'
 
 lr = 1e-2
 batch_size = 2
@@ -347,7 +347,7 @@ def train():
     """
     global lr, batch_size, epoch, test_img_path, class_names, class_count, validation_ratio, new_model_saved
 
-    total_image_paths = glob(f'{train_image_path}/*.jpg')
+    total_image_paths = glob(f'{train_image_path}/*lane*etc*/*.jpg')
     random.shuffle(total_image_paths)
     train_image_count = int(len(total_image_paths) * (1 - validation_ratio))
     train_image_paths = total_image_paths[:train_image_count]
@@ -405,7 +405,7 @@ def train():
     model = tf.keras.models.Model(model_input, x)
 
     model.summary()
-    model.compile(optimizer=tf.keras.optimizers.RMSprop(lr=lr, rho=0.9), loss=CustomLoss())
+    model.compile(optimizer=tf.keras.optimizers.Adam(lr=lr), loss=MeanAbsoluteLogError())
     model.save('model.h5')
 
     live_view(total_image_paths)
