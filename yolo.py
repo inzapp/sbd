@@ -162,6 +162,21 @@ class MeanAbsoluteLogError(tf.keras.losses.Loss):
         return loss
 
 
+class CustomLoss(tf.keras.losses.Loss):
+    """
+    Custom loss function.
+    Usage:
+     model.compile(loss=[CustomLoss()], optimizer="sgd")
+    """
+
+    def call(self, y_true, y_pred):
+        p_loss = MeanAbsoluteLogError()(y_true[:, :, :, 0], y_pred[:, :, :, 0])
+        xy_loss = MeanAbsoluteLogError()(y_true[:, :, :, 1:3], y_pred[:, :, :, 1:3])
+        wh_loss = MeanAbsoluteLogError()(tf.sqrt(y_true[:, :, :, 3:5]), tf.sqrt(y_pred[:, :, :, 3:5]))
+        c_loss = MeanAbsoluteLogError()(y_true[:, :, :, 5:], y_pred[:, :, :, 5:])
+        return p_loss + xy_loss + wh_loss + c_loss
+
+
 def resize(img, size):
     """
     Use different interpolations to resize according to the target size.
@@ -331,7 +346,7 @@ def train():
     """
     global lr, batch_size, epoch, test_img_path, class_names, class_count, validation_ratio, new_model_saved
 
-    total_image_paths = glob(f'{train_image_path}/*lane*etc*/*.jpg')
+    total_image_paths = glob(f'{train_image_path}/*crime*etc*/*.jpg')
     random.shuffle(total_image_paths)
     train_image_count = int(len(total_image_paths) * (1 - validation_ratio))
     train_image_paths = total_image_paths[:train_image_count]
