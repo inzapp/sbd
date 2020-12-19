@@ -34,9 +34,9 @@ lr = 1e-2
 batch_size = 2
 epoch = 300
 validation_ratio = 0.2
-input_shape = (128, 512)
-output_shape = (8, 32)
-bbox_percentage_threshold = 0.25
+input_shape = (368, 640)
+output_shape = (23, 40)
+p_threshold = 0.5
 bbox_padding_val = 0
 
 font_scale = 0.4
@@ -162,6 +162,45 @@ class MeanAbsoluteLogError(tf.keras.losses.Loss):
         return loss
 
 
+class SumSquaredError(tf.keras.losses.Loss):
+    """
+    Sum over squared loss function.
+    f(x) = sum(sqrt(x))
+    Usage:
+     model.compile(loss=[SumSquaredError()], optimizer="sgd")
+    """
+
+    def call(self, y_true, y_pred):
+        from tensorflow.python.framework.ops import convert_to_tensor_v2
+        y_pred = convert_to_tensor_v2(y_pred)
+        y_true = tf.cast(y_true, y_pred.dtype)
+        p_loss = tf.math.square(tf.math.abs(y_true[:, :, :, 0] - y_pred[:, :, :, 0]))
+        p_loss = tf.keras.backend.sum(tf.keras.backend.mean(p_loss, axis=-1))
+        xy_loss = tf.math.square(tf.math.abs(y_true[:, :, :, 1:3] - y_pred[:, :, :, 1:3]))
+        xy_loss = tf.keras.backend.sum(tf.keras.backend.mean(xy_loss, axis=-1))
+        wh_loss = tf.math.square(tf.math.abs(tf.math.sqrt(y_true[:, :, :, 3:5]) - tf.math.sqrt(y_pred[:, :, :, 3:5])))
+        wh_loss = tf.keras.backend.sum(tf.keras.backend.mean(wh_loss, axis=-1))
+        c_loss = tf.math.square(tf.math.abs(y_true[:, :, :, 5:] - y_pred[:, :, :, 5:]))
+        c_loss = tf.keras.backend.sum(tf.keras.backend.mean(c_loss, axis=-1))
+        return p_loss + (xy_loss * 5.0) + (wh_loss * 5.0) + c_loss
+
+
+def sum_squared_error(y_true, y_pred):
+    from tensorflow.python.framework.ops import convert_to_tensor_v2
+    y_pred = convert_to_tensor_v2(y_pred)
+    y_true = tf.cast(y_true, y_pred.dtype)
+    loss = tf.math.square(y_true - y_pred)
+    return tf.keras.backend.sum(loss)
+
+
+def yolo_loss(y_true, y_pred):
+    loss_0 = sum_squared_error(y_true[..., :3], y_pred[..., :3])
+    loss_1 = sum_squared_error(tf.sqrt(tf.math.abs(y_true[..., 3:5])), tf.sqrt(tf.math.abs(y_pred[..., 3:5])))
+    # loss_1 = sum_squared_error(y_true[..., 3:5], y_pred[..., 3:5])
+    loss_2 = sum_squared_error(y_true[..., 5:], y_pred[..., 5:])
+    return loss_0 + loss_1 + loss_2
+
+
 class CustomLoss(tf.keras.losses.Loss):
     """
     Custom loss function.
@@ -198,19 +237,19 @@ def forward_yolo(net, x):
     :return: dictionary array sorted by x position.
     each dictionary has class index and box info: [x1, y1, x2, y2].
     """
-    global bbox_percentage_threshold, bbox_padding_val, class_names
+    global p_threshold, bbox_padding_val, class_names
     raw_width, raw_height = x.shape[1], x.shape[0]
     if img_channels == 1:
         x = cv2.cvtColor(x, cv2.COLOR_BGR2GRAY)
     x = resize(x, (input_shape[1], input_shape[0]))
     x = np.asarray(x).reshape(1, img_channels, input_shape[0], input_shape[1]).astype('float32') / 255.
     net.setInput(x)
-    y = net.forward()[0]
+    y = np.clip(net.forward()[0], 0.0, 1.0)
     predict_res = []
 
     for i in range(output_shape[0]):
         for j in range(output_shape[1]):
-            if y[0][i][j] < 0.5:
+            if y[0][i][j] < p_threshold:
                 continue
             p = y[0][i][j]
             cx = y[1][i][j]
@@ -347,7 +386,7 @@ def train():
     """
     global lr, batch_size, epoch, test_img_path, class_names, class_count, validation_ratio, new_model_saved
 
-    total_image_paths = glob(f'{train_image_path}/*lane*etc*/*.jpg')
+    total_image_paths = glob(f'{train_image_path}/*/*.jpg')
     random.shuffle(total_image_paths)
     train_image_count = int(len(total_image_paths) * (1 - validation_ratio))
     train_image_paths = total_image_paths[:train_image_count]
@@ -414,7 +453,7 @@ def train():
         validation_data=validation_data_generator,
         epochs=epoch,
         callbacks=[
-            # tf.keras.callbacks.ModelCheckpoint(filepath='checkpoints/sgd_fpw_loss_epoch_{epoch}_loss_{loss:.4f}_val_loss_{val_loss:.4f}.h5'),
+            tf.keras.callbacks.ModelCheckpoint(filepath='checkpoints/yolo_epoch_{epoch}_loss_{loss:.4f}_val_loss_{val_loss:.4f}.h5'),
             tf.keras.callbacks.ModelCheckpoint(filepath='model.h5'),
             tf.keras.callbacks.LambdaCallback(on_epoch_end=new_model_saved_on),
         ]
