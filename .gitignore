@@ -2,3 +2,4 @@
 *.pb
 .idea/
 __pycache__/
+checkpoints/
