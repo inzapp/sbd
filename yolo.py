@@ -291,7 +291,7 @@ def bounding_box(img, predict_res):
         class_name = class_names[class_index].replace('/n', '')
         label_background_color = colors[class_index]
         label_font_color = (0, 0, 0) if is_background_color_bright(label_background_color) else (255, 255, 255)
-        label_text = f'{class_name} {round(cur_res["p"] * 100.0)}%'
+        label_text = f'{class_name}({round(cur_res["p"] * 100.0)}%)'
         label_width, label_height = get_text_label_width_height(label_text)
         x1, y1, x2, y2 = cur_res['box']
         cv2.rectangle(img, (x1, y1), (x2, y2), label_background_color, 2)
