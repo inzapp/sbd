@@ -15,6 +15,7 @@ limitations under the License.
 """
 import os
 import random
+import sys
 from glob import glob
 from time import time
 
@@ -29,22 +30,29 @@ os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 img_type = cv2.IMREAD_GRAYSCALE
 train_image_path = r'.'
 test_img_path = r'.'
+sys.setrecursionlimit(100000)
 
 lr = 0.01
+momentum = 0.95
 batch_size = 2
-epoch = 20
+epoch = 50
 validation_ratio = 0.2
 input_shape = (256, 256)
 output_shape = (32, 32)
 bbox_percentage_threshold = 0.25
-bbox_padding_val = 0
 
 font_scale = 0.4
 img_channels = 3 if img_type == cv2.IMREAD_COLOR else 1
-class_count = 0
+live_view_previous_time = time()
+total_image_paths = []
+total_image_count = 0
 class_names = []
+class_count = 0
 
-new_model_saved = True
+x_min = 0
+y_min = 0
+x_max = 0
+y_max = 0
 
 
 class SbdDataGenerator(tf.keras.utils.Sequence):
@@ -127,11 +135,15 @@ class SbdDataGenerator(tf.keras.utils.Sequence):
                             value=0
                         )
 
+                if random.choice([0, 1]) == 1:
+                    value = random.choice([0.0, 127.0, 255.0])
+                    x += ((value - np.asarray(x)) * 0.1).astype('uint8')
+
             for j in range(len(y)):
                 y[j] = self.compress(y[j])
-            x = np.asarray(x).reshape(input_shape[0], input_shape[1], img_channels).astype('float32') / 255.
+            x = np.asarray(x).reshape((input_shape[0], input_shape[1], img_channels)).astype('float32') / 255.
             y = np.moveaxis(np.asarray(y), 0, -1)
-            y = np.asarray(y).reshape(output_shape[0], output_shape[1], class_count).astype('float32')
+            y = np.asarray(y).reshape((output_shape[0], output_shape[1], class_count)).astype('float32')
             batch_x.append(x)
             batch_y.append(y)
         batch_x = np.asarray(batch_x)
@@ -179,25 +191,20 @@ class SbdDataGenerator(tf.keras.utils.Sequence):
                 class_count = len(class_names)
 
 
-class FPWeightedError(tf.keras.losses.Loss):
+class MeanAbsoluteLogError(tf.keras.losses.Loss):
     """
-    False positive weighted loss function.
-    f(x) = -log(1 - MAE(x)) + -log(1 - FP(x))
+    Mean absolute logarithmic error loss function.
+    f(x) = -log(1 - MAE(x))
     Usage:
-     model.compile(loss=[FPWeightedError()], optimizer="sgd")
+     model.compile(loss=[MeanAbsoluteLogError()], optimizer="sgd")
     """
 
     def call(self, y_true, y_pred):
         from tensorflow.python.framework.ops import convert_to_tensor_v2
         y_pred = convert_to_tensor_v2(y_pred)
         y_true = tf.cast(y_true, y_pred.dtype)
-        loss = tf.math.abs(y_pred - y_true)
-        loss = -tf.math.log(1.0 + 1e-7 - loss)
-        loss = tf.keras.backend.mean(tf.keras.backend.sum(loss, axis=-1))
-        fp = tf.keras.backend.clip(-(y_true - y_pred), 0.0, 1.0)
-        fp = -tf.math.log(1.0 + 1e-7 - fp)
-        fp = tf.keras.backend.mean(tf.keras.backend.sum(fp, axis=-1))
-        return loss + fp
+        loss = -tf.math.log(1.0 + 1e-7 - tf.math.abs(y_pred - y_true))
+        return tf.keras.backend.mean(loss)
 
 
 def resize(img, size):
@@ -212,36 +219,126 @@ def resize(img, size):
         return cv2.resize(img, size, interpolation=cv2.INTER_LINEAR)
 
 
-def forward(net, x):
+def dfs(channel, row, col):
     """
-    Detect object in image using trained sbd model.
-    :param net: sbd tensorflow frozen pb model.
-    :param x: image to be predicted.
-    :return: dictionary array sorted by x position.
-    each dictionary has class index and box info: [x1, y1, x2, y2].
+    Depth first search algorithm to detect object and get bounding box.
+    :param channel: output class channel from network.
+    :param row: row index of class channel.
+    :param col: col index of class channel.
     """
-    global bbox_percentage_threshold, bbox_padding_val, class_names
+    global output_shape, bbox_percentage_threshold, x_min, y_min, x_max, y_max
+    if row < 0 or row >= output_shape[0] or col < 0 or col >= output_shape[1] or channel[row][col] < bbox_percentage_threshold:
+        return
+    channel[row][col] = 0
+    if x_min > col:
+        x_min = col
+    if y_min > row:
+        y_min = row
+    if x_max < col:
+        x_max = col
+    if y_max < row:
+        y_max = row
+    dfs(channel, row, col - 1)
+    dfs(channel, row, col + 1)
+    dfs(channel, row - 1, col)
+    dfs(channel, row + 1, col)
+    dfs(channel, row - 1, col - 1)
+    dfs(channel, row - 1, col + 1)
+    dfs(channel, row + 1, col - 1)
+    dfs(channel, row + 1, col + 1)
+
+
+def forward(model, x, model_extension='h5'):
+    """
+    Total SBD forward function.
+    Convert results from the network to channel-first-ordering and extract bounding box information for each class channel.
+    :param model: keras h5 model or tensorflow frozen pb net.
+    :param x: image to be forwarded.
+    :param model_extension: model file extension. h5 and pb are available.
+    """
+    global bbox_percentage_threshold, class_names, output_shape, x_min, y_min, x_max, y_max
     raw_width, raw_height = x.shape[1], x.shape[0]
     if img_channels == 1:
         x = cv2.cvtColor(x, cv2.COLOR_BGR2GRAY)
     x = resize(x, (input_shape[1], input_shape[0]))
-    x = np.asarray(x).reshape(1, img_channels, input_shape[0], input_shape[1]).astype('float32') / 255.
-    net.setInput(x)
-    y = net.forward()[0]
+    y = []
+    if model_extension == 'h5':
+        x = np.asarray(x).reshape((1, input_shape[0], input_shape[1], img_channels)).astype('float32') / 255.
+        y = model.predict(x=x, batch_size=1)[0]
+        y = np.moveaxis(y, -1, 0)
+    elif model_extension == 'pb':
+        x = np.asarray(x).reshape((1, img_channels, input_shape[0], input_shape[1])).astype('float32') / 255.
+        model.setInput(x)
+        y = model.forward()[0]
     predict_res = []
+    for class_index, channel in enumerate(y):
+        for row in range(output_shape[0]):
+            for col in range(output_shape[1]):
+                if channel[row][col] > bbox_percentage_threshold:
+                    x_min = 9999999
+                    y_min = 9999999
+                    x_max = -1
+                    y_max = -1
+                    dfs(channel, row, col)
+                    if x_max - x_min == 0 and y_max - y_min == 0:
+                        continue
 
-    for i, channel in enumerate(y):
-        channel = np.asarray(channel).reshape(output_shape).astype('float32') * 255
-        channel = cv2.resize(channel, (raw_width, raw_height), interpolation=cv2.INTER_LINEAR).astype('uint8')
-        _, channel = cv2.threshold(channel, int(bbox_percentage_threshold * 255), 255, cv2.THRESH_BINARY)
-        contours, _ = cv2.findContours(channel, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        for contour in contours:
-            x, y, w, h = cv2.boundingRect(contour)
-            x, y, w, h = x - bbox_padding_val, y - bbox_padding_val, w + 2 * bbox_padding_val, h + 2 * bbox_padding_val
-            predict_res.append({
-                'class': i,
-                'box': [x, y, x + w, y + h]
-            })
+                    # calculate bounding box coordinate offset
+                    max_f = 0.0
+                    for y in range(y_min, y_max + 1):
+                        if channel[y][x_min] > max_f:
+                            max_f = channel[y][x_min]
+                    x_min_offset_f = (1.0 - max_f) / float(output_shape[1])
+
+                    max_f = 0.0
+                    for y in range(y_min, y_max + 1):
+                        if channel[y][x_max] > max_f:
+                            max_f = channel[y][x_max]
+                    x_max_offset_f = max_f / float(output_shape[1])
+
+                    max_f = 0.0
+                    for x in range(x_min, x_max + 1):
+                        if channel[y_min][x] > max_f:
+                            max_f = channel[y_min][x]
+                    y_min_offset_f = (1.0 - max_f) / float(output_shape[0])
+
+                    max_f = 0.0
+                    for x in range(x_min, x_max + 1):
+                        if channel[y_max][x] > max_f:
+                            max_f = channel[y_max][x]
+                    y_max_offset_f = max_f / float(output_shape[0])
+
+                    x_min_f = x_min / float(output_shape[1])
+                    y_min_f = y_min / float(output_shape[0])
+                    x_max_f = x_max / float(output_shape[1])
+                    y_max_f = y_max / float(output_shape[0])
+
+                    # fine tune box precision
+                    if x_max - x_min > 0:
+                        x_min_f += x_min_offset_f
+                        x_max_f += x_max_offset_f
+                    elif x_max - x_min == 0:
+                        x_max_f += 1.0 / float(output_shape[1])
+                    if y_max - y_min > 0:
+                        y_min_f += y_min_offset_f
+                        y_max_f += y_max_offset_f
+                    elif y_max - y_min == 0:
+                        y_max_f += 1.0 / float(output_shape[0])
+
+                    # clip
+                    if x_min_f < 0.0:
+                        x_min_f = 0.0
+                    if x_max_f > 1.0:
+                        x_max_f = 1.0
+
+                    x_min = int(x_min_f * raw_width)
+                    y_min = int(y_min_f * raw_height)
+                    x_max = int(x_max_f * raw_width)
+                    y_max = int(y_max_f * raw_height)
+                    predict_res.append({
+                        'class': class_index,
+                        'box': [x_min, y_min, x_max, y_max]
+                    })
     return sorted(predict_res, key=lambda __x: __x['box'][0])
 
 
@@ -279,7 +376,7 @@ def is_background_color_bright(bgr):
 
 def bounding_box(img, predict_res):
     """
-    draw bounding box using result of sbd.predict function.
+    Draw bounding box using result of sbd.predict function.
     :param img: image to be predicted.
     :param predict_res: result value of sbd.predict() function.
     :return: image of bounding boxed.
@@ -300,47 +397,6 @@ def bounding_box(img, predict_res):
     return img
 
 
-def live_view(image_paths):
-    """
-    Check the SBD models training course by forwarding it in real time.
-    :param image_paths: Image paths to be viewed in real time.
-    """
-
-    def thread_function():
-        """
-        Thread function of live_view function.
-        """
-        global img_type, new_model_saved
-        freeze('model.h5')
-        net = cv2.dnn.readNet('model.pb')
-        while True:
-            for cur_image_path in image_paths:
-                if new_model_saved:
-                    freeze('model.h5')
-                    net = cv2.dnn.readNet('model.pb')
-                    new_model_saved = False
-                img = cv2.imread(cur_image_path, cv2.IMREAD_COLOR)
-                img = resize(img, (input_shape[1], input_shape[0]))
-                res = forward(net, img)
-                img = bounding_box(img, res)
-                cv2.imshow('training view', img)
-                cv2.waitKey(200)
-
-    from concurrent.futures.thread import ThreadPoolExecutor
-    pool = ThreadPoolExecutor(1)
-    pool.submit(thread_function)
-
-
-def new_model_saved_on(_epoch, _logs):
-    """
-    Lambda callback function for alerting new model is saved.
-    Usage:
-        tf.keras.callbacks.LambdaCallback(on_epoch_end=new_model_saved_on)
-    """
-    global new_model_saved
-    new_model_saved = True
-
-
 def freeze(model_name):
     """
     Freeze keras h5 model to tensorflow pb file
@@ -354,21 +410,34 @@ def freeze(model_name):
     frozen_func.graph.as_graph_def()
     tf.io.write_graph(
         graph_or_graph_def=frozen_func.graph,
-        logdir=".",
-        name="model.pb",
+        logdir='.',
+        name='model.pb',
         as_text=False
     )
+    net = cv2.dnn.readNet('model.pb')
+    print(f'\nconvert pb success. {len(net.getLayerNames())} layers')
+    return True
+
+
+def random_forward(model):
+    global total_image_paths, total_image_count
+    from random import randrange
+    img = cv2.imread(total_image_paths[randrange(0, total_image_count)], cv2.IMREAD_COLOR)
+    res = forward(model, img)
+    img = bounding_box(img, res)
+    cv2.imshow('random forward', img)
 
 
 def train():
     """
-    train the sbd network using the hyper parameter at the top.
+    Train the sbd network using the hyper parameter at the top.
     """
-    global lr, batch_size, epoch, test_img_path, class_names, class_count, validation_ratio, new_model_saved
+    global total_image_paths, total_image_count, lr, momentum, batch_size, epoch, test_img_path, class_names, class_count, validation_ratio
 
     total_image_paths = glob(f'{train_image_path}/*.jpg')
+    total_image_count = len(total_image_paths)
     random.shuffle(total_image_paths)
-    train_image_count = int(len(total_image_paths) * (1 - validation_ratio))
+    train_image_count = int(total_image_count * (1 - validation_ratio))
     train_image_paths = total_image_paths[:train_image_count]
     validation_image_paths = total_image_paths[train_image_count:]
     train_data_generator = SbdDataGenerator(image_paths=train_image_paths, augmentation=False)
@@ -380,23 +449,13 @@ def train():
     model_input = tf.keras.layers.Input(shape=(input_shape[0], input_shape[1], img_channels))
 
     x = tf.keras.layers.Conv2D(
-        filters=8,
-        kernel_size=3,
-        kernel_initializer='he_uniform',
-        padding='same'
-    )(model_input)
-    x = tf.keras.layers.ReLU()(x)
-    x = tf.keras.layers.BatchNormalization()(x)
-    x = tf.keras.layers.MaxPool2D()(x)
-
-    x = tf.keras.layers.Conv2D(
         filters=16,
         kernel_size=3,
         kernel_initializer='he_uniform',
         padding='same'
-    )(x)
-    x = tf.keras.layers.ReLU()(x)
+    )(model_input)
     x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.MaxPool2D()(x)
 
     x = tf.keras.layers.Conv2D(
@@ -405,8 +464,16 @@ def train():
         kernel_initializer='he_uniform',
         padding='same'
     )(x)
-    x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.layers.ReLU()(x)
+    x = tf.keras.layers.Conv2D(
+        filters=32,
+        kernel_size=3,
+        kernel_initializer='he_uniform',
+        padding='same'
+    )(x)
+    x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.MaxPool2D()(x)
 
     x = tf.keras.layers.Conv2D(
@@ -415,8 +482,19 @@ def train():
         kernel_initializer='he_uniform',
         padding='same'
     )(x)
-    x = tf.keras.layers.ReLU()(x)
+    skip_connection = x
     x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.layers.ReLU()(x)
+    x = tf.keras.layers.Conv2D(
+        filters=64,
+        kernel_size=3,
+        kernel_initializer='he_uniform',
+        padding='same'
+    )(x)
+    x = tf.keras.layers.Add()([x, skip_connection])
+    x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.layers.ReLU()(x)
+    x = tf.keras.layers.MaxPool2D()(x)
 
     x = tf.keras.layers.Conv2D(
         filters=128,
@@ -424,8 +502,53 @@ def train():
         kernel_initializer='he_uniform',
         padding='same'
     )(x)
-    x = tf.keras.layers.ReLU()(x)
+    skip_connection = x
     x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.layers.ReLU()(x)
+    x = tf.keras.layers.Conv2D(
+        filters=128,
+        kernel_size=3,
+        kernel_initializer='he_uniform',
+        padding='same'
+    )(x)
+    x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.layers.ReLU()(x)
+    x = tf.keras.layers.Conv2D(
+        filters=128,
+        kernel_size=3,
+        kernel_initializer='he_uniform',
+        padding='same'
+    )(x)
+    x = tf.keras.layers.Add()([x, skip_connection])
+    x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.layers.ReLU()(x)
+
+    x = tf.keras.layers.Conv2D(
+        filters=256,
+        kernel_size=3,
+        kernel_initializer='he_uniform',
+        padding='same'
+    )(x)
+    skip_connection = x
+    x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.layers.ReLU()(x)
+    x = tf.keras.layers.Conv2D(
+        filters=256,
+        kernel_size=3,
+        kernel_initializer='he_uniform',
+        padding='same'
+    )(x)
+    x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.layers.ReLU()(x)
+    x = tf.keras.layers.Conv2D(
+        filters=256,
+        kernel_size=3,
+        kernel_initializer='he_uniform',
+        padding='same'
+    )(x)
+    x = tf.keras.layers.Add()([x, skip_connection])
+    x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.layers.ReLU()(x)
 
     x = tf.keras.layers.Conv2D(
         filters=class_count,
@@ -436,36 +559,36 @@ def train():
 
     model = tf.keras.models.Model(model_input, x)
     model.summary()
-    model.compile(optimizer=tf.keras.optimizers.RMSprop(lr=lr), loss=FPWeightedError())
+    model.compile(optimizer=tf.keras.optimizers.SGD(lr=lr, momentum=momentum), loss=MeanAbsoluteLogError())
     model.save('model.h5')
+    if not freeze('model.h5'):
+        print('model freeze failure.')
+        exit(-1)
 
-    live_view(total_image_paths)
+    def random_live_view(batch, logs):
+        global live_view_previous_time
+        cur_time = time()
+        if cur_time - live_view_previous_time > 0.5:
+            live_view_previous_time = cur_time
+            random_forward(model)
+            cv2.waitKey(1)
+
     model.fit(
         x=train_data_generator,
         validation_data=validation_data_generator,
         epochs=epoch,
         callbacks=[
             tf.keras.callbacks.ModelCheckpoint(filepath='model.h5'),
-            tf.keras.callbacks.LambdaCallback(on_epoch_end=new_model_saved_on),
+            tf.keras.callbacks.LambdaCallback(on_batch_end=random_live_view),
         ]
     )
-    model.save('model.h5')
 
+    model.save('model.h5')
     freeze('model.h5')
-    net = cv2.dnn.readNet('model.pb')
-    for cur_img_path in glob(f'{test_img_path}/*.jpg'):
-        print(cur_img_path)
-        img = cv2.imread(cur_img_path, cv2.IMREAD_COLOR)
-        img = resize(img, (input_shape[1], input_shape[0]))
-        st = time()
-        res = forward(net, img)
-        et = time()
-        print(f'[Inference Time] : {(et - st):.3f} s')
-        img = bounding_box(img, res)
-        print(res)
-        cv2.imshow('img', img)
-        cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    print('train success')
+    while True:
+        random_forward(model)
+        cv2.waitKey(200)
 
 
 if __name__ == '__main__':
