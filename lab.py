@@ -279,6 +279,44 @@ def interpolation_test():
     cv2.destroyAllWindows()
 
 
+def convert_1_box_label():
+    from glob import glob
+    from tqdm import tqdm
+    import yolo
+    with open(f'{yolo.train_image_path}/classes.txt', 'rt') as classes_file:
+        yolo.class_names = [s.replace('\n', '') for s in classes_file.readlines()]
+    img_paths = glob(rf'{yolo.train_image_path}\*\*.jpg')
+    for cur_img_path in tqdm(img_paths):
+        x = cv2.imread(cur_img_path, yolo.img_type)
+        x = yolo.resize(x, (yolo.input_shape[1], yolo.input_shape[0]))
+        converted_res = []
+        with open(rf'{cur_img_path[:-4]}.txt', mode='rt') as f:
+            lines = f.readlines()
+        y = np.zeros((yolo.input_shape[0], yolo.input_shape[1]), dtype=np.uint8)
+        for line in lines:
+            class_index, cx, cy, w, h = list(map(float, line.split(' ')))
+            x1, y1, x2, y2 = cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2
+            x1, y1, x2, y2 = int(x1 * x.shape[1]), int(y1 * x.shape[0]), int(x2 * x.shape[1]), int(y2 * x.shape[0])
+            cv2.rectangle(y, (x1, y1), (x2, y2), (255, 255, 255), -1)
+            converted_res.append({'class': class_index, 'box': [x1, y1, x2, y2]})
+
+        contours, _ = cv2.findContours(y, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        converted_label_str = ''
+        for contour in contours:
+            x_abs, y_abs, raw_width, raw_height = cv2.boundingRect(contour)
+            x_min_f = x_abs / float(yolo.input_shape[1])
+            y_min_f = y_abs / float(yolo.input_shape[0])
+            width_f = raw_width / float(yolo.input_shape[1])
+            height_f = raw_height / float(yolo.input_shape[0])
+            cx_f = x_min_f + width_f / 2.0
+            cy_f = y_min_f + height_f / 2.0
+            converted_label_str += f'0 {cx_f:.6f} {cy_f:.6f} {width_f:.6f} {height_f:.6f}\n'
+        cv2.imshow('y', y)
+        cv2.waitKey(0)
+        # with open(rf'{cur_img_path[:-4]}.txt', mode='wt') as f:
+        #     f.write(converted_label_str)
+
+
 if __name__ == '__main__':
     interpolation_test()
     # test_loss()
