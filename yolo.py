@@ -156,10 +156,8 @@ class MeanAbsoluteLogError(tf.keras.losses.Loss):
         from tensorflow.python.framework.ops import convert_to_tensor_v2
         y_pred = convert_to_tensor_v2(y_pred)
         y_true = tf.cast(y_true, y_pred.dtype)
-        loss = tf.math.abs(y_true - y_pred)
-        loss = -tf.math.log(1.0 + 1e-7 - loss)
-        loss = tf.keras.backend.mean(loss, axis=-1)
-        return loss
+        loss = -tf.math.log(1.0 + 1e-7 - tf.math.abs(y_true - y_pred))
+        return tf.keras.backend.mean(loss)
 
 
 def resize(img, size):
