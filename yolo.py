@@ -32,7 +32,7 @@ test_image_path = r'C:\inz\train_data\lp_detection\done'
 
 lr = 1e-3
 batch_size = 2
-epoch = 2
+epoch = 1000
 validation_ratio = 0.2
 input_shape = (368, 640)
 output_shape = (23, 40)
@@ -426,7 +426,7 @@ def freeze(model_name):
 def test_video():
     global input_shape, img_channels
     class_names.append('license_plate')
-    net = cv2.dnn.readNet('model.pb')
+    model = cv2.dnn.readNet('model.pb')
 
     # out = cv2.VideoWriter('output.mp4', cv2.VideoWriter_fourcc(*'MP4V'), 20.0, (640, 368))
 
@@ -451,7 +451,7 @@ def test_video():
             break
         # x = resize(x, (input_shape[1], input_shape[0]))
         x = cv2.resize(x, (0, 0), fx=0.5, fy=0.5, interpolation=cv2.INTER_AREA)
-        res = forward(net, x)
+        res = forward(model, x, model_type='pb')
         boxed = bounding_box(x, res)
         # out.write(x)
         cv2.imshow('res', x)
