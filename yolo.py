@@ -27,12 +27,12 @@ from yolo_box_color import colors
 os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
 img_type = cv2.IMREAD_GRAYSCALE
-train_image_path = r'C:\inz\train_data\lp_detection'
-test_img_path = r'C:\inz\train_data\lp_detection'
+train_image_path = r'C:\inz\train_data\lp_detection\done'
+test_image_path = r'C:\inz\train_data\lp_detection\done'
 
-lr = 1e-2
+lr = 1e-3
 batch_size = 2
-epoch = 2000
+epoch = 2
 validation_ratio = 0.2
 input_shape = (368, 640)
 output_shape = (23, 40)
@@ -41,23 +41,23 @@ bbox_padding_val = 0
 
 font_scale = 0.4
 img_channels = 3 if img_type == cv2.IMREAD_COLOR else 1
-class_count = 0
+live_view_previous_time = time()
+total_image_paths = []
+total_image_count = 0
 class_names = []
-
-new_model_saved = True
+class_count = 0
 
 
 class YoloDataGenerator(tf.keras.utils.Sequence):
     """
     Custom data generator for YOLO model.
     Usage:
-        generator = SbdDataGenerator(image_paths=train_image_paths, augmentation=True)
+        generator = SbdDataGenerator(image_paths=train_image_paths)
     """
 
-    def __init__(self, image_paths, augmentation):
+    def __init__(self, image_paths):
         self.init_label()
         self.image_paths = image_paths
-        self.augmentation = augmentation
         self.random_indexes = np.arange(len(self.image_paths))
         np.random.shuffle(self.random_indexes)
 
@@ -94,9 +94,9 @@ class YoloDataGenerator(tf.keras.utils.Sequence):
                 y[2][center_row][center_col] = (cy - (center_row * grid_height_ratio)) / grid_height_ratio
                 y[3][center_row][center_col] = w
                 y[4][center_row][center_col] = h
-            x = np.asarray(x).reshape(input_shape[0], input_shape[1], img_channels).astype('float32') / 255.
+            x = np.asarray(x).reshape((input_shape[0], input_shape[1], img_channels)).astype('float32') / 255.
             y = np.moveaxis(np.asarray(y), 0, -1)
-            y = np.asarray(y).reshape(output_shape[0], output_shape[1], class_count + 5).astype('float32')
+            y = np.asarray(y).reshape((output_shape[0], output_shape[1], class_count + 5)).astype('float32')
             batch_x.append(x)
             batch_y.append(y)
         batch_x = np.asarray(batch_x)
@@ -162,61 +162,6 @@ class MeanAbsoluteLogError(tf.keras.losses.Loss):
         return loss
 
 
-class SumSquaredError(tf.keras.losses.Loss):
-    """
-    Sum over squared loss function.
-    f(x) = sum(sqrt(x))
-    Usage:
-     model.compile(loss=[SumSquaredError()], optimizer="sgd")
-    """
-
-    def call(self, y_true, y_pred):
-        from tensorflow.python.framework.ops import convert_to_tensor_v2
-        y_pred = convert_to_tensor_v2(y_pred)
-        y_true = tf.cast(y_true, y_pred.dtype)
-        p_loss = tf.math.square(tf.math.abs(y_true[:, :, :, 0] - y_pred[:, :, :, 0]))
-        p_loss = tf.keras.backend.sum(tf.keras.backend.mean(p_loss, axis=-1))
-        xy_loss = tf.math.square(tf.math.abs(y_true[:, :, :, 1:3] - y_pred[:, :, :, 1:3]))
-        xy_loss = tf.keras.backend.sum(tf.keras.backend.mean(xy_loss, axis=-1))
-        wh_loss = tf.math.square(tf.math.abs(tf.math.sqrt(y_true[:, :, :, 3:5]) - tf.math.sqrt(y_pred[:, :, :, 3:5])))
-        wh_loss = tf.keras.backend.sum(tf.keras.backend.mean(wh_loss, axis=-1))
-        c_loss = tf.math.square(tf.math.abs(y_true[:, :, :, 5:] - y_pred[:, :, :, 5:]))
-        c_loss = tf.keras.backend.sum(tf.keras.backend.mean(c_loss, axis=-1))
-        return p_loss + (xy_loss * 5.0) + (wh_loss * 5.0) + c_loss
-
-
-def sum_squared_error(y_true, y_pred):
-    from tensorflow.python.framework.ops import convert_to_tensor_v2
-    y_pred = convert_to_tensor_v2(y_pred)
-    y_true = tf.cast(y_true, y_pred.dtype)
-    loss = tf.math.square(y_true - y_pred)
-    return tf.keras.backend.sum(loss)
-
-
-def yolo_loss(y_true, y_pred):
-    loss_0 = sum_squared_error(y_true[..., :3], y_pred[..., :3])
-    loss_1 = sum_squared_error(tf.sqrt(tf.math.abs(y_true[..., 3:5])), tf.sqrt(tf.math.abs(y_pred[..., 3:5])))
-    # loss_1 = sum_squared_error(y_true[..., 3:5], y_pred[..., 3:5])
-    loss_2 = sum_squared_error(y_true[..., 5:], y_pred[..., 5:])
-    return loss_0 + loss_1 + loss_2
-
-
-class CustomLoss(tf.keras.losses.Loss):
-    """
-    Custom loss function.
-    Usage:
-     model.compile(loss=[CustomLoss()], optimizer="sgd")
-    """
-
-    def call(self, y_true, y_pred):
-        p_loss = MeanAbsoluteLogError()(y_true[:, :, :, 0], y_pred[:, :, :, 0])
-        xy_loss = MeanAbsoluteLogError()(y_true[:, :, :, 1:3], y_pred[:, :, :, 1:3])
-        # wh_loss = MeanAbsoluteLogError()(tf.sqrt(y_true[:, :, :, 3:5]), tf.sqrt(y_pred[:, :, :, 3:5]))
-        wh_loss = MeanAbsoluteLogError()(y_true[:, :, :, 3:5], y_pred[:, :, :, 3:5])
-        c_loss = MeanAbsoluteLogError()(y_true[:, :, :, 5:], y_pred[:, :, :, 5:])
-        return p_loss + xy_loss + wh_loss + c_loss
-
-
 def resize(img, size):
     """
     Use different interpolations to resize according to the target size.
@@ -229,11 +174,12 @@ def resize(img, size):
         return cv2.resize(img, size, interpolation=cv2.INTER_LINEAR)
 
 
-def forward_yolo(net, x):
+def forward(model, x, model_type='h5'):
     """
     Detect object in image using trained YOLO model.
-    :param net: YOLO tensorflow frozen pb model.
+    :param model: YOLO tensorflow frozen pb model.
     :param x: image to be predicted.
+    :param model_type: model type. h5 and pb are available.
     :return: dictionary array sorted by x position.
     each dictionary has class index and box info: [x1, y1, x2, y2].
     """
@@ -242,11 +188,18 @@ def forward_yolo(net, x):
     if img_channels == 1:
         x = cv2.cvtColor(x, cv2.COLOR_BGR2GRAY)
     x = resize(x, (input_shape[1], input_shape[0]))
-    x = np.asarray(x).reshape(1, img_channels, input_shape[0], input_shape[1]).astype('float32') / 255.
-    net.setInput(x)
-    y = np.clip(net.forward()[0], 0.0, 1.0)
-    predict_res = []
 
+    y = []
+    if model_type == 'h5':
+        x = np.asarray(x).reshape((1, input_shape[0], input_shape[1], img_channels)).astype('float32') / 255.
+        y = model.predict(x=x, batch_size=1)[0]
+        y = np.moveaxis(y, -1, 0)
+    elif model_type == 'pb':
+        x = np.asarray(x).reshape((1, img_channels, input_shape[0], input_shape[1])).astype('float32') / 255.
+        model.setInput(x)
+        y = model.forward()[0]
+
+    predict_res = []
     for i in range(output_shape[0]):
         for j in range(output_shape[1]):
             if y[0][i][j] < p_threshold:
@@ -339,60 +292,30 @@ def bounding_box(img, predict_res):
     return img
 
 
-def live_view(image_paths):
-    """
-    Check the YOLO models training course by forwarding it in real time.
-    :param image_paths: Image paths to be viewed in real time.
-    """
-
-    def thread_function():
-        """
-        Thread function of live_view function.
-        """
-        global img_type, new_model_saved
-        freeze('model.h5')
-        net = cv2.dnn.readNet('model.pb')
-        while True:
-            for cur_image_path in image_paths:
-                if new_model_saved:
-                    freeze('model.h5')
-                    net = cv2.dnn.readNet('model.pb')
-                    new_model_saved = False
-                img = cv2.imread(cur_image_path, cv2.IMREAD_COLOR)
-                img = resize(img, (input_shape[1], input_shape[0]))
-                res = forward_yolo(net, img)
-                img = bounding_box(img, res)
-                cv2.imshow('training view', img)
-                cv2.waitKey(200)
-
-    from concurrent.futures.thread import ThreadPoolExecutor
-    pool = ThreadPoolExecutor(1)
-    pool.submit(thread_function)
-
-
-def new_model_saved_on(_epoch, _logs):
-    """
-    Lambda callback function for alerting new model is saved.
-    Usage:
-        tf.keras.callbacks.LambdaCallback(on_epoch_end=new_model_saved_on)
-    """
-    global new_model_saved
-    new_model_saved = True
+def random_forward(model, model_type='h5'):
+    global total_image_paths, total_image_count, input_shape
+    from random import randrange
+    img = cv2.imread(total_image_paths[randrange(0, total_image_count)], cv2.IMREAD_COLOR)
+    img = resize(img, (input_shape[1], input_shape[0]))
+    res = forward(model, img, model_type=model_type)
+    img = bounding_box(img, res)
+    cv2.imshow('random forward', img)
 
 
 def train():
     """
     train the YOLO network using the hyper parameter at the top.
     """
-    global lr, batch_size, epoch, test_img_path, class_names, class_count, validation_ratio, new_model_saved
+    global total_image_paths, total_image_count, lr, batch_size, epoch, train_image_path, test_image_path, class_names, class_count, validation_ratio
 
-    total_image_paths = glob(f'{train_image_path}/*/*.jpg')
+    total_image_paths = glob(f'{train_image_path}/*crime*etc*/*.jpg')
+    total_image_count = len(total_image_paths)
     random.shuffle(total_image_paths)
     train_image_count = int(len(total_image_paths) * (1 - validation_ratio))
     train_image_paths = total_image_paths[:train_image_count]
     validation_image_paths = total_image_paths[train_image_count:]
-    train_data_generator = YoloDataGenerator(image_paths=train_image_paths, augmentation=False)
-    validation_data_generator = YoloDataGenerator(image_paths=validation_image_paths, augmentation=False)
+    train_data_generator = YoloDataGenerator(image_paths=train_image_paths)
+    validation_data_generator = YoloDataGenerator(image_paths=validation_image_paths)
 
     print(f'train image count : {len(train_image_paths)}')
     print(f'validation image count : {len(validation_image_paths)}')
@@ -422,8 +345,8 @@ def train():
 
     x = tf.keras.layers.Conv2D(filters=64, kernel_size=3, kernel_initializer='he_uniform', padding='same')(x)
     x = tf.keras.layers.ReLU()(x)
-    sc = x
-    sc = tf.keras.layers.MaxPool2D()(sc)
+    skip_connection = x
+    skip_connection = tf.keras.layers.MaxPool2D()(skip_connection)
     x = tf.keras.layers.BatchNormalization()(x)
 
     x = tf.keras.layers.Conv2D(filters=64, kernel_size=5, kernel_initializer='he_uniform', padding='same')(x)
@@ -437,7 +360,7 @@ def train():
     x = tf.keras.layers.Conv2D(filters=128, kernel_size=5, kernel_initializer='he_uniform', padding='same')(x)
     x = tf.keras.layers.ReLU()(x)
 
-    x = tf.keras.layers.Concatenate()([x, sc])
+    x = tf.keras.layers.Concatenate()([x, skip_connection])
     x = tf.keras.layers.BatchNormalization()(x)
 
     x = tf.keras.layers.Conv2D(filters=class_count + 5, kernel_size=1, activation='sigmoid')(x)
@@ -446,8 +369,18 @@ def train():
     model.summary()
     model.compile(optimizer=tf.keras.optimizers.Adam(lr=lr), loss=MeanAbsoluteLogError())
     model.save('model.h5')
+    if not freeze('model.h5'):
+        print('model freeze failure.')
+        exit(-1)
 
-    live_view(total_image_paths)
+    def random_live_view(batch, logs):
+        global live_view_previous_time
+        cur_time = time()
+        if cur_time - live_view_previous_time > 0.5:
+            live_view_previous_time = cur_time
+            random_forward(model, model_type='h5')
+            cv2.waitKey(1)
+
     model.fit(
         x=train_data_generator,
         validation_data=validation_data_generator,
@@ -455,26 +388,17 @@ def train():
         callbacks=[
             tf.keras.callbacks.ModelCheckpoint(filepath='checkpoints/yolo_epoch_{epoch}_loss_{loss:.4f}_val_loss_{val_loss:.4f}.h5'),
             tf.keras.callbacks.ModelCheckpoint(filepath='model.h5'),
-            tf.keras.callbacks.LambdaCallback(on_epoch_end=new_model_saved_on),
+            tf.keras.callbacks.LambdaCallback(on_batch_end=random_live_view),
         ]
     )
-    model.save('model.h5')
 
+    model.save('model.h5')
     freeze('model.h5')
-    net = cv2.dnn.readNet('model.pb')
-    for cur_img_path in glob(f'{test_img_path}/*/*.jpg'):
-        print(cur_img_path)
-        img = cv2.imread(cur_img_path, cv2.IMREAD_COLOR)
-        img = resize(img, (input_shape[1], input_shape[0]))
-        st = time()
-        res = forward_yolo(net, img)
-        et = time()
-        print(f'[Inference Time] : {(et - st):.3f} s')
-        img = bounding_box(img, res)
-        print(res)
-        cv2.imshow('img', img)
-        cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    print('train success')
+    model = cv2.dnn.readNet('model.pb')
+    while True:
+        random_forward(model, model_type='pb')
+        cv2.waitKey(200)
 
 
 def freeze(model_name):
@@ -496,6 +420,7 @@ def freeze(model_name):
     )
     net = cv2.dnn.readNet('model.pb')
     print(f'\nconvert pb success. {len(net.getLayerNames())} layers')
+    return True
 
 
 def test_video():
@@ -526,7 +451,7 @@ def test_video():
             break
         # x = resize(x, (input_shape[1], input_shape[0]))
         x = cv2.resize(x, (0, 0), fx=0.5, fy=0.5, interpolation=cv2.INTER_AREA)
-        res = forward_yolo(net, x)
+        res = forward(net, x)
         boxed = bounding_box(x, res)
         # out.write(x)
         cv2.imshow('res', x)
@@ -538,7 +463,7 @@ def test_video():
 
 
 def count_test():
-    global img_type
+    global total_image_paths, img_type
     YoloDataGenerator.init_label()
     freeze('over_fit_model.h5')
     net = cv2.dnn.readNet('model.pb')
@@ -551,15 +476,15 @@ def count_test():
     for path in tqdm(total_image_paths):
         x = cv2.imread(path, cv2.IMREAD_COLOR)
         x = resize(x, (input_shape[1], input_shape[0]))
-        boxes = forward_yolo(net, x)
+        boxes = forward(net, x)
         for box in boxes:
             x1, y1, x2, y2 = box['box']
             plate = x[y1:y2, x1:x2]
             plate = cv2.cvtColor(plate, cv2.COLOR_BGR2GRAY)
             plate = resize(plate, (192, 96))
-            plate_x = np.asarray(plate).reshape(1, 1, 96, 192).astype('float32') / 255.
+            plate_x = np.asarray(plate).reshape((1, 1, 96, 192)).astype('float32') / 255.
             ltc_net.setInput(plate_x)
-            res = ltc_net.forward_yolo()
+            res = ltc_net.forward()
             res = np.asarray(res).reshape(8, )
             max_index = int(np.argmax(res))
             if res[max_index] > 0.8:
