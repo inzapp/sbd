@@ -27,15 +27,15 @@ from yolo_box_color import colors
 os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
 img_type = cv2.IMREAD_GRAYSCALE
-train_image_path = r'C:\inz\train_data\lp_detection\done'
-test_image_path = r'C:\inz\train_data\lp_detection\done'
+train_image_path = r'C:\inz\train_data\lp_detection_yolo'
+test_image_path = r'C:\inz\train_data\lp_detection_yolo'
 
 lr = 1e-3
 batch_size = 2
 epoch = 1000
 validation_ratio = 0.2
 input_shape = (368, 640)
-output_shape = (23, 40)
+output_shape = (46, 80)
 p_threshold = 0.5
 bbox_padding_val = 0
 
@@ -328,9 +328,6 @@ def train():
     x = tf.keras.layers.Conv2D(filters=16, kernel_size=3, kernel_initializer='he_uniform', padding='same')(x)
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
-    x = tf.keras.layers.Conv2D(filters=16, kernel_size=3, kernel_initializer='he_uniform', padding='same')(x)
-    x = tf.keras.layers.ReLU()(x)
-    x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.MaxPool2D()(x)
     skip_connection = x
 
@@ -351,7 +348,6 @@ def train():
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.Concatenate()([x, skip_connection])
-    x = tf.keras.layers.MaxPool2D()(x)
     skip_connection = x
 
     x = tf.keras.layers.Conv2D(filters=128, kernel_size=3, kernel_initializer='he_uniform', padding='same')(x)
