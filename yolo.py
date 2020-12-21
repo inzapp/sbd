@@ -306,7 +306,7 @@ def train():
     """
     global total_image_paths, total_image_count, lr, batch_size, epoch, train_image_path, test_image_path, class_names, class_count, validation_ratio
 
-    total_image_paths = glob(f'{train_image_path}/*crime*etc*/*.jpg')
+    total_image_paths = glob(f'{train_image_path}/*/*.jpg')
     total_image_count = len(total_image_paths)
     random.shuffle(total_image_paths)
     train_image_count = int(len(total_image_paths) * (1 - validation_ratio))
