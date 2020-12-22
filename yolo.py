@@ -128,6 +128,7 @@ class YoloDataGenerator(tf.keras.utils.Sequence):
             for grid_x in range(0, input_shape[1], grid_width):
                 grid = y[grid_y:grid_y + grid_height, grid_x:grid_x + grid_width]
                 score = cv2.countNonZero(grid) / grid_area
+                score = 1.0 if score > 0.0 else 0.0
                 row.append(score)
             compressed_y.append(row)
         return np.asarray(compressed_y)
@@ -226,12 +227,10 @@ def forward(model, x, model_type='h5'):
                 if max_percentage < y[cur_channel_index][i][j]:
                     class_index = cur_channel_index
                     max_percentage = y[cur_channel_index][i][j]
-            if y[0][i][j] * max_percentage < 0.5:
-                continue
             predict_res.append({
                 'class': class_index - 5,
                 'box': [x_min, y_min, x_max, y_max],
-                'p': y[0][i][j] * max_percentage
+                'p': p
             })
     return sorted(predict_res, key=lambda __x: __x['box'][0])
 
@@ -438,7 +437,7 @@ def test_video():
     # out = cv2.VideoWriter('output.mp4', cv2.VideoWriter_fourcc(*'MP4V'), 20.0, (640, 368))
 
     # cap = cv2.VideoCapture('rtsp://admin:samsungg2b!@samsungg2bcctv.iptime.org:1500/video1s1')
-    # cap = cv2.VideoCapture(r'C:\inz\videos\truen.mkv')
+    cap = cv2.VideoCapture(r'C:\inz\videos\truen.mkv')
     # cap = cv2.VideoCapture(r'C:\inz\videos\hc_4k_18_day.mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\noon_not_trained.mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\noon.mp4')
@@ -447,7 +446,7 @@ def test_video():
     # cap = cv2.VideoCapture(r'C:\inz\videos\noon (4).mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\noon (5).mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\noon (6).mp4')
-    cap = cv2.VideoCapture(r'C:\inz\videos\night.mp4')
+    # cap = cv2.VideoCapture(r'C:\inz\videos\night.mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\night (2).mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\night (3).mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\night (4).mp4')
