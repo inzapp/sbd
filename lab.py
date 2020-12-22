@@ -313,8 +313,33 @@ def convert_1_box_label():
             f.write(converted_label_str)
 
 
+def compress_test():
+    from glob import glob
+    from tqdm import tqdm
+    import yolo
+    with open(f'{yolo.train_image_path}/classes.txt', 'rt') as classes_file:
+        yolo.class_names = [s.replace('\n', '') for s in classes_file.readlines()]
+    img_paths = glob(rf'{yolo.train_image_path}\*\*.jpg')
+    for cur_img_path in tqdm(img_paths):
+        x = cv2.imread(cur_img_path, yolo.img_type)
+        x = yolo.resize(x, (yolo.input_shape[1], yolo.input_shape[0]))
+        with open(rf'{cur_img_path[:-4]}.txt', mode='rt') as f:
+            lines = f.readlines()
+        y = np.zeros((yolo.input_shape[0], yolo.input_shape[1]), dtype=np.uint8)
+        for line in lines:
+            class_index, cx, cy, w, h = list(map(float, line.split(' ')))
+            x1, y1, x2, y2 = cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2
+            x1, y1, x2, y2 = int(x1 * x.shape[1]), int(y1 * x.shape[0]), int(x2 * x.shape[1]), int(y2 * x.shape[0])
+            cv2.rectangle(y, (x1, y1), (x2, y2), (255, 255, 255), -1)
+
+        contours, _ = cv2.findContours(y, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        for contour in contours:
+            pass
+
+
 if __name__ == '__main__':
-    convert_1_box_label()
+    compress_test()
+    # convert_1_box_label()
     # test_loss()
     # bounding_box_test()
     # test_interpolation()
