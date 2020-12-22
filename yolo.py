@@ -34,8 +34,8 @@ lr = 1e-3
 batch_size = 2
 epoch = 1000
 validation_ratio = 0.2
-input_shape = (368, 640)
-output_shape = (23, 40)
+input_shape = (384, 640)
+output_shape = (12, 20)
 p_threshold = 0.5
 bbox_padding_val = 0
 
@@ -313,30 +313,30 @@ def train():
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.MaxPool2D()(x)
 
-    x = tf.keras.layers.Dropout(rate=0.1)(x)
     x = tf.keras.layers.Conv2D(filters=32, kernel_size=3, kernel_initializer='he_uniform', padding='same')(x)
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.MaxPool2D()(x)
 
-    x = tf.keras.layers.Dropout(rate=0.2)(x)
     x = tf.keras.layers.Conv2D(filters=64, kernel_size=3, kernel_initializer='he_uniform', padding='same')(x)
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.MaxPool2D()(x)
 
-    x = tf.keras.layers.Dropout(rate=0.3)(x)
     x = tf.keras.layers.Conv2D(filters=128, kernel_size=3, kernel_initializer='he_uniform', padding='same')(x)
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.MaxPool2D()(x)
 
-    x = tf.keras.layers.Dropout(rate=0.4)(x)
+    x = tf.keras.layers.Conv2D(filters=128, kernel_size=3, kernel_initializer='he_uniform', padding='same')(x)
+    x = tf.keras.layers.ReLU()(x)
+    x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.layers.MaxPool2D()(x)
+
     x = tf.keras.layers.Conv2D(filters=128, kernel_size=3, kernel_initializer='he_uniform', padding='same')(x)
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
 
-    x = tf.keras.layers.Dropout(rate=0.5)(x)
     x = tf.keras.layers.Conv2D(filters=class_count + 5, kernel_size=1, activation='sigmoid')(x)
     model = tf.keras.models.Model(model_input, x)
 
@@ -360,7 +360,7 @@ def train():
         validation_data=validation_data_generator,
         epochs=epoch,
         callbacks=[
-            tf.keras.callbacks.ModelCheckpoint(filepath='checkpoints/0.24m_dropout_epoch_{epoch}_loss_{loss:.6f}_val_loss_{val_loss:.6f}.h5'),
+            tf.keras.callbacks.ModelCheckpoint(filepath='checkpoints/640_384_12_20_epoch_{epoch}_loss_{loss:.6f}_val_loss_{val_loss:.6f}.h5'),
             tf.keras.callbacks.ModelCheckpoint(filepath='model.h5'),
             tf.keras.callbacks.LambdaCallback(on_batch_end=random_live_view),
         ]
@@ -405,8 +405,8 @@ def test_video():
     # out = cv2.VideoWriter('output.mp4', cv2.VideoWriter_fourcc(*'MP4V'), 20.0, (640, 368))
 
     # cap = cv2.VideoCapture('rtsp://admin:samsungg2b!@samsungg2bcctv.iptime.org:1500/video1s1')
-    cap = cv2.VideoCapture(r'C:\inz\videos\g2b.mp4')
-    # cap = cv2.VideoCapture(r'C:\inz\videos\truen.mkv')
+    # cap = cv2.VideoCapture(r'C:\inz\videos\g2b.mp4')
+    cap = cv2.VideoCapture(r'C:\inz\videos\truen.mkv')
     # cap = cv2.VideoCapture(r'C:\inz\videos\hc_4k_18_day.mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\noon_not_trained.mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\noon.mp4')
@@ -425,7 +425,7 @@ def test_video():
         if not frame_exist:
             break
         # x = resize(x, (input_shape[1], input_shape[0]))
-        # x = cv2.resize(x, (0, 0), fx=0.5, fy=0.5, interpolation=cv2.INTER_AREA)
+        x = cv2.resize(x, (0, 0), fx=0.5, fy=0.5, interpolation=cv2.INTER_AREA)
         res = forward(model, x, model_type='pb')
         boxed = bounding_box(x, res)
         # out.write(x)
