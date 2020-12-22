@@ -35,7 +35,7 @@ batch_size = 2
 epoch = 1000
 validation_ratio = 0.2
 input_shape = (368, 640)
-output_shape = (46, 80)
+output_shape = (23, 40)
 p_threshold = 0.5
 bbox_padding_val = 0
 
@@ -226,10 +226,12 @@ def forward(model, x, model_type='h5'):
                 if max_percentage < y[cur_channel_index][i][j]:
                     class_index = cur_channel_index
                     max_percentage = y[cur_channel_index][i][j]
+            if y[0][i][j] * max_percentage < 0.5:
+                continue
             predict_res.append({
                 'class': class_index - 5,
                 'box': [x_min, y_min, x_max, y_max],
-                'p': p
+                'p': y[0][i][j] * max_percentage
             })
     return sorted(predict_res, key=lambda __x: __x['box'][0])
 
@@ -320,40 +322,50 @@ def train():
 
     model_input = tf.keras.layers.Input(shape=(input_shape[0], input_shape[1], img_channels))
 
-    x = tf.keras.layers.Conv2D(filters=8, kernel_size=3, kernel_initializer='he_uniform', padding='same')(model_input)
+    x = tf.keras.layers.Conv2D(filters=16, kernel_size=3, kernel_initializer='he_uniform', padding='same')(model_input)
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.MaxPool2D()(x)
 
-    x = tf.keras.layers.Conv2D(filters=16, kernel_size=3, kernel_initializer='he_uniform', padding='same')(x)
-    x = tf.keras.layers.ReLU()(x)
-    x = tf.keras.layers.BatchNormalization()(x)
-    x = tf.keras.layers.MaxPool2D()(x)
-    skip_connection = x
-
     x = tf.keras.layers.Conv2D(filters=32, kernel_size=3, kernel_initializer='he_uniform', padding='same')(x)
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
-    x = tf.keras.layers.Conv2D(filters=32, kernel_size=3, kernel_initializer='he_uniform', padding='same')(x)
-    x = tf.keras.layers.ReLU()(x)
-    x = tf.keras.layers.BatchNormalization()(x)
-    x = tf.keras.layers.Concatenate()([x, skip_connection])
     x = tf.keras.layers.MaxPool2D()(x)
     skip_connection = x
 
     x = tf.keras.layers.Conv2D(filters=64, kernel_size=3, kernel_initializer='he_uniform', padding='same')(x)
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.layers.Conv2D(filters=32, kernel_size=1, kernel_initializer='he_uniform', padding='same')(x)
+    x = tf.keras.layers.ReLU()(x)
+    x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.Conv2D(filters=64, kernel_size=3, kernel_initializer='he_uniform', padding='same')(x)
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.Concatenate()([x, skip_connection])
+    x = tf.keras.layers.MaxPool2D()(x)
     skip_connection = x
 
     x = tf.keras.layers.Conv2D(filters=128, kernel_size=3, kernel_initializer='he_uniform', padding='same')(x)
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.layers.Conv2D(filters=64, kernel_size=1, kernel_initializer='he_uniform', padding='same')(x)
+    x = tf.keras.layers.ReLU()(x)
+    x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.Conv2D(filters=128, kernel_size=3, kernel_initializer='he_uniform', padding='same')(x)
+    x = tf.keras.layers.ReLU()(x)
+    x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.layers.Concatenate()([x, skip_connection])
+    x = tf.keras.layers.MaxPool2D()(x)
+    skip_connection = x
+
+    x = tf.keras.layers.Conv2D(filters=256, kernel_size=3, kernel_initializer='he_uniform', padding='same')(x)
+    x = tf.keras.layers.ReLU()(x)
+    x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.layers.Conv2D(filters=128, kernel_size=1, kernel_initializer='he_uniform', padding='same')(x)
+    x = tf.keras.layers.ReLU()(x)
+    x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.layers.Conv2D(filters=256, kernel_size=3, kernel_initializer='he_uniform', padding='same')(x)
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.Concatenate()([x, skip_connection])
@@ -381,7 +393,7 @@ def train():
         validation_data=validation_data_generator,
         epochs=epoch,
         callbacks=[
-            tf.keras.callbacks.ModelCheckpoint(filepath='checkpoints/yolo_epoch_{epoch}_loss_{loss:.4f}_val_loss_{val_loss:.4f}.h5'),
+            tf.keras.callbacks.ModelCheckpoint(filepath='checkpoints/yolo_2340_epoch_{epoch}_loss_{loss:.6f}_val_loss_{val_loss:.6f}.h5'),
             tf.keras.callbacks.ModelCheckpoint(filepath='model.h5'),
             tf.keras.callbacks.LambdaCallback(on_batch_end=random_live_view),
         ]
@@ -426,9 +438,9 @@ def test_video():
     # out = cv2.VideoWriter('output.mp4', cv2.VideoWriter_fourcc(*'MP4V'), 20.0, (640, 368))
 
     # cap = cv2.VideoCapture('rtsp://admin:samsungg2b!@samsungg2bcctv.iptime.org:1500/video1s1')
-    cap = cv2.VideoCapture(r'C:\inz\videos\truen.mkv')
+    # cap = cv2.VideoCapture(r'C:\inz\videos\truen.mkv')
     # cap = cv2.VideoCapture(r'C:\inz\videos\hc_4k_18_day.mp4')
-    # cap = cv2.VideoCapture(r'C:\inz\videos\noon_not_trained.mp4')
+    cap = cv2.VideoCapture(r'C:\inz\videos\noon_not_trained.mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\noon.mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\noon (2).mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\noon (3).mp4')
@@ -493,5 +505,6 @@ def count_test():
 if __name__ == '__main__':
     # count_test()
     train()
+    # freeze('checkpoints/yolo_epoch_134_loss_0.0000_val_loss_0.0004.h5')
     # freeze('model.h5')
     # test_video()
