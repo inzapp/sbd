@@ -408,10 +408,10 @@ def test_video():
     # out = cv2.VideoWriter('output.mp4', cv2.VideoWriter_fourcc(*'MP4V'), 20.0, (640, 368))
 
     # cap = cv2.VideoCapture('rtsp://admin:samsungg2b!@samsungg2bcctv.iptime.org:1500/video1s1')
-    cap = cv2.VideoCapture(r'C:\inz\videos\truen.mkv')
+    # cap = cv2.VideoCapture(r'C:\inz\videos\truen.mkv')
     # cap = cv2.VideoCapture(r'C:\inz\videos\hc_4k_18_day.mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\noon_not_trained.mp4')
-    # cap = cv2.VideoCapture(r'C:\inz\videos\noon.mp4')
+    cap = cv2.VideoCapture(r'C:\inz\videos\noon.mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\noon (2).mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\noon (3).mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\noon (4).mp4')
@@ -474,7 +474,7 @@ def count_test():
 
 if __name__ == '__main__':
     # count_test()
-    train()
+    # train()
     # freeze('checkpoints/yolo_epoch_134_loss_0.0000_val_loss_0.0004.h5')
-    # freeze('model.h5')
-    # test_video()
+    freeze('model.h5')
+    test_video()

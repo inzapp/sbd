@@ -79,7 +79,7 @@ class MeanAbsoluteLogError(tf.keras.losses.Loss):
         y_true = tf.cast(y_true, y_pred.dtype)
         loss = tf.math.abs(y_pred - y_true)
         loss = -tf.math.log(1.0 + 1e-7 - loss)
-        loss = tf.keras.backend.mean(tf.keras.backend.mean(loss, axis=-1))
+        loss = tf.keras.backend.mean(loss)
         return loss
 
 
@@ -190,8 +190,9 @@ def test_loss():
     #     [0.10, 0.40, 0.10]
     # ]
 
-    y_true = [[0.0, 0.0, 1.0, 0.0, 0.0]]
-    y_pred = [[0.8, 0.35, 0.75, 0.05, 0.03]]
+    # y_true = [[1.0, 0.03, 0.25, 0.5, 0.8]]
+    y_true = [[1.0, 0.0, 0.0, 0.0, 0.0]]
+    y_pred = [[0.0, 0.0, 0.3, 0.2, 0.6]]
 
     # y_true = [[0.0]]
     # y_pred = [[1.0]]
@@ -338,8 +339,8 @@ def compress_test():
 
 
 if __name__ == '__main__':
-    compress_test()
+    # compress_test()
     # convert_1_box_label()
-    # test_loss()
+    test_loss()
     # bounding_box_test()
     # test_interpolation()
