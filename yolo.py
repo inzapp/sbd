@@ -30,12 +30,12 @@ img_type = cv2.IMREAD_GRAYSCALE
 train_image_path = r'C:\inz\train_data\lp_detection_yolo'
 test_image_path = r'C:\inz\train_data\lp_detection_yolo'
 
-lr = 1e-3
+lr = 5e-3
 batch_size = 2
 epoch = 1000
 validation_ratio = 0.2
-input_shape = (384, 640)
-output_shape = (12, 20)
+input_shape = (368, 640)
+output_shape = (23, 40)
 p_threshold = 0.5
 bbox_padding_val = 0
 
@@ -331,11 +331,6 @@ def train():
     x = tf.keras.layers.Conv2D(filters=128, kernel_size=3, kernel_initializer='he_uniform', padding='same')(x)
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
-    x = tf.keras.layers.MaxPool2D()(x)
-
-    x = tf.keras.layers.Conv2D(filters=128, kernel_size=3, kernel_initializer='he_uniform', padding='same')(x)
-    x = tf.keras.layers.ReLU()(x)
-    x = tf.keras.layers.BatchNormalization()(x)
 
     x = tf.keras.layers.Conv2D(filters=class_count + 5, kernel_size=1, activation='sigmoid')(x)
     model = tf.keras.models.Model(model_input, x)
@@ -360,7 +355,7 @@ def train():
         validation_data=validation_data_generator,
         epochs=epoch,
         callbacks=[
-            tf.keras.callbacks.ModelCheckpoint(filepath='checkpoints/640_384_12_20_epoch_{epoch}_loss_{loss:.6f}_val_loss_{val_loss:.6f}.h5'),
+            tf.keras.callbacks.ModelCheckpoint(filepath='checkpoints/368_640_23_40_epoch_{epoch}_loss_{loss:.6f}_val_loss_{val_loss:.6f}.h5'),
             tf.keras.callbacks.ModelCheckpoint(filepath='model.h5'),
             tf.keras.callbacks.LambdaCallback(on_batch_end=random_live_view),
         ]
