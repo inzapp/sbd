@@ -503,7 +503,7 @@ def count_test():
 
 if __name__ == '__main__':
     # count_test()
-    # train()
+    train()
     # freeze('checkpoints/yolo_epoch_134_loss_0.0000_val_loss_0.0004.h5')
-    freeze('model.h5')
-    test_video()
+    # freeze('model.h5')
+    # test_video()
