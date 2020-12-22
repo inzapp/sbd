@@ -51,6 +51,18 @@ class SumOverLogError(tf.keras.losses.Loss):
         return tf.keras.backend.mean(tf.keras.backend.sum(log, axis=-1))
 
 
+class SumSquaredError(tf.keras.losses.Loss):
+    def __init__(self, coord=5.0):
+        self.coord = coord
+        super().__init__()
+
+    def call(self, y_true, y_pred):
+        from tensorflow.python.framework.ops import convert_to_tensor_v2
+        y_pred = convert_to_tensor_v2(y_pred)
+        y_true = tf.cast(y_true, y_pred.dtype)
+        return tf.keras.backend.sum(tf.math.square(y_pred - y_true)) * self.coord
+
+
 class FalsePositiveWeightedError(tf.keras.losses.Loss):
     def call(self, y_true, y_pred):
         from tensorflow.python.framework.ops import convert_to_tensor_v2
@@ -63,6 +75,22 @@ class FalsePositiveWeightedError(tf.keras.losses.Loss):
         loss = -tf.math.log(1.0 + 1e-7 - loss)
         loss = tf.keras.backend.mean(tf.keras.backend.sum(loss, axis=-1))
         return loss + fp
+
+
+class YoloLoss(tf.keras.losses.Loss):
+    def __init__(self, coord=5.0):
+        self.__coord = coord
+        super(YoloLoss, self).__init__()
+
+    def call(self, y_true, y_pred):
+        from tensorflow.python.framework.ops import convert_to_tensor_v2
+        y_pred = convert_to_tensor_v2(y_pred)
+        y_true = tf.cast(y_true, y_pred.dtype)
+        p_loss = tf.keras.backend.sum(tf.math.square(y_true[:, :, :, 0] - y_pred[:, :, :, 0]))
+        xy_loss = tf.keras.backend.sum(tf.math.square(y_true[:, :, :, 1:3] - y_pred[:, :, :, 1:3]))
+        wh_loss = tf.keras.backend.sum(tf.math.square(tf.math.sqrt(y_true[:, :, :, 3:5]) - tf.math.sqrt(y_pred[:, :, :, 3:5])))
+        class_loss = tf.keras.backend.sum(tf.math.square(y_true[5:] - y_pred[5:]))
+        return p_loss + (xy_loss * self.__coord) + (wh_loss * self.__coord) + class_loss
 
 
 class MeanAbsoluteLogError(tf.keras.losses.Loss):
@@ -230,6 +258,7 @@ def test_loss():
 
     p(BinaryFocalLoss()(y_true, y_pred).numpy())
     p(MeanAbsoluteLogError()(y_true, y_pred).numpy())
+    p(SumSquaredError()(y_true, y_pred).numpy())
     p(tf.keras.losses.BinaryCrossentropy()(y_true, y_pred).numpy())
 
 

@@ -132,6 +132,22 @@ class MeanAbsoluteLogError(tf.keras.losses.Loss):
         return tf.keras.backend.mean(loss)
 
 
+class YoloLoss(tf.keras.losses.Loss):
+    def __init__(self, coord=5.0):
+        self.coord = coord
+        super(YoloLoss, self).__init__()
+
+    def call(self, y_true, y_pred):
+        from tensorflow.python.framework.ops import convert_to_tensor_v2
+        y_pred = convert_to_tensor_v2(y_pred)
+        y_true = tf.cast(y_true, y_pred.dtype)
+        p_loss = tf.keras.backend.sum(tf.math.square(y_true[:, :, :, 0] - y_pred[:, :, :, 0]))
+        xy_loss = tf.keras.backend.sum(tf.math.square(y_true[:, :, :, 1:3] - y_pred[:, :, :, 1:3]))
+        wh_loss = tf.keras.backend.sum(tf.math.square(tf.math.sqrt(y_true[:, :, :, 3:5]) - tf.math.sqrt(y_pred[:, :, :, 3:5])))
+        class_loss = tf.keras.backend.sum(tf.math.square(y_true[5:] - y_pred[5:]))
+        return p_loss + (xy_loss * self.coord) + (wh_loss * self.coord) + class_loss
+
+
 def resize(img, size):
     """
     Use different interpolations to resize according to the target size.
@@ -344,7 +360,7 @@ def train():
     model = tf.keras.models.Model(model_input, x)
 
     model.summary()
-    model.compile(optimizer=tf.keras.optimizers.Adam(lr=lr), loss=MeanAbsoluteLogError())
+    model.compile(optimizer=tf.keras.optimizers.Adam(lr=lr), loss=YoloLoss())
     model.save('model.h5')
     if not freeze('model.h5'):
         print('model freeze failure.')
@@ -363,7 +379,7 @@ def train():
         validation_data=validation_data_generator,
         epochs=epoch,
         callbacks=[
-            tf.keras.callbacks.ModelCheckpoint(filepath='checkpoints/center_label_epoch_{epoch}_loss_{loss:.6f}_val_loss_{val_loss:.6f}.h5'),
+            tf.keras.callbacks.ModelCheckpoint(filepath='checkpoints/sse_epoch_{epoch}_loss_{loss:.6f}_val_loss_{val_loss:.6f}.h5'),
             tf.keras.callbacks.ModelCheckpoint(filepath='model.h5'),
             tf.keras.callbacks.LambdaCallback(on_batch_end=random_live_view),
         ]
@@ -474,7 +490,7 @@ def count_test():
 
 if __name__ == '__main__':
     # count_test()
-    # train()
+    train()
     # freeze('checkpoints/yolo_epoch_134_loss_0.0000_val_loss_0.0004.h5')
-    freeze('model.h5')
-    test_video()
+    # freeze('model.h5')
+    # test_video()
