@@ -30,9 +30,9 @@ img_type = cv2.IMREAD_GRAYSCALE
 train_image_path = r'C:\inz\train_data\lp_detection_yolo'
 test_image_path = r'C:\inz\train_data\lp_detection_yolo'
 
-lr = 5e-3
+lr = 1e-4
 batch_size = 2
-epoch = 1000
+epoch = 10000
 validation_ratio = 0.2
 input_shape = (368, 640)
 output_shape = (23, 40)
@@ -308,7 +308,12 @@ def train():
 
     model_input = tf.keras.layers.Input(shape=(input_shape[0], input_shape[1], img_channels))
 
-    x = tf.keras.layers.Conv2D(filters=16, kernel_size=3, kernel_initializer='he_uniform', padding='same')(model_input)
+    x = tf.keras.layers.Conv2D(filters=8, kernel_size=3, kernel_initializer='he_uniform', padding='same')(model_input)
+    x = tf.keras.layers.ReLU()(x)
+    x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.layers.MaxPool2D()(x)
+
+    x = tf.keras.layers.Conv2D(filters=16, kernel_size=3, kernel_initializer='he_uniform', padding='same')(x)
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.MaxPool2D()(x)
@@ -319,11 +324,6 @@ def train():
     x = tf.keras.layers.MaxPool2D()(x)
 
     x = tf.keras.layers.Conv2D(filters=64, kernel_size=3, kernel_initializer='he_uniform', padding='same')(x)
-    x = tf.keras.layers.ReLU()(x)
-    x = tf.keras.layers.BatchNormalization()(x)
-    x = tf.keras.layers.MaxPool2D()(x)
-
-    x = tf.keras.layers.Conv2D(filters=128, kernel_size=3, kernel_initializer='he_uniform', padding='same')(x)
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.MaxPool2D()(x)
@@ -355,7 +355,7 @@ def train():
         validation_data=validation_data_generator,
         epochs=epoch,
         callbacks=[
-            tf.keras.callbacks.ModelCheckpoint(filepath='checkpoints/368_640_23_40_epoch_{epoch}_loss_{loss:.6f}_val_loss_{val_loss:.6f}.h5'),
+            tf.keras.callbacks.ModelCheckpoint(filepath='checkpoints/0.1M_epoch_{epoch}_loss_{loss:.6f}_val_loss_{val_loss:.6f}.h5'),
             tf.keras.callbacks.ModelCheckpoint(filepath='model.h5'),
             tf.keras.callbacks.LambdaCallback(on_batch_end=random_live_view),
         ]
