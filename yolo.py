@@ -30,8 +30,8 @@ img_type = cv2.IMREAD_GRAYSCALE
 train_image_path = r'C:\inz\train_data\lp_detection_yolo'
 test_image_path = r'C:\inz\train_data\lp_detection_yolo'
 
-lr = 1e-5
-batch_size = 2
+lr = 1e-3
+batch_size = 1
 epoch = 10000
 validation_ratio = 0.2
 input_shape = (368, 640)
@@ -342,28 +342,33 @@ def train():
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.MaxPool2D()(x)
 
+    x = tf.keras.layers.Dropout(rate=0.1)(x)
     x = tf.keras.layers.Conv2D(filters=16, kernel_size=3, kernel_initializer='he_uniform', padding='same')(x)
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.MaxPool2D()(x)
 
+    x = tf.keras.layers.Dropout(rate=0.2)(x)
     x = tf.keras.layers.Conv2D(filters=32, kernel_size=3, kernel_initializer='he_uniform', padding='same')(x)
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.MaxPool2D()(x)
 
+    x = tf.keras.layers.Dropout(rate=0.3)(x)
     x = tf.keras.layers.Conv2D(filters=64, kernel_size=3, kernel_initializer='he_uniform', padding='same')(x)
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.MaxPool2D()(x)
 
+    x = tf.keras.layers.Dropout(rate=0.4)(x)
     x = tf.keras.layers.Conv2D(filters=128, kernel_size=3, kernel_initializer='he_uniform', padding='same')(x)
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
 
+    x = tf.keras.layers.Dropout(rate=0.5)(x)
     x = tf.keras.layers.Conv2D(filters=class_count + 5, kernel_size=1, activation='sigmoid')(x)
     model = tf.keras.models.Model(model_input, x)
-    model = tf.keras.models.load_model('checkpoints/0.1M_epoch_8_loss_0.000337_val_loss_0.000513.h5', compile=False)
+    # model = tf.keras.models.load_model('checkpoints/0.1M_epoch_4_loss_0.001197_val_loss_0.001576.h5', compile=False)
 
     model.summary()
     model.compile(optimizer=tf.keras.optimizers.Adam(lr=lr), loss=MeanAbsoluteLogError())
@@ -385,7 +390,7 @@ def train():
         validation_data=validation_data_generator,
         epochs=epoch,
         callbacks=[
-            tf.keras.callbacks.ModelCheckpoint(filepath='checkpoints/2_0.1M_epoch_{epoch}_loss_{loss:.6f}_val_loss_{val_loss:.6f}.h5'),
+            tf.keras.callbacks.ModelCheckpoint(filepath='checkpoints/0.1M_inc_dropout_epoch_{epoch}_loss_{loss:.6f}_val_loss_{val_loss:.6f}.h5'),
             tf.keras.callbacks.ModelCheckpoint(filepath='model.h5'),
             tf.keras.callbacks.LambdaCallback(on_batch_end=random_live_view),
         ]
@@ -497,7 +502,7 @@ def count_test():
 
 if __name__ == '__main__':
     # count_test()
-    # train()
-    freeze('checkpoints/2_0.1M_epoch_300_loss_0.000038_val_loss_0.000571.h5')
+    train()
+    # freeze('checkpoints/2_0.1M_epoch_300_loss_0.000038_val_loss_0.000571.h5')
     # freeze('model.h5')
-    test_video()
+    # test_video()

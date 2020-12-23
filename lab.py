@@ -367,6 +367,18 @@ def compress_test():
             pass
 
 
+def iou(a, b):
+    intersection_width = min(a['x_max'], b['x_max']) - max(a['x_min'], b['x_min'])
+    intersection_height = min(a['y_max'], b['y_max']) - max(a['y_min'], b['y_min'])
+    if intersection_width < 0 or intersection_height < 0:
+        return 0.0
+    intersection_area = intersection_width * intersection_height
+    a_area = (a['x_max'] - a['x_min']) * (a['y_max'] - a['y_min'])
+    b_area = (b['x_max'] - b['x_min']) * (b['y_max'] - b['y_min'])
+    union_area = a_area + b_area - intersection_area
+    return intersection_area / float(union_area)
+
+
 if __name__ == '__main__':
     # compress_test()
     # convert_1_box_label()
