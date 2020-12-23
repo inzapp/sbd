@@ -75,9 +75,16 @@ class YoloDataGenerator(tf.keras.utils.Sequence):
                 x = cv2.resize(x, (input_shape[1], input_shape[0]), interpolation=cv2.INTER_LINEAR)
             with open(f'{cur_img_path[:-4]}.txt', mode='rt') as file:
                 label_lines = file.readlines()
-            y = [np.zeros(output_shape, dtype=np.float32) for _ in range(class_count + 5)]
-            grid_width_ratio = 1.0 / float(output_shape[1])
-            grid_height_ratio = 1.0 / float(output_shape[0])
+            y = [np.zeros(input_shape, dtype=np.uint8) for _ in range(class_count + 5)]
+            for label_line in label_lines:
+                class_index, cx, cy, w, h = list(map(float, label_line.split(' ')))
+                x1, y1, x2, y2 = cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2
+                x1, y1, x2, y2 = int(x1 * input_shape[1]), int(y1 * input_shape[0]), int(x2 * input_shape[1]), int(y2 * input_shape[0])
+                cv2.rectangle(y[int(class_index + 5)], (x1, y1), (x2, y2), (255, 255, 255), -1)
+            for j in range(len(y)):
+                y[j] = self.compress(y[j])
+            grid_width_ratio = 1 / float(output_shape[1])
+            grid_height_ratio = 1 / float(output_shape[0])
             for label_line in label_lines:
                 class_index, cx, cy, w, h = list(map(float, label_line.split(' ')))
                 center_row = int(cy * output_shape[0])
@@ -87,7 +94,6 @@ class YoloDataGenerator(tf.keras.utils.Sequence):
                 y[2][center_row][center_col] = (cy - (center_row * grid_height_ratio)) / grid_height_ratio
                 y[3][center_row][center_col] = w
                 y[4][center_row][center_col] = h
-                y[int(class_index + 5)][center_row][center_col] = 1.0
             x = np.asarray(x).reshape((input_shape[0], input_shape[1], img_channels)).astype('float32') / 255.
             y = np.moveaxis(np.asarray(y), 0, -1)
             y = np.asarray(y).reshape((output_shape[0], output_shape[1], class_count + 5)).astype('float32')
@@ -103,6 +109,29 @@ class YoloDataGenerator(tf.keras.utils.Sequence):
 
     def on_epoch_end(self):
         np.random.shuffle(self.random_indexes)
+
+    @staticmethod
+    def compress(y):
+        """
+        Compress YOLO label to between 0 or 1.
+        :param y: masked YOLO label to be compressed.
+        """
+        global input_shape, output_shape
+        assert input_shape[1] % output_shape[1] == 0
+        assert input_shape[0] % output_shape[0] == 0
+        grid_width = int(input_shape[1] / output_shape[1])
+        grid_height = int(input_shape[0] / output_shape[0])
+        grid_area = float(grid_width * grid_height)
+        compressed_y = []
+        for grid_y in range(0, input_shape[0], grid_height):
+            row = []
+            for grid_x in range(0, input_shape[1], grid_width):
+                grid = y[grid_y:grid_y + grid_height, grid_x:grid_x + grid_width]
+                score = cv2.countNonZero(grid) / grid_area
+                score = 1.0 if score > 0.0 else 0.0
+                row.append(score)
+            compressed_y.append(row)
+        return np.asarray(compressed_y)
 
     @staticmethod
     def init_label():
