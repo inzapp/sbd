@@ -128,7 +128,6 @@ class YoloDataGenerator(tf.keras.utils.Sequence):
             for grid_x in range(0, input_shape[1], grid_width):
                 grid = y[grid_y:grid_y + grid_height, grid_x:grid_x + grid_width]
                 score = cv2.countNonZero(grid) / grid_area
-                score = 1.0 if score > 0.0 else 0.0
                 row.append(score)
             compressed_y.append(row)
         return np.asarray(compressed_y)
@@ -367,8 +366,8 @@ def train():
 
     x = tf.keras.layers.Dropout(rate=0.5)(x)
     x = tf.keras.layers.Conv2D(filters=class_count + 5, kernel_size=1, activation='sigmoid')(x)
-    model = tf.keras.models.Model(model_input, x)
-    # model = tf.keras.models.load_model('checkpoints/0.1M_epoch_4_loss_0.001197_val_loss_0.001576.h5', compile=False)
+    # model = tf.keras.models.Model(model_input, x)
+    model = tf.keras.models.load_model('checkpoints/0.1M_inc_dropout_epoch_31_loss_0.000926_val_loss_0.001382.h5', compile=False)
 
     model.summary()
     model.compile(optimizer=tf.keras.optimizers.Adam(lr=lr), loss=MeanAbsoluteLogError())
