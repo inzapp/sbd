@@ -26,16 +26,17 @@ from yolo_box_color import colors
 
 os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
-img_type = cv2.IMREAD_GRAYSCALE
-train_image_path = r'C:\inz\train_data\lp_detection_yolo'
+img_type = cv2.IMREAD_COLOR
+train_image_path = r'C:\inz\train_data\loon_detection_train'
 test_image_path = r'C:\inz\train_data\lp_detection_yolo'
 
-lr = 1e-2
+lr = 1e-3
+l2 = 1e-1
 batch_size = 2
 epoch = 1000
 validation_ratio = 0.2
-input_shape = (368, 640)
-output_shape = (23, 40)
+input_shape = (128, 512)
+output_shape = (16, 64)
 p_threshold = 0.5
 bbox_padding_val = 0
 
@@ -171,15 +172,6 @@ def forward(model, x, model_type='h5'):
         model.setInput(x)
         y = model.forward()[0]
 
-    if np.isnan(np.sum(y)):
-        for ch in range(6):
-            for i in range(output_shape[0]):
-                for j in range(output_shape[1]):
-                    print(y[ch][i][j], end=' ')
-                print()
-            print()
-        print()
-
     predict_res = []
     for i in range(output_shape[0]):
         for j in range(output_shape[1]):
@@ -288,10 +280,10 @@ def train():
     """
     train the YOLO network using the hyper parameter at the top.
     """
-    global total_image_paths, total_image_count, lr, batch_size, epoch, train_image_path, test_image_path, class_names, class_count, validation_ratio
+    global total_image_paths, total_image_count, lr, l2, batch_size, epoch, train_image_path, test_image_path, class_names, class_count, validation_ratio
 
-    total_image_paths = glob(f'{train_image_path}/*lane*ag_1*/*.jpg')
-    # total_image_paths = glob(f'{train_image_path}/*.jpg')
+    # total_image_paths = glob(f'{train_image_path}/*lane*ag_1*/*.jpg')
+    total_image_paths = glob(f'{train_image_path}/*.jpg')
     total_image_count = len(total_image_paths)
     random.shuffle(total_image_paths)
     train_image_count = int(len(total_image_paths) * (1 - validation_ratio))
@@ -305,37 +297,83 @@ def train():
 
     model_input = tf.keras.layers.Input(shape=(input_shape[0], input_shape[1], img_channels))
 
-    x = tf.keras.layers.Conv2D(filters=8, kernel_size=3, kernel_initializer='he_uniform', padding='same')(model_input)
+    x = tf.keras.layers.Conv2D(
+        filters=8,
+        kernel_size=3,
+        padding='same',
+        kernel_initializer='he_uniform',
+        kernel_regularizer=tf.keras.regularizers.l2(l2=l2)
+    )(model_input)
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.MaxPool2D()(x)
 
-    x = tf.keras.layers.Conv2D(filters=16, kernel_size=3, kernel_initializer='he_uniform', padding='same')(x)
+    x = tf.keras.layers.Conv2D(
+        filters=16,
+        kernel_size=3,
+        padding='same',
+        kernel_initializer='he_uniform',
+        kernel_regularizer=tf.keras.regularizers.l2(l2=l2)
+    )(x)
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.MaxPool2D()(x)
 
-    x = tf.keras.layers.Conv2D(filters=32, kernel_size=3, kernel_initializer='he_uniform', padding='same')(x)
+    x = tf.keras.layers.Conv2D(
+        filters=32,
+        kernel_size=3,
+        padding='same',
+        kernel_initializer='he_uniform',
+        kernel_regularizer=tf.keras.regularizers.l2(l2=l2))(x)
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.MaxPool2D()(x)
 
-    x = tf.keras.layers.Conv2D(filters=64, kernel_size=3, kernel_initializer='he_uniform', padding='same')(x)
+    x = tf.keras.layers.Conv2D(
+        filters=64,
+        kernel_size=3,
+        padding='same',
+        kernel_initializer='he_uniform',
+        kernel_regularizer=tf.keras.regularizers.l2(l2=l2)
+    )(x)
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
-    x = tf.keras.layers.Conv2D(filters=64, kernel_size=3, kernel_initializer='he_uniform', padding='same')(x)
+    x = tf.keras.layers.Conv2D(
+        filters=64,
+        kernel_size=3,
+        padding='same',
+        kernel_initializer='he_uniform',
+        kernel_regularizer=tf.keras.regularizers.l2(l2=l2)
+    )(x)
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
-    x = tf.keras.layers.MaxPool2D()(x)
+    # x = tf.keras.layers.MaxPool2D()(x)
 
-    x = tf.keras.layers.Conv2D(filters=128, kernel_size=3, kernel_initializer='he_uniform', padding='same')(x)
+    x = tf.keras.layers.Conv2D(
+        filters=128,
+        kernel_size=3,
+        padding='same',
+        kernel_initializer='he_uniform',
+        kernel_regularizer=tf.keras.regularizers.l2(l2=l2)
+    )(x)
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
-    x = tf.keras.layers.Conv2D(filters=128, kernel_size=3, kernel_initializer='he_uniform', padding='same')(x)
+    x = tf.keras.layers.Conv2D(
+        filters=128,
+        kernel_size=3,
+        padding='same',
+        kernel_initializer='he_uniform',
+        kernel_regularizer=tf.keras.regularizers.l2(l2=l2)
+    )(x)
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
 
-    x = tf.keras.layers.Conv2D(filters=class_count + 5, kernel_size=1, activation='sigmoid')(x)
+    x = tf.keras.layers.Conv2D(
+        filters=class_count + 5,
+        kernel_size=1,
+        activation='sigmoid',
+        kernel_regularizer=tf.keras.regularizers.l2(l2=l2)
+    )(x)
     model = tf.keras.models.Model(model_input, x)
     # model = tf.keras.models.load_model('checkpoints/4680_0.3M_1e-4_epoch_33_loss_0.000091_val_loss_0.000571.h5', compile=False)
 
@@ -359,7 +397,7 @@ def train():
         validation_data=validation_data_generator,
         epochs=epoch,
         callbacks=[
-            tf.keras.callbacks.ModelCheckpoint(filepath='checkpoints/residual_4680_0.3M_1e-3_epoch_{epoch}_loss_{loss:.6f}_val_loss_{val_loss:.6f}.h5'),
+            # tf.keras.callbacks.ModelCheckpoint(filepath='checkpoints/residual_4680_0.3M_1e-3_epoch_{epoch}_loss_{loss:.6f}_val_loss_{val_loss:.6f}.h5'),
             tf.keras.callbacks.ModelCheckpoint(filepath='model.h5'),
             tf.keras.callbacks.LambdaCallback(on_batch_end=random_live_view),
         ]
