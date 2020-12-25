@@ -31,7 +31,7 @@ train_image_path = r'C:\inz\train_data\lp_detection_yolo'
 test_image_path = r'C:\inz\train_data\lp_detection_yolo'
 
 lr = 1e-3
-l2 = 1e-4
+l2 = 1e-7
 batch_size = 2
 epoch = 1000
 validation_ratio = 0.2
@@ -304,8 +304,7 @@ def train():
         kernel_initializer='he_uniform',
         kernel_regularizer=tf.keras.regularizers.l2(l2=l2),
         bias_regularizer=tf.keras.regularizers.l2(l2=l2),
-        activity_regularizer=tf.keras.regularizers.l2(l2=l2)
-    )(model_input)
+        activity_regularizer=tf.keras.regularizers.l2(l2=l2))(model_input)
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.MaxPool2D()(x)
@@ -317,8 +316,7 @@ def train():
         kernel_initializer='he_uniform',
         kernel_regularizer=tf.keras.regularizers.l2(l2=l2),
         bias_regularizer=tf.keras.regularizers.l2(l2=l2),
-        activity_regularizer=tf.keras.regularizers.l2(l2=l2)
-    )(x)
+        activity_regularizer=tf.keras.regularizers.l2(l2=l2))(x)
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.MaxPool2D()(x)
@@ -330,8 +328,7 @@ def train():
         kernel_initializer='he_uniform',
         kernel_regularizer=tf.keras.regularizers.l2(l2=l2),
         bias_regularizer=tf.keras.regularizers.l2(l2=l2),
-        activity_regularizer=tf.keras.regularizers.l2(l2=l2)
-    )(x)
+        activity_regularizer=tf.keras.regularizers.l2(l2=l2))(x)
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.MaxPool2D()(x)
@@ -343,8 +340,7 @@ def train():
         kernel_initializer='he_uniform',
         kernel_regularizer=tf.keras.regularizers.l2(l2=l2),
         bias_regularizer=tf.keras.regularizers.l2(l2=l2),
-        activity_regularizer=tf.keras.regularizers.l2(l2=l2)
-    )(x)
+        activity_regularizer=tf.keras.regularizers.l2(l2=l2))(x)
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.Conv2D(
@@ -354,8 +350,7 @@ def train():
         kernel_initializer='he_uniform',
         kernel_regularizer=tf.keras.regularizers.l2(l2=l2),
         bias_regularizer=tf.keras.regularizers.l2(l2=l2),
-        activity_regularizer=tf.keras.regularizers.l2(l2=l2)
-    )(x)
+        activity_regularizer=tf.keras.regularizers.l2(l2=l2))(x)
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.MaxPool2D()(x)
@@ -367,8 +362,7 @@ def train():
         kernel_initializer='he_uniform',
         kernel_regularizer=tf.keras.regularizers.l2(l2=l2),
         bias_regularizer=tf.keras.regularizers.l2(l2=l2),
-        activity_regularizer=tf.keras.regularizers.l2(l2=l2)
-    )(x)
+        activity_regularizer=tf.keras.regularizers.l2(l2=l2))(x)
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.Conv2D(
@@ -378,8 +372,7 @@ def train():
         kernel_initializer='he_uniform',
         kernel_regularizer=tf.keras.regularizers.l2(l2=l2),
         bias_regularizer=tf.keras.regularizers.l2(l2=l2),
-        activity_regularizer=tf.keras.regularizers.l2(l2=l2)
-    )(x)
+        activity_regularizer=tf.keras.regularizers.l2(l2=l2))(x)
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
 
@@ -389,8 +382,7 @@ def train():
         activation='sigmoid',
         kernel_regularizer=tf.keras.regularizers.l2(l2=l2),
         bias_regularizer=tf.keras.regularizers.l2(l2=l2),
-        activity_regularizer=tf.keras.regularizers.l2(l2=l2)
-    )(x)
+        activity_regularizer=tf.keras.regularizers.l2(l2=l2))(x)
     model = tf.keras.models.Model(model_input, x)
     # model = tf.keras.models.load_model('checkpoints/4680_0.3M_1e-4_epoch_33_loss_0.000091_val_loss_0.000571.h5', compile=False)
 
