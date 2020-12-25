@@ -125,13 +125,13 @@ class YoloLoss(tf.keras.losses.Loss):
         from tensorflow.python.framework.ops import convert_to_tensor_v2
         y_pred = convert_to_tensor_v2(y_pred)
         y_true = tf.cast(y_true, y_pred.dtype)
+        p_true = y_true[:, :, :, 0]
         p_loss = tf.reduce_sum(tf.square(y_true[:, :, :, 0] - y_pred[:, :, :, 0]))
-        xy_loss = tf.reduce_sum(tf.reduce_sum(tf.square(y_true[:, :, :, 1:3] - y_pred[:, :, :, 1:3]), axis=-1) * y_true[:, :, :, 0])
-        wh_loss = tf.abs(y_true[:, :, :, 3:5] - y_pred[:, :, :, 3:5])
-        wh_loss = 4.0 * (wh_loss - 0.5) ** 3.0 + 0.5
-        wh_loss = tf.reduce_sum(tf.reduce_sum(wh_loss, axis=-1) * y_true[:, :, :, 0])
-        class_loss = tf.reduce_sum(tf.reduce_sum(tf.math.square(y_true[:, :, :, 5:] - y_pred[:, :, :, 5:]), axis=-1) * y_true[:, :, :, 0])
-        return p_loss + (xy_loss * self.coord) + (wh_loss * self.coord) + class_loss
+        box_true = tf.sqrt(y_true[:, :, :, 1:5] + 1e-5)
+        box_pred = tf.sqrt(y_pred[:, :, :, 1:5] + 1e-5)
+        box_loss = tf.reduce_sum(tf.reduce_sum(tf.square(box_true - box_pred), axis=-1) * p_true)
+        class_loss = tf.reduce_sum(tf.reduce_sum(tf.math.square(y_true[:, :, :, 5:] - y_pred[:, :, :, 5:]), axis=-1) * p_true)
+        return p_loss + (box_loss * self.coord) + class_loss
 
 
 def resize(img, size):
@@ -290,7 +290,7 @@ def train():
     """
     global total_image_paths, total_image_count, lr, batch_size, epoch, train_image_path, test_image_path, class_names, class_count, validation_ratio
 
-    total_image_paths = glob(f'{train_image_path}/*crime*etc*/*.jpg') + glob(f'{train_image_path}/*lane*etc*/*.jpg')
+    total_image_paths = glob(f'{train_image_path}/*lane*ag_1*/*.jpg')
     # total_image_paths = glob(f'{train_image_path}/*.jpg')
     total_image_count = len(total_image_paths)
     random.shuffle(total_image_paths)
@@ -318,18 +318,9 @@ def train():
     x = tf.keras.layers.Conv2D(filters=32, kernel_size=3, kernel_initializer='he_uniform', padding='same')(x)
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
-    x = tf.keras.layers.Conv2D(filters=16, kernel_size=1, kernel_initializer='he_uniform', padding='same')(x)
-    x = tf.keras.layers.ReLU()(x)
-    x = tf.keras.layers.BatchNormalization()(x)
-    x = tf.keras.layers.Conv2D(filters=32, kernel_size=3, kernel_initializer='he_uniform', padding='same')(x)
-    x = tf.keras.layers.ReLU()(x)
-    x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.MaxPool2D()(x)
 
     x = tf.keras.layers.Conv2D(filters=64, kernel_size=3, kernel_initializer='he_uniform', padding='same')(x)
-    x = tf.keras.layers.ReLU()(x)
-    x = tf.keras.layers.BatchNormalization()(x)
-    x = tf.keras.layers.Conv2D(filters=32, kernel_size=1, kernel_initializer='he_uniform', padding='same')(x)
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.Conv2D(filters=64, kernel_size=3, kernel_initializer='he_uniform', padding='same')(x)
@@ -338,9 +329,6 @@ def train():
     x = tf.keras.layers.MaxPool2D()(x)
 
     x = tf.keras.layers.Conv2D(filters=128, kernel_size=3, kernel_initializer='he_uniform', padding='same')(x)
-    x = tf.keras.layers.ReLU()(x)
-    x = tf.keras.layers.BatchNormalization()(x)
-    x = tf.keras.layers.Conv2D(filters=64, kernel_size=1, kernel_initializer='he_uniform', padding='same')(x)
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.Conv2D(filters=128, kernel_size=3, kernel_initializer='he_uniform', padding='same')(x)
