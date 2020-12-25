@@ -27,7 +27,7 @@ from yolo_box_color import colors
 os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
 img_type = cv2.IMREAD_GRAYSCALE
-train_image_path = r'C:\inz\train_data\loon_detection_train'
+train_image_path = r'C:\inz\train_data\lp_detection_yolo'
 test_image_path = r'C:\inz\train_data\lp_detection_yolo'
 
 lr = 1e-2
@@ -116,40 +116,6 @@ class YoloDataGenerator(tf.keras.utils.Sequence):
                 class_count = len(class_names)
 
 
-class MeanAbsoluteLogError(tf.keras.losses.Loss):
-    """
-    Mean absolute log loss function.
-    f(x) = -log(1 - MAE(x))
-    Usage:
-     model.compile(loss=[MeanAbsoluteLogError()], optimizer="sgd")
-    """
-
-    def call(self, y_true, y_pred):
-        from tensorflow.python.framework.ops import convert_to_tensor_v2
-        y_pred = convert_to_tensor_v2(y_pred)
-        y_true = tf.cast(y_true, y_pred.dtype)
-        loss = -tf.math.log(1.0 + 1e-7 - tf.math.abs(y_true - y_pred))
-        return tf.keras.backend.mean(loss)
-
-
-# class YoloLoss(tf.keras.losses.Loss):
-#     def __init__(self, coord=5.0):
-#         self.coord = coord
-#         super(YoloLoss, self).__init__()
-#
-#     def call(self, y_true, y_pred):
-#         from tensorflow.python.framework.ops import convert_to_tensor_v2
-#         y_pred = convert_to_tensor_v2(y_pred)
-#         y_true = tf.cast(y_true, y_pred.dtype)
-#         p_loss = tf.reduce_sum(tf.square(y_true[:, :, :, 0] - y_pred[:, :, :, 0]))
-#         x_loss = tf.reduce_sum(tf.square(y_true[:, :, :, 1] - y_pred[:, :, :, 1]) * y_true[:, :, :, 0]) * self.coord
-#         y_loss = tf.reduce_sum(tf.square(y_true[:, :, :, 2] - y_pred[:, :, :, 2]) * y_true[:, :, :, 0]) * self.coord
-#         w_loss = tf.reduce_sum(tf.square(tf.sqrt(y_true[:, :, :, 3]) - tf.sqrt(y_pred[:, :, :, 3])) * y_true[:, :, :, 0]) * self.coord
-#         h_loss = tf.reduce_sum(tf.square(tf.sqrt(y_true[:, :, :, 4]) - tf.sqrt(y_pred[:, :, :, 4])) * y_true[:, :, :, 0]) * self.coord
-#         class_loss = tf.reduce_sum(tf.reduce_sum(tf.math.square(y_true[:, :, :, 5:] - y_pred[:, :, :, 5:]), axis=-1) * y_true[:, :, :, 0])
-#         return p_loss + x_loss + y_loss + w_loss + h_loss + class_loss
-
-
 class YoloLoss(tf.keras.losses.Loss):
     def __init__(self, coord=5.0):
         self.coord = coord
@@ -161,12 +127,11 @@ class YoloLoss(tf.keras.losses.Loss):
         y_true = tf.cast(y_true, y_pred.dtype)
         p_loss = tf.reduce_sum(tf.square(y_true[:, :, :, 0] - y_pred[:, :, :, 0]))
         xy_loss = tf.reduce_sum(tf.reduce_sum(tf.square(y_true[:, :, :, 1:3] - y_pred[:, :, :, 1:3]), axis=-1) * y_true[:, :, :, 0])
-        # 4(x - 0.5)^3 + 0.5
         wh_loss = tf.abs(y_true[:, :, :, 3:5] - y_pred[:, :, :, 3:5])
         wh_loss = 4.0 * (wh_loss - 0.5) ** 3.0 + 0.5
         wh_loss = tf.reduce_sum(tf.reduce_sum(wh_loss, axis=-1) * y_true[:, :, :, 0])
         class_loss = tf.reduce_sum(tf.reduce_sum(tf.math.square(y_true[:, :, :, 5:] - y_pred[:, :, :, 5:]), axis=-1) * y_true[:, :, :, 0])
-        return p_loss + xy_loss + wh_loss + class_loss
+        return p_loss + (xy_loss * self.coord) + (wh_loss * self.coord) + class_loss
 
 
 def resize(img, size):
@@ -325,8 +290,8 @@ def train():
     """
     global total_image_paths, total_image_count, lr, batch_size, epoch, train_image_path, test_image_path, class_names, class_count, validation_ratio
 
-    # total_image_paths = glob(f'{train_image_path}/*crime*etc*/*.jpg') + glob(f'{train_image_path}/*lane*etc*/*.jpg')
-    total_image_paths = glob(f'{train_image_path}/*.jpg')
+    total_image_paths = glob(f'{train_image_path}/*crime*etc*/*.jpg') + glob(f'{train_image_path}/*lane*etc*/*.jpg')
+    # total_image_paths = glob(f'{train_image_path}/*.jpg')
     total_image_count = len(total_image_paths)
     random.shuffle(total_image_paths)
     train_image_count = int(len(total_image_paths) * (1 - validation_ratio))
