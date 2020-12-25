@@ -27,15 +27,15 @@ from yolo_box_color import colors
 os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
 img_type = cv2.IMREAD_GRAYSCALE
-train_image_path = r'C:\inz\train_data\lp_detection_yolo'
-test_image_path = r'C:\inz\train_data\lp_detection_yolo'
+train_image_path = r'C:\inz\train_data\loon_detection_train'
+test_image_path = r'C:\inz\train_data\loon_detection_train'
 
 lr = 1e-3
 batch_size = 2
 epoch = 1000
 validation_ratio = 0.2
-input_shape = (368, 640)
-output_shape = (46, 80)
+input_shape = (128, 512)
+output_shape = (16, 64)
 p_threshold = 0.5
 bbox_padding_val = 0
 
@@ -94,6 +94,7 @@ class YoloDataGenerator(tf.keras.utils.Sequence):
                 y[2][center_row][center_col] = (cy - (center_row * grid_height_ratio)) / grid_height_ratio
                 y[3][center_row][center_col] = w
                 y[4][center_row][center_col] = h
+                # y[int(class_index + 5)][center_row][center_col] = 1.0
             x = np.asarray(x).reshape((input_shape[0], input_shape[1], img_channels)).astype('float32') / 255.
             y = np.moveaxis(np.asarray(y), 0, -1)
             y = np.asarray(y).reshape((output_shape[0], output_shape[1], class_count + 5)).astype('float32')
@@ -160,6 +161,18 @@ class MeanAbsoluteLogError(tf.keras.losses.Loss):
         return tf.keras.backend.mean(loss)
 
 
+class GridLoss(tf.keras.losses.Loss):
+
+    def call(self, y_true, y_pred):
+        from tensorflow.python.framework.ops import convert_to_tensor_v2
+        y_pred = convert_to_tensor_v2(y_pred)
+        y_true = tf.cast(y_true, y_pred.dtype)
+        p_loss = tf.reduce_sum(tf.square(y_true[:, :, :, 0] - y_pred[:, :, :, 0]))
+        obj_loss = tf.reduce_mean(tf.square(y_true - y_pred), axis=-1) * y_true[:, :, :, 0]
+        obj_loss = tf.reduce_sum(obj_loss)
+        return (obj_loss * 5.0) + p_loss
+
+
 class YoloLoss(tf.keras.losses.Loss):
     def __init__(self, coord=5.0):
         self.coord = coord
@@ -169,11 +182,21 @@ class YoloLoss(tf.keras.losses.Loss):
         from tensorflow.python.framework.ops import convert_to_tensor_v2
         y_pred = convert_to_tensor_v2(y_pred)
         y_true = tf.cast(y_true, y_pred.dtype)
-        p_loss = tf.keras.backend.sum(tf.math.square(y_true[:, :, :, 0] - y_pred[:, :, :, 0]))
-        xy_loss = tf.keras.backend.sum(tf.math.square(y_true[:, :, :, 1:3] - y_pred[:, :, :, 1:3]))
-        wh_loss = tf.keras.backend.sum(tf.math.square(tf.math.sqrt(y_true[:, :, :, 3:5]) - tf.math.sqrt(y_pred[:, :, :, 3:5])))
-        class_loss = tf.keras.backend.sum(tf.math.square(y_true[5:] - y_pred[5:]))
-        return p_loss + (xy_loss * self.coord) + (wh_loss * self.coord) + class_loss
+        p_loss = tf.reduce_sum(tf.square(y_true[:, :, :, 0] - y_pred[:, :, :, 0]))
+        x_loss = tf.reduce_sum((tf.square(y_true[:, :, :, 1] - y_pred[:, :, :, 1])) * y_true[:, :, :, 0]) * self.coord
+        y_loss = tf.reduce_sum((tf.square(y_true[:, :, :, 2] - y_pred[:, :, :, 2])) * y_true[:, :, :, 0]) * self.coord
+        w_loss = tf.reduce_sum((tf.square(tf.sqrt(y_true[:, :, :, 3]) - tf.sqrt(y_pred[:, :, :, 3]))) * y_true[:, :, :, 0]) * self.coord
+        h_loss = tf.reduce_sum((tf.square(tf.sqrt(y_true[:, :, :, 4]) - tf.sqrt(y_pred[:, :, :, 4]))) * y_true[:, :, :, 0]) * self.coord
+        class_loss = tf.reduce_sum(tf.reduce_sum(tf.math.square(y_true[:, :, :, 5:] - y_pred[:, :, :, 5:]), axis=-1) * y_true[:, :, :, 0])
+        return p_loss + x_loss + y_loss + w_loss + h_loss + class_loss
+
+
+def grid_mean_squared_error(y_true, y_pred):
+    from tensorflow.python.framework.ops import convert_to_tensor_v2
+    y_pred = convert_to_tensor_v2(y_pred)
+    y_true = tf.cast(y_true, y_pred.dtype)
+    p_channel = y_true[:, :, :, 0]
+    return tf.reduce_sum(tf.reduce_sum(tf.square(y_true - y_pred), axis=-1) * p_channel) / (tf.reduce_sum(p_channel) * y_true.shape[-1])
 
 
 def resize(img, size):
@@ -322,7 +345,7 @@ def train():
     """
     global total_image_paths, total_image_count, lr, batch_size, epoch, train_image_path, test_image_path, class_names, class_count, validation_ratio
 
-    total_image_paths = glob(f'{train_image_path}/*/*.jpg')
+    total_image_paths = glob(f'{train_image_path}/*.jpg')
     total_image_count = len(total_image_paths)
     random.shuffle(total_image_paths)
     train_image_count = int(len(total_image_paths) * (1 - validation_ratio))
@@ -397,7 +420,7 @@ def train():
     # model = tf.keras.models.load_model('checkpoints/4680_0.3M_1e-4_epoch_33_loss_0.000091_val_loss_0.000571.h5', compile=False)
 
     model.summary()
-    model.compile(optimizer=tf.keras.optimizers.Adam(lr=lr), loss=MeanAbsoluteLogError())
+    model.compile(optimizer=tf.keras.optimizers.Adam(lr=lr), loss=YoloLoss())
     model.save('model.h5')
     if not freeze('model.h5'):
         print('model freeze failure.')
