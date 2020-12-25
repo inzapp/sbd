@@ -28,14 +28,14 @@ os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
 img_type = cv2.IMREAD_GRAYSCALE
 train_image_path = r'C:\inz\train_data\loon_detection_train'
-test_image_path = r'C:\inz\train_data\loon_detection_train'
+test_image_path = r'C:\inz\train_data\lp_detection_yolo'
 
-lr = 1e-3
+lr = 1e-2
 batch_size = 2
 epoch = 1000
 validation_ratio = 0.2
-input_shape = (128, 512)
-output_shape = (16, 64)
+input_shape = (368, 640)
+output_shape = (23, 40)
 p_threshold = 0.5
 bbox_padding_val = 0
 
@@ -132,16 +132,22 @@ class MeanAbsoluteLogError(tf.keras.losses.Loss):
         return tf.keras.backend.mean(loss)
 
 
-class GridLoss(tf.keras.losses.Loss):
-
-    def call(self, y_true, y_pred):
-        from tensorflow.python.framework.ops import convert_to_tensor_v2
-        y_pred = convert_to_tensor_v2(y_pred)
-        y_true = tf.cast(y_true, y_pred.dtype)
-        p_loss = tf.reduce_sum(tf.square(y_true[:, :, :, 0] - y_pred[:, :, :, 0]))
-        obj_loss = tf.reduce_mean(tf.square(y_true - y_pred), axis=-1) * y_true[:, :, :, 0]
-        obj_loss = tf.reduce_sum(obj_loss)
-        return (obj_loss * 5.0) + p_loss
+# class YoloLoss(tf.keras.losses.Loss):
+#     def __init__(self, coord=5.0):
+#         self.coord = coord
+#         super(YoloLoss, self).__init__()
+#
+#     def call(self, y_true, y_pred):
+#         from tensorflow.python.framework.ops import convert_to_tensor_v2
+#         y_pred = convert_to_tensor_v2(y_pred)
+#         y_true = tf.cast(y_true, y_pred.dtype)
+#         p_loss = tf.reduce_sum(tf.square(y_true[:, :, :, 0] - y_pred[:, :, :, 0]))
+#         x_loss = tf.reduce_sum(tf.square(y_true[:, :, :, 1] - y_pred[:, :, :, 1]) * y_true[:, :, :, 0]) * self.coord
+#         y_loss = tf.reduce_sum(tf.square(y_true[:, :, :, 2] - y_pred[:, :, :, 2]) * y_true[:, :, :, 0]) * self.coord
+#         w_loss = tf.reduce_sum(tf.square(tf.sqrt(y_true[:, :, :, 3]) - tf.sqrt(y_pred[:, :, :, 3])) * y_true[:, :, :, 0]) * self.coord
+#         h_loss = tf.reduce_sum(tf.square(tf.sqrt(y_true[:, :, :, 4]) - tf.sqrt(y_pred[:, :, :, 4])) * y_true[:, :, :, 0]) * self.coord
+#         class_loss = tf.reduce_sum(tf.reduce_sum(tf.math.square(y_true[:, :, :, 5:] - y_pred[:, :, :, 5:]), axis=-1) * y_true[:, :, :, 0])
+#         return p_loss + x_loss + y_loss + w_loss + h_loss + class_loss
 
 
 class YoloLoss(tf.keras.losses.Loss):
@@ -154,20 +160,13 @@ class YoloLoss(tf.keras.losses.Loss):
         y_pred = convert_to_tensor_v2(y_pred)
         y_true = tf.cast(y_true, y_pred.dtype)
         p_loss = tf.reduce_sum(tf.square(y_true[:, :, :, 0] - y_pred[:, :, :, 0]))
-        x_loss = tf.reduce_sum((tf.square(y_true[:, :, :, 1] - y_pred[:, :, :, 1])) * y_true[:, :, :, 0]) * self.coord
-        y_loss = tf.reduce_sum((tf.square(y_true[:, :, :, 2] - y_pred[:, :, :, 2])) * y_true[:, :, :, 0]) * self.coord
-        w_loss = tf.reduce_sum((tf.square(tf.sqrt(y_true[:, :, :, 3]) - tf.sqrt(y_pred[:, :, :, 3]))) * y_true[:, :, :, 0]) * self.coord
-        h_loss = tf.reduce_sum((tf.square(tf.sqrt(y_true[:, :, :, 4]) - tf.sqrt(y_pred[:, :, :, 4]))) * y_true[:, :, :, 0]) * self.coord
+        xy_loss = tf.reduce_sum(tf.reduce_sum(tf.square(y_true[:, :, :, 1:3] - y_pred[:, :, :, 1:3]), axis=-1) * y_true[:, :, :, 0])
+        # 4(x - 0.5)^3 + 0.5
+        wh_loss = tf.abs(y_true[:, :, :, 3:5] - y_pred[:, :, :, 3:5])
+        wh_loss = 4.0 * (wh_loss - 0.5) ** 3.0 + 0.5
+        wh_loss = tf.reduce_sum(tf.reduce_sum(wh_loss, axis=-1) * y_true[:, :, :, 0])
         class_loss = tf.reduce_sum(tf.reduce_sum(tf.math.square(y_true[:, :, :, 5:] - y_pred[:, :, :, 5:]), axis=-1) * y_true[:, :, :, 0])
-        return p_loss + x_loss + y_loss + w_loss + h_loss + class_loss
-
-
-def grid_mean_squared_error(y_true, y_pred):
-    from tensorflow.python.framework.ops import convert_to_tensor_v2
-    y_pred = convert_to_tensor_v2(y_pred)
-    y_true = tf.cast(y_true, y_pred.dtype)
-    p_channel = y_true[:, :, :, 0]
-    return tf.reduce_sum(tf.reduce_sum(tf.square(y_true - y_pred), axis=-1) * p_channel) / (tf.reduce_sum(p_channel) * y_true.shape[-1])
+        return p_loss + xy_loss + wh_loss + class_loss
 
 
 def resize(img, size):
@@ -207,9 +206,19 @@ def forward(model, x, model_type='h5'):
         model.setInput(x)
         y = model.forward()[0]
 
+    if np.isnan(np.sum(y)):
+        for ch in range(6):
+            for i in range(output_shape[0]):
+                for j in range(output_shape[1]):
+                    print(y[ch][i][j], end=' ')
+                print()
+            print()
+        print()
+
     predict_res = []
     for i in range(output_shape[0]):
         for j in range(output_shape[1]):
+
             if y[0][i][j] < p_threshold:
                 continue
             p = y[0][i][j]
@@ -316,6 +325,7 @@ def train():
     """
     global total_image_paths, total_image_count, lr, batch_size, epoch, train_image_path, test_image_path, class_names, class_count, validation_ratio
 
+    # total_image_paths = glob(f'{train_image_path}/*crime*etc*/*.jpg') + glob(f'{train_image_path}/*lane*etc*/*.jpg')
     total_image_paths = glob(f'{train_image_path}/*.jpg')
     total_image_count = len(total_image_paths)
     random.shuffle(total_image_paths)
@@ -338,52 +348,38 @@ def train():
     x = tf.keras.layers.Conv2D(filters=16, kernel_size=3, kernel_initializer='he_uniform', padding='same')(x)
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
-    x = tf.keras.layers.Conv2D(filters=16, kernel_size=3, kernel_initializer='he_uniform', padding='same')(x)
-    x = tf.keras.layers.ReLU()(x)
-    x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.MaxPool2D()(x)
 
     x = tf.keras.layers.Conv2D(filters=32, kernel_size=3, kernel_initializer='he_uniform', padding='same')(x)
     x = tf.keras.layers.ReLU()(x)
-    skip_connection = x
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.Conv2D(filters=16, kernel_size=1, kernel_initializer='he_uniform', padding='same')(x)
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.Conv2D(filters=32, kernel_size=3, kernel_initializer='he_uniform', padding='same')(x)
     x = tf.keras.layers.ReLU()(x)
-    x = tf.keras.layers.Add()([x, skip_connection])
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.MaxPool2D()(x)
 
     x = tf.keras.layers.Conv2D(filters=64, kernel_size=3, kernel_initializer='he_uniform', padding='same')(x)
     x = tf.keras.layers.ReLU()(x)
-    skip_connection = x
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.Conv2D(filters=32, kernel_size=1, kernel_initializer='he_uniform', padding='same')(x)
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.Conv2D(filters=64, kernel_size=3, kernel_initializer='he_uniform', padding='same')(x)
     x = tf.keras.layers.ReLU()(x)
-    x = tf.keras.layers.Add()([x, skip_connection])
     x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.layers.MaxPool2D()(x)
 
     x = tf.keras.layers.Conv2D(filters=128, kernel_size=3, kernel_initializer='he_uniform', padding='same')(x)
     x = tf.keras.layers.ReLU()(x)
-    skip_connection = x
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.Conv2D(filters=64, kernel_size=1, kernel_initializer='he_uniform', padding='same')(x)
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.Conv2D(filters=128, kernel_size=3, kernel_initializer='he_uniform', padding='same')(x)
     x = tf.keras.layers.ReLU()(x)
-    x = tf.keras.layers.BatchNormalization()(x)
-    x = tf.keras.layers.Conv2D(filters=64, kernel_size=1, kernel_initializer='he_uniform', padding='same')(x)
-    x = tf.keras.layers.ReLU()(x)
-    x = tf.keras.layers.BatchNormalization()(x)
-    x = tf.keras.layers.Conv2D(filters=128, kernel_size=3, kernel_initializer='he_uniform', padding='same')(x)
-    x = tf.keras.layers.ReLU()(x)
-    x = tf.keras.layers.Add()([x, skip_connection])
     x = tf.keras.layers.BatchNormalization()(x)
 
     x = tf.keras.layers.Conv2D(filters=class_count + 5, kernel_size=1, activation='sigmoid')(x)
