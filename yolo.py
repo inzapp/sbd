@@ -27,17 +27,18 @@ from yolo_box_color import colors
 os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
 img_type = cv2.IMREAD_COLOR
-train_image_path = r'C:\inz\train_data\lp_detection_yolo'
+train_image_path = r'C:\inz\train_data\loon_detection_train'
 test_image_path = r'C:\inz\train_data\lp_detection_yolo'
 
 lr = 1e-3
-l2 = 1e-7
+l2 = 1e-9
 batch_size = 2
 epoch = 1000
 validation_ratio = 0.2
-input_shape = (368, 640)
-output_shape = (23, 40)
-p_threshold = 0.5
+input_shape = (128, 512)
+output_shape = (8, 32)
+confidence_threshold = 0.5
+nms_iou_threshold = 0.5
 bbox_padding_val = 0
 
 font_scale = 0.4
@@ -53,7 +54,7 @@ class YoloDataGenerator(tf.keras.utils.Sequence):
     """
     Custom data generator for YOLO model.
     Usage:
-        generator = SbdDataGenerator(image_paths=train_image_paths)
+        generator = YoloDataGenerator(image_paths=train_image_paths)
     """
 
     def __init__(self, image_paths):
@@ -126,13 +127,12 @@ class YoloLoss(tf.keras.losses.Loss):
         from tensorflow.python.framework.ops import convert_to_tensor_v2
         y_pred = convert_to_tensor_v2(y_pred)
         y_true = tf.cast(y_true, y_pred.dtype)
-        p_true = y_true[:, :, :, 0]
-        p_loss = tf.reduce_sum(tf.square(y_true[:, :, :, 0] - y_pred[:, :, :, 0]))
+        confidence_loss = tf.reduce_sum(tf.square(y_true[:, :, :, 0] - y_pred[:, :, :, 0]))
         box_true = tf.sqrt(y_true[:, :, :, 1:5] + 1e-5)
         box_pred = tf.sqrt(y_pred[:, :, :, 1:5] + 1e-5)
-        box_loss = tf.reduce_sum(tf.reduce_sum(tf.square(box_true - box_pred), axis=-1) * p_true)
-        class_loss = tf.reduce_sum(tf.reduce_sum(tf.math.square(y_true[:, :, :, 5:] - y_pred[:, :, :, 5:]), axis=-1) * p_true)
-        return p_loss + (box_loss * self.coord) + class_loss
+        box_loss = tf.reduce_sum(tf.reduce_sum(tf.square(box_true - box_pred), axis=-1) * y_true[:, :, :, 0])
+        classification_loss = tf.reduce_sum(tf.reduce_sum(tf.math.square(y_true[:, :, :, 5:] - y_pred[:, :, :, 5:]), axis=-1) * y_true[:, :, :, 0])
+        return confidence_loss + (box_loss * self.coord) + classification_loss
 
 
 def resize(img, size):
@@ -147,6 +147,25 @@ def resize(img, size):
         return cv2.resize(img, size, interpolation=cv2.INTER_LINEAR)
 
 
+def iou(a, b):
+    """
+    Intersection of union function.
+    :param a: [x_min, y_min, x_max, y_max] format box a
+    :param b: [x_min, y_min, x_max, y_max] format box b
+    """
+    a_x_min, a_y_min, a_x_max, a_y_max = a
+    b_x_min, b_y_min, b_x_max, b_y_max = b
+    intersection_width = min(a_x_max, b_x_max) - max(a_x_min, b_x_min)
+    intersection_height = min(a_y_max, b_y_max) - max(a_y_min, b_y_min)
+    if intersection_width < 0 or intersection_height < 0:
+        return 0.0
+    intersection_area = intersection_width * intersection_height
+    a_area = (a_x_max - a_x_min) * (a_y_max - a_y_min)
+    b_area = (b_x_max - b_x_min) * (b_y_max - b_y_min)
+    union_area = a_area + b_area - intersection_area
+    return intersection_area / (float(union_area) + 1e-7)
+
+
 def forward(model, x, model_type='h5'):
     """
     Detect object in image using trained YOLO model.
@@ -154,9 +173,9 @@ def forward(model, x, model_type='h5'):
     :param x: image to be predicted.
     :param model_type: model type. h5 and pb are available.
     :return: dictionary array sorted by x position.
-    each dictionary has class index and box info: [x1, y1, x2, y2].
+    each dictionary has class index and bbox info: [x1, y1, x2, y2].
     """
-    global p_threshold, bbox_padding_val, class_names
+    global confidence_threshold, nms_iou_threshold, bbox_padding_val, class_names
     raw_width, raw_height = x.shape[1], x.shape[0]
     if img_channels == 1:
         x = cv2.cvtColor(x, cv2.COLOR_BGR2GRAY)
@@ -172,13 +191,12 @@ def forward(model, x, model_type='h5'):
         model.setInput(x)
         y = model.forward()[0]
 
-    predict_res = []
+    res = []
     for i in range(output_shape[0]):
         for j in range(output_shape[1]):
-
-            if y[0][i][j] < p_threshold:
+            confidence = y[0][i][j]
+            if confidence < confidence_threshold:
                 continue
-            p = y[0][i][j]
             cx = y[1][i][j]
             cx_f = j / float(output_shape[1])
             cx_f += 1 / float(output_shape[1]) * cx
@@ -202,12 +220,24 @@ def forward(model, x, model_type='h5'):
                 if max_percentage < y[cur_channel_index][i][j]:
                     class_index = cur_channel_index
                     max_percentage = y[cur_channel_index][i][j]
-            predict_res.append({
+            res.append({
+                'confidence': confidence,
+                'bbox': [x_min, y_min, x_max, y_max],
                 'class': class_index - 5,
-                'box': [x_min, y_min, x_max, y_max],
-                'p': p
+                'discard': False
             })
-    return sorted(predict_res, key=lambda __x: __x['box'][0])
+
+    # nms process
+    for i in range(len(res)):
+        if res[i]['discard']:
+            continue
+        for j in range(len(res)):
+            if i == j or res[j]['discard']:
+                continue
+            if iou(res[i]['bbox'], res[j]['bbox']) > nms_iou_threshold:
+                if res[i]['confidence'] > res[j]['confidence']:
+                    res[j]['discard'] = True
+    return sorted(res, key=lambda __x: __x['bbox'][0])
 
 
 def get_text_label_width_height(text):
@@ -242,24 +272,26 @@ def is_background_color_bright(bgr):
     return tmp[0][0] > 127
 
 
-def bounding_box(img, predict_res):
+def bounding_box(img, yolo_res):
     """
-    draw bounding box using result of YOLO.predict function.
+    draw bounding bbox using result of YOLO.predict function.
     :param img: image to be predicted.
-    :param predict_res: result value of YOLO.predict() function.
+    :param yolo_res: result value of YOLO.predict() function.
     :return: image of bounding boxed.
     """
     global font_scale
     if len(img.shape) == 2:
         img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
-    for i, cur_res in enumerate(predict_res):
+    for i, cur_res in enumerate(yolo_res):
+        if cur_res['discard']:
+            continue
         class_index = int(cur_res['class'])
         class_name = class_names[class_index].replace('/n', '')
         label_background_color = colors[class_index]
         label_font_color = (0, 0, 0) if is_background_color_bright(label_background_color) else (255, 255, 255)
-        label_text = f'{class_name}({round(cur_res["p"] * 100.0)}%)'
+        label_text = f'{class_name}({round(cur_res["confidence"] * 100.0)}%)'
         label_width, label_height = get_text_label_width_height(label_text)
-        x1, y1, x2, y2 = cur_res['box']
+        x1, y1, x2, y2 = cur_res['bbox']
         cv2.rectangle(img, (x1, y1), (x2, y2), label_background_color, 2)
         cv2.rectangle(img, (x1 - 1, y1 - label_height), (x1 - 1 + label_width, y1), colors[class_index], -1)
         cv2.putText(img, label_text, (x1 - 1, y1 - 5), cv2.FONT_HERSHEY_DUPLEX, fontScale=font_scale, color=label_font_color, thickness=1, lineType=cv2.LINE_AA)
@@ -282,8 +314,7 @@ def train():
     """
     global total_image_paths, total_image_count, lr, l2, batch_size, epoch, train_image_path, test_image_path, class_names, class_count, validation_ratio
 
-    total_image_paths = glob(f'{train_image_path}/*crime*etc*/*.jpg')
-    # total_image_paths = glob(f'{train_image_path}/*.jpg')
+    total_image_paths = glob(f'{train_image_path}/*.jpg')
     total_image_count = len(total_image_paths)
     random.shuffle(total_image_paths)
     train_image_count = int(len(total_image_paths) * (1 - validation_ratio))
@@ -383,9 +414,8 @@ def train():
         kernel_regularizer=tf.keras.regularizers.l2(l2=l2),
         bias_regularizer=tf.keras.regularizers.l2(l2=l2),
         activity_regularizer=tf.keras.regularizers.l2(l2=l2))(x)
-    model = tf.keras.models.Model(model_input, x)
-    # model = tf.keras.models.load_model('checkpoints/4680_0.3M_1e-4_epoch_33_loss_0.000091_val_loss_0.000571.h5', compile=False)
 
+    model = tf.keras.models.Model(model_input, x)
     model.summary()
     model.compile(optimizer=tf.keras.optimizers.Adam(lr=lr), loss=YoloLoss())
     model.save('model.h5')
@@ -497,9 +527,9 @@ def count_test():
     for path in tqdm(total_image_paths):
         x = cv2.imread(path, cv2.IMREAD_COLOR)
         x = resize(x, (input_shape[1], input_shape[0]))
-        boxes = forward(net, x)
-        for box in boxes:
-            x1, y1, x2, y2 = box['box']
+        res = forward(net, x)
+        for cur_res in res:
+            x1, y1, x2, y2 = cur_res['bbox']
             plate = x[y1:y2, x1:x2]
             plate = cv2.cvtColor(plate, cv2.COLOR_BGR2GRAY)
             plate = resize(plate, (192, 96))
