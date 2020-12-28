@@ -26,19 +26,19 @@ from yolo_box_color import colors
 
 os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
-img_type = cv2.IMREAD_COLOR
-train_image_path = r'C:\inz\train_data\loon_detection_train'
+img_type = cv2.IMREAD_GRAYSCALE
+train_image_path = r'C:\inz\train_data\lp_detection_yolo'
 test_image_path = r'C:\inz\train_data\lp_detection_yolo'
 
 lr = 1e-3
-l2 = 1e-9
+l2 = 1e-7
 batch_size = 2
 epoch = 1000
 validation_ratio = 0.2
-input_shape = (128, 512)
-output_shape = (8, 32)
+input_shape = (368, 640)
+output_shape = (23, 40)
 confidence_threshold = 0.5
-nms_iou_threshold = 0.5
+nms_iou_threshold = 0.2
 bbox_padding_val = 0
 
 font_scale = 0.4
@@ -314,7 +314,7 @@ def train():
     """
     global total_image_paths, total_image_count, lr, l2, batch_size, epoch, train_image_path, test_image_path, class_names, class_count, validation_ratio
 
-    total_image_paths = glob(f'{train_image_path}/*.jpg')
+    total_image_paths = glob(f'{train_image_path}/*/*.jpg')
     total_image_count = len(total_image_paths)
     random.shuffle(total_image_paths)
     train_image_count = int(len(total_image_paths) * (1 - validation_ratio))
@@ -416,6 +416,7 @@ def train():
         activity_regularizer=tf.keras.regularizers.l2(l2=l2))(x)
 
     model = tf.keras.models.Model(model_input, x)
+    # model = tf.keras.models.load_model('yolo.h5', compile=False)
     model.summary()
     model.compile(optimizer=tf.keras.optimizers.Adam(lr=lr), loss=YoloLoss())
     model.save('model.h5')
@@ -436,11 +437,10 @@ def train():
         validation_data=validation_data_generator,
         epochs=epoch,
         callbacks=[
-            # tf.keras.callbacks.ModelCheckpoint(filepath='checkpoints/residual_4680_0.3M_1e-3_epoch_{epoch}_loss_{loss:.6f}_val_loss_{val_loss:.6f}.h5'),
+            tf.keras.callbacks.ModelCheckpoint(filepath='checkpoints/yolo_2340_epoch_{epoch}_loss_{loss:.6f}_val_loss_{val_loss:.6f}.h5'),
             tf.keras.callbacks.ModelCheckpoint(filepath='model.h5'),
             tf.keras.callbacks.LambdaCallback(on_batch_end=random_live_view),
-        ]
-    )
+        ])
 
     model.save('model.h5')
     freeze('model.h5')
