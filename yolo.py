@@ -31,7 +31,7 @@ train_image_path = r'C:\inz\train_data\lp_detection_yolo'
 test_image_path = r'C:\inz\train_data\lp_detection_yolo'
 
 lr = 1e-3
-l2 = 1e-8
+l2 = 1e-9
 batch_size = 2
 epoch = 1000
 validation_ratio = 0.2
@@ -127,7 +127,6 @@ class YoloLoss(tf.keras.losses.Loss):
         from tensorflow.python.framework.ops import convert_to_tensor_v2
         y_pred = convert_to_tensor_v2(y_pred)
         y_true = tf.cast(y_true, y_pred.dtype)
-        # confidence_loss = tf.losses.binary_crossentropy(y_true[:, :, :, 0], y_pred[:, :, :, 0])
         confidence_loss = tf.reduce_sum(tf.square(y_true[:, :, :, 0] - y_pred[:, :, :, 0]))
         box_true = tf.sqrt(y_true[:, :, :, 1:5] + 1e-4)
         box_pred = tf.sqrt(y_pred[:, :, :, 1:5] + 1e-4)
@@ -321,7 +320,7 @@ def train():
     """
     global total_image_paths, total_image_count, lr, l2, batch_size, epoch, train_image_path, test_image_path, class_names, class_count, validation_ratio
 
-    total_image_paths = glob(f'{train_image_path}/*lane*etc*/*.jpg')
+    total_image_paths = glob(f'{train_image_path}/*/*.jpg')
     total_image_count = len(total_image_paths)
     random.shuffle(total_image_paths)
     train_image_count = int(len(total_image_paths) * (1 - validation_ratio))
@@ -356,11 +355,12 @@ def train():
         kernel_regularizer=tf.keras.regularizers.l2(l2=l2),
         bias_regularizer=tf.keras.regularizers.l2(l2=l2),
         activity_regularizer=tf.keras.regularizers.l2(l2=l2))(x)
+    x = tf.keras.layers.Dropout(0.1)(x)
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.MaxPool2D()(x)
 
-    x = tf.keras.layers.Dropout(0.2)(x)
+    x = tf.keras.layers.Dropout(0.1)(x)
     x = tf.keras.layers.Conv2D(
         filters=32,
         kernel_size=3,
@@ -373,7 +373,7 @@ def train():
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.MaxPool2D()(x)
 
-    x = tf.keras.layers.Dropout(0.3)(x)
+    x = tf.keras.layers.Dropout(0.1)(x)
     x = tf.keras.layers.Conv2D(
         filters=64,
         kernel_size=3,
@@ -384,7 +384,7 @@ def train():
         activity_regularizer=tf.keras.regularizers.l2(l2=l2))(x)
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
-    x = tf.keras.layers.Dropout(0.3)(x)
+    x = tf.keras.layers.Dropout(0.1)(x)
     x = tf.keras.layers.Conv2D(
         filters=64,
         kernel_size=3,
@@ -395,9 +395,8 @@ def train():
         activity_regularizer=tf.keras.regularizers.l2(l2=l2))(x)
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
-    # x = tf.keras.layers.MaxPool2D()(x)
 
-    x = tf.keras.layers.Dropout(0.4)(x)
+    x = tf.keras.layers.Dropout(0.1)(x)
     x = tf.keras.layers.Conv2D(
         filters=128,
         kernel_size=3,
@@ -408,7 +407,7 @@ def train():
         activity_regularizer=tf.keras.regularizers.l2(l2=l2))(x)
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
-    x = tf.keras.layers.Dropout(0.4)(x)
+    x = tf.keras.layers.Dropout(0.1)(x)
     x = tf.keras.layers.Conv2D(
         filters=128,
         kernel_size=3,
@@ -420,7 +419,6 @@ def train():
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
 
-    x = tf.keras.layers.Dropout(0.5)(x)
     x = tf.keras.layers.Conv2D(
         filters=class_count + 5,
         kernel_size=1,
@@ -451,7 +449,7 @@ def train():
         validation_data=validation_data_generator,
         epochs=epoch,
         callbacks=[
-            # tf.keras.callbacks.ModelCheckpoint(filepath='checkpoints/sp_dropout_yolo_4680_epoch_{epoch}_loss_{loss:.6f}_val_loss_{val_loss:.6f}.h5'),
+            tf.keras.callbacks.ModelCheckpoint(filepath='checkpoints/dropout_yolo_4680_epoch_{epoch}_loss_{loss:.6f}_val_loss_{val_loss:.6f}.h5'),
             tf.keras.callbacks.ModelCheckpoint(filepath='model.h5'),
             tf.keras.callbacks.LambdaCallback(on_batch_end=random_live_view),
         ])
@@ -508,7 +506,7 @@ def test_video():
     # cap = cv2.VideoCapture(r'C:\inz\videos\night (2).mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\night (3).mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\night (4).mp4')
-    cap = cv2.VideoCapture(r'C:\inz\videos\1228_4k_5.mp4')
+    # cap = cv2.VideoCapture(r'C:\inz\videos\1228_4k_5.mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\1228_4k_5_night.mp4')
 
     while True:
