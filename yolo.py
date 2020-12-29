@@ -31,14 +31,14 @@ train_image_path = r'C:\inz\train_data\lp_detection_yolo'
 test_image_path = r'C:\inz\train_data\lp_detection_yolo'
 
 lr = 1e-3
-l2 = 1e-7
+l2 = 1e-16
 batch_size = 2
 epoch = 1000
 validation_ratio = 0.2
 input_shape = (368, 640)
-output_shape = (23, 40)
-confidence_threshold = 0.5
-nms_iou_threshold = 0.2
+output_shape = (46, 80)
+confidence_threshold = 0.25
+nms_iou_threshold = 0.25
 bbox_padding_val = 0
 
 font_scale = 0.4
@@ -127,11 +127,11 @@ class YoloLoss(tf.keras.losses.Loss):
         from tensorflow.python.framework.ops import convert_to_tensor_v2
         y_pred = convert_to_tensor_v2(y_pred)
         y_true = tf.cast(y_true, y_pred.dtype)
-        confidence_loss = tf.reduce_sum(tf.square(y_true[:, :, :, 0] - y_pred[:, :, :, 0]))
+        confidence_loss = tf.losses.binary_crossentropy(y_true[:, :, :, 0], y_pred[:, :, :, 0])
         box_true = tf.sqrt(y_true[:, :, :, 1:5] + 1e-5)
         box_pred = tf.sqrt(y_pred[:, :, :, 1:5] + 1e-5)
         box_loss = tf.reduce_sum(tf.reduce_sum(tf.square(box_true - box_pred), axis=-1) * y_true[:, :, :, 0])
-        classification_loss = tf.reduce_sum(tf.reduce_sum(tf.math.square(y_true[:, :, :, 5:] - y_pred[:, :, :, 5:]), axis=-1) * y_true[:, :, :, 0])
+        classification_loss = tf.reduce_sum(tf.reduce_sum(tf.square(y_true[:, :, :, 5:] - y_pred[:, :, :, 5:]), axis=-1) * y_true[:, :, :, 0])
         return confidence_loss + (box_loss * self.coord) + classification_loss
 
 
@@ -384,7 +384,7 @@ def train():
         activity_regularizer=tf.keras.regularizers.l2(l2=l2))(x)
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
-    x = tf.keras.layers.MaxPool2D()(x)
+    # x = tf.keras.layers.MaxPool2D()(x)
 
     x = tf.keras.layers.Conv2D(
         filters=128,
@@ -415,8 +415,8 @@ def train():
         bias_regularizer=tf.keras.regularizers.l2(l2=l2),
         activity_regularizer=tf.keras.regularizers.l2(l2=l2))(x)
 
-    model = tf.keras.models.Model(model_input, x)
-    # model = tf.keras.models.load_model('yolo.h5', compile=False)
+    # model = tf.keras.models.Model(model_input, x)
+    model = tf.keras.models.load_model('model.h5', compile=False)
     model.summary()
     model.compile(optimizer=tf.keras.optimizers.Adam(lr=lr), loss=YoloLoss())
     model.save('model.h5')
@@ -437,7 +437,7 @@ def train():
         validation_data=validation_data_generator,
         epochs=epoch,
         callbacks=[
-            tf.keras.callbacks.ModelCheckpoint(filepath='checkpoints/yolo_2340_epoch_{epoch}_loss_{loss:.6f}_val_loss_{val_loss:.6f}.h5'),
+            tf.keras.callbacks.ModelCheckpoint(filepath='checkpoints/2_yolo_4680_epoch_{epoch}_loss_{loss:.6f}_val_loss_{val_loss:.6f}.h5'),
             tf.keras.callbacks.ModelCheckpoint(filepath='model.h5'),
             tf.keras.callbacks.LambdaCallback(on_batch_end=random_live_view),
         ])
@@ -466,8 +466,7 @@ def freeze(model_name):
         graph_or_graph_def=frozen_func.graph,
         logdir=".",
         name="model.pb",
-        as_text=False
-    )
+        as_text=False)
     net = cv2.dnn.readNet('model.pb')
     print(f'\nconvert pb success. {len(net.getLayerNames())} layers')
     return True
@@ -491,10 +490,12 @@ def test_video():
     # cap = cv2.VideoCapture(r'C:\inz\videos\noon (4).mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\noon (5).mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\noon (6).mp4')
-    cap = cv2.VideoCapture(r'C:\inz\videos\night.mp4')
+    # cap = cv2.VideoCapture(r'C:\inz\videos\night.mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\night (2).mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\night (3).mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\night (4).mp4')
+    # cap = cv2.VideoCapture(r'C:\inz\videos\1228_4k_5.mp4')
+    cap = cv2.VideoCapture(r'C:\inz\videos\1228_4k_5_night.mp4')
 
     while True:
         frame_exist, x = cap.read()
@@ -506,7 +507,7 @@ def test_video():
         boxed = bounding_box(x, res)
         # out.write(x)
         cv2.imshow('res', x)
-        if ord('q') == cv2.waitKey(1):
+        if ord('q') == cv2.waitKey(15):
             break
     # out.release()
     cap.release()
@@ -549,6 +550,6 @@ def count_test():
 if __name__ == '__main__':
     # count_test()
     train()
-    # freeze('checkpoints/yolo_epoch_138_loss_0.0000_val_loss_0.0004.h5')
+    # freeze('checkpoints/4_residual_4680_0.3M_1e-3_epoch_10_loss_0.000040_val_loss_0.000726.h5')
     # freeze('model.h5')
     # test_video()
