@@ -38,8 +38,8 @@ validation_ratio = 0.2
 input_shape = (368, 640)
 output_shape = (46, 80)
 confidence_threshold = 0.25
-nms_iou_threshold = 0.05
-bbox_padding_val = 0
+nms_iou_threshold = 0.2
+max_num_boxes = 10
 
 font_scale = 0.4
 img_channels = 3 if img_type == cv2.IMREAD_COLOR else 1
@@ -176,7 +176,7 @@ def forward(model, x, model_type='h5'):
     :return: dictionary array sorted by x position.
     each dictionary has class index and bbox info: [x1, y1, x2, y2].
     """
-    global confidence_threshold, nms_iou_threshold, bbox_padding_val, class_names
+    global confidence_threshold, nms_iou_threshold, max_num_boxes, class_names
     raw_width, raw_height = x.shape[1], x.shape[0]
     if img_channels == 1:
         x = cv2.cvtColor(x, cv2.COLOR_BGR2GRAY)
@@ -193,6 +193,7 @@ def forward(model, x, model_type='h5'):
         y = model.forward()[0]
 
     res = []
+    box_count = 0
     for i in range(output_shape[0]):
         for j in range(output_shape[1]):
             confidence = y[0][i][j]
@@ -227,6 +228,11 @@ def forward(model, x, model_type='h5'):
                 'class': class_index - 5,
                 'discard': False
             })
+            box_count += 1
+            if box_count >= max_num_boxes:
+                break
+        if box_count >= max_num_boxes:
+            break
 
     # nms process
     for i in range(len(res)):
@@ -341,7 +347,7 @@ def train():
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.MaxPool2D()(x)
 
-    # x = tf.keras.layers.Dropout(0.1)(x)
+    x = tf.keras.layers.Dropout(0.1)(x)
     x = tf.keras.layers.Conv2D(
         filters=16,
         kernel_size=3,
@@ -354,7 +360,7 @@ def train():
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.MaxPool2D()(x)
 
-    # x = tf.keras.layers.Dropout(0.2)(x)
+    x = tf.keras.layers.Dropout(0.2)(x)
     x = tf.keras.layers.Conv2D(
         filters=32,
         kernel_size=3,
@@ -367,7 +373,7 @@ def train():
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.MaxPool2D()(x)
 
-    # x = tf.keras.layers.Dropout(0.3)(x)
+    x = tf.keras.layers.Dropout(0.3)(x)
     x = tf.keras.layers.Conv2D(
         filters=64,
         kernel_size=3,
@@ -378,7 +384,7 @@ def train():
         activity_regularizer=tf.keras.regularizers.l2(l2=l2))(x)
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
-    # x = tf.keras.layers.Dropout(0.3)(x)
+    x = tf.keras.layers.Dropout(0.3)(x)
     x = tf.keras.layers.Conv2D(
         filters=64,
         kernel_size=3,
@@ -391,7 +397,7 @@ def train():
     x = tf.keras.layers.BatchNormalization()(x)
     # x = tf.keras.layers.MaxPool2D()(x)
 
-    # x = tf.keras.layers.Dropout(0.4)(x)
+    x = tf.keras.layers.Dropout(0.4)(x)
     x = tf.keras.layers.Conv2D(
         filters=128,
         kernel_size=3,
@@ -402,7 +408,7 @@ def train():
         activity_regularizer=tf.keras.regularizers.l2(l2=l2))(x)
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
-    # x = tf.keras.layers.Dropout(0.4)(x)
+    x = tf.keras.layers.Dropout(0.4)(x)
     x = tf.keras.layers.Conv2D(
         filters=128,
         kernel_size=3,
@@ -414,7 +420,7 @@ def train():
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
 
-    # x = tf.keras.layers.Dropout(0.5)(x)
+    x = tf.keras.layers.Dropout(0.5)(x)
     x = tf.keras.layers.Conv2D(
         filters=class_count + 5,
         kernel_size=1,
