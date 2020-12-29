@@ -31,14 +31,14 @@ train_image_path = r'C:\inz\train_data\lp_detection_yolo'
 test_image_path = r'C:\inz\train_data\lp_detection_yolo'
 
 lr = 1e-3
-l2 = 1e-16
+l2 = 1e-8
 batch_size = 2
 epoch = 1000
 validation_ratio = 0.2
 input_shape = (368, 640)
 output_shape = (46, 80)
 confidence_threshold = 0.25
-nms_iou_threshold = 0.25
+nms_iou_threshold = 0.05
 bbox_padding_val = 0
 
 font_scale = 0.4
@@ -127,7 +127,8 @@ class YoloLoss(tf.keras.losses.Loss):
         from tensorflow.python.framework.ops import convert_to_tensor_v2
         y_pred = convert_to_tensor_v2(y_pred)
         y_true = tf.cast(y_true, y_pred.dtype)
-        confidence_loss = tf.losses.binary_crossentropy(y_true[:, :, :, 0], y_pred[:, :, :, 0])
+        # confidence_loss = tf.losses.binary_crossentropy(y_true[:, :, :, 0], y_pred[:, :, :, 0])
+        confidence_loss = tf.reduce_sum(tf.square(y_true[:, :, :, 0] - y_pred[:, :, :, 0]))
         box_true = tf.sqrt(y_true[:, :, :, 1:5] + 1e-4)
         box_pred = tf.sqrt(y_pred[:, :, :, 1:5] + 1e-4)
         box_loss = tf.reduce_sum(tf.reduce_sum(tf.square(box_true - box_pred), axis=-1) * y_true[:, :, :, 0])
@@ -157,13 +158,13 @@ def iou(a, b):
     b_x_min, b_y_min, b_x_max, b_y_max = b
     intersection_width = min(a_x_max, b_x_max) - max(a_x_min, b_x_min)
     intersection_height = min(a_y_max, b_y_max) - max(a_y_min, b_y_min)
-    if intersection_width < 0 or intersection_height < 0:
+    intersection_area = abs(max(0, intersection_width) * max(0, intersection_height))
+    if intersection_area == 0:
         return 0.0
-    intersection_area = intersection_width * intersection_height
-    a_area = (a_x_max - a_x_min) * (a_y_max - a_y_min)
-    b_area = (b_x_max - b_x_min) * (b_y_max - b_y_min)
+    a_area = abs((a_x_max - a_x_min) * (a_y_max - a_y_min))
+    b_area = abs((b_x_max - b_x_min) * (b_y_max - b_y_min))
     union_area = a_area + b_area - intersection_area
-    return intersection_area / (float(union_area) + 1e-7)
+    return intersection_area / float(union_area)
 
 
 def forward(model, x, model_type='h5'):
@@ -234,8 +235,8 @@ def forward(model, x, model_type='h5'):
         for j in range(len(res)):
             if i == j or res[j]['discard']:
                 continue
-            if iou(res[i]['bbox'], res[j]['bbox']) > nms_iou_threshold:
-                if res[i]['confidence'] > res[j]['confidence']:
+            if iou(res[i]['bbox'], res[j]['bbox']) >= nms_iou_threshold:
+                if res[i]['confidence'] >= res[j]['confidence']:
                     res[j]['discard'] = True
     return sorted(res, key=lambda __x: __x['bbox'][0])
 
@@ -314,7 +315,7 @@ def train():
     """
     global total_image_paths, total_image_count, lr, l2, batch_size, epoch, train_image_path, test_image_path, class_names, class_count, validation_ratio
 
-    total_image_paths = glob(f'{train_image_path}/*/*.jpg')
+    total_image_paths = glob(f'{train_image_path}/*lane*etc*/*.jpg')
     total_image_count = len(total_image_paths)
     random.shuffle(total_image_paths)
     train_image_count = int(len(total_image_paths) * (1 - validation_ratio))
@@ -340,6 +341,7 @@ def train():
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.MaxPool2D()(x)
 
+    # x = tf.keras.layers.Dropout(0.1)(x)
     x = tf.keras.layers.Conv2D(
         filters=16,
         kernel_size=3,
@@ -352,6 +354,7 @@ def train():
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.MaxPool2D()(x)
 
+    # x = tf.keras.layers.Dropout(0.2)(x)
     x = tf.keras.layers.Conv2D(
         filters=32,
         kernel_size=3,
@@ -364,6 +367,7 @@ def train():
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.MaxPool2D()(x)
 
+    # x = tf.keras.layers.Dropout(0.3)(x)
     x = tf.keras.layers.Conv2D(
         filters=64,
         kernel_size=3,
@@ -374,6 +378,7 @@ def train():
         activity_regularizer=tf.keras.regularizers.l2(l2=l2))(x)
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
+    # x = tf.keras.layers.Dropout(0.3)(x)
     x = tf.keras.layers.Conv2D(
         filters=64,
         kernel_size=3,
@@ -386,6 +391,7 @@ def train():
     x = tf.keras.layers.BatchNormalization()(x)
     # x = tf.keras.layers.MaxPool2D()(x)
 
+    # x = tf.keras.layers.Dropout(0.4)(x)
     x = tf.keras.layers.Conv2D(
         filters=128,
         kernel_size=3,
@@ -396,6 +402,7 @@ def train():
         activity_regularizer=tf.keras.regularizers.l2(l2=l2))(x)
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
+    # x = tf.keras.layers.Dropout(0.4)(x)
     x = tf.keras.layers.Conv2D(
         filters=128,
         kernel_size=3,
@@ -407,6 +414,7 @@ def train():
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
 
+    # x = tf.keras.layers.Dropout(0.5)(x)
     x = tf.keras.layers.Conv2D(
         filters=class_count + 5,
         kernel_size=1,
@@ -415,8 +423,8 @@ def train():
         bias_regularizer=tf.keras.regularizers.l2(l2=l2),
         activity_regularizer=tf.keras.regularizers.l2(l2=l2))(x)
 
-    # model = tf.keras.models.Model(model_input, x)
-    model = tf.keras.models.load_model('model.h5', compile=False)
+    model = tf.keras.models.Model(model_input, x)
+    # model = tf.keras.models.load_model('model.h5', compile=False)
     model.summary()
     model.compile(optimizer=tf.keras.optimizers.Adam(lr=lr), loss=YoloLoss())
     model.save('model.h5')
@@ -437,7 +445,7 @@ def train():
         validation_data=validation_data_generator,
         epochs=epoch,
         callbacks=[
-            tf.keras.callbacks.ModelCheckpoint(filepath='checkpoints/2_yolo_4680_epoch_{epoch}_loss_{loss:.6f}_val_loss_{val_loss:.6f}.h5'),
+            # tf.keras.callbacks.ModelCheckpoint(filepath='checkpoints/sp_dropout_yolo_4680_epoch_{epoch}_loss_{loss:.6f}_val_loss_{val_loss:.6f}.h5'),
             tf.keras.callbacks.ModelCheckpoint(filepath='model.h5'),
             tf.keras.callbacks.LambdaCallback(on_batch_end=random_live_view),
         ])
