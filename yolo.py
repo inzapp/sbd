@@ -128,8 +128,8 @@ class YoloLoss(tf.keras.losses.Loss):
         y_pred = convert_to_tensor_v2(y_pred)
         y_true = tf.cast(y_true, y_pred.dtype)
         confidence_loss = tf.losses.binary_crossentropy(y_true[:, :, :, 0], y_pred[:, :, :, 0])
-        box_true = tf.sqrt(y_true[:, :, :, 1:5] + 1e-5)
-        box_pred = tf.sqrt(y_pred[:, :, :, 1:5] + 1e-5)
+        box_true = tf.sqrt(y_true[:, :, :, 1:5] + 1e-4)
+        box_pred = tf.sqrt(y_pred[:, :, :, 1:5] + 1e-4)
         box_loss = tf.reduce_sum(tf.reduce_sum(tf.square(box_true - box_pred), axis=-1) * y_true[:, :, :, 0])
         classification_loss = tf.reduce_sum(tf.reduce_sum(tf.square(y_true[:, :, :, 5:] - y_pred[:, :, :, 5:]), axis=-1) * y_true[:, :, :, 0])
         return confidence_loss + (box_loss * self.coord) + classification_loss
@@ -494,8 +494,8 @@ def test_video():
     # cap = cv2.VideoCapture(r'C:\inz\videos\night (2).mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\night (3).mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\night (4).mp4')
-    # cap = cv2.VideoCapture(r'C:\inz\videos\1228_4k_5.mp4')
-    cap = cv2.VideoCapture(r'C:\inz\videos\1228_4k_5_night.mp4')
+    cap = cv2.VideoCapture(r'C:\inz\videos\1228_4k_5.mp4')
+    # cap = cv2.VideoCapture(r'C:\inz\videos\1228_4k_5_night.mp4')
 
     while True:
         frame_exist, x = cap.read()
