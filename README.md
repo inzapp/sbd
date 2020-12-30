@@ -18,8 +18,8 @@ Let me explain more.<br>
 SBD output gives the probability map that objects will be included in the corresponding grid cell, not in the 0 and 1 binaries.<br>
 Therefore, the closer the label is to the actual object segmentation, the more accurate the model is.<br>
 
-This can look exactly the same as class probability map in YOLO.<br>
-However, SBD does not have channels of x, y, with, height and objectness.<br>
+This is a completely different mechanism from YOLO or SSD, a popular object detection algorithm.<br>
+SBD does not have channels of x, y, with, height and objectness.<br>
 
 So how do you extract the location of the object?<br>
 The key to SBD is to use the probability map converted to channel-first-ordering as an image.<br>
@@ -55,8 +55,7 @@ Thus, assuming that there are two classes, the loss is strong enough to converge
 
 <img src="/md/bce_graph.jpg" width="200"><br>
 
-But there is one big problem with bce.<br>
-If you label consecutive numbers, such as 0.03, 0.45, and 0.81, rather than 0 and 1 binaries.<br>
+Below is the bce loss value for label 1.<br>
 
 ```python
 >>> y_true, y_pred = [[1.0]], [[0.0]]
@@ -72,9 +71,8 @@ If you label consecutive numbers, such as 0.03, 0.45, and 0.81, rather than 0 an
 >>> 0.1054
 ```
 
-It does not appear to be suitable for SBD, which directly labels the probability that objects exist in each grid.<br>
-For example, if 0.5 is labeled, bce will cause strong losses to continue converging to zero or one,<br>
-which can severely interfere with the way it descends.<br>
+But there is one big problem with bce.<br>
+If you label consecutive numbers, such as 0.03, 0.45, and 0.81, rather than 0 and 1 binaries.<br>
 
 ```python
 >>> y_true, y_pred = [[0.5]], [[0.0]]
@@ -89,6 +87,10 @@ which can severely interfere with the way it descends.<br>
 >>> print(tf.keras.losses.BinaryCrossentropy()(y_true, y_pred).numpy())
 >>> 1.2040
 ```
+
+It does not appear to be suitable for SBD, which directly labels the probability that objects exist in each grid.<br>
+For example, if 0.5 is labeled, bce will cause strong losses to continue converging to zero or one,<br>
+which can severely interfere with the way it descends.<br>
 
 Therefore, you may not be able to learn as you want.<br>
 
@@ -105,15 +107,15 @@ and at the same time give a stable loss in consecutive numbers between 0 and 1.
 
 ```python
 >>> y_true, y_pred = [[1.0]], [[0.0]]
->>> print(tf.keras.losses.BinaryCrossentropy()(y_true, y_pred).numpy())
+>>> print(MeanAbsoluteLogError()(y_true, y_pred).numpy())
 >>> 15.9424
 >>>
 >>> y_true, y_pred = [[1.0]], [[0.5]]
->>> print(tf.keras.losses.BinaryCrossentropy()(y_true, y_pred).numpy())
+>>> print(MeanAbsoluteLogError()(y_true, y_pred).numpy())
 >>> 0.6931
 >>>
 >>> y_true, y_pred = [[1.0]], [[0.9]]
->>> print(tf.keras.losses.BinaryCrossentropy()(y_true, y_pred).numpy())
+>>> print(MeanAbsoluteLogError()(y_true, y_pred).numpy())
 >>> 0.1054
 >>>
 >>> y_true, y_pred = [[0.5]], [[0.0]]
