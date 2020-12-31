@@ -381,9 +381,44 @@ def iou(a, b):
     return intersection_area / float(union_area)
 
 
+def ccl():
+    from glob import glob
+    paths = glob('\\\\192.168.101.200/egkim/svn/ccl/to_raw_images/source/*.jpg')
+    for path in paths:
+        img = cv2.imread(path, cv2.IMREAD_COLOR)
+        proc = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        proc_not = cv2.bitwise_not(proc)
+
+        cv2.equalizeHist(proc, proc)
+        proc = cv2.GaussianBlur(proc, (3, 3), 0)
+        proc = cv2.Laplacian(proc, cv2.CV_8UC1, ksize=3)
+        _, proc = cv2.threshold(proc, 127, 255, cv2.THRESH_BINARY)
+        contours, _ = cv2.findContours(proc, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
+
+        cv2.equalizeHist(proc_not, proc_not)
+        proc_not = cv2.GaussianBlur(proc_not, (3, 3), 0)
+        proc_not = cv2.Laplacian(proc_not, cv2.CV_8UC1, ksize=3)
+        _, proc_not = cv2.threshold(proc_not, 127, 255, cv2.THRESH_BINARY)
+        contours_not, _ = cv2.findContours(proc_not, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
+
+        contours += contours_not
+
+        for contour in contours:
+            x, y, w, h = cv2.boundingRect(contour)
+            if w < 1 or 80 < w or h < 1 or 80 < h:
+                continue
+            cv2.rectangle(img, (x, y), (x + w, y + h), (0, 0, 255), 2)
+        cv2.imshow('proc', cv2.resize(proc, (0, 0), fx=4.0, fy=4.0))
+        cv2.imshow('proc_not', cv2.resize(proc_not, (0, 0), fx=4.0, fy=4.0))
+        cv2.imshow('img', cv2.resize(img, (0, 0), fx=4.0, fy=4.0))
+        cv2.waitKey(0)
+    pass
+
+
 if __name__ == '__main__':
     # compress_test()
     # convert_1_box_label()
-    test_loss()
+    # test_loss()
     # bounding_box_test()
     # test_interpolation()
+    ccl()

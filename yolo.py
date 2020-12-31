@@ -27,16 +27,18 @@ from yolo_box_color import colors
 os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
 img_type = cv2.IMREAD_GRAYSCALE
-train_image_path = r'C:\inz\train_data\lp_detection_yolo'
-test_image_path = r'C:\inz\train_data\lp_detection_yolo'
+train_image_path = r'C:\inz\train_data\character_detection_in_lp'
+test_image_path = r'C:\inz\train_data\character_detection_in_lp_test'
 
 lr = 1e-3
-l2 = 1e-9
+l2 = 1e-16
 batch_size = 2
-epoch = 1000
-validation_ratio = 0.2
-input_shape = (368, 640)
-output_shape = (46, 80)
+epoch = 300
+validation_ratio = 0.1
+# input_shape = (368, 640)
+# output_shape = (46, 80)
+input_shape = (96, 192)
+output_shape = (24, 48)
 confidence_threshold = 0.25
 nms_iou_threshold = 0.2
 max_num_boxes = 10
@@ -299,8 +301,8 @@ def bounding_box(img, yolo_res):
         label_width, label_height = get_text_label_width_height(label_text)
         x1, y1, x2, y2 = cur_res['bbox']
         cv2.rectangle(img, (x1, y1), (x2, y2), label_background_color, 2)
-        cv2.rectangle(img, (x1 - 1, y1 - label_height), (x1 - 1 + label_width, y1), colors[class_index], -1)
-        cv2.putText(img, label_text, (x1 - 1, y1 - 5), cv2.FONT_HERSHEY_DUPLEX, fontScale=font_scale, color=label_font_color, thickness=1, lineType=cv2.LINE_AA)
+        # cv2.rectangle(img, (x1 - 1, y1 - label_height), (x1 - 1 + label_width, y1), colors[class_index], -1)
+        # cv2.putText(img, label_text, (x1 - 1, y1 - 5), cv2.FONT_HERSHEY_DUPLEX, fontScale=font_scale, color=label_font_color, thickness=1, lineType=cv2.LINE_AA)
     return img
 
 
@@ -309,7 +311,10 @@ def random_forward(model, model_type='h5'):
     from random import randrange
     img = cv2.imread(total_image_paths[randrange(0, total_image_count)], cv2.IMREAD_COLOR)
     img = resize(img, (input_shape[1], input_shape[0]))
+    # st = time()
     res = forward(model, img, model_type=model_type)
+    # et = time()
+    # print(et - st)
     img = bounding_box(img, res)
     cv2.imshow('random forward', img)
 
@@ -335,27 +340,13 @@ def train():
     model_input = tf.keras.layers.Input(shape=(input_shape[0], input_shape[1], img_channels))
 
     x = tf.keras.layers.Conv2D(
-        filters=8,
-        kernel_size=3,
-        padding='same',
-        kernel_initializer='he_uniform',
-        kernel_regularizer=tf.keras.regularizers.l2(l2=l2),
-        bias_regularizer=tf.keras.regularizers.l2(l2=l2),
-        activity_regularizer=tf.keras.regularizers.l2(l2=l2))(model_input)
-    x = tf.keras.layers.ReLU()(x)
-    x = tf.keras.layers.BatchNormalization()(x)
-    x = tf.keras.layers.MaxPool2D()(x)
-
-    x = tf.keras.layers.Dropout(0.1)(x)
-    x = tf.keras.layers.Conv2D(
         filters=16,
         kernel_size=3,
         padding='same',
         kernel_initializer='he_uniform',
         kernel_regularizer=tf.keras.regularizers.l2(l2=l2),
         bias_regularizer=tf.keras.regularizers.l2(l2=l2),
-        activity_regularizer=tf.keras.regularizers.l2(l2=l2))(x)
-    x = tf.keras.layers.Dropout(0.1)(x)
+        activity_regularizer=tf.keras.regularizers.l2(l2=l2))(model_input)
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.MaxPool2D()(x)
@@ -384,9 +375,10 @@ def train():
         activity_regularizer=tf.keras.regularizers.l2(l2=l2))(x)
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
+
     x = tf.keras.layers.Dropout(0.1)(x)
     x = tf.keras.layers.Conv2D(
-        filters=64,
+        filters=128,
         kernel_size=3,
         padding='same',
         kernel_initializer='he_uniform',
@@ -407,18 +399,8 @@ def train():
         activity_regularizer=tf.keras.regularizers.l2(l2=l2))(x)
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
-    x = tf.keras.layers.Dropout(0.1)(x)
-    x = tf.keras.layers.Conv2D(
-        filters=128,
-        kernel_size=3,
-        padding='same',
-        kernel_initializer='he_uniform',
-        kernel_regularizer=tf.keras.regularizers.l2(l2=l2),
-        bias_regularizer=tf.keras.regularizers.l2(l2=l2),
-        activity_regularizer=tf.keras.regularizers.l2(l2=l2))(x)
-    x = tf.keras.layers.ReLU()(x)
-    x = tf.keras.layers.BatchNormalization()(x)
 
+    x = tf.keras.layers.Dropout(0.1)(x)
     x = tf.keras.layers.Conv2D(
         filters=class_count + 5,
         kernel_size=1,
@@ -428,35 +410,36 @@ def train():
         activity_regularizer=tf.keras.regularizers.l2(l2=l2))(x)
 
     model = tf.keras.models.Model(model_input, x)
-    # model = tf.keras.models.load_model('model.h5', compile=False)
     model.summary()
     model.compile(optimizer=tf.keras.optimizers.Adam(lr=lr), loss=YoloLoss())
-    model.save('model.h5')
-    if not freeze('model.h5'):
-        print('model freeze failure.')
-        exit(-1)
-
-    def random_live_view(batch, logs):
-        global live_view_previous_time
-        cur_time = time()
-        if cur_time - live_view_previous_time > 0.5:
-            live_view_previous_time = cur_time
-            random_forward(model, model_type='h5')
-            cv2.waitKey(1)
-
-    model.fit(
-        x=train_data_generator,
-        validation_data=validation_data_generator,
-        epochs=epoch,
-        callbacks=[
-            tf.keras.callbacks.ModelCheckpoint(filepath='checkpoints/dropout_yolo_4680_epoch_{epoch}_loss_{loss:.6f}_val_loss_{val_loss:.6f}.h5'),
-            tf.keras.callbacks.ModelCheckpoint(filepath='model.h5'),
-            tf.keras.callbacks.LambdaCallback(on_batch_end=random_live_view),
-        ])
-
-    model.save('model.h5')
+    # model.save('model.h5')
+    # if not freeze('model.h5'):
+    #     print('model freeze failure.')
+    #     exit(-1)
+    #
+    # def random_live_view(batch, logs):
+    #     global live_view_previous_time
+    #     cur_time = time()
+    #     if cur_time - live_view_previous_time > 0.5:
+    #         live_view_previous_time = cur_time
+    #         random_forward(model, model_type='h5')
+    #         cv2.waitKey(1)
+    #
+    # model.fit(
+    #     x=train_data_generator,
+    #     validation_data=validation_data_generator,
+    #     epochs=epoch,
+    #     callbacks=[
+    #         # tf.keras.callbacks.ModelCheckpoint(filepath='checkpoints/dropout_yolo_4680_epoch_{epoch}_loss_{loss:.6f}_val_loss_{val_loss:.6f}.h5'),
+    #         tf.keras.callbacks.ModelCheckpoint(filepath='model.h5'),
+    #         tf.keras.callbacks.LambdaCallback(on_batch_end=random_live_view),
+    #     ])
+    #
+    # model.save('model.h5')
     freeze('model.h5')
     print('train success')
+    # total_image_paths = glob(f'{train_image_paths}/*/*.jpg')
+    # total_image_count = len(train_image_paths)
     model = cv2.dnn.readNet('model.pb')
     while True:
         random_forward(model, model_type='pb')
@@ -506,7 +489,7 @@ def test_video():
     # cap = cv2.VideoCapture(r'C:\inz\videos\night (2).mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\night (3).mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\night (4).mp4')
-    # cap = cv2.VideoCapture(r'C:\inz\videos\1228_4k_5.mp4')
+    cap = cv2.VideoCapture(r'C:\inz\videos\1228_4k_5.mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\1228_4k_5_night.mp4')
 
     while True:
