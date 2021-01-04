@@ -37,8 +37,8 @@ epoch = 10000
 validation_ratio = 0.1
 input_shape = (96, 192)
 output_shape = (12, 24)
-confidence_threshold = 0.1
-nms_iou_threshold = 0.05
+confidence_threshold = 0.25
+nms_iou_threshold = 0.01
 max_num_boxes = 15
 
 font_scale = 0.4
@@ -240,7 +240,7 @@ def forward(model, x, model_type='h5'):
         for j in range(len(res)):
             if i == j or res[j]['discard']:
                 continue
-            if iou(res[i]['bbox'], res[j]['bbox']) >= nms_iou_threshold:
+            if iou(res[i]['bbox'], res[j]['bbox']) > nms_iou_threshold:
                 if res[i]['confidence'] >= res[j]['confidence']:
                     res[j]['discard'] = True
 
@@ -373,7 +373,6 @@ def train():
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.MaxPool2D()(x)
-    skip_connection = x
 
     x = tf.keras.layers.Conv2D(
         filters=128,
@@ -396,8 +395,6 @@ def train():
         activity_regularizer=tf.keras.regularizers.l2(l2=l2))(x)
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
-
-    x = tf.keras.layers.Concatenate()([x, skip_connection])
 
     x = tf.keras.layers.Conv2D(
         filters=num_classes + 5,
@@ -429,9 +426,10 @@ def train():
         validation_data=validation_data_generator,
         epochs=epoch,
         callbacks=[
-            # tf.keras.callbacks.ModelCheckpoint(filepath='checkpoints/lcd_100_epoch_{epoch}_loss_{loss:.6f}_val_loss_{val_loss:.6f}.h5'),
+            tf.keras.callbacks.ModelCheckpoint(filepath='checkpoints/lcd_epoch_{epoch}_loss_{loss:.6f}_val_loss_{val_loss:.6f}.h5'),
             tf.keras.callbacks.ModelCheckpoint(filepath='model.h5'),
             tf.keras.callbacks.LambdaCallback(on_batch_end=random_live_view)])
+
     model.save('model.h5')
     freeze('model.h5')
     print('train success')
