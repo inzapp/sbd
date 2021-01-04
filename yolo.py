@@ -28,7 +28,7 @@ os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
 img_type = cv2.IMREAD_GRAYSCALE
 train_image_path = r'C:\inz\train_data\character_detection_in_lp'
-test_image_path = r'C:\inz\train_data\character_detection_in_lp_test'
+test_image_path = r'C:\inz\train_data\character_detection_in_lp'
 
 lr = 1e-3
 l2 = 1e-16
@@ -191,7 +191,7 @@ def forward(model, x, model_type='h5'):
     elif model_type == 'pb':
         x = np.asarray(x).reshape((1, img_channels, input_shape[0], input_shape[1])).astype('float32') / 255.0
         model.setInput(x)
-        y = model.forward()[0]
+        y = model.lab_forward()[0]
 
     res = []
     box_count = 0
@@ -412,34 +412,30 @@ def train():
     model = tf.keras.models.Model(model_input, x)
     model.summary()
     model.compile(optimizer=tf.keras.optimizers.Adam(lr=lr), loss=YoloLoss())
-    # model.save('model.h5')
-    # if not freeze('model.h5'):
-    #     print('model freeze failure.')
-    #     exit(-1)
-    #
-    # def random_live_view(batch, logs):
-    #     global live_view_previous_time
-    #     cur_time = time()
-    #     if cur_time - live_view_previous_time > 0.5:
-    #         live_view_previous_time = cur_time
-    #         random_forward(model, model_type='h5')
-    #         cv2.waitKey(1)
-    #
-    # model.fit(
-    #     x=train_data_generator,
-    #     validation_data=validation_data_generator,
-    #     epochs=epoch,
-    #     callbacks=[
-    #         # tf.keras.callbacks.ModelCheckpoint(filepath='checkpoints/dropout_yolo_4680_epoch_{epoch}_loss_{loss:.6f}_val_loss_{val_loss:.6f}.h5'),
-    #         tf.keras.callbacks.ModelCheckpoint(filepath='model.h5'),
-    #         tf.keras.callbacks.LambdaCallback(on_batch_end=random_live_view),
-    #     ])
-    #
-    # model.save('model.h5')
+    model.save('model.h5')
+    if not freeze('model.h5'):
+        print('model freeze failure.')
+        exit(-1)
+
+    def random_live_view(batch, logs):
+        global live_view_previous_time
+        cur_time = time()
+        if cur_time - live_view_previous_time > 0.5:
+            live_view_previous_time = cur_time
+            random_forward(model, model_type='h5')
+            cv2.waitKey(1)
+
+    model.fit(
+        x=train_data_generator,
+        validation_data=validation_data_generator,
+        epochs=epoch,
+        callbacks=[
+            tf.keras.callbacks.ModelCheckpoint(filepath='checkpoints/lcd_100_epoch_{epoch}_loss_{loss:.6f}_val_loss_{val_loss:.6f}.h5'),
+            tf.keras.callbacks.ModelCheckpoint(filepath='model.h5'),
+            tf.keras.callbacks.LambdaCallback(on_batch_end=random_live_view)])
+    model.save('model.h5')
     freeze('model.h5')
     print('train success')
-    # total_image_paths = glob(f'{train_image_paths}/*/*.jpg')
-    # total_image_count = len(train_image_paths)
     model = cv2.dnn.readNet('model.pb')
     while True:
         random_forward(model, model_type='pb')
@@ -531,7 +527,7 @@ def count_test():
             plate = resize(plate, (192, 96))
             plate_x = np.asarray(plate).reshape((1, 1, 96, 192)).astype('float32') / 255.
             ltc_net.setInput(plate_x)
-            res = ltc_net.forward()
+            res = ltc_net.lab_forward()
             res = np.asarray(res).reshape(8, )
             max_index = int(np.argmax(res))
             if res[max_index] > 0.8:

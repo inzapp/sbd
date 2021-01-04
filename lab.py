@@ -415,10 +415,145 @@ def ccl():
     pass
 
 
+def lab_forward(model, x, model_type='h5', input_shape=(0, 0), output_shape=(0, 0), img_channels=1):
+    import yolo
+    raw_width, raw_height = x.shape[1], x.shape[0]
+    if yolo.img_channels == 1:
+        x = cv2.cvtColor(x, cv2.COLOR_BGR2GRAY)
+    x = yolo.resize(x, (input_shape[1], input_shape[0]))
+
+    y = []
+    if model_type == 'h5':
+        x = np.asarray(x).reshape((1, input_shape[0], input_shape[1], img_channels)).astype('float32') / 255.0
+        y = model.predict(x=x, batch_size=1)[0]
+        y = np.moveaxis(y, -1, 0)
+    elif model_type == 'pb':
+        x = np.asarray(x).reshape((1, img_channels, input_shape[0], input_shape[1])).astype('float32') / 255.0
+        model.setInput(x)
+        y = model.forward()[0]
+
+    res = []
+    box_count = 0
+    for i in range(output_shape[0]):
+        for j in range(output_shape[1]):
+            confidence = y[0][i][j]
+            if confidence < yolo.confidence_threshold:
+                continue
+            cx = y[1][i][j]
+            cx_f = j / float(output_shape[1])
+            cx_f += 1 / float(output_shape[1]) * cx
+            cy = y[2][i][j]
+            cy_f = i / float(output_shape[0])
+            cy_f += 1 / float(output_shape[0]) * cy
+            w = y[3][i][j]
+            h = y[4][i][j]
+
+            x_min_f = cx_f - w / 2.0
+            y_min_f = cy_f - h / 2.0
+            x_max_f = cx_f + w / 2.0
+            y_max_f = cy_f + h / 2.0
+
+            if input_shape[1] == 640:
+                from random import uniform
+                padding_ratio = uniform(0.0, 0.15)
+                x_min_f -= (x_max_f - x_min_f) * padding_ratio
+                x_max_f += (x_max_f - x_min_f) * padding_ratio
+                y_min_f -= (y_max_f - y_min_f) * padding_ratio
+                y_max_f += (y_max_f - y_min_f) * padding_ratio
+
+            if x_min_f < 0.0:
+                x_min_f = 0.0
+            if y_min_f < 0.0:
+                y_min_f = 0.0
+            if x_max_f < 0.0:
+                x_max_f = 0.0
+            if y_max_f < 0.0:
+                y_max_f = 0.0
+
+            x_min = int(x_min_f * raw_width)
+            y_min = int(y_min_f * raw_height)
+            x_max = int(x_max_f * raw_width)
+            y_max = int(y_max_f * raw_height)
+            class_index = -1
+            max_percentage = -1
+            for cur_channel_index in range(5, len(y)):
+                if max_percentage < y[cur_channel_index][i][j]:
+                    class_index = cur_channel_index
+                    max_percentage = y[cur_channel_index][i][j]
+            res.append({
+                'confidence': confidence,
+                'bbox': [x_min, y_min, x_max, y_max],
+                'class': class_index - 5,
+                'discard': False
+            })
+            box_count += 1
+            if box_count >= yolo.max_num_boxes:
+                break
+        if box_count >= yolo.max_num_boxes:
+            break
+    return sorted(res, key=lambda __x: __x['bbox'][0])
+
+
+def test_total_lpr_process():
+    import yolo
+    yolo.class_names.append('license_plate')
+
+    yolo.freeze('checkpoints/2_yolo_4680_epoch_28_loss_0.006669_val_loss_0.034237.h5')
+    lpd = cv2.dnn.readNet('model.pb')
+
+    yolo.freeze('checkpoints/lcd_100_epoch_1768_loss_0.485955_val_loss_14.891500.h5')
+    lcd = cv2.dnn.readNet('model.pb')
+
+    # out = cv2.VideoWriter('output.mp4', cv2.VideoWriter_fourcc(*'MP4V'), 20.0, (640, 368))
+
+    # cap = cv2.VideoCapture('rtsp://admin:samsungg2b!@samsungg2bcctv.iptime.org:1500/video1s1')
+    cap = cv2.VideoCapture(r'C:\inz\videos\g2b.mp4')
+    # cap = cv2.VideoCapture(r'C:\inz\videos\truen.mkv')
+    # cap = cv2.VideoCapture(r'C:\inz\videos\hc_4k_18_day.mp4')
+    # cap = cv2.VideoCapture(r'C:\inz\videos\noon_not_trained.mp4')
+    # cap = cv2.VideoCapture(r'C:\inz\videos\noon.mp4')
+    # cap = cv2.VideoCapture(r'C:\inz\videos\noon (2).mp4')
+    # cap = cv2.VideoCapture(r'C:\inz\videos\noon (3).mp4')
+    # cap = cv2.VideoCapture(r'C:\inz\videos\noon (4).mp4')
+    # cap = cv2.VideoCapture(r'C:\inz\videos\noon (5).mp4')
+    # cap = cv2.VideoCapture(r'C:\inz\videos\noon (6).mp4')
+    # cap = cv2.VideoCapture(r'C:\inz\videos\night.mp4')
+    # cap = cv2.VideoCapture(r'C:\inz\videos\night (2).mp4')
+    # cap = cv2.VideoCapture(r'C:\inz\videos\night (3).mp4')
+    # cap = cv2.VideoCapture(r'C:\inz\videos\night (4).mp4')
+    # cap = cv2.VideoCapture(r'C:\inz\videos\1228_4k_5.mp4')
+    # cap = cv2.VideoCapture(r'C:\inz\videos\1228_4k_5_night.mp4')
+
+    while True:
+        frame_exist, x = cap.read()
+        if not frame_exist:
+            break
+        x = yolo.resize(x, (640, 368))
+        raw_x = x.copy()
+        res = lab_forward(lpd, x, model_type='pb', input_shape=(368, 640), output_shape=(46, 80), img_channels=1)
+        boxed = yolo.bounding_box(x, res)
+        cv2.imshow('boxed', cv2.resize(boxed, (0, 0), fx=2.0, fy=2.0))
+
+        for i, cur_res in enumerate(res):
+            x_min, y_min, x_max, y_max = cur_res['bbox']
+            lp = raw_x[y_min:y_max, x_min:x_max]
+            lp = yolo.resize(lp, (192, 96))
+            res = lab_forward(lcd, lp, model_type='pb', input_shape=(96, 192), output_shape=(24, 48), img_channels=1)
+            boxed = yolo.bounding_box(lp, res)
+            cv2.imshow(f'lp', boxed)
+        if ord('q') == cv2.waitKey(1):
+            break
+    # out.release()
+    cap.release()
+    cv2.destroyAllWindows()
+    pass
+
+
 if __name__ == '__main__':
     # compress_test()
     # convert_1_box_label()
     # test_loss()
     # bounding_box_test()
     # test_interpolation()
-    ccl()
+    # ccl()
+    test_total_lpr_process()
