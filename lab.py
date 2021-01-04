@@ -525,7 +525,7 @@ def test_total_lpr_process():
 
     # cap = cv2.VideoCapture('rtsp://admin:samsungg2b!@samsungg2bcctv.iptime.org:1500/video1s1')
     # cap = cv2.VideoCapture(r'C:\inz\videos\g2b.mp4')
-    cap = cv2.VideoCapture(r'C:\inz\videos\truen.mkv')
+    # cap = cv2.VideoCapture(r'C:\inz\videos\truen.mkv')
     # cap = cv2.VideoCapture(r'C:\inz\videos\hc_4k_18_day.mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\noon_not_trained.mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\noon.mp4')
@@ -538,7 +538,7 @@ def test_total_lpr_process():
     # cap = cv2.VideoCapture(r'C:\inz\videos\night (2).mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\night (3).mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\night (4).mp4')
-    # cap = cv2.VideoCapture(r'C:\inz\videos\1228_4k_5.mp4')
+    cap = cv2.VideoCapture(r'C:\inz\videos\1228_4k_5.mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\1228_4k_5_night.mp4')
 
     # inc = 0

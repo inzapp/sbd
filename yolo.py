@@ -37,7 +37,7 @@ epoch = 10000
 validation_ratio = 0.1
 input_shape = (96, 192)
 output_shape = (12, 24)
-confidence_threshold = 0.25
+confidence_threshold = 0.1
 nms_iou_threshold = 0.05
 max_num_boxes = 15
 
