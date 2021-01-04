@@ -33,7 +33,7 @@ test_image_path = r'C:\inz\train_data\character_detection_in_lp_test'
 lr = 1e-3
 l2 = 1e-16
 batch_size = 2
-epoch = 300
+epoch = 10000
 validation_ratio = 0.1
 # input_shape = (368, 640)
 # output_shape = (46, 80)
@@ -47,9 +47,9 @@ font_scale = 0.4
 img_channels = 3 if img_type == cv2.IMREAD_COLOR else 1
 live_view_previous_time = time()
 total_image_paths = []
-total_image_count = 0
+num_total_images = 0
 class_names = []
-class_count = 0
+num_classes = 0
 
 
 class YoloDataGenerator(tf.keras.utils.Sequence):
@@ -66,7 +66,7 @@ class YoloDataGenerator(tf.keras.utils.Sequence):
         np.random.shuffle(self.random_indexes)
 
     def __getitem__(self, index):
-        global img_type, batch_size, input_shape, img_channels, class_count
+        global img_type, batch_size, input_shape, img_channels, num_classes
         batch_x = []
         batch_y = []
         start_index = index * batch_size
@@ -79,7 +79,7 @@ class YoloDataGenerator(tf.keras.utils.Sequence):
                 x = cv2.resize(x, (input_shape[1], input_shape[0]), interpolation=cv2.INTER_LINEAR)
             with open(f'{cur_img_path[:-4]}.txt', mode='rt') as file:
                 label_lines = file.readlines()
-            y = [np.zeros(output_shape, dtype=np.float32) for _ in range(class_count + 5)]
+            y = [np.zeros(output_shape, dtype=np.float32) for _ in range(num_classes + 5)]
             grid_width_ratio = 1 / float(output_shape[1])
             grid_height_ratio = 1 / float(output_shape[0])
             for label_line in label_lines:
@@ -92,9 +92,9 @@ class YoloDataGenerator(tf.keras.utils.Sequence):
                 y[3][center_row][center_col] = w
                 y[4][center_row][center_col] = h
                 y[int(class_index + 5)][center_row][center_col] = 1.0
-            x = np.asarray(x).reshape((input_shape[0], input_shape[1], img_channels)).astype('float32') / 255.
+            x = np.asarray(x).reshape((input_shape[0], input_shape[1], img_channels)).astype('float32') / 255.0
             y = np.moveaxis(np.asarray(y), 0, -1)
-            y = np.asarray(y).reshape((output_shape[0], output_shape[1], class_count + 5)).astype('float32')
+            y = np.asarray(y).reshape((output_shape[0], output_shape[1], num_classes + 5)).astype('float32')
             batch_x.append(x)
             batch_y.append(y)
         batch_x = np.asarray(batch_x)
@@ -113,11 +113,11 @@ class YoloDataGenerator(tf.keras.utils.Sequence):
         """
         Init YOLO label from classes.txt file.
         """
-        global train_image_path, class_count, class_names
-        if class_count == 0:
+        global train_image_path, num_classes, class_names
+        if num_classes == 0:
             with open(f'{train_image_path}/classes.txt', 'rt') as classes_file:
                 class_names = [s.replace('\n', '') for s in classes_file.readlines()]
-                class_count = len(class_names)
+                num_classes = len(class_names)
 
 
 class YoloLoss(tf.keras.losses.Loss):
@@ -185,11 +185,11 @@ def forward(model, x, model_type='h5'):
 
     y = []
     if model_type == 'h5':
-        x = np.asarray(x).reshape((1, input_shape[0], input_shape[1], img_channels)).astype('float32') / 255.
+        x = np.asarray(x).reshape((1, input_shape[0], input_shape[1], img_channels)).astype('float32') / 255.0
         y = model.predict(x=x, batch_size=1)[0]
         y = np.moveaxis(y, -1, 0)
     elif model_type == 'pb':
-        x = np.asarray(x).reshape((1, img_channels, input_shape[0], input_shape[1])).astype('float32') / 255.
+        x = np.asarray(x).reshape((1, img_channels, input_shape[0], input_shape[1])).astype('float32') / 255.0
         model.setInput(x)
         y = model.forward()[0]
 
@@ -209,10 +209,10 @@ def forward(model, x, model_type='h5'):
             w = y[3][i][j]
             h = y[4][i][j]
 
-            x_min_f = cx_f - w / 2
-            y_min_f = cy_f - h / 2
-            x_max_f = cx_f + w / 2
-            y_max_f = cy_f + h / 2
+            x_min_f = cx_f - w / 2.0
+            y_min_f = cy_f - h / 2.0
+            x_max_f = cx_f + w / 2.0
+            y_max_f = cy_f + h / 2.0
             x_min = int(x_min_f * raw_width)
             y_min = int(y_min_f * raw_height)
             x_max = int(x_max_f * raw_width)
@@ -307,9 +307,9 @@ def bounding_box(img, yolo_res):
 
 
 def random_forward(model, model_type='h5'):
-    global total_image_paths, total_image_count, input_shape
+    global total_image_paths, num_total_images, input_shape
     from random import randrange
-    img = cv2.imread(total_image_paths[randrange(0, total_image_count)], cv2.IMREAD_COLOR)
+    img = cv2.imread(total_image_paths[randrange(0, num_total_images)], cv2.IMREAD_COLOR)
     img = resize(img, (input_shape[1], input_shape[0]))
     # st = time()
     res = forward(model, img, model_type=model_type)
@@ -323,10 +323,10 @@ def train():
     """
     train the YOLO network using the hyper parameter at the top.
     """
-    global total_image_paths, total_image_count, lr, l2, batch_size, epoch, train_image_path, test_image_path, class_names, class_count, validation_ratio
+    global total_image_paths, num_total_images, lr, l2, batch_size, epoch, train_image_path, test_image_path, class_names, num_classes, validation_ratio
 
     total_image_paths = glob(f'{train_image_path}/*/*.jpg')
-    total_image_count = len(total_image_paths)
+    num_total_images = len(total_image_paths)
     random.shuffle(total_image_paths)
     train_image_count = int(len(total_image_paths) * (1 - validation_ratio))
     train_image_paths = total_image_paths[:train_image_count]
@@ -351,7 +351,7 @@ def train():
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.MaxPool2D()(x)
 
-    x = tf.keras.layers.Dropout(0.1)(x)
+    x = tf.keras.layers.Dropout(0.05)(x)
     x = tf.keras.layers.Conv2D(
         filters=32,
         kernel_size=3,
@@ -364,7 +364,7 @@ def train():
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.MaxPool2D()(x)
 
-    x = tf.keras.layers.Dropout(0.1)(x)
+    x = tf.keras.layers.Dropout(0.05)(x)
     x = tf.keras.layers.Conv2D(
         filters=64,
         kernel_size=3,
@@ -376,7 +376,7 @@ def train():
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
 
-    x = tf.keras.layers.Dropout(0.1)(x)
+    x = tf.keras.layers.Dropout(0.05)(x)
     x = tf.keras.layers.Conv2D(
         filters=128,
         kernel_size=3,
@@ -388,7 +388,7 @@ def train():
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
 
-    x = tf.keras.layers.Dropout(0.1)(x)
+    x = tf.keras.layers.Dropout(0.05)(x)
     x = tf.keras.layers.Conv2D(
         filters=128,
         kernel_size=3,
@@ -400,9 +400,9 @@ def train():
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
 
-    x = tf.keras.layers.Dropout(0.1)(x)
+    x = tf.keras.layers.Dropout(0.05)(x)
     x = tf.keras.layers.Conv2D(
-        filters=class_count + 5,
+        filters=num_classes + 5,
         kernel_size=1,
         activation='sigmoid',
         kernel_regularizer=tf.keras.regularizers.l2(l2=l2),
