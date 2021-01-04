@@ -490,6 +490,23 @@ def lab_forward(model, x, model_type='h5', input_shape=(0, 0), output_shape=(0, 
                 break
         if box_count >= yolo.max_num_boxes:
             break
+
+    # nms process
+    for i in range(len(res)):
+        if res[i]['discard']:
+            continue
+        for j in range(len(res)):
+            if i == j or res[j]['discard']:
+                continue
+            if iou(res[i]['bbox'], res[j]['bbox']) >= yolo.nms_iou_threshold:
+                if res[i]['confidence'] >= res[j]['confidence']:
+                    res[j]['discard'] = True
+
+    res_copy = res.copy()
+    res = []
+    for i in range(len(res_copy)):
+        if not res_copy[i]['discard']:
+            res.append(res_copy[i])
     return sorted(res, key=lambda __x: __x['bbox'][0])
 
 
@@ -500,14 +517,15 @@ def test_total_lpr_process():
     yolo.freeze('checkpoints/2_yolo_4680_epoch_28_loss_0.006669_val_loss_0.034237.h5')
     lpd = cv2.dnn.readNet('model.pb')
 
-    yolo.freeze('checkpoints/lcd_100_epoch_1768_loss_0.485955_val_loss_14.891500.h5')
+    # yolo.freeze('checkpoints/lcd_100_epoch_1768_loss_0.485955_val_loss_14.891500.h5')
+    yolo.freeze('model.h5')
     lcd = cv2.dnn.readNet('model.pb')
 
     # out = cv2.VideoWriter('output.mp4', cv2.VideoWriter_fourcc(*'MP4V'), 20.0, (640, 368))
 
     # cap = cv2.VideoCapture('rtsp://admin:samsungg2b!@samsungg2bcctv.iptime.org:1500/video1s1')
     # cap = cv2.VideoCapture(r'C:\inz\videos\g2b.mp4')
-    # cap = cv2.VideoCapture(r'C:\inz\videos\truen.mkv')
+    cap = cv2.VideoCapture(r'C:\inz\videos\truen.mkv')
     # cap = cv2.VideoCapture(r'C:\inz\videos\hc_4k_18_day.mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\noon_not_trained.mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\noon.mp4')
@@ -516,7 +534,7 @@ def test_total_lpr_process():
     # cap = cv2.VideoCapture(r'C:\inz\videos\noon (4).mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\noon (5).mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\noon (6).mp4')
-    cap = cv2.VideoCapture(r'C:\inz\videos\night.mp4')
+    # cap = cv2.VideoCapture(r'C:\inz\videos\night.mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\night (2).mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\night (3).mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\night (4).mp4')
@@ -540,7 +558,7 @@ def test_total_lpr_process():
             lp = yolo.resize(lp, (192, 96))
             # cv2.imwrite(rf'C:\inz\train_data\character_detection_in_lp\ADDONS\g2b_{inc}.jpg', lp)
             # inc += 1
-            res = lab_forward(lcd, lp, model_type='pb', input_shape=(96, 192), output_shape=(24, 48), img_channels=1)
+            res = lab_forward(lcd, lp, model_type='pb', input_shape=(96, 192), output_shape=(12, 24), img_channels=1)
             boxed = yolo.bounding_box(lp, res)
             cv2.imshow('lp', boxed)
         if ord('q') == cv2.waitKey(1):

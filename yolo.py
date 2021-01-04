@@ -35,13 +35,11 @@ l2 = 1e-16
 batch_size = 2
 epoch = 10000
 validation_ratio = 0.1
-# input_shape = (368, 640)
-# output_shape = (46, 80)
 input_shape = (96, 192)
-output_shape = (24, 48)
+output_shape = (12, 24)
 confidence_threshold = 0.25
-nms_iou_threshold = 0.2
-max_num_boxes = 10
+nms_iou_threshold = 0.05
+max_num_boxes = 15
 
 font_scale = 0.4
 img_channels = 3 if img_type == cv2.IMREAD_COLOR else 1
@@ -245,6 +243,12 @@ def forward(model, x, model_type='h5'):
             if iou(res[i]['bbox'], res[j]['bbox']) >= nms_iou_threshold:
                 if res[i]['confidence'] >= res[j]['confidence']:
                     res[j]['discard'] = True
+
+    res_copy = res.copy()
+    res = []
+    for i in range(len(res_copy)):
+        if not res_copy[i]['discard']:
+            res.append(res_copy[i])
     return sorted(res, key=lambda __x: __x['bbox'][0])
 
 
@@ -291,8 +295,6 @@ def bounding_box(img, yolo_res):
     if len(img.shape) == 2:
         img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
     for i, cur_res in enumerate(yolo_res):
-        if cur_res['discard']:
-            continue
         class_index = int(cur_res['class'])
         class_name = class_names[class_index].replace('/n', '')
         label_background_color = colors[class_index]
@@ -311,10 +313,7 @@ def random_forward(model, model_type='h5'):
     from random import randrange
     img = cv2.imread(total_image_paths[randrange(0, num_total_images)], cv2.IMREAD_COLOR)
     img = resize(img, (input_shape[1], input_shape[0]))
-    # st = time()
     res = forward(model, img, model_type=model_type)
-    # et = time()
-    # print(et - st)
     img = bounding_box(img, res)
     cv2.imshow('random forward', img)
 
@@ -373,6 +372,8 @@ def train():
         activity_regularizer=tf.keras.regularizers.l2(l2=l2))(x)
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.layers.MaxPool2D()(x)
+    skip_connection = x
 
     x = tf.keras.layers.Conv2D(
         filters=128,
@@ -395,6 +396,8 @@ def train():
         activity_regularizer=tf.keras.regularizers.l2(l2=l2))(x)
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
+
+    x = tf.keras.layers.Concatenate()([x, skip_connection])
 
     x = tf.keras.layers.Conv2D(
         filters=num_classes + 5,
@@ -404,7 +407,8 @@ def train():
         bias_regularizer=tf.keras.regularizers.l2(l2=l2),
         activity_regularizer=tf.keras.regularizers.l2(l2=l2))(x)
 
-    model = tf.keras.models.Model(model_input, x)
+    # model = tf.keras.models.Model(model_input, x)
+    model = tf.keras.models.load_model('model.h5', compile=False)
     model.summary()
     model.compile(optimizer=tf.keras.optimizers.Adam(lr=lr), loss=YoloLoss())
     model.save('model.h5')
