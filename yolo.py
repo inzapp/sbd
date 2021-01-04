@@ -351,7 +351,6 @@ def train():
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.MaxPool2D()(x)
 
-    x = tf.keras.layers.Dropout(0.05)(x)
     x = tf.keras.layers.Conv2D(
         filters=32,
         kernel_size=3,
@@ -364,7 +363,6 @@ def train():
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.MaxPool2D()(x)
 
-    x = tf.keras.layers.Dropout(0.05)(x)
     x = tf.keras.layers.Conv2D(
         filters=64,
         kernel_size=3,
@@ -376,7 +374,6 @@ def train():
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
 
-    x = tf.keras.layers.Dropout(0.05)(x)
     x = tf.keras.layers.Conv2D(
         filters=128,
         kernel_size=3,
@@ -388,7 +385,6 @@ def train():
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
 
-    x = tf.keras.layers.Dropout(0.05)(x)
     x = tf.keras.layers.Conv2D(
         filters=128,
         kernel_size=3,
@@ -400,7 +396,6 @@ def train():
     x = tf.keras.layers.ReLU()(x)
     x = tf.keras.layers.BatchNormalization()(x)
 
-    x = tf.keras.layers.Dropout(0.05)(x)
     x = tf.keras.layers.Conv2D(
         filters=num_classes + 5,
         kernel_size=1,
@@ -430,7 +425,7 @@ def train():
         validation_data=validation_data_generator,
         epochs=epoch,
         callbacks=[
-            tf.keras.callbacks.ModelCheckpoint(filepath='checkpoints/lcd_100_epoch_{epoch}_loss_{loss:.6f}_val_loss_{val_loss:.6f}.h5'),
+            # tf.keras.callbacks.ModelCheckpoint(filepath='checkpoints/lcd_100_epoch_{epoch}_loss_{loss:.6f}_val_loss_{val_loss:.6f}.h5'),
             tf.keras.callbacks.ModelCheckpoint(filepath='model.h5'),
             tf.keras.callbacks.LambdaCallback(on_batch_end=random_live_view)])
     model.save('model.h5')
@@ -463,84 +458,6 @@ def freeze(model_name):
     return True
 
 
-def test_video():
-    global input_shape, img_channels
-    class_names.append('license_plate')
-    model = cv2.dnn.readNet('model.pb')
-
-    # out = cv2.VideoWriter('output.mp4', cv2.VideoWriter_fourcc(*'MP4V'), 20.0, (640, 368))
-
-    # cap = cv2.VideoCapture('rtsp://admin:samsungg2b!@samsungg2bcctv.iptime.org:1500/video1s1')
-    # cap = cv2.VideoCapture(r'C:\inz\videos\g2b.mp4')
-    # cap = cv2.VideoCapture(r'C:\inz\videos\truen.mkv')
-    # cap = cv2.VideoCapture(r'C:\inz\videos\hc_4k_18_day.mp4')
-    # cap = cv2.VideoCapture(r'C:\inz\videos\noon_not_trained.mp4')
-    # cap = cv2.VideoCapture(r'C:\inz\videos\noon.mp4')
-    # cap = cv2.VideoCapture(r'C:\inz\videos\noon (2).mp4')
-    # cap = cv2.VideoCapture(r'C:\inz\videos\noon (3).mp4')
-    # cap = cv2.VideoCapture(r'C:\inz\videos\noon (4).mp4')
-    # cap = cv2.VideoCapture(r'C:\inz\videos\noon (5).mp4')
-    # cap = cv2.VideoCapture(r'C:\inz\videos\noon (6).mp4')
-    # cap = cv2.VideoCapture(r'C:\inz\videos\night.mp4')
-    # cap = cv2.VideoCapture(r'C:\inz\videos\night (2).mp4')
-    # cap = cv2.VideoCapture(r'C:\inz\videos\night (3).mp4')
-    # cap = cv2.VideoCapture(r'C:\inz\videos\night (4).mp4')
-    cap = cv2.VideoCapture(r'C:\inz\videos\1228_4k_5.mp4')
-    # cap = cv2.VideoCapture(r'C:\inz\videos\1228_4k_5_night.mp4')
-
-    while True:
-        frame_exist, x = cap.read()
-        if not frame_exist:
-            break
-        # x = resize(x, (input_shape[1], input_shape[0]))
-        x = cv2.resize(x, (0, 0), fx=0.5, fy=0.5, interpolation=cv2.INTER_AREA)
-        res = forward(model, x, model_type='pb')
-        boxed = bounding_box(x, res)
-        # out.write(x)
-        cv2.imshow('res', x)
-        if ord('q') == cv2.waitKey(15):
-            break
-    # out.release()
-    cap.release()
-    cv2.destroyAllWindows()
-
-
-def count_test():
-    global total_image_paths, img_type
-    YoloDataGenerator.init_label()
-    freeze('over_fit_model.h5')
-    net = cv2.dnn.readNet('model.pb')
-    freeze('lp_type_model_1202.h5')
-    ltc_net = cv2.dnn.readNet('model.pb')
-    total_image_paths = glob(f'{train_image_path}/*/*.jpg')
-    classes = [0 for _ in range(8)]
-
-    from tqdm import tqdm
-    for path in tqdm(total_image_paths):
-        x = cv2.imread(path, cv2.IMREAD_COLOR)
-        x = resize(x, (input_shape[1], input_shape[0]))
-        res = forward(net, x)
-        for cur_res in res:
-            x1, y1, x2, y2 = cur_res['bbox']
-            plate = x[y1:y2, x1:x2]
-            plate = cv2.cvtColor(plate, cv2.COLOR_BGR2GRAY)
-            plate = resize(plate, (192, 96))
-            plate_x = np.asarray(plate).reshape((1, 1, 96, 192)).astype('float32') / 255.
-            ltc_net.setInput(plate_x)
-            res = ltc_net.lab_forward()
-            res = np.asarray(res).reshape(8, )
-            max_index = int(np.argmax(res))
-            if res[max_index] > 0.8:
-                classes[max_index] += 1
-    print(classes)
-    # x = bounding_box(x, boxes)
-    # cv2.imshow('x', x)
-    # cv2.waitKey(0)
-
-
 if __name__ == '__main__':
     # count_test()
     train()
-    # freeze('checkpoints/4_residual_4680_0.3M_1e-3_epoch_10_loss_0.000040_val_loss_0.000726.h5')
-    # freeze('model.h5')
-    # test_video()

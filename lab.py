@@ -1,7 +1,6 @@
 import cv2
-import tensorflow as tf
-import tensorflow_addons as tfa
 import numpy as np
+import tensorflow as tf
 
 
 def main():
@@ -453,13 +452,13 @@ def lab_forward(model, x, model_type='h5', input_shape=(0, 0), output_shape=(0, 
             x_max_f = cx_f + w / 2.0
             y_max_f = cy_f + h / 2.0
 
-            if input_shape[1] == 640:
-                from random import uniform
-                padding_ratio = uniform(0.0, 0.15)
-                x_min_f -= (x_max_f - x_min_f) * padding_ratio
-                x_max_f += (x_max_f - x_min_f) * padding_ratio
-                y_min_f -= (y_max_f - y_min_f) * padding_ratio
-                y_max_f += (y_max_f - y_min_f) * padding_ratio
+            # if input_shape[1] == 640:
+            #     from random import uniform
+            #     padding_ratio = uniform(0.0, 0.15)
+            #     x_min_f -= (x_max_f - x_min_f) * padding_ratio
+            #     x_max_f += (x_max_f - x_min_f) * padding_ratio
+            #     y_min_f -= (y_max_f - y_min_f) * padding_ratio
+            #     y_max_f += (y_max_f - y_min_f) * padding_ratio
 
             if x_min_f < 0.0:
                 x_min_f = 0.0
@@ -507,7 +506,7 @@ def test_total_lpr_process():
     # out = cv2.VideoWriter('output.mp4', cv2.VideoWriter_fourcc(*'MP4V'), 20.0, (640, 368))
 
     # cap = cv2.VideoCapture('rtsp://admin:samsungg2b!@samsungg2bcctv.iptime.org:1500/video1s1')
-    cap = cv2.VideoCapture(r'C:\inz\videos\g2b.mp4')
+    # cap = cv2.VideoCapture(r'C:\inz\videos\g2b.mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\truen.mkv')
     # cap = cv2.VideoCapture(r'C:\inz\videos\hc_4k_18_day.mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\noon_not_trained.mp4')
@@ -517,13 +516,14 @@ def test_total_lpr_process():
     # cap = cv2.VideoCapture(r'C:\inz\videos\noon (4).mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\noon (5).mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\noon (6).mp4')
-    # cap = cv2.VideoCapture(r'C:\inz\videos\night.mp4')
+    cap = cv2.VideoCapture(r'C:\inz\videos\night.mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\night (2).mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\night (3).mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\night (4).mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\1228_4k_5.mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\1228_4k_5_night.mp4')
 
+    # inc = 0
     while True:
         frame_exist, x = cap.read()
         if not frame_exist:
@@ -538,15 +538,47 @@ def test_total_lpr_process():
             x_min, y_min, x_max, y_max = cur_res['bbox']
             lp = raw_x[y_min:y_max, x_min:x_max]
             lp = yolo.resize(lp, (192, 96))
+            # cv2.imwrite(rf'C:\inz\train_data\character_detection_in_lp\ADDONS\g2b_{inc}.jpg', lp)
+            # inc += 1
             res = lab_forward(lcd, lp, model_type='pb', input_shape=(96, 192), output_shape=(24, 48), img_channels=1)
             boxed = yolo.bounding_box(lp, res)
-            cv2.imshow(f'lp', boxed)
+            cv2.imshow('lp', boxed)
         if ord('q') == cv2.waitKey(1):
             break
     # out.release()
     cap.release()
     cv2.destroyAllWindows()
-    pass
+
+
+def count_lp_type():
+    import yolo
+    from glob import glob
+    yolo.YoloDataGenerator.init_label()
+    yolo.freeze('over_fit_model.h5')
+    net = cv2.dnn.readNet('model.pb')
+    yolo.freeze('lp_type_model_1202.h5')
+    ltc_net = cv2.dnn.readNet('model.pb')
+    total_image_paths = glob(f'{yolo.train_image_path}/*/*.jpg')
+    classes = [0 for _ in range(8)]
+
+    from tqdm import tqdm
+    for path in tqdm(total_image_paths):
+        x = cv2.imread(path, cv2.IMREAD_COLOR)
+        x = yolo.resize(x, (yolo.input_shape[1], yolo.input_shape[0]))
+        res = yolo.forward(net, x)
+        for cur_res in res:
+            x1, y1, x2, y2 = cur_res['bbox']
+            plate = x[y1:y2, x1:x2]
+            plate = cv2.cvtColor(plate, cv2.COLOR_BGR2GRAY)
+            plate = yolo.resize(plate, (192, 96))
+            plate_x = np.asarray(plate).reshape((1, 1, 96, 192)).astype('float32') / 255.
+            ltc_net.setInput(plate_x)
+            res = ltc_net.lab_forward()
+            res = np.asarray(res).reshape(8, )
+            max_index = int(np.argmax(res))
+            if res[max_index] > 0.8:
+                classes[max_index] += 1
+    print(classes)
 
 
 if __name__ == '__main__':
