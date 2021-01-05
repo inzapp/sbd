@@ -371,9 +371,7 @@ def iou(a, b):
     b_x_min, b_y_min, b_x_max, b_y_max = b
     intersection_width = min(a_x_max, b_x_max) - max(a_x_min, b_x_min)
     intersection_height = min(a_y_max, b_y_max) - max(a_y_min, b_y_min)
-    if intersection_width < 0 or intersection_height < 0:
-        return 0.0
-    intersection_area = intersection_width * intersection_height
+    intersection_area = abs(intersection_width * intersection_height)
     a_area = (a_x_max - a_x_min) * (a_y_max - a_y_min)
     b_area = (b_x_max - b_x_min) * (b_y_max - b_y_min)
     union_area = a_area + b_area - intersection_area
@@ -498,7 +496,7 @@ def lab_forward(model, x, model_type='h5', input_shape=(0, 0), output_shape=(0, 
         for j in range(len(res)):
             if i == j or res[j]['discard']:
                 continue
-            if iou(res[i]['bbox'], res[j]['bbox']) >= yolo.nms_iou_threshold:
+            if yolo.iou(res[i]['bbox'], res[j]['bbox']) >= yolo.nms_iou_threshold:
                 if res[i]['confidence'] >= res[j]['confidence']:
                     res[j]['discard'] = True
 
@@ -534,11 +532,11 @@ def test_total_lpr_process():
     # cap = cv2.VideoCapture(r'C:\inz\videos\noon (4).mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\noon (5).mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\noon (6).mp4')
-    # cap = cv2.VideoCapture(r'C:\inz\videos\night.mp4')
+    cap = cv2.VideoCapture(r'C:\inz\videos\night.mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\night (2).mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\night (3).mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\night (4).mp4')
-    cap = cv2.VideoCapture(r'C:\inz\videos\1228_4k_5.mp4')
+    # cap = cv2.VideoCapture(r'C:\inz\videos\1228_4k_5.mp4')
     # cap = cv2.VideoCapture(r'C:\inz\videos\1228_4k_5_night.mp4')
 
     # inc = 0
@@ -599,6 +597,11 @@ def count_lp_type():
     print(classes)
 
 
+def test_iou():
+    print
+    pass
+
+
 if __name__ == '__main__':
     # compress_test()
     # convert_1_box_label()
@@ -607,3 +610,4 @@ if __name__ == '__main__':
     # test_interpolation()
     # ccl()
     test_total_lpr_process()
+    # test_iou()

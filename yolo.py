@@ -37,7 +37,7 @@ epoch = 10000
 validation_ratio = 0.1
 input_shape = (96, 192)
 output_shape = (12, 24)
-confidence_threshold = 0.25
+confidence_threshold = 0.05
 nms_iou_threshold = 0.01
 max_num_boxes = 15
 
@@ -75,6 +75,8 @@ class YoloDataGenerator(tf.keras.utils.Sequence):
                 x = cv2.resize(x, (input_shape[1], input_shape[0]), interpolation=cv2.INTER_AREA)
             else:
                 x = cv2.resize(x, (input_shape[1], input_shape[0]), interpolation=cv2.INTER_LINEAR)
+            if random.choice([0, 1]) == 1:
+                x = cv2.bitwise_not(x)
             with open(f'{cur_img_path[:-4]}.txt', mode='rt') as file:
                 label_lines = file.readlines()
             y = [np.zeros(output_shape, dtype=np.float32) for _ in range(num_classes + 5)]
@@ -127,12 +129,14 @@ class YoloLoss(tf.keras.losses.Loss):
         from tensorflow.python.framework.ops import convert_to_tensor_v2
         y_pred = convert_to_tensor_v2(y_pred)
         y_true = tf.cast(y_true, y_pred.dtype)
-        confidence_loss = tf.reduce_sum(tf.square(y_true[:, :, :, 0] - y_pred[:, :, :, 0]))
-        box_true = tf.sqrt(y_true[:, :, :, 1:5] + 1e-4)
-        box_pred = tf.sqrt(y_pred[:, :, :, 1:5] + 1e-4)
-        box_loss = tf.reduce_sum(tf.reduce_sum(tf.square(box_true - box_pred), axis=-1) * y_true[:, :, :, 0])
+        # confidence_loss = tf.reduce_sum(tf.square(y_true[:, :, :, 0] - y_pred[:, :, :, 0]))
+        confidence_loss = tf.losses.binary_crossentropy(y_true[:, :, :, 0], y_pred[:, :, :, 0])
+        xy_loss = tf.reduce_sum(tf.reduce_sum(tf.square(y_true[:, :, :, 1:3] - y_pred[:, :, :, 1:3]), axis=-1) * y_true[:, :, :, 0])
+        wh_true = tf.sqrt(y_true[:, :, :, 3:5] + 1e-4)
+        wh_pred = tf.sqrt(y_pred[:, :, :, 3:5] + 1e-4)
+        wh_loss = tf.reduce_sum(tf.reduce_sum(tf.square(wh_true - wh_pred), axis=-1) * y_true[:, :, :, 0])
         classification_loss = tf.reduce_sum(tf.reduce_sum(tf.square(y_true[:, :, :, 5:] - y_pred[:, :, :, 5:]), axis=-1) * y_true[:, :, :, 0])
-        return confidence_loss + (box_loss * self.coord) + classification_loss
+        return confidence_loss + (xy_loss * self.coord) + (wh_loss * self.coord) + classification_loss
 
 
 def resize(img, size):
@@ -157,9 +161,9 @@ def iou(a, b):
     b_x_min, b_y_min, b_x_max, b_y_max = b
     intersection_width = min(a_x_max, b_x_max) - max(a_x_min, b_x_min)
     intersection_height = min(a_y_max, b_y_max) - max(a_y_min, b_y_min)
-    intersection_area = abs(max(0, intersection_width) * max(0, intersection_height))
-    if intersection_area == 0:
+    if intersection_width < 0.0 or intersection_height < 0.0:
         return 0.0
+    intersection_area = intersection_width * intersection_height
     a_area = abs((a_x_max - a_x_min) * (a_y_max - a_y_min))
     b_area = abs((b_x_max - b_x_min) * (b_y_max - b_y_min))
     union_area = a_area + b_area - intersection_area
