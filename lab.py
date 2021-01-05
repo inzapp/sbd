@@ -76,22 +76,6 @@ class FalsePositiveWeightedError(tf.keras.losses.Loss):
         return loss + fp
 
 
-class YoloLoss(tf.keras.losses.Loss):
-    def __init__(self, coord=5.0):
-        self.__coord = coord
-        super(YoloLoss, self).__init__()
-
-    def call(self, y_true, y_pred):
-        from tensorflow.python.framework.ops import convert_to_tensor_v2
-        y_pred = convert_to_tensor_v2(y_pred)
-        y_true = tf.cast(y_true, y_pred.dtype)
-        p_loss = tf.keras.backend.sum(tf.math.square(y_true[:, :, :, 0] - y_pred[:, :, :, 0]))
-        xy_loss = tf.keras.backend.sum(tf.math.square(y_true[:, :, :, 1:3] - y_pred[:, :, :, 1:3]))
-        wh_loss = tf.keras.backend.sum(tf.math.square(tf.math.sqrt(y_true[:, :, :, 3:5]) - tf.math.sqrt(y_pred[:, :, :, 3:5])))
-        class_loss = tf.keras.backend.sum(tf.math.square(y_true[5:] - y_pred[5:]))
-        return p_loss + (xy_loss * self.__coord) + (wh_loss * self.__coord) + class_loss
-
-
 class MeanAbsoluteLogError(tf.keras.losses.Loss):
     """
     False positive weighted loss function.
@@ -110,15 +94,15 @@ class MeanAbsoluteLogError(tf.keras.losses.Loss):
         return loss
 
 
-class BinaryFocalLoss(tf.keras.losses.Loss):
+class BinaryFocalCrossEntropy(tf.keras.losses.Loss):
     """
-    Binary form of focal loss.
+    Binary form of focal cross entropy.
       FL(p_t) = -alpha * (1 - p_t)**gamma * log(p_t)
       where p = sigmoid(x), p_t = p or 1 - p depending on if the label is 1 or 0, respectively.
     References:
         https://arxiv.org/pdf/1708.02002.pdf
     Usage:
-     model.compile(loss=[BinaryFocalLoss(alpha=0.25, gamma=2)], metrics=["accuracy"], optimizer="adam")
+     model.compile(loss=[BinaryFocalCrossEntropy(alpha=0.25, gamma=2)], metrics=["accuracy"], optimizer="adam")
     """
 
     def __init__(self, alpha=0.25, gamma=2.0):
@@ -128,11 +112,6 @@ class BinaryFocalLoss(tf.keras.losses.Loss):
 
     def call(self, y_true, y_pred):
         from keras import backend as K
-        """
-        :param y_true: A tensor of the same shape as `y_pred`
-        :param y_pred:  A tensor resulting from a sigmoid
-        :return: Output tensor.
-        """
         y_true = tf.cast(y_true, tf.float32)
         epsilon = K.epsilon()
         y_pred = K.clip(y_pred, epsilon, 1.0 - epsilon)
@@ -143,6 +122,24 @@ class BinaryFocalLoss(tf.keras.losses.Loss):
         weight = alpha_t * K.pow((1 - p_t), self.gamma)
         loss = weight * cross_entropy
         return K.mean(K.sum(loss, axis=-1))
+
+
+class SSEYoloLoss(tf.keras.losses.Loss):
+    def __init__(self, coord=5.0):
+        self.coord = coord
+        super(SSEYoloLoss, self).__init__()
+
+    def call(self, y_true, y_pred):
+        from tensorflow.python.framework.ops import convert_to_tensor_v2
+        y_pred = convert_to_tensor_v2(y_pred)
+        y_true = tf.cast(y_true, y_pred.dtype)
+        confidence_loss = tf.reduce_sum(tf.square(y_true[:, :, :, 0] - y_pred[:, :, :, 0]))
+        xy_loss = tf.reduce_sum(tf.reduce_sum(tf.square(y_true[:, :, :, 1:3] - y_pred[:, :, :, 1:3]), axis=-1) * y_true[:, :, :, 0])
+        wh_true = tf.sqrt(y_true[:, :, :, 3:5] + 1e-4)
+        wh_pred = tf.sqrt(y_pred[:, :, :, 3:5] + 1e-4)
+        wh_loss = tf.reduce_sum(tf.reduce_sum(tf.square(wh_true - wh_pred), axis=-1) * y_true[:, :, :, 0])
+        classification_loss = tf.reduce_sum(tf.reduce_sum(tf.square(y_true[:, :, :, 5:] - y_pred[:, :, :, 5:]), axis=-1) * y_true[:, :, :, 0])
+        return confidence_loss + (xy_loss * self.coord) + (wh_loss * self.coord) + classification_loss
 
 
 def test_interpolation():
@@ -255,7 +252,7 @@ def test_loss():
     # y_pred = [[0. for _ in range(1000)]]
     # y_pred[0][50] = 0.5
 
-    p(BinaryFocalLoss()(y_true, y_pred).numpy())
+    p(BinaryFocalCrossEntropy()(y_true, y_pred).numpy())
     p(MeanAbsoluteLogError()(y_true, y_pred).numpy())
     p(SumSquaredError()(y_true, y_pred).numpy())
     p(tf.keras.losses.BinaryCrossentropy()(y_true, y_pred).numpy())
@@ -597,11 +594,6 @@ def count_lp_type():
     print(classes)
 
 
-def test_iou():
-    print
-    pass
-
-
 if __name__ == '__main__':
     # compress_test()
     # convert_1_box_label()
@@ -610,4 +602,3 @@ if __name__ == '__main__':
     # test_interpolation()
     # ccl()
     test_total_lpr_process()
-    # test_iou()

@@ -120,25 +120,6 @@ class YoloDataGenerator(tf.keras.utils.Sequence):
                 num_classes = len(class_names)
 
 
-# class YoloLoss(tf.keras.losses.Loss):
-#     def __init__(self, coord=5.0):
-#         self.coord = coord
-#         super(YoloLoss, self).__init__()
-#
-#     def call(self, y_true, y_pred):
-#         from tensorflow.python.framework.ops import convert_to_tensor_v2
-#         y_pred = convert_to_tensor_v2(y_pred)
-#         y_true = tf.cast(y_true, y_pred.dtype)
-#         # confidence_loss = tf.reduce_sum(tf.square(y_true[:, :, :, 0] - y_pred[:, :, :, 0]))
-#         confidence_loss = tf.losses.binary_crossentropy(y_true[:, :, :, 0], y_pred[:, :, :, 0])
-#         xy_loss = tf.reduce_sum(tf.reduce_sum(tf.square(y_true[:, :, :, 1:3] - y_pred[:, :, :, 1:3]), axis=-1) * y_true[:, :, :, 0])
-#         wh_true = tf.sqrt(y_true[:, :, :, 3:5] + 1e-4)
-#         wh_pred = tf.sqrt(y_pred[:, :, :, 3:5] + 1e-4)
-#         wh_loss = tf.reduce_sum(tf.reduce_sum(tf.square(wh_true - wh_pred), axis=-1) * y_true[:, :, :, 0])
-#         classification_loss = tf.reduce_sum(tf.reduce_sum(tf.square(y_true[:, :, :, 5:] - y_pred[:, :, :, 5:]), axis=-1) * y_true[:, :, :, 0])
-#         return confidence_loss + (xy_loss * self.coord) + (wh_loss * self.coord) + classification_loss
-
-
 class YoloLoss(tf.keras.losses.Loss):
     def __init__(self, coord=5.0):
         self.coord = coord
@@ -148,7 +129,7 @@ class YoloLoss(tf.keras.losses.Loss):
         from tensorflow.python.framework.ops import convert_to_tensor_v2
         y_pred = convert_to_tensor_v2(y_pred)
         y_true = tf.cast(y_true, y_pred.dtype)
-        confidence_loss = tf.losses.binary_crossentropy(y_true[:, :, :, 0], y_pred[:, :, :, 0])
+        confidence_loss = tf.losses.binary_crossentropy()(y_true[:, :, :, 0], y_pred[:, :, :, 0])
         xy_loss = tf.reduce_mean(tf.reduce_mean(tf.abs(y_true[:, :, :, 1:3] - y_pred[:, :, :, 1:3]), axis=-1) * y_true[:, :, :, 0])
         xy_loss = -tf.math.log(1.0 + 1e-7 - xy_loss)
         wh_true = tf.sqrt(y_true[:, :, :, 3:5] + 1e-4)
