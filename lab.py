@@ -615,6 +615,33 @@ def make_osd_array():
         print()
 
 
+def test_masked_image():
+    import os
+    from glob import glob
+    for path in glob(r'C:\inz\train_data\lp_detection_yolo\crime_day_1f_1\*.jpg'):
+        label_path = f'{path[:-4]}.txt'
+        if os.path.exists(label_path) and os.path.isfile(label_path):
+            with open(label_path, mode='rt') as f:
+                lines = f.readlines()
+            img = cv2.imread(path, cv2.IMREAD_COLOR)
+            raw_height, raw_width = img.shape[0], img.shape[1]
+            mask = np.zeros(img.shape, dtype=np.uint8)
+            for line in lines:
+                class_index, cx, cy, w, h = list(map(float, line.split(' ')))
+                cx = int(cx * raw_width)
+                cy = int(cy * raw_height)
+                w = int(w * raw_width)
+                h = int(h * raw_height)
+                x1, y1 = int(cx - w / 2.0), int(cy - h / 2.0)
+                x2, y2 = int(cx + w / 2.0), int(cy + h / 2.0)
+                for y in range(y1, y2):
+                    for x in range(x1, x2):
+                        mask[y][x] = img[y][x]
+                # cv2.rectangle(img, (x1, y1), (x2, y2), (0, 0, 255), 2)
+            cv2.imshow('img', mask)
+            cv2.waitKey(0)
+
+
 if __name__ == '__main__':
     # compress_test()
     # convert_1_box_label()
@@ -622,4 +649,4 @@ if __name__ == '__main__':
     # bounding_box_test()
     # test_interpolation()
     # ccl()
-    make_osd_array()
+    test_masked_image()
