@@ -59,7 +59,7 @@ class SumSquaredError(tf.keras.losses.Loss):
         from tensorflow.python.framework.ops import convert_to_tensor_v2
         y_pred = convert_to_tensor_v2(y_pred)
         y_true = tf.cast(y_true, y_pred.dtype)
-        return tf.keras.backend.sum(tf.math.square(y_pred - y_true)) * self.coord
+        return tf.reduce_sum(tf.math.square(y_pred - y_true)) * self.coord
 
 
 class FalsePositiveWeightedError(tf.keras.losses.Loss):
@@ -594,6 +594,27 @@ def count_lp_type():
     print(classes)
 
 
+def make_osd_array():
+    from glob import glob
+    for path in glob(r'C:\inz\osd\*.png'):
+        img = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
+        height, width = img.shape[0], img.shape[1]
+        osd_name = path.split('\\')[-1][:-4]
+        print(rf'unsigned char {osd_name}[MARK_HEIGHT][MARK_WIDTH] = {{')
+        for i in range(height):
+            print('\t{', end='')
+            for j in range(width):
+                print(f'{"0x0" if img[i][j] == 0 else "0xff"}', end='')
+                if j != width - 1:
+                    print(', ', end='')
+            print('}', end='')
+            if i != height - 1:
+                print(', ', end='')
+            print()
+        print('};')
+        print()
+
+
 if __name__ == '__main__':
     # compress_test()
     # convert_1_box_label()
@@ -601,4 +622,4 @@ if __name__ == '__main__':
     # bounding_box_test()
     # test_interpolation()
     # ccl()
-    test_total_lpr_process()
+    make_osd_array()
