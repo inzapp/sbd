@@ -14,7 +14,7 @@ def main():
             continue
         if previous_channel == -1:
             previous_channel = layer.input_shape[3]
-        shape = layer.output_shape
+        shape = layer.output_channel
         if type(shape) is list:
             shape = shape[0]
         h, w, c = shape[1:]
@@ -308,16 +308,16 @@ def interpolation_test():
 def convert_1_box_label():
     from glob import glob
     from tqdm import tqdm
-    import yolo
-    with open(f'{yolo.train_image_path}/classes.txt', 'rt') as classes_file:
-        yolo.class_names = [s.replace('\n', '') for s in classes_file.readlines()]
-    img_paths = glob(rf'{yolo.train_image_path}\*\*.jpg')
+    import old
+    with open(f'{old.train_image_path}/classes.txt', 'rt') as classes_file:
+        old.class_names = [s.replace('\n', '') for s in classes_file.readlines()]
+    img_paths = glob(rf'{old.train_image_path}\*\*.jpg')
     for cur_img_path in tqdm(img_paths):
-        x = cv2.imread(cur_img_path, yolo.img_type)
-        x = yolo.resize(x, (yolo.input_shape[1], yolo.input_shape[0]))
+        x = cv2.imread(cur_img_path, old.img_type)
+        x = old.resize(x, (old.input_shape[1], old.input_shape[0]))
         with open(rf'{cur_img_path[:-4]}.txt', mode='rt') as f:
             lines = f.readlines()
-        y = np.zeros((yolo.input_shape[0], yolo.input_shape[1]), dtype=np.uint8)
+        y = np.zeros((old.input_shape[0], old.input_shape[1]), dtype=np.uint8)
         for line in lines:
             class_index, cx, cy, w, h = list(map(float, line.split(' ')))
             x1, y1, x2, y2 = cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2
@@ -328,10 +328,10 @@ def convert_1_box_label():
         converted_label_str = ''
         for contour in contours:
             x_raw, y_raw, width_raw, height_raw = cv2.boundingRect(contour)
-            x_min_f = x_raw / float(yolo.input_shape[1])
-            y_min_f = y_raw / float(yolo.input_shape[0])
-            width_f = width_raw / float(yolo.input_shape[1])
-            height_f = height_raw / float(yolo.input_shape[0])
+            x_min_f = x_raw / float(old.input_shape[1])
+            y_min_f = y_raw / float(old.input_shape[0])
+            width_f = width_raw / float(old.input_shape[1])
+            height_f = height_raw / float(old.input_shape[0])
             cx_f = x_min_f + width_f / 2.0
             cy_f = y_min_f + height_f / 2.0
             converted_label_str += f'0 {cx_f:.6f} {cy_f:.6f} {width_f:.6f} {height_f:.6f}\n'
@@ -342,16 +342,16 @@ def convert_1_box_label():
 def compress_test():
     from glob import glob
     from tqdm import tqdm
-    import yolo
-    with open(f'{yolo.train_image_path}/classes.txt', 'rt') as classes_file:
-        yolo.class_names = [s.replace('\n', '') for s in classes_file.readlines()]
-    img_paths = glob(rf'{yolo.train_image_path}\*\*.jpg')
+    import old
+    with open(f'{old.train_image_path}/classes.txt', 'rt') as classes_file:
+        old.class_names = [s.replace('\n', '') for s in classes_file.readlines()]
+    img_paths = glob(rf'{old.train_image_path}\*\*.jpg')
     for cur_img_path in tqdm(img_paths):
-        x = cv2.imread(cur_img_path, yolo.img_type)
-        x = yolo.resize(x, (yolo.input_shape[1], yolo.input_shape[0]))
+        x = cv2.imread(cur_img_path, old.img_type)
+        x = old.resize(x, (old.input_shape[1], old.input_shape[0]))
         with open(rf'{cur_img_path[:-4]}.txt', mode='rt') as f:
             lines = f.readlines()
-        y = np.zeros((yolo.input_shape[0], yolo.input_shape[1]), dtype=np.uint8)
+        y = np.zeros((old.input_shape[0], old.input_shape[1]), dtype=np.uint8)
         for line in lines:
             class_index, cx, cy, w, h = list(map(float, line.split(' ')))
             x1, y1, x2, y2 = cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2
@@ -410,11 +410,11 @@ def ccl():
 
 
 def lab_forward(model, x, model_type='h5', input_shape=(0, 0), output_shape=(0, 0), img_channels=1):
-    import yolo
+    import old
     raw_width, raw_height = x.shape[1], x.shape[0]
-    if yolo.img_channels == 1:
+    if old.img_channels == 1:
         x = cv2.cvtColor(x, cv2.COLOR_BGR2GRAY)
-    x = yolo.resize(x, (input_shape[1], input_shape[0]))
+    x = old.resize(x, (input_shape[1], input_shape[0]))
 
     y = []
     if model_type == 'h5':
@@ -431,7 +431,7 @@ def lab_forward(model, x, model_type='h5', input_shape=(0, 0), output_shape=(0, 
     for i in range(output_shape[0]):
         for j in range(output_shape[1]):
             confidence = y[0][i][j]
-            if confidence < yolo.confidence_threshold:
+            if confidence < old.confidence_threshold:
                 continue
             cx = y[1][i][j]
             cx_f = j / float(output_shape[1])
@@ -481,9 +481,9 @@ def lab_forward(model, x, model_type='h5', input_shape=(0, 0), output_shape=(0, 
                 'discard': False
             })
             box_count += 1
-            if box_count >= yolo.max_num_boxes:
+            if box_count >= old.max_num_boxes:
                 break
-        if box_count >= yolo.max_num_boxes:
+        if box_count >= old.max_num_boxes:
             break
 
     # nms process
@@ -493,7 +493,7 @@ def lab_forward(model, x, model_type='h5', input_shape=(0, 0), output_shape=(0, 
         for j in range(len(res)):
             if i == j or res[j]['discard']:
                 continue
-            if yolo.iou(res[i]['bbox'], res[j]['bbox']) >= yolo.nms_iou_threshold:
+            if old.iou(res[i]['bbox'], res[j]['bbox']) >= old.nms_iou_threshold:
                 if res[i]['confidence'] >= res[j]['confidence']:
                     res[j]['discard'] = True
 
@@ -506,14 +506,14 @@ def lab_forward(model, x, model_type='h5', input_shape=(0, 0), output_shape=(0, 
 
 
 def test_total_lpr_process():
-    import yolo
-    yolo.class_names.append('license_plate')
+    import old
+    old.class_names.append('license_plate')
 
-    yolo.freeze('checkpoints/2_yolo_4680_epoch_28_loss_0.006669_val_loss_0.034237.h5')
+    old.freeze('checkpoints/2_yolo_4680_epoch_28_loss_0.006669_val_loss_0.034237.h5')
     lpd = cv2.dnn.readNet('model.pb')
 
     # yolo.freeze('checkpoints/lcd_100_epoch_1768_loss_0.485955_val_loss_14.891500.h5')
-    yolo.freeze('model.h5')
+    old.freeze('model.h5')
     lcd = cv2.dnn.readNet('model.pb')
 
     # out = cv2.VideoWriter('output.mp4', cv2.VideoWriter_fourcc(*'MP4V'), 20.0, (640, 368))
@@ -541,20 +541,20 @@ def test_total_lpr_process():
         frame_exist, x = cap.read()
         if not frame_exist:
             break
-        x = yolo.resize(x, (640, 368))
+        x = old.resize(x, (640, 368))
         raw_x = x.copy()
         res = lab_forward(lpd, x, model_type='pb', input_shape=(368, 640), output_shape=(46, 80), img_channels=1)
-        boxed = yolo.bounding_box(x, res)
+        boxed = old.bounding_box(x, res)
         cv2.imshow('boxed', cv2.resize(boxed, (0, 0), fx=2.0, fy=2.0))
 
         for i, cur_res in enumerate(res):
             x_min, y_min, x_max, y_max = cur_res['bbox']
             lp = raw_x[y_min:y_max, x_min:x_max]
-            lp = yolo.resize(lp, (192, 96))
+            lp = old.resize(lp, (192, 96))
             # cv2.imwrite(rf'C:\inz\train_data\character_detection_in_lp\ADDONS\g2b_{inc}.jpg', lp)
             # inc += 1
             res = lab_forward(lcd, lp, model_type='pb', input_shape=(96, 192), output_shape=(12, 24), img_channels=1)
-            boxed = yolo.bounding_box(lp, res)
+            boxed = old.bounding_box(lp, res)
             cv2.imshow('lp', boxed)
         if ord('q') == cv2.waitKey(1):
             break
@@ -564,26 +564,26 @@ def test_total_lpr_process():
 
 
 def count_lp_type():
-    import yolo
+    import old
     from glob import glob
-    yolo.YoloDataGenerator.init_label()
-    yolo.freeze('over_fit_model.h5')
+    old.YoloDataGenerator.init_label()
+    old.freeze('over_fit_model.h5')
     net = cv2.dnn.readNet('model.pb')
-    yolo.freeze('lp_type_model_1202.h5')
+    old.freeze('lp_type_model_1202.h5')
     ltc_net = cv2.dnn.readNet('model.pb')
-    total_image_paths = glob(f'{yolo.train_image_path}/*/*.jpg')
+    total_image_paths = glob(f'{old.train_image_path}/*/*.jpg')
     classes = [0 for _ in range(8)]
 
     from tqdm import tqdm
     for path in tqdm(total_image_paths):
         x = cv2.imread(path, cv2.IMREAD_COLOR)
-        x = yolo.resize(x, (yolo.input_shape[1], yolo.input_shape[0]))
-        res = yolo.forward(net, x)
+        x = old.resize(x, (old.input_shape[1], old.input_shape[0]))
+        res = old.forward(net, x)
         for cur_res in res:
             x1, y1, x2, y2 = cur_res['bbox']
             plate = x[y1:y2, x1:x2]
             plate = cv2.cvtColor(plate, cv2.COLOR_BGR2GRAY)
-            plate = yolo.resize(plate, (192, 96))
+            plate = old.resize(plate, (192, 96))
             plate_x = np.asarray(plate).reshape((1, 1, 96, 192)).astype('float32') / 255.
             ltc_net.setInput(plate_x)
             res = ltc_net.lab_forward()
