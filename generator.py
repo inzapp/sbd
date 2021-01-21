@@ -30,17 +30,17 @@ class YoloDataGenerator:
         return sorted(image_paths)
 
     @staticmethod
-    def _split_paths(train_image_paths, validation_split):
+    def _split_paths(image_paths, validation_split):
         assert 0.0 <= validation_split <= 1.0
-        train_image_paths = np.asarray(train_image_paths)
+        image_paths = np.asarray(image_paths)
         if validation_split == 0.0:
-            return train_image_paths, np.asarray([])
-        r = np.arange(len(train_image_paths))
+            return image_paths, np.asarray([])
+        r = np.arange(len(image_paths))
         np.random.shuffle(r)
-        train_image_paths = train_image_paths[r]
-        num_train_image_paths = int(len(train_image_paths) * (1.0 - validation_split))
-        train_image_paths = train_image_paths[:num_train_image_paths]
-        validation_image_paths = train_image_paths[num_train_image_paths:]
+        image_paths = image_paths[r]
+        num_train_image_paths = int(len(image_paths) * (1.0 - validation_split))
+        train_image_paths = image_paths[:num_train_image_paths]
+        validation_image_paths = image_paths[num_train_image_paths:]
         return train_image_paths, validation_image_paths
 
 

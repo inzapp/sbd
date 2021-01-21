@@ -18,8 +18,8 @@ class Yolo:
         self._callbacks = [
             tf.keras.callbacks.ModelCheckpoint(
                 filepath='checkpoints/epoch_{epoch}.h5',
-                monitor='val_loss',
-                mode='min',
+                monitor='val_precision',
+                mode='max',
                 save_best_only=True)]
 
         # TODO : 1. 모델 로드하지 않음 -> 훈련, 2. 모델 로드 -> 이어서 훈련, 3. 모델 로드 -> predict
