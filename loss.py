@@ -20,11 +20,6 @@ class YoloLoss(tf.keras.losses.Loss):
         h_pred = tf.sqrt(y_pred[:, :, :, 4] + 1e-4)
         h_loss = -tf.math.log(1.0 + 1e-7 - tf.reduce_mean(tf.abs(h_true - h_pred) * y_true[:, :, :, 0]))
         bbox_loss = x_loss + y_loss + w_loss + h_loss
-
-        # classification_loss = tf.reduce_mean(tf.reduce_mean(tf.abs(y_true[:, :, :, 5:] - y_pred[:, :, :, 5:]), axis=-1) * y_true[:, :, :, 0])
-        # classification_loss = -tf.math.log(1.0 + 1e-7 - classification_loss)
-
-        # need to test below is valid
         classification_losses = tf.constant(0.0)
         for i in range(5, self.num_classes):
             cur_class_loss = tf.reduce_mean(tf.abs(y_true[:, :, :, i] - y_pred[:, :, :, i]) * y_true[:, :, :, 0])

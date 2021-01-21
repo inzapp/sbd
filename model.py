@@ -12,16 +12,16 @@ class Model:
 
     def build(self):
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
-        x = self.conv_block(16, 3, input_layer, True)
-        x = self.conv_block(32, 3, x, True)
-        x = self.conv_block(64, 3, x)
-        x = self.conv_block(128, 3, x)
-        x = self.conv_block(128, 3, x)
-        x = self.point_wise_conv(self.output_channel, x)
+        x = self._conv_block(16, 3, input_layer, True)
+        x = self._conv_block(32, 3, x, True)
+        x = self._conv_block(64, 3, x)
+        x = self._conv_block(128, 3, x)
+        x = self._conv_block(128, 3, x)
+        x = self._point_wise_conv(self.output_channel, x)
         return tf.keras.models.Model(input_layer, x)
 
     @staticmethod
-    def conv_block(filters, kernel_size, x, max_pool=False):
+    def _conv_block(filters, kernel_size, x, max_pool=False):
         x = tf.keras.layers.Conv2D(
             filters=filters,
             kernel_size=kernel_size,
@@ -35,7 +35,7 @@ class Model:
         return x
 
     @staticmethod
-    def point_wise_conv(filters, x):
+    def _point_wise_conv(filters, x):
         return tf.keras.layers.Conv2D(
             filters=filters,
             kernel_size=1,
