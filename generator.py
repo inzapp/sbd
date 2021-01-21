@@ -8,7 +8,6 @@ import tensorflow as tf
 
 class YoloDataGenerator:
     def __init__(self, train_image_path, input_shape, output_shape, batch_size, validation_split=0.0):
-        self.class_names, self.num_classes = self.init_class_names(train_image_path)
         train_image_paths = self.init_image_paths(train_image_path)
         train_image_paths, validation_image_paths = self.split_paths(train_image_paths, validation_split)
         self.train_generator_flow = GeneratorFlow(train_image_paths, input_shape, output_shape, batch_size, 'training')
@@ -23,16 +22,6 @@ class YoloDataGenerator:
         for i in range(len(image_paths)):
             image_paths[i] = image_paths[i].replace('\\', '/')
         return sorted(image_paths)
-
-    @staticmethod
-    def init_class_names(train_image_path):
-        """
-        Init YOLO label from classes.txt file.
-        """
-        with open(f'{train_image_path}/classes.txt', 'rt') as classes_file:
-            class_names = [s.replace('\n', '') for s in classes_file.readlines()]
-            num_classes = len(class_names)
-        return class_names, num_classes
 
     @staticmethod
     def split_paths(train_image_paths, validation_split):
@@ -57,9 +46,9 @@ class YoloDataGenerator:
 
 class GeneratorFlow(tf.keras.utils.Sequence):
     """
-    Custom data generator for YOLO model.
+    Custom data generator flow for YOLO model.
     Usage:
-        generator = GeneratorFlow(image_paths=train_image_paths)
+        generator_flow = GeneratorFlow(image_paths=image_paths)
     """
 
     def __init__(self, image_paths, input_shape, output_shape, batch_size, subset='training'):
@@ -93,7 +82,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
 
             with open(f'{cur_img_path[:-4]}.txt', mode='rt') as file:
                 label_lines = file.readlines()
-            y = [np.zeros(self.output_shape, dtype=np.float32) for _ in range(self.output_shape[2])]
+            y = np.zeros((self.output_shape[2], self.output_shape[0], self.output_shape[1]), dtype=np.float32)
             grid_width_ratio = 1 / float(self.output_shape[1])
             grid_height_ratio = 1 / float(self.output_shape[0])
             for label_line in label_lines:

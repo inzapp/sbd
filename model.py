@@ -1,4 +1,8 @@
+import os
+
 import tensorflow as tf
+
+os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
 
 class Model:
