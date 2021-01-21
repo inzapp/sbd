@@ -1,4 +1,5 @@
 import tensorflow as tf
+from tensorflow.python.framework.ops import convert_to_tensor_v2
 
 
 class YoloLoss(tf.keras.losses.Loss):
@@ -7,7 +8,6 @@ class YoloLoss(tf.keras.losses.Loss):
         super(YoloLoss, self).__init__()
 
     def call(self, y_true, y_pred):
-        from tensorflow.python.framework.ops import convert_to_tensor_v2
         y_pred = convert_to_tensor_v2(y_pred)
         y_true = tf.cast(y_true, y_pred.dtype)
         confidence_loss = tf.losses.binary_crossentropy(y_true[:, :, :, 0], y_pred[:, :, :, 0])

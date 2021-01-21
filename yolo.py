@@ -7,6 +7,7 @@ from cv2 import cv2
 from box_colors import colors
 from generator import YoloDataGenerator
 from loss import YoloLoss
+from metrics import precision, recall
 from model import Model
 
 
@@ -38,7 +39,8 @@ class Yolo:
         self._model.summary()
         self._model.compile(
             optimizer=tf.keras.optimizers.SGD(lr=lr, momentum=0.9, nesterov=True),
-            loss=YoloLoss(num_classes))
+            loss=YoloLoss(num_classes),
+            metrics=[precision, recall])
         train_data_generator = YoloDataGenerator(
             train_image_path=train_image_path,
             input_shape=input_shape,
