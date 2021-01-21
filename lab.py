@@ -13,8 +13,8 @@ def main():
         if str(layer).lower().find('conv') == -1:
             continue
         if previous_channel == -1:
-            previous_channel = layer.input_shape[3]
-        shape = layer.output_channel
+            previous_channel = layer.__input_shape[3]
+        shape = layer.__output_channel
         if type(shape) is list:
             shape = shape[0]
         h, w, c = shape[1:]
@@ -640,6 +640,40 @@ def test_masked_image():
                 # cv2.rectangle(img, (x1, y1), (x2, y2), (0, 0, 255), 2)
             cv2.imshow('img', mask)
             cv2.waitKey(0)
+
+
+def virtual_iou_precision(y_true, y_pred):
+    self_output_rows = 10
+    self_output_cols = 10
+    confidence = y_true[:, :, :, 0]
+    cx = y_true[:, :, :, 1]
+    cy = y_true[:, :, :, 2]
+    w = y_true[:, :, :, 3]
+    h = y_true[:, :, :, 4]
+    boxes_true = []
+    for i in range(self_output_rows):
+        for j in range(self_output_cols):
+            if confidence[i][j] == 1.0:
+                x_min = cx[i][j] - w[i][j] / 2.0
+                y_min = cy[i][j] - h[i][j] / 2.0
+                x_max = cx[i][j] + w[i][j] / 2.0
+                y_max = cy[i][j] + h[i][j] / 2.0
+                boxes_true.append([x_min, y_min, x_max, y_max])
+
+    confidence = y_pred[:, :, :, 0]
+    cx = y_pred[:, :, :, 1]
+    cy = y_pred[:, :, :, 2]
+    w = y_pred[:, :, :, 3]
+    h = y_pred[:, :, :, 4]
+    boxes_pred = []
+    for i in range(self_output_rows):
+        for j in range(self_output_cols):
+            if confidence[i][j] > 0.5:
+                x_min = cx[i][j] - w[i][j] / 2.0
+                y_min = cy[i][j] - h[i][j] / 2.0
+                x_max = cx[i][j] + w[i][j] / 2.0
+                y_max = cy[i][j] + h[i][j] / 2.0
+                boxes_pred.append([x_min, y_min, x_max, y_max])
 
 
 if __name__ == '__main__':

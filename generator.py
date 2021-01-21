@@ -8,20 +8,26 @@ import tensorflow as tf
 
 class YoloDataGenerator:
     def __init__(self, train_image_path, input_shape, output_shape, batch_size, validation_split=0.0):
-        train_image_paths = self._init_image_paths(train_image_path)
-        train_image_paths, validation_image_paths = self._split_paths(train_image_paths, validation_split)
-        self.train_generator_flow = GeneratorFlow(train_image_paths, input_shape, output_shape, batch_size, 'training')
-        self.validation_generator_flow = GeneratorFlow(validation_image_paths, input_shape, output_shape, batch_size, 'validation')
+        image_paths = self.__init_image_paths(train_image_path)
+        self.train_image_paths, self.validation_image_paths = self.__split_paths(image_paths, validation_split)
+        self._train_generator_flow = GeneratorFlow(self.train_image_paths, input_shape, output_shape, batch_size, 'training')
+        self._validation_generator_flow = GeneratorFlow(self.validation_image_paths, input_shape, output_shape, batch_size, 'validation')
+
+    @classmethod
+    def empty(cls):
+        return cls.__new__(cls)
 
     def flow(self, subset='training'):
         if subset == 'training':
-            return self.train_generator_flow
+            return self._train_generator_flow
         elif subset == 'validation':
-            return self.validation_generator_flow
+            return self._validation_generator_flow
 
     @staticmethod
-    def _init_image_paths(train_image_path):
+    def __init_image_paths(train_image_path):
         image_paths = []
+        image_paths += glob(f'{train_image_path}/*.jpg')
+        image_paths += glob(f'{train_image_path}/*.png')
         image_paths += glob(f'{train_image_path}/*/*.jpg')
         image_paths += glob(f'{train_image_path}/*/*.png')
         image_paths = np.asarray(image_paths)
@@ -30,7 +36,7 @@ class YoloDataGenerator:
         return sorted(image_paths)
 
     @staticmethod
-    def _split_paths(image_paths, validation_split):
+    def __split_paths(image_paths, validation_split):
         assert 0.0 <= validation_split <= 1.0
         image_paths = np.asarray(image_paths)
         if validation_split == 0.0:
@@ -61,16 +67,13 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         self.pool = ThreadPoolExecutor(8)
         np.random.shuffle(self.random_indexes)
 
-    def on_epoch_end(self):
-        np.random.shuffle(self.random_indexes)
-
     def __getitem__(self, index):
         batch_x = []
         batch_y = []
         start_index = index * self.batch_size
         fs = []
         for i in range(start_index, start_index + self.batch_size):
-            fs.append(self.pool.submit(self._load_img, self.image_paths[self.random_indexes[i]]))
+            fs.append(self.pool.submit(self.__load_img, self.image_paths[self.random_indexes[i]]))
         for f in fs:
             cur_img_path, x = f.result()
             if x.shape[1] > self.input_shape[1] or x.shape[0] > self.input_shape[0]:
@@ -101,8 +104,11 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         batch_y = np.asarray(batch_y)
         return batch_x, batch_y
 
-    def _load_img(self, path):
+    def __load_img(self, path):
         return path, cv2.imread(path, cv2.IMREAD_GRAYSCALE if self.input_shape[2] == 1 else cv2.IMREAD_COLOR)
 
     def __len__(self):
         return int(np.floor(len(self.image_paths) / self.batch_size))
+
+    def on_epoch_end(self):
+        np.random.shuffle(self.random_indexes)

@@ -13,9 +13,12 @@ from model import Model
 
 class Yolo:
     def __init__(self, pretrained_model_path='', class_names_file_path=''):
-        self._class_names = []
-        self._model = tf.keras.models.Model()
-        self._callbacks = [
+        self.__class_names = []
+        self.__input_shape = ()
+        self.__model = tf.keras.models.Model()
+        self.__train_data_generator = YoloDataGenerator.empty()
+        self.__validation_data_generator = YoloDataGenerator.empty()
+        self.__callbacks = [
             tf.keras.callbacks.ModelCheckpoint(
                 filepath='checkpoints/epoch_{epoch}.h5',
                 monitor='val_precision',
@@ -27,45 +30,46 @@ class Yolo:
         # TODO : 어떻게 할 것인가.
 
         if os.path.exists(pretrained_model_path) and os.path.isfile(pretrained_model_path):
-            self._class_names, _ = self._init_class_names(class_names_file_path)
-            self._model = tf.keras.models.load_model(pretrained_model_path, compile=False)
+            self.__class_names, _ = self.__init_class_names(class_names_file_path)
+            self.__model = tf.keras.models.load_model(pretrained_model_path, compile=False)
 
     def fit(self, train_image_path, input_shape, batch_size, lr, epochs, validation_split=0.0, validation_image_path=''):
         num_classes = 0
-        if len(self._class_names) == 0:
-            self._class_names, num_classes = self._init_class_names(f'{train_image_path}/classes.txt')
-        if len(self._model.layers) == 0:
-            self._model = Model(input_shape, num_classes + 5).build()
-        self._model.summary()
-        self._model.compile(
+        self.__input_shape = input_shape
+        if len(self.__class_names) == 0:
+            self.__class_names, num_classes = self.__init_class_names(f'{train_image_path}/classes.txt')
+        if len(self.__model.layers) == 0:
+            self.__model = Model(input_shape, num_classes + 5).build()
+        self.__model.summary()
+        self.__model.compile(
             optimizer=tf.keras.optimizers.SGD(lr=lr, momentum=0.9, nesterov=True),
             loss=YoloLoss(num_classes),
             metrics=[precision, recall])
-        train_data_generator = YoloDataGenerator(
+        self.__train_data_generator = YoloDataGenerator(
             train_image_path=train_image_path,
             input_shape=input_shape,
-            output_shape=self._model.output_shape[1:],
+            output_shape=self.__model.output_shape[1:],
             batch_size=batch_size,
             validation_split=validation_split)
         if os.path.exists(validation_image_path) and os.path.isdir(validation_image_path):
-            validation_data_generator = YoloDataGenerator(
+            self.__validation_data_generator = YoloDataGenerator(
                 train_image_path=validation_image_path,
                 input_shape=input_shape,
-                output_shape=self._model.output_shape[1:],
+                output_shape=self.__model.output_shape[1:],
                 batch_size=batch_size)
-            self._model.fit(
-                x=train_data_generator.flow(),
-                validation_data=validation_data_generator.flow(),
+            self.__model.fit(
+                x=self.__train_data_generator.flow(),
+                validation_data=self.__validation_data_generator.flow(),
                 batch_size=batch_size,
                 epochs=epochs,
-                callbacks=self._callbacks)
+                callbacks=self.__callbacks)
         else:
-            self._model.fit(
-                x=train_data_generator.flow('training'),
-                validation_data=train_data_generator.flow('validation'),
+            self.__model.fit(
+                x=self.__train_data_generator.flow('training'),
+                validation_data=self.__train_data_generator.flow('validation'),
                 batch_size=batch_size,
                 epochs=epochs,
-                callbacks=self._callbacks)
+                callbacks=self.__callbacks)
 
     def predict(self, x, confidence_threshold=0.25, nms_iou_threshold=0.5):
         """
@@ -77,15 +81,15 @@ class Yolo:
         each dictionary has class index and bbox info: [x1, y1, x2, y2].
         """
         raw_width, raw_height = x.shape[1], x.shape[0]
-        input_shape = self._model.input.shape[1:]
-        output_shape = self._model.output.shape[1:]
+        input_shape = self.__model.input.shape[1:]
+        output_shape = self.__model.output.shape[1:]
         if x.shape[1] > input_shape[1] or x.shape[0] > input_shape[0]:
             x = cv2.resize(x, (input_shape[1], input_shape[0]), interpolation=cv2.INTER_AREA)
         else:
             x = cv2.resize(x, (input_shape[1], input_shape[0]), interpolation=cv2.INTER_LINEAR)
 
         x = np.asarray(x).reshape((1,) + input_shape).astype('float32') / 255.0
-        y = self._predict_on_graph(self._model, x)
+        y = self.__predict_on_graph(self.__model, x)
         y = np.moveaxis(y, -1, 0)
 
         res = []
@@ -129,14 +133,13 @@ class Yolo:
             # if box_count >= max_num_boxes:
             #     break
 
-        # nms process
         for i in range(len(res)):
             if res[i]['discard']:
                 continue
             for j in range(len(res)):
                 if i == j or res[j]['discard']:
                     continue
-                if self._iou(res[i]['bbox'], res[j]['bbox']) > nms_iou_threshold:
+                if self.__iou(res[i]['bbox'], res[j]['bbox']) > nms_iou_threshold:
                     if res[i]['confidence'] >= res[j]['confidence']:
                         res[j]['discard'] = True
 
@@ -159,14 +162,14 @@ class Yolo:
             img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
         for i, cur_res in enumerate(yolo_res):
             class_index = int(cur_res['class'])
-            if len(self._class_names) == 0:
+            if len(self.__class_names) == 0:
                 class_name = str(class_index)
             else:
-                class_name = self._class_names[class_index].replace('/n', '')
+                class_name = self.__class_names[class_index].replace('/n', '')
             label_background_color = colors[class_index]
-            label_font_color = (0, 0, 0) if self._is_background_color_bright(label_background_color) else (255, 255, 255)
+            label_font_color = (0, 0, 0) if self.__is_background_color_bright(label_background_color) else (255, 255, 255)
             label_text = f'{class_name}({round(cur_res["confidence"] * 100.0)}%)'
-            label_width, label_height = self._get_text_label_width_height(label_text, font_scale)
+            label_width, label_height = self.__get_text_label_width_height(label_text, font_scale)
             x1, y1, x2, y2 = cur_res['bbox']
             cv2.rectangle(img, (x1, y1), (x2, y2), label_background_color, 2)
             cv2.rectangle(img, (x1 - 1, y1 - label_height), (x1 - 1 + label_width, y1), colors[class_index], -1)
@@ -174,11 +177,11 @@ class Yolo:
         return img
 
     @tf.function
-    def _predict_on_graph(self, model, x):
+    def __predict_on_graph(self, model, x):
         return model(x, training=False)
 
     @staticmethod
-    def _init_class_names(class_names_file_path):
+    def __init_class_names(class_names_file_path):
         """
         Init YOLO label from classes.txt file.
         """
@@ -193,7 +196,7 @@ class Yolo:
             return [], 0
 
     @staticmethod
-    def _iou(a, b):
+    def __iou(a, b):
         """
         Intersection of union function.
         :param a: [x_min, y_min, x_max, y_max] format box a
@@ -212,7 +215,7 @@ class Yolo:
         return intersection_area / float(union_area)
 
     @staticmethod
-    def _is_background_color_bright(bgr):
+    def __is_background_color_bright(bgr):
         """
         Determine whether the color is bright or not.
         :param bgr: bgr scalar tuple.
@@ -225,7 +228,7 @@ class Yolo:
         return tmp[0][0] > 127
 
     @staticmethod
-    def _get_text_label_width_height(text, font_scale):
+    def __get_text_label_width_height(text, font_scale):
         """
         Calculate label text position using contour of real text size.
         :param text: label text(class name).
@@ -242,3 +245,12 @@ class Yolo:
         hull = cv2.convexHull(contours[0])
         x, y, w, h = cv2.boundingRect(hull)
         return w - 5, h
+
+    def __calculate_precision_recall(self, batch, logs):
+        tp, tn, fp, fn = 0, 0, 0, 0
+        for path in self.__train_data_generator.train_image_paths:
+            x = cv2.imread(path, cv2.IMREAD_GRAYSCALE if self.__input_shape[2] == 1 else cv2.IMREAD_COLOR)
+            x = np.asarray(x).reshape((1,) + self.__input_shape).astype('float32') / 255.0
+            res = self.predict(x)
+            for cur_res in res:
+                x_min, y_min, x_max, y_max = cur_res['bbox']
