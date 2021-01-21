@@ -20,6 +20,11 @@ class Yolo:
                 monitor='val_loss',
                 mode='min',
                 save_best_only=True)]
+
+        # TODO : 1. 모델 로드하지 않음 -> 훈련, 2. 모델 로드 -> 이어서 훈련, 3. 모델 로드 -> predict
+        # TODO : 이 3가지가 서로 간섭받지 않아야 하며 깔끔하게 모듈화가 되어야 한다.
+        # TODO : 어떻게 할 것인가.
+
         if os.path.exists(pretrained_model_path) and os.path.isfile(pretrained_model_path):
             self._class_names, _ = self._init_class_names(class_names_file_path)
             self._model = tf.keras.models.load_model(pretrained_model_path, compile=False)
