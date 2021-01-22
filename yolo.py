@@ -1,4 +1,5 @@
 import os
+from time import time
 
 import numpy as np
 import tensorflow as tf
@@ -18,7 +19,9 @@ class Yolo:
         self.__model = tf.keras.models.Model()
         self.__train_data_generator = YoloDataGenerator.empty()
         self.__validation_data_generator = YoloDataGenerator.empty()
+        self.__live_view_previous_time = time()
         self.__callbacks = [
+            tf.keras.callbacks.LambdaCallback(on_batch_end=self.training_view),
             tf.keras.callbacks.ModelCheckpoint(
                 filepath='checkpoints/epoch_{epoch}.h5',
                 monitor='val_recall',
@@ -42,7 +45,8 @@ class Yolo:
             self.__model = Model(input_shape, num_classes + 5).build()
         self.__model.summary()
         self.__model.compile(
-            optimizer=tf.keras.optimizers.SGD(lr=lr, momentum=0.9, nesterov=True),
+            # optimizer=tf.keras.optimizers.SGD(lr=lr, momentum=0.9, nesterov=True),
+            optimizer=tf.keras.optimizers.Adam(lr=lr),
             loss=YoloLoss(num_classes),
             metrics=[precision, recall])
         self.__train_data_generator = YoloDataGenerator(
@@ -171,13 +175,12 @@ class Yolo:
         return img
 
     def evaluate(self):
-        channels = self.__model.input.shape[-1]
         if len(self.__train_data_generator.validation_image_paths) > 0:
             evaluate_image_paths = self.__train_data_generator.validation_image_paths
         else:
             evaluate_image_paths = self.__validation_data_generator.train_image_paths
         for path in evaluate_image_paths:
-            img = cv2.imread(path, cv2.IMREAD_GRAYSCALE if channels == 1 else cv2.IMREAD_COLOR)
+            img = cv2.imread(path, cv2.IMREAD_GRAYSCALE if self.__model.input.shape[-1] == 1 else cv2.IMREAD_COLOR)
             res = self.predict(img)
             boxed_image = self.bounding_box(img, res)
             cv2.imshow('res', boxed_image)
@@ -185,6 +188,26 @@ class Yolo:
 
     def evaluate_video(self, video_path):
         pass
+
+    def training_view(self, batch, logs):
+        cur_time = time()
+        if cur_time - self.__live_view_previous_time > 0.5:
+            self.__live_view_previous_time = cur_time
+            index = np.random.randint(0, len(self.__train_data_generator.train_image_paths))
+            img_path = self.__train_data_generator.train_image_paths[index]
+            if len(self.__train_data_generator.validation_image_paths) > 0:
+                if np.random.choice([0, 1]) == 1:
+                    index = np.random.randint(0, len(self.__train_data_generator.validation_image_paths))
+                    img_path = self.__train_data_generator.validation_image_paths[index]
+            elif len(self.__validation_data_generator.train_image_paths) > 0:
+                if np.random.choice([0, 1]) == 1:
+                    index = np.random.randint(0, len(self.__validation_data_generator.train_image_paths))
+                    img_path = self.__validation_data_generator.train_image_paths[index]
+            img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE if self.__model.input.shape[-1] == 1 else cv2.IMREAD_COLOR)
+            res = self.predict(img)
+            boxed_image = self.bounding_box(img, res)
+            cv2.imshow('training view', boxed_image)
+            cv2.waitKey(1)
 
     @tf.function
     def __predict_on_graph(self, model, x):
