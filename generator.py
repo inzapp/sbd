@@ -10,8 +10,8 @@ class YoloDataGenerator:
     def __init__(self, train_image_path, input_shape, output_shape, batch_size, validation_split=0.0):
         image_paths = self.__init_image_paths(train_image_path)
         self.train_image_paths, self.validation_image_paths = self.__split_paths(image_paths, validation_split)
-        self._train_generator_flow = GeneratorFlow(self.train_image_paths, input_shape, output_shape, batch_size, 'training')
-        self._validation_generator_flow = GeneratorFlow(self.validation_image_paths, input_shape, output_shape, batch_size, 'validation')
+        self.__train_generator_flow = GeneratorFlow(self.train_image_paths, input_shape, output_shape, batch_size, 'training')
+        self.__validation_generator_flow = GeneratorFlow(self.validation_image_paths, input_shape, output_shape, batch_size, 'validation')
 
     @classmethod
     def empty(cls):
@@ -19,9 +19,9 @@ class YoloDataGenerator:
 
     def flow(self, subset='training'):
         if subset == 'training':
-            return self._train_generator_flow
+            return self.__train_generator_flow
         elif subset == 'validation':
-            return self._validation_generator_flow
+            return self.__validation_generator_flow
 
     @staticmethod
     def __init_image_paths(train_image_path):

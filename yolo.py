@@ -21,7 +21,7 @@ class Yolo:
         self.__callbacks = [
             tf.keras.callbacks.ModelCheckpoint(
                 filepath='checkpoints/epoch_{epoch}.h5',
-                monitor='val_precision',
+                monitor='val_recall',
                 mode='max',
                 save_best_only=True)]
 
@@ -89,11 +89,10 @@ class Yolo:
             x = cv2.resize(x, (input_shape[1], input_shape[0]), interpolation=cv2.INTER_LINEAR)
 
         x = np.asarray(x).reshape((1,) + input_shape).astype('float32') / 255.0
-        y = self.__predict_on_graph(self.__model, x)
+        y = self.__predict_on_graph(self.__model, x)[0]
         y = np.moveaxis(y, -1, 0)
 
         res = []
-        # box_count = 0
         for i in range(output_shape[0]):
             for j in range(output_shape[1]):
                 confidence = y[0][i][j]
@@ -127,11 +126,6 @@ class Yolo:
                     'bbox': [x_min, y_min, x_max, y_max],
                     'class': class_index - 5,
                     'discard': False})
-            #     box_count += 1
-            #     if box_count >= max_num_boxes:
-            #         break
-            # if box_count >= max_num_boxes:
-            #     break
 
         for i in range(len(res)):
             if res[i]['discard']:
@@ -175,6 +169,22 @@ class Yolo:
             cv2.rectangle(img, (x1 - 1, y1 - label_height), (x1 - 1 + label_width, y1), colors[class_index], -1)
             cv2.putText(img, label_text, (x1 - 1, y1 - 5), cv2.FONT_HERSHEY_DUPLEX, fontScale=font_scale, color=label_font_color, thickness=1, lineType=cv2.LINE_AA)
         return img
+
+    def evaluate(self):
+        channels = self.__model.input.shape[-1]
+        if len(self.__train_data_generator.validation_image_paths) > 0:
+            evaluate_image_paths = self.__train_data_generator.validation_image_paths
+        else:
+            evaluate_image_paths = self.__validation_data_generator.train_image_paths
+        for path in evaluate_image_paths:
+            img = cv2.imread(path, cv2.IMREAD_GRAYSCALE if channels == 1 else cv2.IMREAD_COLOR)
+            res = self.predict(img)
+            boxed_image = self.bounding_box(img, res)
+            cv2.imshow('res', boxed_image)
+            cv2.waitKey(0)
+
+    def evaluate_video(self, video_path):
+        pass
 
     @tf.function
     def __predict_on_graph(self, model, x):
@@ -245,12 +255,3 @@ class Yolo:
         hull = cv2.convexHull(contours[0])
         x, y, w, h = cv2.boundingRect(hull)
         return w - 5, h
-
-    def __calculate_precision_recall(self, batch, logs):
-        tp, tn, fp, fn = 0, 0, 0, 0
-        for path in self.__train_data_generator.train_image_paths:
-            x = cv2.imread(path, cv2.IMREAD_GRAYSCALE if self.__input_shape[2] == 1 else cv2.IMREAD_COLOR)
-            x = np.asarray(x).reshape((1,) + self.__input_shape).astype('float32') / 255.0
-            res = self.predict(x)
-            for cur_res in res:
-                x_min, y_min, x_max, y_max = cur_res['bbox']
