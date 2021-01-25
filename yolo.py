@@ -48,18 +48,21 @@ class Yolo:
             optimizer=tf.keras.optimizers.Adam(lr=lr),
             loss=YoloLoss(),
             metrics=[precision, recall, f1])
+
         self.__train_data_generator = YoloDataGenerator(
             train_image_path=train_image_path,
             input_shape=input_shape,
             output_shape=self.__model.output_shape[1:],
             batch_size=batch_size,
             validation_split=validation_split)
+        print(f'train on {len(self.__train_data_generator.train_image_paths)} samples.')
         if os.path.exists(validation_image_path) and os.path.isdir(validation_image_path):
             self.__validation_data_generator = YoloDataGenerator(
                 train_image_path=validation_image_path,
                 input_shape=input_shape,
                 output_shape=self.__model.output_shape[1:],
                 batch_size=batch_size)
+            print(f'validate on {len(self.__validation_data_generator.train_image_paths)} samples.')
             self.__model.fit(
                 x=self.__train_data_generator.flow(),
                 validation_data=self.__validation_data_generator.flow(),
@@ -67,6 +70,7 @@ class Yolo:
                 epochs=epochs,
                 callbacks=self.__callbacks)
         else:
+            print(f'validate on {len(self.__train_data_generator.validation_image_paths)} samples.')
             self.__model.fit(
                 x=self.__train_data_generator.flow('training'),
                 validation_data=self.__train_data_generator.flow('validation'),
@@ -176,8 +180,11 @@ class Yolo:
     def evaluate(self):
         if len(self.__train_data_generator.validation_image_paths) > 0:
             evaluate_image_paths = self.__train_data_generator.validation_image_paths
-        else:
+        elif len(self.__validation_data_generator.train_image_paths) > 0:
             evaluate_image_paths = self.__validation_data_generator.train_image_paths
+        else:
+            print('no validation set specified. evaluate on training set.')
+            evaluate_image_paths = self.__train_data_generator.train_image_paths
         for path in evaluate_image_paths:
             img = cv2.imread(path, cv2.IMREAD_GRAYSCALE if self.__model.input.shape[-1] == 1 else cv2.IMREAD_COLOR)
             res = self.predict(img)
