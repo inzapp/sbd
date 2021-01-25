@@ -31,9 +31,8 @@ class Model:
             kernel_size=kernel_size,
             kernel_initializer='he_uniform',
             padding='same',
-            use_bias=False)(x)
+            activation='relu')(x)
         x = tf.keras.layers.BatchNormalization()(x)
-        x = tf.keras.layers.ReLU()(x)
         if max_pool:
             x = tf.keras.layers.MaxPool2D()(x)
         return x
