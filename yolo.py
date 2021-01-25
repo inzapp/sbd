@@ -23,7 +23,7 @@ class Yolo:
         self.__callbacks = [
             tf.keras.callbacks.LambdaCallback(on_batch_end=self.training_view),
             tf.keras.callbacks.ModelCheckpoint(
-                filepath='checkpoints/epoch_{epoch}.h5',
+                filepath='checkpoints/epoch_{epoch}_recall_{recall:.4f}_val_recall_{val_recall:.4f}.h5',
                 monitor='val_recall',
                 mode='max',
                 save_best_only=True)]
@@ -45,9 +45,8 @@ class Yolo:
             self.__model = Model(input_shape, num_classes + 5).build()
         self.__model.summary()
         self.__model.compile(
-            # optimizer=tf.keras.optimizers.SGD(lr=lr, momentum=0.9, nesterov=True),
             optimizer=tf.keras.optimizers.Adam(lr=lr),
-            loss=YoloLoss(num_classes),
+            loss=YoloLoss(),
             metrics=[precision, recall])
         self.__train_data_generator = YoloDataGenerator(
             train_image_path=train_image_path,
