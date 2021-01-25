@@ -19,7 +19,7 @@ class Model:
         x = self.__conv_block(16, 3, input_layer, True)
         x = self.__conv_block(32, 3, x, True)
         x = self.__conv_block(64, 3, x, True)
-        x = self.__conv_block(128, 3, x)
+        x = self.__conv_block(128, 3, x, True)
         x = self.__conv_block(256, 3, x)
         x = self.__point_wise_conv(self.__output_channel, x)
         return tf.keras.models.Model(input_layer, x)

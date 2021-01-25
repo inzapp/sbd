@@ -8,7 +8,7 @@ from cv2 import cv2
 from box_colors import colors
 from generator import YoloDataGenerator
 from loss import YoloLoss
-from metrics import precision, recall
+from metrics import precision, recall, f1
 from model import Model
 
 
@@ -23,8 +23,8 @@ class Yolo:
         self.__callbacks = [
             tf.keras.callbacks.LambdaCallback(on_batch_end=self.training_view),
             tf.keras.callbacks.ModelCheckpoint(
-                filepath='checkpoints/epoch_{epoch}_recall_{recall:.4f}_val_recall_{val_recall:.4f}.h5',
-                monitor='val_recall',
+                filepath='checkpoints/epoch_{epoch}_f1_{f1:.4f}_val_f1_{val_f1:.4f}.h5',
+                monitor='val_f1',
                 mode='max',
                 save_best_only=True)]
 
@@ -47,7 +47,7 @@ class Yolo:
         self.__model.compile(
             optimizer=tf.keras.optimizers.Adam(lr=lr),
             loss=YoloLoss(),
-            metrics=[precision, recall])
+            metrics=[precision, recall, f1])
         self.__train_data_generator = YoloDataGenerator(
             train_image_path=train_image_path,
             input_shape=input_shape,
