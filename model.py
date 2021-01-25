@@ -16,11 +16,14 @@ class Model:
 
     def build(self):
         input_layer = tf.keras.layers.Input(shape=self.__input_shape)
-        x = self.__conv_block(16, 3, input_layer, True)
-        x = self.__conv_block(32, 3, x, True)
+        x = self.__conv_block(32, 3, input_layer, True)
         x = self.__conv_block(64, 3, x, True)
+        x = self.__conv_block(128, 3, x)
         x = self.__conv_block(128, 3, x, True)
         x = self.__conv_block(256, 3, x)
+        x = self.__conv_block(256, 3, x, True)
+        x = self.__conv_block(512, 3, x)
+        x = self.__conv_block(512, 3, x)
         x = self.__point_wise_conv(self.__output_channel, x)
         return tf.keras.models.Model(input_layer, x)
 
@@ -31,8 +34,9 @@ class Model:
             kernel_size=kernel_size,
             kernel_initializer='he_uniform',
             padding='same',
-            activation='relu')(x)
+            use_bias=False)(x)
         x = tf.keras.layers.BatchNormalization()(x)
+        x = tf.keras.layers.ReLU()(x)
         if max_pool:
             x = tf.keras.layers.MaxPool2D()(x)
         return x
