@@ -37,6 +37,9 @@ def iou(a, b):
 
 
 def iou_f1(y_true, y_pred):
+    # TODO : 부하가 너무 커서 compile metric 에는 사용을 못할거 같다. 다른 방식으로 해보자
+    confidence_threshold = 0.25
+    iou_threshold = 0.5
     y_true = y_true.numpy()
     y_pred = y_pred.numpy()
     bbox_true = []
@@ -62,7 +65,6 @@ def iou_f1(y_true, y_pred):
                             class_index = channel_index - 5
                     bbox_true.append([x1, y1, x2, y2, class_index])
 
-    confidence_threshold = 0.25
     bbox_pred = []
     for batch_index in range(len(y_pred)):
         for i in range(len(y_pred[batch_index])):
@@ -86,8 +88,33 @@ def iou_f1(y_true, y_pred):
                             class_index = channel_index - 5
                     bbox_pred.append([x1, y1, x2, y2, class_index])
 
-    tp, fp, fn = 0, 0, 0
+    tp = 0
     for cur_bbox_true in bbox_true:
         for cur_bbox_pred in bbox_pred:
-            
-            pass
+            if iou(cur_bbox_true[:4], cur_bbox_pred[:4]) > iou_threshold:
+                tp += 1
+                break
+
+    fp = 0
+    for cur_bbox_pred in bbox_pred:
+        found = False
+        for cur_bbox_true in bbox_true:
+            if iou(cur_bbox_true[:4], cur_bbox_pred[:4]) > iou_threshold:
+                found = True
+                break
+        if not found:
+            fp += 1
+
+    fn = 0
+    for cur_bbox_true in bbox_true:
+        found = False
+        for cur_bbox_pred in bbox_pred:
+            if iou(cur_bbox_true[:4], cur_bbox_pred[:4]) > iou_threshold:
+                found = True
+                break
+        if not found:
+            fn += 1
+
+    precision = tp / float(tp + fp + 1e-5)
+    recall = tp / float(tp + fn + 1e-5)
+    return (precision * recall * 2.0) / (precision + recall + 1e-5)
