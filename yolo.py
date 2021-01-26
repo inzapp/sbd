@@ -8,7 +8,7 @@ from cv2 import cv2
 from box_colors import colors
 from generator import YoloDataGenerator
 from loss import YoloLoss
-from metrics import precision, recall, f1
+from metrics import precision, recall, f1, iou_f1
 from model import Model
 
 
@@ -21,7 +21,7 @@ class Yolo:
         self.__validation_data_generator = YoloDataGenerator.empty()
         self.__live_view_previous_time = time()
         self.__callbacks = [
-            tf.keras.callbacks.LambdaCallback(on_batch_end=self.training_view),
+            tf.keras.callbacks.LambdaCallback(on_batch_end=self.__training_view),
             tf.keras.callbacks.ModelCheckpoint(
                 filepath='checkpoints/epoch_{epoch}_f1_{f1:.4f}_val_f1_{val_f1:.4f}.h5',
                 monitor='val_f1',
@@ -47,7 +47,8 @@ class Yolo:
         self.__model.compile(
             optimizer=tf.keras.optimizers.Adam(lr=lr),
             loss=YoloLoss(),
-            metrics=[precision, recall, f1])
+            metrics=[precision, recall, f1],
+            run_eagerly=True)
 
         self.__train_data_generator = YoloDataGenerator(
             train_image_path=train_image_path,
@@ -55,7 +56,7 @@ class Yolo:
             output_shape=self.__model.output_shape[1:],
             batch_size=batch_size,
             validation_split=validation_split)
-        print(f'train on {len(self.__train_data_generator.train_image_paths)} samples.')
+        print(f'\ntrain on {len(self.__train_data_generator.train_image_paths)} samples.')
         if os.path.exists(validation_image_path) and os.path.isdir(validation_image_path):
             self.__validation_data_generator = YoloDataGenerator(
                 train_image_path=validation_image_path,
@@ -69,11 +70,17 @@ class Yolo:
                 batch_size=batch_size,
                 epochs=epochs,
                 callbacks=self.__callbacks)
-        else:
+        elif len(self.__train_data_generator.validation_image_paths) > 0:
             print(f'validate on {len(self.__train_data_generator.validation_image_paths)} samples.')
             self.__model.fit(
                 x=self.__train_data_generator.flow('training'),
                 validation_data=self.__train_data_generator.flow('validation'),
+                batch_size=batch_size,
+                epochs=epochs,
+                callbacks=self.__callbacks)
+        else:
+            self.__model.fit(
+                x=self.__train_data_generator.flow(),
                 batch_size=batch_size,
                 epochs=epochs,
                 callbacks=self.__callbacks)
@@ -144,7 +151,7 @@ class Yolo:
                     if res[i]['confidence'] >= res[j]['confidence']:
                         res[j]['discard'] = True
 
-        res_copy = res.copy()
+        res_copy = np.asarray(res.copy())
         res = []
         for i in range(len(res_copy)):
             if not res_copy[i]['discard']:
@@ -195,7 +202,7 @@ class Yolo:
     def evaluate_video(self, video_path):
         pass
 
-    def training_view(self, batch, logs):
+    def __training_view(self, batch, logs):
         cur_time = time()
         if cur_time - self.__live_view_previous_time > 0.5:
             self.__live_view_previous_time = cur_time
@@ -214,6 +221,37 @@ class Yolo:
             boxed_image = self.bounding_box(img, res)
             cv2.imshow('training view', boxed_image)
             cv2.waitKey(1)
+
+    def __iou_f1(self):
+        # calculate on training set
+        for image_path in self.__train_data_generator.train_image_paths:
+            label_path = f'{image_path[:-4]}.txt'
+            with open(label_path, mode='rt') as f:
+                label_lines = f.readlines()
+            bbox_true = []
+            for line in label_lines:
+                class_index, cx, cy, w, h = list(map(float, line.split(' ')))
+                x1, x2 = cx - w / 2.0, cx + w / 2.0
+                y1, y2 = cy - h / 2.0, cy + h / 2.0
+                x1, x2 = int(x1 * self.__model.input_shape[1:][1]), int(x2 * self.__model.input_shape[1:][1])
+                y1, y2 = int(y1 * self.__model.input_shape[1:][0]), int(y2 * self.__model.input_shape[1:][0])
+                bbox_true.append([int(class_index), x1, y1, x2, y2])
+
+            img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE if self.__model.input.input_shape[-1] == 1 else cv2.IMREAD_COLOR)
+            res = self.predict(img)
+            bbox_pred = []
+            for cur_res in res:
+                bbox_pred.append([cur_res['class']] + cur_res['bbox'])
+
+        # calculate on validation set
+        if len(self.__train_data_generator.validation_image_paths) > 0:
+            validation_image_paths = self.__train_data_generator.validation_image_paths
+        elif len(self.__validation_data_generator.train_image_paths) > 0:
+            validation_image_paths = self.__validation_data_generator.train_image_paths
+        else:
+            return
+        for image_path in validation_image_paths:
+            pass
 
     @tf.function
     def __predict_on_graph(self, model, x):

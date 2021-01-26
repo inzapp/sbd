@@ -17,11 +17,12 @@ class Model:
     def build(self):
         input_layer = tf.keras.layers.Input(shape=self.__input_shape)
         x = self.__conv_block(32, 3, input_layer, True)
+        x = self.__conv_block(64, 3, x)
         x = self.__conv_block(64, 3, x, True)
         x = self.__conv_block(128, 3, x)
         x = self.__conv_block(128, 3, x, True)
         x = self.__conv_block(256, 3, x)
-        x = self.__conv_block(256, 3, x)
+        x = self.__conv_block(256, 3, x, True)
         x = self.__conv_block(512, 3, x)
         x = self.__conv_block(512, 3, x)
         x = self.__point_wise_conv(self.__output_channel, x)

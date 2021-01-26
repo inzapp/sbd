@@ -676,11 +676,23 @@ def virtual_iou_precision(y_true, y_pred):
                 boxes_pred.append([x_min, y_min, x_max, y_max])
 
 
+def f_click():
+    import win32api
+    import win32con
+    previous = 0
+    while True:
+        ret = win32api.GetAsyncKeyState(ord('F'))
+        if ret == -32767:
+            win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
+        elif ret == 0 and previous == -32768:
+            win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
+        previous = ret
+
+
 if __name__ == '__main__':
-    # compress_test()
-    # convert_1_box_label()
+    # compress_test()f
     # test_loss()
     # bounding_box_test()
     # test_interpolation()
     # ccl()
-    test_masked_image()
+    f_click()
