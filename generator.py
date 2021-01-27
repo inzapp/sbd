@@ -33,6 +33,9 @@ class YoloDataGenerator:
 
     @classmethod
     def empty(cls):
+        """
+        Empty class method for only initializing.
+        """
         return cls.__new__(cls)
 
     def flow(self, subset='training'):

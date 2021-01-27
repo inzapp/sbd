@@ -32,17 +32,23 @@ class YoloLoss(tf.keras.losses.Loss):
         y_pred = convert_to_tensor_v2(y_pred)
         y_true = tf.cast(y_true, y_pred.dtype)
 
-        # binary crossentropy at confidence loss
-        # no used lambda no_obj factor in here
+        """
+        binary crossentropy at confidence loss
+        no used lambda no_obj factor in here
+        """
         confidence_loss = tf.losses.binary_crossentropy(y_true[:, :, :, 0], y_pred[:, :, :, 0])
 
-        # SSE at x, y regression loss
+        """
+        SSE at x, y regression loss
+        """
         x_loss = tf.reduce_sum(tf.square(y_true[:, :, :, 1] - (y_pred[:, :, :, 1] * y_true[:, :, :, 0])))
         y_loss = tf.reduce_sum(tf.square(y_true[:, :, :, 2] - (y_pred[:, :, :, 2] * y_true[:, :, :, 0])))
 
-        # SSE(sqrt(x)) at width and height regression loss
-        # to avoid dividing by zero when going through the derivative formula of sqrt.
-        # 1 / 2 * sqrt(x)
+        """
+        SSE(sqrt(x)) at width and height regression loss
+        to avoid dividing by zero when going through the derivative formula of sqrt
+        derivative of sqrt : 1 / 2 * sqrt(x)
+        """
         w_true = tf.sqrt(y_true[:, :, :, 3] + 1e-4)
         w_pred = tf.sqrt(y_pred[:, :, :, 3] + 1e-4)
         w_loss = tf.reduce_sum(tf.square(w_true - (w_pred * y_true[:, :, :, 0])))
@@ -51,6 +57,8 @@ class YoloLoss(tf.keras.losses.Loss):
         h_loss = tf.reduce_sum(tf.square(h_true - (h_pred * y_true[:, :, :, 0])))
         bbox_loss = x_loss + y_loss + w_loss + h_loss
 
-        # SSE at all classification loss
+        """
+        SSE at all classification loss
+        """
         classification_loss = tf.reduce_sum(tf.reduce_sum(tf.square(y_true[:, :, :, 5:] - y_pred[:, :, :, 5:]), axis=-1) * y_true[:, :, :, 0])
         return confidence_loss + (bbox_loss * self.coord) + classification_loss

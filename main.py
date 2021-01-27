@@ -19,12 +19,45 @@ limitations under the License.
 from yolo import Yolo
 
 if __name__ == '__main__':
+    """
+    Train model using fit method.
+    
+    train_image_path:
+        The path to the directory where the training data is located.
+        
+        There must be images and labels in this directory.
+        The image and label must have the same file name and not be in different directories.
+        
+    input_shape:
+        (height, width, channel) format of model input size
+        If the channel is 1, train with a gray image, otherwise train with a color image.
+        
+    batch_size:
+        2 batch is recommended.
+        
+    lr:
+        Learning rate value while training. 1e-3 for Adam optimizer is recommended.
+        
+    epochs:
+        Epochs value.
+        
+    validation_split:
+        The percentage of data that will be used as validation data.
+        
+    validation_image_path:
+        Use this parameter if the validation data is in a different path from the training data.
+        
+    training_view:
+        During training, the image is forwarded in real time, showing the results are shown.
+        False if training is on a server system without IO equipment.
+    """
     model = Yolo()
     model.fit(
-        train_image_path=r'C:\inz\train_data\lp_detection',
-        input_shape=(368, 640, 1),
+        train_image_path=r'C:\inz\train_data\loon',
+        input_shape=(128, 512, 3),
         batch_size=2,
-        lr=1e-4,
+        lr=1e-3,
         epochs=1000,
-        validation_split=0.2)
+        validation_split=0.2,
+        training_view=True)
     model.evaluate()

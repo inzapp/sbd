@@ -39,7 +39,6 @@ class Yolo:
         self.__validation_data_generator = YoloDataGenerator.empty()
         self.__live_view_previous_time = time()
         self.__callbacks = [
-            tf.keras.callbacks.LambdaCallback(on_batch_end=self.__training_view),
             tf.keras.callbacks.ModelCheckpoint(
                 filepath='checkpoints/epoch_{epoch}_f1_{f1:.4f}_val_f1_{val_f1:.4f}.h5',
                 monitor='val_f1',
@@ -54,19 +53,20 @@ class Yolo:
             self.__class_names, _ = self.__init_class_names(class_names_file_path)
             self.__model = tf.keras.models.load_model(pretrained_model_path, compile=False)
 
-    def fit(self, train_image_path, input_shape, batch_size, lr, epochs, validation_split=0.0, validation_image_path=''):
+    def fit(self, train_image_path, input_shape, batch_size, lr, epochs, validation_split=0.0, validation_image_path='', training_view=True):
         num_classes = 0
         self.__input_shape = input_shape
         if len(self.__class_names) == 0:
             self.__class_names, num_classes = self.__init_class_names(f'{train_image_path}/classes.txt')
         if len(self.__model.layers) == 0:
             self.__model = Model(input_shape, num_classes + 5).build()
+        if training_view:
+            self.__callbacks += [tf.keras.callbacks.LambdaCallback(on_batch_end=self.__training_view)]
         self.__model.summary()
         self.__model.compile(
             optimizer=tf.keras.optimizers.Adam(lr=lr),
             loss=YoloLoss(),
-            metrics=[precision, recall, f1],
-            run_eagerly=True)
+            metrics=[precision, recall, f1])
 
         self.__train_data_generator = YoloDataGenerator(
             train_image_path=train_image_path,
