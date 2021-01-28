@@ -26,7 +26,7 @@ from cv2 import cv2
 
 from box_colors import colors
 from generator import YoloDataGenerator
-from loss import YoloLoss, AdjustConfidenceLoss
+from loss import YoloLoss, PreConfidenceTrainLoss
 from metrics import precision, recall, f1
 from model import Model
 
@@ -84,7 +84,7 @@ class Yolo:
             print('\nstart pre confidence train')
             self.__model.compile(
                 optimizer=tf.keras.optimizers.Adam(lr=lr),
-                loss=AdjustConfidenceLoss())
+                loss=PreConfidenceTrainLoss())
             self.__model.fit(
                 x=self.__train_data_generator.flow(),
                 batch_size=2,
@@ -101,7 +101,7 @@ class Yolo:
         print(f'\ntrain on {len(self.__train_data_generator.train_image_paths)} samples.')
         if os.path.exists(validation_image_path) and os.path.isdir(validation_image_path):
             """
-            training case 1 : training image path and validation image path
+            Training case 1 : train with train image path and validation image path
             """
             self.__validation_data_generator = YoloDataGenerator(
                 train_image_path=validation_image_path,
@@ -117,7 +117,7 @@ class Yolo:
                 callbacks=self.__callbacks)
         elif len(self.__train_data_generator.validation_image_paths) > 0:
             """
-            training case 2 : split validation path using validation ratio
+            Training case 2 : split validation data using validation ratio
             """
             print(f'validate on {len(self.__train_data_generator.validation_image_paths)} samples.')
             self.__model.fit(
@@ -128,7 +128,7 @@ class Yolo:
                 callbacks=self.__callbacks)
         else:
             """
-            training case 3 : no validation image path or validation ratio. just training set
+            Training case 3 : no validation image path or validation ratio. just training set
             """
             self.__model.fit(
                 x=self.__train_data_generator.flow(),
@@ -136,25 +136,25 @@ class Yolo:
                 epochs=epochs,
                 callbacks=self.__callbacks)
 
-    def predict(self, x, confidence_threshold=0.25, nms_iou_threshold=0.5):
+    def predict(self, img, confidence_threshold=0.25, nms_iou_threshold=0.5):
         """
         Detect object in image using trained YOLO model.
-        :param x: image to be predicted.
+        :param img: (width, height, channel) formatted image to be predicted.
         :param confidence_threshold: threshold confidence score to detect object.
         :param nms_iou_threshold: threshold to remove overlapped detection.
         :return: dictionary array sorted by x position.
         each dictionary has class index and bbox info: [x1, y1, x2, y2].
         """
-        raw_width, raw_height = x.shape[1], x.shape[0]
+        raw_width, raw_height = img.shape[1], img.shape[0]
         input_shape = self.__model.input.shape[1:]
         output_shape = self.__model.output.shape[1:]
-        if x.shape[1] > input_shape[1] or x.shape[0] > input_shape[0]:
-            x = cv2.resize(x, (input_shape[1], input_shape[0]), interpolation=cv2.INTER_AREA)
+        if img.shape[1] > input_shape[1] or img.shape[0] > input_shape[0]:
+            img = cv2.resize(img, (input_shape[1], input_shape[0]), interpolation=cv2.INTER_AREA)
         else:
-            x = cv2.resize(x, (input_shape[1], input_shape[0]), interpolation=cv2.INTER_LINEAR)
+            img = cv2.resize(img, (input_shape[1], input_shape[0]), interpolation=cv2.INTER_LINEAR)
 
-        x = np.asarray(x).reshape((1,) + input_shape).astype('float32') / 255.0
-        y = self.__predict_on_graph(self.__model, x)[0]
+        img = np.asarray(img).reshape((1,) + input_shape).astype('float32') / 255.0
+        y = self.__predict_on_graph(self.__model, img)[0]
         y = np.moveaxis(y, -1, 0)
 
         res = []

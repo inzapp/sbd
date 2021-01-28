@@ -438,7 +438,7 @@ def lab_forward(model, x, model_type='h5', input_shape=(0, 0), output_shape=(0, 
     y = []
     if model_type == 'h5':
         x = np.asarray(x).reshape((1, input_shape[0], input_shape[1], img_channels)).astype('float32') / 255.0
-        y = model.predict(x=x, batch_size=1)[0]
+        y = model.predict(img=x, batch_size=1)[0]
         y = np.moveaxis(y, -1, 0)
     elif model_type == 'pb':
         x = np.asarray(x).reshape((1, img_channels, input_shape[0], input_shape[1])).astype('float32') / 255.0

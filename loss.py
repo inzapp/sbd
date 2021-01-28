@@ -21,12 +21,13 @@ import tensorflow as tf
 from tensorflow.python.framework.ops import convert_to_tensor_v2
 
 
-class AdjustConfidenceLoss(tf.keras.losses.Loss):
+class PreConfidenceTrainLoss(tf.keras.losses.Loss):
     """
     This loss function is used to reduce the loss of the confidence channel with some epochs before training begins.
     """
+
     def __init__(self):
-        super(AdjustConfidenceLoss, self).__init__()
+        super(PreConfidenceTrainLoss, self).__init__()
 
     def call(self, y_true, y_pred):
         y_pred = convert_to_tensor_v2(y_pred)
@@ -47,8 +48,15 @@ class YoloLoss(tf.keras.losses.Loss):
         y_true = tf.cast(y_true, y_pred.dtype)
 
         """
-        SSE at all confidence channel
-        no used lambda no_obj factor in here
+        SSE at whole confidence channel.
+        No used lambda_no_obj factor in here.
+        In this architecture, the SSE loss for the whole confidence channel converges reliably because of pre confidence training.
+        
+        If pre_confidence_train_epochs is 0, the loss to the confidence channel may not be reduced reliably.
+        In this case, you should use lambda_no_obj or change the loss function for the confidence channel.
+        The larger the output grid size, the worse this will be.
+        
+        We recommend using pre_confidence_train because experimentally demonstrates that it is better to use it.
         """
         confidence_loss = tf.reduce_sum(tf.square(y_true[:, :, :, 0] - y_pred[:, :, :, 0]))
 
@@ -60,8 +68,12 @@ class YoloLoss(tf.keras.losses.Loss):
 
         """
         SSE (sqrt(obj(x))) at width and height regression loss
-        to avoid dividing by zero when going through the derivative formula of sqrt
-        derivative of sqrt : 1 / 2 * sqrt(x)
+        Sqrt was used to weight the width, height loss for small boxes.
+        
+        To avoid dividing by zero when going through the derivative formula of sqrt,
+        Adds the eps value to the sqrt parameter.
+        
+        Derivative of sqrt : 1 / 2 * sqrt(x)
         """
         w_true = tf.sqrt(y_true[:, :, :, 3] + 1e-4)
         w_pred = tf.sqrt(y_pred[:, :, :, 3] + 1e-4)

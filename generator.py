@@ -27,6 +27,24 @@ import tensorflow as tf
 
 class YoloDataGenerator:
     def __init__(self, train_image_path, input_shape, output_shape, batch_size, validation_split=0.0):
+        """
+        :param train_image_path:
+            Path where training data is stored.
+            The file name of the image and the label should be the same.
+
+        :param input_shape:
+            (height, width, channel) format of model input size
+            If the channel is 1, train with a gray image, otherwise train with a color image.
+
+        :param output_shape:
+            Output shape extracted from built model.
+
+        :param batch_size:
+            Batch size of training.
+
+        :param validation_split:
+            The percentage of data that will be used as validation data.
+        """
         image_paths = self.__init_image_paths(train_image_path)
         self.train_image_paths, self.validation_image_paths = self.__split_paths(image_paths, validation_split)
         self.__train_generator_flow = GeneratorFlow(self.train_image_paths, input_shape, output_shape, batch_size, 'training')
@@ -40,6 +58,9 @@ class YoloDataGenerator:
         return cls.__new__(cls)
 
     def flow(self, subset='training'):
+        """
+        Flow function to load and return the batch.
+        """
         if subset == 'training':
             return self.__train_generator_flow
         elif subset == 'validation':
@@ -47,6 +68,10 @@ class YoloDataGenerator:
 
     @staticmethod
     def __init_image_paths(train_image_path):
+        """
+        The path of the training data is extracted from the sub-path of train_image_path.
+        The backslash of all paths is replaced by a slash because in case of running on the unix system.
+        """
         image_paths = []
         image_paths += glob(f'{train_image_path}/*.jpg')
         image_paths += glob(f'{train_image_path}/*.png')
@@ -59,6 +84,9 @@ class YoloDataGenerator:
 
     @staticmethod
     def __split_paths(image_paths, validation_split):
+        """
+        After mixing the paths of all training data, ths paths are divided according to the validation split ratio.
+        """
         assert 0.0 <= validation_split <= 1.0
         image_paths = np.asarray(image_paths)
         if validation_split == 0.0:
@@ -130,7 +158,13 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         return path, cv2.imread(path, cv2.IMREAD_GRAYSCALE if self.input_shape[2] == 1 else cv2.IMREAD_COLOR)
 
     def __len__(self):
+        """
+        Number of total iteration.
+        """
         return int(np.floor(len(self.image_paths) / self.batch_size))
 
     def on_epoch_end(self):
+        """
+        Mix the image paths at the end of each epoch.
+        """
         np.random.shuffle(self.random_indexes)
