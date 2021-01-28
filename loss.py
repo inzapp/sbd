@@ -21,6 +21,9 @@ from tensorflow.python.framework.ops import convert_to_tensor_v2
 
 
 class AdjustConfidenceLoss(tf.keras.losses.Loss):
+    """
+    This loss function is used to reduce the loss of the confidence channel with some epochs before training begins.
+    """
     def __init__(self):
         super(AdjustConfidenceLoss, self).__init__()
 

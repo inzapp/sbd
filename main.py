@@ -41,6 +41,9 @@ if __name__ == '__main__':
     epochs:
         Epochs value.
         
+    adjust_confidence_epochs:
+        Epochs to pre-reduce the loss to the confidence channel before starting the training.
+        
     validation_split:
         The percentage of data that will be used as validation data.
         
@@ -58,6 +61,7 @@ if __name__ == '__main__':
         batch_size=2,
         lr=1e-3,
         epochs=1000,
+        adjust_confidence_epochs=3,
         validation_split=0.2,
         training_view=True)
     model.evaluate()

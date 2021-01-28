@@ -88,9 +88,10 @@ class Yolo:
             batch_size=2,
             epochs=adjust_confidence_epochs)
 
-        self.__model.save('model.h5')
-        self.__model = tf.keras.models.load_model('model.h5', compile=False)
-        os.remove('model.h5')
+        tmp_model_name = '_tmp_model.h5'
+        self.__model.save(tmp_model_name)
+        self.__model = tf.keras.models.load_model(tmp_model_name, compile=False)
+        os.remove(tmp_model_name)
         self.__model.compile(
             optimizer=tf.keras.optimizers.Adam(lr=lr),
             loss=YoloLoss(),
