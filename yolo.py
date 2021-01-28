@@ -59,7 +59,7 @@ class Yolo:
             batch_size,
             lr,
             epochs,
-            adjust_confidence_epochs=3,
+            pre_confidence_train_epochs=3,
             validation_split=0.0,
             validation_image_path='',
             training_view=True):
@@ -79,19 +79,20 @@ class Yolo:
             batch_size=batch_size,
             validation_split=validation_split)
 
-        print('\nwait for adjust confidence output...')
-        self.__model.compile(
-            optimizer=tf.keras.optimizers.Adam(lr=lr),
-            loss=AdjustConfidenceLoss())
-        self.__model.fit(
-            x=self.__train_data_generator.flow(),
-            batch_size=2,
-            epochs=adjust_confidence_epochs)
+        if pre_confidence_train_epochs > 0:
+            print('\nstart pre confidence train')
+            self.__model.compile(
+                optimizer=tf.keras.optimizers.Adam(lr=lr),
+                loss=AdjustConfidenceLoss())
+            self.__model.fit(
+                x=self.__train_data_generator.flow(),
+                batch_size=2,
+                epochs=pre_confidence_train_epochs)
+            tmp_model_name = '_tmp_model.h5'
+            self.__model.save(tmp_model_name)
+            self.__model = tf.keras.models.load_model(tmp_model_name, compile=False)
+            os.remove(tmp_model_name)
 
-        tmp_model_name = '_tmp_model.h5'
-        self.__model.save(tmp_model_name)
-        self.__model = tf.keras.models.load_model(tmp_model_name, compile=False)
-        os.remove(tmp_model_name)
         self.__model.compile(
             optimizer=tf.keras.optimizers.Adam(lr=lr),
             loss=YoloLoss(),

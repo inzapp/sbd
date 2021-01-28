@@ -36,12 +36,12 @@ if __name__ == '__main__':
         2 batch is recommended.
         
     lr:
-        Learning rate value while training. 1e-3 for Adam optimizer is recommended.
+        Learning rate value while training. 1e-3 ~ 1e-4 is recommended.
         
     epochs:
         Epochs value.
         
-    adjust_confidence_epochs:
+    pre_confidence_train_epochs:
         Epochs to pre-reduce the loss to the confidence channel before starting the training.
         
     validation_split:
@@ -56,12 +56,12 @@ if __name__ == '__main__':
     """
     model = Yolo()
     model.fit(
-        train_image_path=r'C:\inz\train_data\loon',
-        input_shape=(128, 512, 3),
+        train_image_path=r'C:\inz\train_data\lp_character_detection',
+        input_shape=(96, 192, 1),
         batch_size=2,
-        lr=1e-3,
+        lr=1e-4,
         epochs=1000,
-        adjust_confidence_epochs=3,
+        pre_confidence_train_epochs=10,
         validation_split=0.2,
         training_view=True)
     model.evaluate()
