@@ -33,8 +33,8 @@ class Model:
         return cls.__new__(cls)
 
     def build(self):
-        # return self.__build_lcd()
-        return self.__build_sbd()
+        return self.__build_lcd()
+        # return self.__build_sbd()
 
     def __build_lcd(self):
         input_layer = tf.keras.layers.Input(shape=self.__input_shape)

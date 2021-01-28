@@ -53,7 +53,16 @@ class Yolo:
             self.__class_names, _ = self.__init_class_names(class_names_file_path)
             self.__model = tf.keras.models.load_model(pretrained_model_path, compile=False)
 
-    def fit(self, train_image_path, input_shape, batch_size, lr, epochs, validation_split=0.0, validation_image_path='', training_view=True):
+    def fit(self,
+            train_image_path,
+            input_shape,
+            batch_size,
+            lr,
+            epochs,
+            adjust_confidence_epochs=3,
+            validation_split=0.0,
+            validation_image_path='',
+            training_view=True):
         num_classes = 0
         self.__input_shape = input_shape
         if len(self.__class_names) == 0:
@@ -72,12 +81,12 @@ class Yolo:
 
         print('\nwait for adjust confidence output...')
         self.__model.compile(
-            optimizer=tf.keras.optimizers.Adam(lr=0.01),
+            optimizer=tf.keras.optimizers.Adam(lr=lr),
             loss=AdjustConfidenceLoss())
         self.__model.fit(
             x=self.__train_data_generator.flow(),
             batch_size=2,
-            epochs=1)
+            epochs=adjust_confidence_epochs)
 
         self.__model.save('model.h5')
         self.__model = tf.keras.models.load_model('model.h5', compile=False)
