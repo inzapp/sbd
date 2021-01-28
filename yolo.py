@@ -25,7 +25,7 @@ from cv2 import cv2
 
 from box_colors import colors
 from generator import YoloDataGenerator
-from loss import YoloLoss
+from loss import YoloLoss, AdjustConfidenceLoss
 from metrics import precision, recall, f1
 from model import Model
 
@@ -63,19 +63,34 @@ class Yolo:
         if training_view:
             self.__callbacks += [tf.keras.callbacks.LambdaCallback(on_batch_end=self.__training_view)]
         self.__model.summary()
-        self.__model.compile(
-            optimizer=tf.keras.optimizers.Adam(lr=lr),
-            loss=YoloLoss(),
-            metrics=[precision, recall, f1])
-
         self.__train_data_generator = YoloDataGenerator(
             train_image_path=train_image_path,
             input_shape=input_shape,
             output_shape=self.__model.output_shape[1:],
             batch_size=batch_size,
             validation_split=validation_split)
+
+        print('\nwait for adjust confidence output...')
+        self.__model.compile(
+            optimizer=tf.keras.optimizers.Adam(lr=0.01),
+            loss=AdjustConfidenceLoss())
+        self.__model.fit(
+            x=self.__train_data_generator.flow(),
+            batch_size=2,
+            epochs=1)
+
+        self.__model.save('model.h5')
+        self.__model = tf.keras.models.load_model('model.h5', compile=False)
+        os.remove('model.h5')
+        self.__model.compile(
+            optimizer=tf.keras.optimizers.Adam(lr=lr),
+            loss=YoloLoss(),
+            metrics=[precision, recall, f1])
         print(f'\ntrain on {len(self.__train_data_generator.train_image_paths)} samples.')
         if os.path.exists(validation_image_path) and os.path.isdir(validation_image_path):
+            """
+            training case 1 : training image path and validation image path
+            """
             self.__validation_data_generator = YoloDataGenerator(
                 train_image_path=validation_image_path,
                 input_shape=input_shape,
@@ -89,6 +104,9 @@ class Yolo:
                 epochs=epochs,
                 callbacks=self.__callbacks)
         elif len(self.__train_data_generator.validation_image_paths) > 0:
+            """
+            training case 2 : split validation path using validation ratio
+            """
             print(f'validate on {len(self.__train_data_generator.validation_image_paths)} samples.')
             self.__model.fit(
                 x=self.__train_data_generator.flow('training'),
@@ -97,6 +115,9 @@ class Yolo:
                 epochs=epochs,
                 callbacks=self.__callbacks)
         else:
+            """
+            training case 3 : no validation image path or validation ratio. just training set
+            """
             self.__model.fit(
                 x=self.__train_data_generator.flow(),
                 batch_size=batch_size,

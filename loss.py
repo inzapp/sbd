@@ -20,6 +20,16 @@ import tensorflow as tf
 from tensorflow.python.framework.ops import convert_to_tensor_v2
 
 
+class AdjustConfidenceLoss(tf.keras.losses.Loss):
+    def __init__(self):
+        super(AdjustConfidenceLoss, self).__init__()
+
+    def call(self, y_true, y_pred):
+        y_pred = convert_to_tensor_v2(y_pred)
+        y_true = tf.cast(y_true, y_pred.dtype)
+        return tf.reduce_sum(tf.square(y_true[:, :, :, 0] - y_pred[:, :, :, 0]))
+
+
 class YoloLoss(tf.keras.losses.Loss):
     def __init__(self, coord=5.0):
         """
@@ -33,10 +43,10 @@ class YoloLoss(tf.keras.losses.Loss):
         y_true = tf.cast(y_true, y_pred.dtype)
 
         """
-        binary crossentropy at confidence loss
+        SSE at all confidence channel
         no used lambda no_obj factor in here
         """
-        confidence_loss = tf.losses.binary_crossentropy(y_true[:, :, :, 0], y_pred[:, :, :, 0])
+        confidence_loss = tf.reduce_sum(tf.square(y_true[:, :, :, 0] - y_pred[:, :, :, 0]))
 
         """
         SSE at x, y regression loss
@@ -45,7 +55,7 @@ class YoloLoss(tf.keras.losses.Loss):
         y_loss = tf.reduce_sum(tf.square(y_true[:, :, :, 2] - (y_pred[:, :, :, 2] * y_true[:, :, :, 0])))
 
         """
-        SSE(sqrt(x)) at width and height regression loss
+        SSE (sqrt(obj(x))) at width and height regression loss
         to avoid dividing by zero when going through the derivative formula of sqrt
         derivative of sqrt : 1 / 2 * sqrt(x)
         """
