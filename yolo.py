@@ -26,7 +26,7 @@ from cv2 import cv2
 
 from box_colors import colors
 from generator import YoloDataGenerator
-from loss import YoloLoss, PreConfidenceTrainLoss
+from loss import YoloLoss, ConfidenceLoss
 from metrics import precision, recall, f1
 from model import Model
 
@@ -84,7 +84,7 @@ class Yolo:
             print('\nstart pre confidence train')
             self.__model.compile(
                 optimizer=tf.keras.optimizers.Adam(lr=lr),
-                loss=PreConfidenceTrainLoss())
+                loss=ConfidenceLoss())
             self.__model.fit(
                 x=self.__train_data_generator.flow(),
                 batch_size=2,

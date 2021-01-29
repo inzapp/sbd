@@ -21,27 +21,13 @@ import tensorflow as tf
 from tensorflow.python.framework.ops import convert_to_tensor_v2
 
 
-class PreConfidenceTrainLoss(tf.keras.losses.Loss):
+class ConfidenceLoss(tf.keras.losses.Loss):
     """
     This loss function is used to reduce the loss of the confidence channel with some epochs before training begins.
     """
 
     def __init__(self):
-        super(PreConfidenceTrainLoss, self).__init__()
-
-    def call(self, y_true, y_pred):
-        y_pred = convert_to_tensor_v2(y_pred)
-        y_true = tf.cast(y_true, y_pred.dtype)
-        return tf.reduce_sum(tf.square(y_true[:, :, :, 0] - y_pred[:, :, :, 0]))
-
-
-class YoloLoss(tf.keras.losses.Loss):
-    def __init__(self, coord=5.0):
-        """
-        :param coord: coord value of bounding box loss. 5.0 is recommendation value in yolo paper.
-        """
-        self.coord = coord
-        super(YoloLoss, self).__init__()
+        super(ConfidenceLoss, self).__init__()
 
     def call(self, y_true, y_pred):
         y_pred = convert_to_tensor_v2(y_pred)
@@ -58,8 +44,25 @@ class YoloLoss(tf.keras.losses.Loss):
         
         We recommend using pre_confidence_train because experimentally demonstrates that it is better to use it.
         """
-        confidence_loss = tf.reduce_sum(tf.square(y_true[:, :, :, 0] - y_pred[:, :, :, 0]))
+        return tf.reduce_sum(tf.square(y_true[:, :, :, 0] - y_pred[:, :, :, 0]))
 
+
+class ConfidenceWithBoundingBoxLoss(tf.keras.losses.Loss):
+    """
+    This loss function is used to reduce the loss of the bounding box channel with some epochs before training begins.
+    """
+
+    def __init__(self, coord=5.0):
+        """
+        :param coord: coord value of bounding box loss. 5.0 is recommendation value in yolo paper.
+        """
+        self.coord = coord
+        super(ConfidenceWithBoundingBoxLoss, self).__init__()
+
+    def call(self, y_true, y_pred):
+        y_pred = convert_to_tensor_v2(y_pred)
+        y_true = tf.cast(y_true, y_pred.dtype)
+        confidence_loss = ConfidenceLoss()(y_true, y_pred)
         """
         SSE at x, y regression loss
         """
@@ -82,9 +85,20 @@ class YoloLoss(tf.keras.losses.Loss):
         h_pred = tf.sqrt(y_pred[:, :, :, 4] + 1e-4)
         h_loss = tf.reduce_sum(tf.square(h_true - (h_pred * y_true[:, :, :, 0])))
         bbox_loss = x_loss + y_loss + w_loss + h_loss
+        return confidence_loss + (bbox_loss * self.coord)
+
+
+class YoloLoss(tf.keras.losses.Loss):
+    def __init__(self):
+        super(YoloLoss, self).__init__()
+
+    def call(self, y_true, y_pred):
+        y_pred = convert_to_tensor_v2(y_pred)
+        y_true = tf.cast(y_true, y_pred.dtype)
+        confidence_bbox_loss = ConfidenceWithBoundingBoxLoss()(y_true, y_pred)
 
         """
         SSE at all classification loss
         """
         classification_loss = tf.reduce_sum(tf.reduce_sum(tf.square(y_true[:, :, :, 5:] - y_pred[:, :, :, 5:]), axis=-1) * y_true[:, :, :, 0])
-        return confidence_loss + (bbox_loss * self.coord) + classification_loss
+        return confidence_bbox_loss + classification_loss
