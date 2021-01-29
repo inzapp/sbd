@@ -57,12 +57,12 @@ if __name__ == '__main__':
     """
     model = Yolo()
     model.fit(
-        train_image_path=r'C:\inz\train_data\loon',
-        input_shape=(128, 512, 3),
+        train_image_path=r'C:\inz\train_data\lp_character_detection',
+        input_shape=(96, 192, 1),
         batch_size=2,
-        lr=1e-4,
+        lr=1e-3,
         epochs=1000,
-        curriculum_epochs=20,
+        curriculum_epochs=5,
         validation_split=0.2,
         training_view=True)
     model.evaluate()
