@@ -42,14 +42,14 @@ class ConfidenceLoss(tf.keras.losses.Loss):
         In this case, you should use lambda_no_obj or change the loss function for the confidence channel.
         The larger the output grid size, the worse this will be.
         
-        We recommend using pre_confidence_train because experimentally demonstrates that it is better to use it.
+        We recommend using pre confidence train because experimentally demonstrates that it is better to use it.
         """
         return tf.reduce_sum(tf.square(y_true[:, :, :, 0] - y_pred[:, :, :, 0]))
 
 
 class ConfidenceWithBoundingBoxLoss(tf.keras.losses.Loss):
     """
-    This loss function is used to reduce the loss of the bounding box channel with some epochs before training begins.
+    This loss function is used to reduce the loss of the confidence and bounding box channel with some epochs before training begins.
     """
 
     def __init__(self, coord=5.0):
@@ -64,7 +64,7 @@ class ConfidenceWithBoundingBoxLoss(tf.keras.losses.Loss):
         y_true = tf.cast(y_true, y_pred.dtype)
         confidence_loss = ConfidenceLoss()(y_true, y_pred)
         """
-        SSE at x, y regression loss
+        SSE at x, y regression
         """
         x_loss = tf.reduce_sum(tf.square(y_true[:, :, :, 1] - (y_pred[:, :, :, 1] * y_true[:, :, :, 0])))
         y_loss = tf.reduce_sum(tf.square(y_true[:, :, :, 2] - (y_pred[:, :, :, 2] * y_true[:, :, :, 0])))
@@ -98,7 +98,7 @@ class YoloLoss(tf.keras.losses.Loss):
         confidence_bbox_loss = ConfidenceWithBoundingBoxLoss()(y_true, y_pred)
 
         """
-        SSE at all classification loss
+        SSE at all classification
         """
         classification_loss = tf.reduce_sum(tf.reduce_sum(tf.square(y_true[:, :, :, 5:] - y_pred[:, :, :, 5:]), axis=-1) * y_true[:, :, :, 0])
         return confidence_bbox_loss + classification_loss
