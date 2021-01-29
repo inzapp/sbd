@@ -42,8 +42,8 @@ if __name__ == '__main__':
     epochs:
         Epochs value.
         
-    pre_confidence_train_epochs:
-        Epochs to pre-reduce the loss to the confidence channel before starting the training.
+    curriculum_epochs:
+        Epochs to pre-reduce the loss to the confidence and bounding box channel before starting the training.
         
     validation_split:
         The percentage of data that will be used as validation data.
@@ -57,12 +57,12 @@ if __name__ == '__main__':
     """
     model = Yolo()
     model.fit(
-        train_image_path=r'C:\inz\train_data\lp_character_detection',
-        input_shape=(96, 192, 1),
+        train_image_path=r'C:\inz\train_data\loon',
+        input_shape=(128, 512, 3),
         batch_size=2,
         lr=1e-4,
         epochs=1000,
-        pre_confidence_train_epochs=10,
+        curriculum_epochs=20,
         validation_split=0.2,
         training_view=True)
     model.evaluate()

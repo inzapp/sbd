@@ -47,8 +47,8 @@ class YoloDataGenerator:
         """
         image_paths = self.__init_image_paths(train_image_path)
         self.train_image_paths, self.validation_image_paths = self.__split_paths(image_paths, validation_split)
-        self.__train_generator_flow = GeneratorFlow(self.train_image_paths, input_shape, output_shape, batch_size, 'training')
-        self.__validation_generator_flow = GeneratorFlow(self.validation_image_paths, input_shape, output_shape, batch_size, 'validation')
+        self.__train_generator_flow = GeneratorFlow(self.train_image_paths, input_shape, output_shape, batch_size)
+        self.__validation_generator_flow = GeneratorFlow(self.validation_image_paths, input_shape, output_shape, batch_size)
 
     @classmethod
     def empty(cls):
@@ -107,12 +107,11 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         generator_flow = GeneratorFlow(image_paths=image_paths)
     """
 
-    def __init__(self, image_paths, input_shape, output_shape, batch_size, subset='training'):
+    def __init__(self, image_paths, input_shape, output_shape, batch_size):
         self.image_paths = image_paths
         self.input_shape = input_shape
         self.output_shape = output_shape
         self.batch_size = batch_size
-        self.subset = subset
         self.random_indexes = np.arange(len(self.image_paths))
         self.pool = ThreadPoolExecutor(8)
         np.random.shuffle(self.random_indexes)

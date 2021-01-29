@@ -26,7 +26,7 @@ from cv2 import cv2
 
 from box_colors import colors
 from generator import YoloDataGenerator
-from loss import YoloLoss, ConfidenceLoss
+from loss import YoloLoss, ConfidenceLoss, ConfidenceWithBoundingBoxLoss
 from metrics import precision, recall, f1
 from model import Model
 
@@ -60,7 +60,7 @@ class Yolo:
             batch_size,
             lr,
             epochs,
-            pre_confidence_train_epochs=3,
+            curriculum_epochs=5,
             validation_split=0.0,
             validation_image_path='',
             training_view=True):
@@ -80,15 +80,33 @@ class Yolo:
             batch_size=batch_size,
             validation_split=validation_split)
 
-        if pre_confidence_train_epochs > 0:
-            print('\nstart pre confidence train')
+        if curriculum_epochs > 0:
+            print('\nstart curriculum train')
+            """
+            Confidence curriculum training
+            """
             self.__model.compile(
                 optimizer=tf.keras.optimizers.Adam(lr=lr),
                 loss=ConfidenceLoss())
             self.__model.fit(
                 x=self.__train_data_generator.flow(),
                 batch_size=2,
-                epochs=pre_confidence_train_epochs)
+                epochs=curriculum_epochs)
+            tmp_model_name = '_tmp_model.h5'
+            self.__model.save(tmp_model_name)
+            self.__model = tf.keras.models.load_model(tmp_model_name, compile=False)
+            os.remove(tmp_model_name)
+
+            """
+            Confidence and bbox curriculum training
+            """
+            self.__model.compile(
+                optimizer=tf.keras.optimizers.Adam(lr=lr),
+                loss=ConfidenceWithBoundingBoxLoss())
+            self.__model.fit(
+                x=self.__train_data_generator.flow(),
+                batch_size=2,
+                epochs=curriculum_epochs)
             tmp_model_name = '_tmp_model.h5'
             self.__model.save(tmp_model_name)
             self.__model = tf.keras.models.load_model(tmp_model_name, compile=False)
@@ -206,7 +224,7 @@ class Yolo:
         res = []
         for i in range(len(res_copy)):
             if not res_copy[i]['discard']:
-                res.append(res_copy[i].pop('discard'))
+                res.append(res_copy[i])
         return sorted(res, key=lambda __x: __x['bbox'][0])
 
     def bounding_box(self, img, yolo_res, font_scale=0.4):
