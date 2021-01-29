@@ -206,7 +206,7 @@ class Yolo:
         res = []
         for i in range(len(res_copy)):
             if not res_copy[i]['discard']:
-                res.append(res_copy[i])
+                res.append(res_copy[i].pop('discard'))
         return sorted(res, key=lambda __x: __x['bbox'][0])
 
     def bounding_box(self, img, yolo_res, font_scale=0.4):
@@ -236,6 +236,10 @@ class Yolo:
         return img
 
     def evaluate(self):
+        """
+        Each validation data is predicted and image of the bounding box is displayed.
+        In no validation data, it is replaced by training data.
+        """
         if len(self.__train_data_generator.validation_image_paths) > 0:
             evaluate_image_paths = self.__train_data_generator.validation_image_paths
         elif len(self.__validation_data_generator.train_image_paths) > 0:
@@ -251,7 +255,18 @@ class Yolo:
             cv2.waitKey(0)
 
     def evaluate_video(self, video_path):
+        """
+        Equal to the evaluate function. Video path, not image paths, is required.
+        """
         pass
+
+    def predict_images(self, image_paths):
+        for path in image_paths:
+            img = cv2.imread(path, cv2.IMREAD_GRAYSCALE if self.__model.input.shape[-1] == 1 else cv2.IMREAD_COLOR)
+            res = self.predict(img)
+            boxed_image = self.bounding_box(img, res)
+            cv2.imshow('res', boxed_image)
+            cv2.waitKey(0)
 
     def __training_view(self, batch, logs):
         cur_time = time()
@@ -272,37 +287,6 @@ class Yolo:
             boxed_image = self.bounding_box(img, res)
             cv2.imshow('training view', boxed_image)
             cv2.waitKey(1)
-
-    def __iou_f1(self):
-        # calculate on training set
-        for image_path in self.__train_data_generator.train_image_paths:
-            label_path = f'{image_path[:-4]}.txt'
-            with open(label_path, mode='rt') as f:
-                label_lines = f.readlines()
-            bbox_true = []
-            for line in label_lines:
-                class_index, cx, cy, w, h = list(map(float, line.split(' ')))
-                x1, x2 = cx - w / 2.0, cx + w / 2.0
-                y1, y2 = cy - h / 2.0, cy + h / 2.0
-                x1, x2 = int(x1 * self.__model.input_shape[1:][1]), int(x2 * self.__model.input_shape[1:][1])
-                y1, y2 = int(y1 * self.__model.input_shape[1:][0]), int(y2 * self.__model.input_shape[1:][0])
-                bbox_true.append([int(class_index), x1, y1, x2, y2])
-
-            img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE if self.__model.input.input_shape[-1] == 1 else cv2.IMREAD_COLOR)
-            res = self.predict(img)
-            bbox_pred = []
-            for cur_res in res:
-                bbox_pred.append([cur_res['class']] + cur_res['bbox'])
-
-        # calculate on validation set
-        if len(self.__train_data_generator.validation_image_paths) > 0:
-            validation_image_paths = self.__train_data_generator.validation_image_paths
-        elif len(self.__validation_data_generator.train_image_paths) > 0:
-            validation_image_paths = self.__validation_data_generator.train_image_paths
-        else:
-            return
-        for image_path in validation_image_paths:
-            pass
 
     @tf.function
     def __predict_on_graph(self, model, x):
