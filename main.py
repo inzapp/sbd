@@ -57,8 +57,8 @@ if __name__ == '__main__':
     """
     model = Yolo()
     model.fit(
-        train_image_path=r'C:\inz\train_data\lp_character_detection',
-        input_shape=(96, 192, 1),
+        train_image_path=r'C:\inz\train_data\coco_2017',
+        input_shape=(416, 416, 3),
         batch_size=2,
         lr=1e-3,
         epochs=1000,

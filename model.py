@@ -34,6 +34,8 @@ class Model:
         return cls.__new__(cls)
 
     def build(self):
+        # return self.__vgg_19()
+        # return self.__darknet_53()
         return self.__build_lcd()
         # return self.__build_sbd()
 
@@ -57,6 +59,73 @@ class Model:
         x = self.__conv_block(256, 3, x)
         x = self.__point_wise_conv(self.__output_channel, x)
         return tf.keras.models.Model(input_layer, x)
+
+    def __darknet_53(self):
+        input_layer = tf.keras.layers.Input(shape=self.__input_shape)
+        x = self.__conv_blocks(1, 32, 3, input_layer, False)
+        x = self.__conv_blocks(1, 64, 3, x, True)
+        skip_connection = x
+
+        # residual block 1
+        x = self.__conv_blocks(1, 32, 1, x, False)
+        x = self.__conv_blocks(1, 64, 3, x, False)
+        x = tf.keras.layers.Add()([skip_connection, x])
+        x = self.__conv_blocks(1, 128, 3, x, True)
+        skip_connection = x
+
+        # residual block 2
+        for _ in range(2):
+            x = self.__conv_blocks(1, 64, 1, x, False)
+            x = self.__conv_blocks(1, 128, 3, x, False)
+            x = tf.keras.layers.Add()([skip_connection, x])
+            skip_connection = x
+        x = self.__conv_blocks(1, 256, 3, x, True)
+        skip_connection = x
+
+        # residual block 3
+        for _ in range(8):
+            x = self.__conv_blocks(1, 128, 1, x, False)
+            x = self.__conv_blocks(1, 256, 3, x, False)
+            x = tf.keras.layers.Add()([skip_connection, x])
+            skip_connection = x
+        x = self.__conv_blocks(1, 512, 3, x, True)
+        skip_connection = x
+
+        # residual block 3
+        for _ in range(4):
+            x = self.__conv_blocks(1, 256, 1, x, False)
+            x = self.__conv_blocks(1, 512, 3, x, False)
+            x = tf.keras.layers.Add()([skip_connection, x])
+            skip_connection = x
+        x = self.__conv_blocks(1, 1024, 3, x, True)
+        skip_connection = x
+
+        # residual block 4
+        for _ in range(4):
+            x = self.__conv_blocks(1, 512, 1, x, False)
+            x = self.__conv_blocks(1, 1024, 3, x, False)
+            x = tf.keras.layers.Add()([skip_connection, x])
+            skip_connection = x
+
+        x = self.__point_wise_conv(self.__output_channel, x)
+        return tf.keras.models.Model(input_layer, x)
+
+    def __vgg_19(self):
+        input_layer = tf.keras.layers.Input(shape=self.__input_shape)
+        x = self.__conv_blocks(2, 64, 3, input_layer, True)
+        x = self.__conv_blocks(3, 128, 3, x, True)
+        x = self.__conv_blocks(4, 256, 3, x, True)
+        x = self.__conv_blocks(4, 512, 3, x, True)
+        x = self.__conv_blocks(4, 512, 3, x, True)
+        x = self.__point_wise_conv(self.__output_channel, x)
+        return tf.keras.models.Model(input_layer, x)
+
+    def __conv_blocks(self, n_convolutions, filters, kernel_size, x, max_pool=False):
+        for _ in range(n_convolutions):
+            x = self.__conv_block(filters, kernel_size, x, False)
+        if max_pool:
+            x = tf.keras.layers.MaxPool2D()(x)
+        return x
 
     @staticmethod
     def __conv_block(filters, kernel_size, x, max_pool=False):
