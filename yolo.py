@@ -41,7 +41,7 @@ class Yolo:
         self.__live_view_previous_time = time()
         self.__callbacks = [
             tf.keras.callbacks.ModelCheckpoint(
-                filepath='checkpoints/epoch_{epoch}_f1_{f1:.4f}_val_f1_{val_f1:.4f}.h5',
+                filepath='checkpoints/no_bn_epoch_{epoch}_f1_{f1:.4f}_val_f1_{val_f1:.4f}.h5',
                 monitor='val_f1',
                 mode='max',
                 save_best_only=True)]
@@ -272,17 +272,35 @@ class Yolo:
             cv2.imshow('res', boxed_image)
             cv2.waitKey(0)
 
-    def evaluate_video(self, video_path):
+    def predict_video(self, video_path):
         """
-        Equal to the evaluate function. Video path, not image paths, is required.
+        Equal to the predict_images function. Video path, not image paths, is required.
         """
-        pass
+        cap = cv2.VideoCapture(video_path)
+        go = False
+        while True:
+            frame_exist, raw = cap.read()
+            raw = cv2.resize(raw, (1280, 720))
+            if not frame_exist:
+                break
+            x = cv2.cvtColor(raw, cv2.COLOR_BGR2GRAY) if self.__model.input.shape[-1] == 1 else raw.copy()
+            res = self.predict(x)
+            boxed_image = self.bounding_box(raw, res)
+            cv2.imshow('res', boxed_image)
+            if not go:
+                cv2.waitKey(0)
+                go = True
+            if ord('q') == cv2.waitKey(1):
+                break
+        cap.release()
+        cv2.destroyAllWindows()
 
     def predict_images(self, image_paths):
         for path in image_paths:
-            img = cv2.imread(path, cv2.IMREAD_GRAYSCALE if self.__model.input.shape[-1] == 1 else cv2.IMREAD_COLOR)
-            res = self.predict(img)
-            boxed_image = self.bounding_box(img, res)
+            raw = cv2.imread(path, cv2.IMREAD_COLOR)
+            x = cv2.cvtColor(raw, cv2.COLOR_BGR2GRAY) if self.__model.input.shape[-1] == 1 else raw.copy()
+            res = self.predict(x)
+            boxed_image = self.bounding_box(raw, res)
             cv2.imshow('res', boxed_image)
             cv2.waitKey(0)
 
