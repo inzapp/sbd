@@ -49,11 +49,11 @@ def f1(y_true, y_pred):
     return (p * r * 2.0) / (p + r + 1e-5)
 
 
-def classification_precision(y_true, y_pred):
-    tp = tf.reduce_sum(y_pred[:, :, :, 5:] * y_true[:, :, :, 5:])
-    return tp / (tf.reduce_sum(tf.reduce_sum(y_pred[:, :, :, 5:], axis=-1) * y_true[:, :, :, 0]) + 1e-5)
-
-
-def classification_recall(y_true, y_pred):
-    tp = tf.reduce_sum(y_pred[:, :, :, 5:] * y_true[:, :, :, 5:])
-    return tp / (tf.reduce_sum(y_true[:, :, :, 5:]) + 1e-5)
+# def classification_precision(y_true, y_pred):
+#     tp = tf.reduce_sum(y_pred[:, :, :, 5:] * y_true[:, :, :, 5:])
+#     return tp / (tf.reduce_sum(tf.reduce_sum(y_pred[:, :, :, 5:], axis=-1) * y_true[:, :, :, 0]) + 1e-5)
+#
+#
+# def classification_recall(y_true, y_pred):
+#     tp = tf.reduce_sum(y_pred[:, :, :, 5:] * y_true[:, :, :, 5:])
+#     return tp / (tf.reduce_sum(y_true[:, :, :, 5:]) + 1e-5)

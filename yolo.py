@@ -41,14 +41,10 @@ class Yolo:
         self.__live_view_previous_time = time()
         self.__callbacks = [
             tf.keras.callbacks.ModelCheckpoint(
-                filepath='checkpoints/no_bn_epoch_{epoch}_f1_{f1:.4f}_val_f1_{val_f1:.4f}.h5',
+                filepath='checkpoints/model_epoch_{epoch}_f1_{f1:.4f}_val_f1_{val_f1:.4f}.h5',
                 monitor='val_f1',
                 mode='max',
                 save_best_only=True)]
-
-        # TODO : 1. 모델 로드하지 않음 -> 훈련, 2. 모델 로드 -> 이어서 훈련, 3. 모델 로드 -> predict
-        # TODO : 이 3가지가 서로 간섭받지 않아야 하며 깔끔하게 모듈화가 되어야 한다.
-        # TODO : 어떻게 할 것인가.
 
         if os.path.exists(pretrained_model_path) and os.path.isfile(pretrained_model_path):
             self.__class_names, _ = self.__init_class_names(class_names_file_path)
@@ -82,6 +78,7 @@ class Yolo:
 
         if curriculum_epochs > 0:
             print('\nstart curriculum train')
+            tmp_model_name = '__tmp_model.h5'
             """
             Confidence curriculum training
             """
@@ -90,9 +87,8 @@ class Yolo:
                 loss=ConfidenceLoss())
             self.__model.fit(
                 x=self.__train_data_generator.flow(),
-                batch_size=2,
+                batch_size=batch_size,
                 epochs=curriculum_epochs)
-            tmp_model_name = '_tmp_model.h5'
             self.__model.save(tmp_model_name)
             self.__model = tf.keras.models.load_model(tmp_model_name, compile=False)
             os.remove(tmp_model_name)
@@ -105,9 +101,8 @@ class Yolo:
                 loss=ConfidenceWithBoundingBoxLoss())
             self.__model.fit(
                 x=self.__train_data_generator.flow(),
-                batch_size=2,
+                batch_size=batch_size,
                 epochs=curriculum_epochs)
-            tmp_model_name = '_tmp_model.h5'
             self.__model.save(tmp_model_name)
             self.__model = tf.keras.models.load_model(tmp_model_name, compile=False)
             os.remove(tmp_model_name)
@@ -181,12 +176,8 @@ class Yolo:
                 confidence = y[0][i][j]
                 if confidence < confidence_threshold:
                     continue
-                cx = y[1][i][j]
-                cx_f = j / float(output_shape[1])
-                cx_f += 1 / float(output_shape[1]) * cx
-                cy = y[2][i][j]
-                cy_f = i / float(output_shape[0])
-                cy_f += 1 / float(output_shape[0]) * cy
+                cx_f = j / float(output_shape[1]) + 1 / float(output_shape[1]) * y[1][i][j]
+                cy_f = i / float(output_shape[0]) + 1 / float(output_shape[0]) * y[2][i][j]
                 w = y[3][i][j]
                 h = y[4][i][j]
 
@@ -274,28 +265,26 @@ class Yolo:
 
     def predict_video(self, video_path):
         """
-        Equal to the predict_images function. Video path, not image paths, is required.
+        Equal to the evaluate function. video path is required.
         """
         cap = cv2.VideoCapture(video_path)
-        go = False
         while True:
             frame_exist, raw = cap.read()
-            raw = cv2.resize(raw, (1280, 720))
             if not frame_exist:
                 break
             x = cv2.cvtColor(raw, cv2.COLOR_BGR2GRAY) if self.__model.input.shape[-1] == 1 else raw.copy()
             res = self.predict(x)
             boxed_image = self.bounding_box(raw, res)
             cv2.imshow('res', boxed_image)
-            if not go:
-                cv2.waitKey(0)
-                go = True
             if ord('q') == cv2.waitKey(1):
                 break
         cap.release()
         cv2.destroyAllWindows()
 
     def predict_images(self, image_paths):
+        """
+        Equal to the evaluate function. image paths are required.
+        """
         for path in image_paths:
             raw = cv2.imread(path, cv2.IMREAD_COLOR)
             x = cv2.cvtColor(raw, cv2.COLOR_BGR2GRAY) if self.__model.input.shape[-1] == 1 else raw.copy()
@@ -305,6 +294,10 @@ class Yolo:
             cv2.waitKey(0)
 
     def __training_view(self, batch, logs):
+        """
+        Training callback function.
+        During training, the image is forwarded in real time, showing the results are shown.
+        """
         cur_time = time()
         if cur_time - self.__live_view_previous_time > 0.5:
             self.__live_view_previous_time = cur_time
@@ -326,12 +319,16 @@ class Yolo:
 
     @tf.function
     def __predict_on_graph(self, model, x):
+        """
+        Tensorflow graph forward function.
+        """
         return model(x, training=False)
 
     @staticmethod
     def __init_class_names(class_names_file_path):
         """
         Init YOLO label from classes.txt file.
+        If the class file is not found, it is replaced by class index and displayed.
         """
         if os.path.exists(class_names_file_path) and os.path.isfile(class_names_file_path):
             with open(class_names_file_path, 'rt') as classes_file:
