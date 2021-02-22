@@ -17,6 +17,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
+from F1Calculator import F1Calculator
 from yolo import Yolo
 
 if __name__ == '__main__':
@@ -55,14 +56,25 @@ if __name__ == '__main__':
         During training, the image is forwarded in real time, showing the results are shown.
         False if training is on a server system without IO equipment.
     """
-    model = Yolo()
-    model.fit(
-        train_image_path=r'C:\inz\train_data\loon_detection_train',
-        input_shape=(512, 128, 3),
-        batch_size=2,
-        lr=1e-3,
-        epochs=1000,
-        curriculum_epochs=5,
-        validation_split=0.2,
-        training_view=True)
-    model.evaluate()
+    # model = Yolo()
+    # model.fit(
+    #     train_image_path=r'C:\inz\train_data\loon_detection',
+    #     input_shape=(512, 128, 3),
+    #     batch_size=2,
+    #     lr=1e-3,
+    #     epochs=1000,
+    #     curriculum_epochs=5,
+    #     validation_split=0.2,
+    #     training_view=True)
+    # model.evaluate()
+
+    from glob import glob
+
+    model_paths = [r'C:\inz\fixed_model\lcd\lcd_0612_epoch_717_f1_0.9891_val_f1_0.8640.h5']
+
+    image_paths = []
+    image_paths += glob(r'C:\inz\train_data\lp_character_detection\lcd_b1\*\*.jpg')
+    F1Calculator(
+        model_paths=model_paths,
+        image_paths=image_paths,
+        confidence_threshold=0.25).calculate()
