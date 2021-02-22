@@ -36,8 +36,8 @@ class Model:
     def build(self):
         # return self.__vgg_19()
         # return self.__darknet_53()
-        return self.__build_lcd()
-        # return self.__build_sbd()
+        # return self.__build_lcd()
+        return self.__build_sbd()
 
     def __build_lcd(self):
         input_layer = tf.keras.layers.Input(shape=self.__input_shape)
@@ -50,13 +50,56 @@ class Model:
         x = self.__point_wise_conv(self.__output_channel, x)
         return tf.keras.models.Model(input_layer, x)
 
+    # def __build_sbd(self):
+    #     input_layer = tf.keras.layers.Input(shape=self.__input_shape)
+    #     x = self.__conv_block(16, 3, input_layer, True)
+    #     x = self.__conv_block(32, 3, x, True)
+    #     x = self.__conv_block(64, 3, x, True)
+    #     x = self.__conv_block(128, 3, x)
+    #     x = self.__conv_block(256, 3, x)
+    #     x = self.__point_wise_conv(self.__output_channel, x)
+    #     return tf.keras.models.Model(input_layer, x)
+
     def __build_sbd(self):
         input_layer = tf.keras.layers.Input(shape=self.__input_shape)
-        x = self.__conv_block(16, 3, input_layer, True)
-        x = self.__conv_block(32, 3, x, True)
-        x = self.__conv_block(64, 3, x, True)
-        x = self.__conv_block(128, 3, x)
-        x = self.__conv_block(256, 3, x)
+        x = tf.keras.layers.Conv2D(
+            filters=16,
+            kernel_size=3,
+            kernel_initializer='he_uniform',
+            padding='same',
+            activation='relu')(input_layer)
+        x = tf.keras.layers.BatchNormalization()(x)
+        x = tf.keras.layers.MaxPool2D()(x)
+        x = tf.keras.layers.Conv2D(
+            filters=32,
+            kernel_size=3,
+            kernel_initializer='he_uniform',
+            padding='same',
+            activation='relu')(x)
+        x = tf.keras.layers.BatchNormalization()(x)
+        x = tf.keras.layers.MaxPool2D()(x)
+        x = tf.keras.layers.Conv2D(
+            filters=64,
+            kernel_size=3,
+            kernel_initializer='he_uniform',
+            padding='same',
+            activation='relu')(x)
+        x = tf.keras.layers.BatchNormalization()(x)
+        x = tf.keras.layers.MaxPool2D()(x)
+        x = tf.keras.layers.Conv2D(
+            filters=128,
+            kernel_size=3,
+            kernel_initializer='he_uniform',
+            padding='same',
+            activation='relu')(x)
+        x = tf.keras.layers.BatchNormalization()(x)
+        x = tf.keras.layers.Conv2D(
+            filters=256,
+            kernel_size=3,
+            kernel_initializer='he_uniform',
+            padding='same',
+            activation='relu')(x)
+        x = tf.keras.layers.BatchNormalization()(x)
         x = self.__point_wise_conv(self.__output_channel, x)
         return tf.keras.models.Model(input_layer, x)
 
