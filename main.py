@@ -17,7 +17,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-from F1Calculator import F1Calculator
+from f1_calculator import F1Calculator
 from yolo import Yolo
 
 if __name__ == '__main__':
