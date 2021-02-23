@@ -17,6 +17,8 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
+import asyncio
+
 import cv2
 import numpy as np
 import tensorflow as tf
@@ -708,10 +710,66 @@ def f_click():
         previous = ret
 
 
+def cv2_load_test():
+    from cv2 import cv2
+    from glob import glob
+    from tqdm import tqdm
+    from concurrent.futures.thread import ThreadPoolExecutor
+    import os
+
+    pool = ThreadPoolExecutor(16)
+    paths = glob(r'C:\inz\train_data\lp_detection\*\*.jpg')
+
+    def __load_img(__path):
+        return cv2.imread(__path)
+
+    def __load_label(__path):
+        __label_path = f'{path[:-4]}.txt'
+        if not (os.path.exists(__label_path) and os.path.isfile(__label_path)):
+            return None, None
+        with open(__label_path, 'rt') as f:
+            return __path, f.readlines()
+
+    label_fs = []
+    for path in tqdm(paths):
+        label_fs.append(pool.submit(__load_label, path))
+    img_fs = []
+    for f in tqdm(label_fs):
+        path, label_lines = f.result()
+        if path is None:
+            continue
+        img_fs.append(pool.submit(__load_img, path))
+    for f in tqdm(img_fs):
+        img = f.result()
+
+    # for path in tqdm(paths):
+    #     cv2.imread(path)
+
+
+def resize_all_images():
+    from glob import glob
+    from tqdm import tqdm
+    paths = glob(r'C:\inz\train_data\lp_detection\crime_day_g2b_1\*.jpg')
+    for path in tqdm(paths):
+        img = cv2.imread(path, cv2.IMREAD_COLOR)
+        width, height = img.shape[1], img.shape[0]
+        flag = False
+        if width > 640 or height > 368:
+            img = cv2.resize(img, (640, 368), cv2.INTER_AREA)
+            flag = True
+        elif width < 640 or height < 368:
+            img = cv2.resize(img, (640, 368), cv2.INTER_LINEAR)
+            flag = True
+        if flag:
+            print(width, height)
+        #     cv2.imwrite(path, img)
+
+
 if __name__ == '__main__':
     # compress_test()f
     # test_loss()
     # bounding_box_test()
     # test_interpolation()
     # ccl()
-    f_click()
+    cv2_load_test()
+    # resize_all_images()

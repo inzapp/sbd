@@ -70,11 +70,13 @@ if __name__ == '__main__':
 
     from glob import glob
 
-    model_paths = [r'C:\inz\fixed_model\lcd\lcd_0612_epoch_717_f1_0.9891_val_f1_0.8640.h5']
+    # model_paths = [r'C:\inz\fixed_model\sbd\sbd_4680_epoch_28_loss_0.006669_val_loss_0.034237.h5']
+    model_paths = glob(r'C:\inz\tmp_loon_models\*.h5')
 
     image_paths = []
-    image_paths += glob(r'C:\inz\train_data\lp_character_detection\lcd_b1\*\*.jpg')
+    image_paths += glob(r'C:\inz\train_data\loon_detection\*.jpg')
     F1Calculator(
         model_paths=model_paths,
         image_paths=image_paths,
-        confidence_threshold=0.25).calculate()
+        confidence_threshold=0.25,
+        iou_threshold=0.6).calculate()
