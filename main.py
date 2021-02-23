@@ -19,6 +19,7 @@ limitations under the License.
 """
 from f1_calculator import F1Calculator
 from yolo import Yolo
+from glob import glob
 
 if __name__ == '__main__':
     """
@@ -56,27 +57,26 @@ if __name__ == '__main__':
         During training, the image is forwarded in real time, showing the results are shown.
         False if training is on a server system without IO equipment.
     """
+    # model = Yolo(pretrained_model_path=r'C:/inz/git/yolo-lab/checkpoints/model_epoch_77_loss_2.0952_val_loss_4.8503_f1_0.9907_val_f1_0.8341.h5',
+    #              class_names_file_path=r'C:\inz\train_data\loon_detection\classes.txt')
+    # image_paths = glob(r'C:\inz\train_data\loon_detection\*.jpg')
+    # model.predict_images(image_paths=image_paths)
+
     # model = Yolo()
     # model.fit(
     #     train_image_path=r'C:\inz\train_data\loon_detection',
-    #     input_shape=(512, 128, 3),
+    #     input_shape=(128, 512, 3),
     #     batch_size=2,
     #     lr=1e-3,
-    #     epochs=1000,
+    #     epochs=300,
     #     curriculum_epochs=5,
     #     validation_split=0.2,
     #     training_view=True)
-    # model.evaluate()
 
-    from glob import glob
-
-    # model_paths = [r'C:\inz\fixed_model\sbd\sbd_4680_epoch_28_loss_0.006669_val_loss_0.034237.h5']
-    model_paths = glob(r'C:\inz\tmp_loon_models\*.h5')
-
-    image_paths = []
-    image_paths += glob(r'C:\inz\train_data\loon_detection\*.jpg')
+    model_paths = glob(r'C:\inz\git\yolo-lab\checkpoints\*.h5')
+    image_paths = glob(r'C:\inz\train_data\loon_detection\*.jpg')
     F1Calculator(
         model_paths=model_paths,
         image_paths=image_paths,
         confidence_threshold=0.25,
-        iou_threshold=0.6).calculate()
+        iou_threshold=0.75).calculate()

@@ -39,12 +39,15 @@ class Yolo:
         self.__train_data_generator = YoloDataGenerator.empty()
         self.__validation_data_generator = YoloDataGenerator.empty()
         self.__live_view_previous_time = time()
+        # self.__callbacks = [
+        #     tf.keras.callbacks.ModelCheckpoint(
+        #         filepath='checkpoints/model_epoch_{epoch}_f1_{f1:.4f}_val_f1_{val_f1:.4f}.h5',
+        #         monitor='val_f1',
+        #         mode='max',
+        #         save_best_only=True)]
         self.__callbacks = [
             tf.keras.callbacks.ModelCheckpoint(
-                filepath='checkpoints/model_epoch_{epoch}_f1_{f1:.4f}_val_f1_{val_f1:.4f}.h5',
-                monitor='val_f1',
-                mode='max',
-                save_best_only=True)]
+                filepath='checkpoints/model_epoch_{epoch}_loss_{loss:.4f}_val_loss_{val_loss:.4f}_f1_{f1:.4f}_val_f1_{val_f1:.4f}.h5')]
 
         if os.path.exists(pretrained_model_path) and os.path.isfile(pretrained_model_path):
             self.__class_names, _ = self.__init_class_names(class_names_file_path)
