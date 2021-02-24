@@ -36,9 +36,9 @@ class Model:
     def build(self):
         # return self.__vgg_19()
         # return self.__darknet_53()
-        return self.__build_loon_detector()
+        # return self.__build_loon_detector()
         # return self.__build_lcd()
-        # return self.__build_sbd()
+        return self.__build_sbd()
 
     def __build_loon_detector(self):
         input_layer = tf.keras.layers.Input(shape=self.__input_shape)

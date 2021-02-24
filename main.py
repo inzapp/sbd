@@ -64,8 +64,8 @@ if __name__ == '__main__':
 
     # model = Yolo()
     # model.fit(
-    #     train_image_path=r'C:\inz\train_data\loon_detection',
-    #     input_shape=(128, 512, 3),
+    #     train_image_path=r'C:\inz\train_data\lp_detection',
+    #     input_shape=(368, 640, 1),
     #     batch_size=2,
     #     lr=1e-3,
     #     epochs=300,
@@ -74,9 +74,17 @@ if __name__ == '__main__':
     #     training_view=True)
 
     model_paths = glob(r'C:\inz\git\yolo-lab\checkpoints\*.h5')
-    image_paths = glob(r'C:\inz\train_data\loon_detection\*.jpg')
+    image_paths = glob(r'C:\inz\train_data\lp_detection\*\*.jpg')
     F1Calculator(
         model_paths=model_paths,
         image_paths=image_paths,
         confidence_threshold=0.25,
-        iou_threshold=0.75).calculate()
+        iou_threshold=0.6).calculate()
+
+    # model_paths = glob(r'C:\inz\git\yolo-lab\checkpoints\*.h5')
+    # image_paths = glob(r'C:\inz\train_data\loon_detection\*.jpg')
+    # F1Calculator(
+    #     model_paths=model_paths,
+    #     image_paths=image_paths,
+    #     confidence_threshold=0.25,
+    #     iou_threshold=0.75).calculate()
