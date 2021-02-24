@@ -74,7 +74,10 @@ class F1Calculator:
         if not (os.path.exists(label_path) and os.path.isfile(label_path)):
             return None, None
         with open(label_path, 'rt') as f:
-            return path, f.readlines()
+            label_lines = f.readlines()
+        if len(label_lines) == 0:
+            return None, None
+        return path, label_lines
 
     @staticmethod
     def __load_img(path, channels, label_lines):
@@ -132,7 +135,7 @@ class F1Calculator:
         b_x_min, b_y_min, b_x_max, b_y_max = b
         intersection_width = min(a_x_max, b_x_max) - max(a_x_min, b_x_min)
         intersection_height = min(a_y_max, b_y_max) - max(a_y_min, b_y_min)
-        if intersection_width < 0.0 or intersection_height < 0.0:
+        if intersection_width <= 0 or intersection_height <= 0:
             return 0.0
         intersection_area = intersection_width * intersection_height
         a_area = abs((a_x_max - a_x_min) * (a_y_max - a_y_min))
