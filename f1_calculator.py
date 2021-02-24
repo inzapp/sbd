@@ -141,4 +141,4 @@ class F1Calculator:
         a_area = abs((a_x_max - a_x_min) * (a_y_max - a_y_min))
         b_area = abs((b_x_max - b_x_min) * (b_y_max - b_y_min))
         union_area = a_area + b_area - intersection_area
-        return intersection_area / float(union_area)
+        return intersection_area / (float(union_area) + 1e-5)
