@@ -17,11 +17,10 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-import asyncio
 
-import cv2
 import numpy as np
 import tensorflow as tf
+from cv2 import cv2
 
 
 def main():
@@ -279,19 +278,6 @@ def test_loss():
     p(tf.keras.losses.BinaryCrossentropy()(y_true, y_pred).numpy())
 
 
-def bounding_box_test():
-    x = np.asarray([
-        [0, 127, 50],
-        [127, 255, 0],
-        [0, 50, 0]]
-    ).astype('uint8')
-    x = cv2.resize(x, (300, 300), interpolation=cv2.INTER_NEAREST)
-    cv2.imshow('x', x)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
-    pass
-
-
 def interpolation_test():
     x = np.asarray([
         [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
@@ -324,110 +310,6 @@ def interpolation_test():
         cv2.imshow('y', y)
         cv2.waitKey(0)
     cv2.destroyAllWindows()
-
-
-def convert_1_box_label():
-    from glob import glob
-    from tqdm import tqdm
-    import old
-    with open(f'{old.train_image_path}/classes.txt', 'rt') as classes_file:
-        old.class_names = [s.replace('\n', '') for s in classes_file.readlines()]
-    img_paths = glob(rf'{old.train_image_path}\*\*.jpg')
-    for cur_img_path in tqdm(img_paths):
-        x = cv2.imread(cur_img_path, old.img_type)
-        x = old.resize(x, (old.input_shape[1], old.input_shape[0]))
-        with open(rf'{cur_img_path[:-4]}.txt', mode='rt') as f:
-            lines = f.readlines()
-        y = np.zeros((old.input_shape[0], old.input_shape[1]), dtype=np.uint8)
-        for line in lines:
-            class_index, cx, cy, w, h = list(map(float, line.split(' ')))
-            x1, y1, x2, y2 = cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2
-            x1, y1, x2, y2 = int(x1 * x.shape[1]), int(y1 * x.shape[0]), int(x2 * x.shape[1]), int(y2 * x.shape[0])
-            cv2.rectangle(y, (x1, y1), (x2, y2), (255, 255, 255), -1)
-
-        contours, _ = cv2.findContours(y, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        converted_label_str = ''
-        for contour in contours:
-            x_raw, y_raw, width_raw, height_raw = cv2.boundingRect(contour)
-            x_min_f = x_raw / float(old.input_shape[1])
-            y_min_f = y_raw / float(old.input_shape[0])
-            width_f = width_raw / float(old.input_shape[1])
-            height_f = height_raw / float(old.input_shape[0])
-            cx_f = x_min_f + width_f / 2.0
-            cy_f = y_min_f + height_f / 2.0
-            converted_label_str += f'0 {cx_f:.6f} {cy_f:.6f} {width_f:.6f} {height_f:.6f}\n'
-        with open(rf'{cur_img_path[:-4]}.txt', mode='wt') as f:
-            f.write(converted_label_str)
-
-
-def compress_test():
-    from glob import glob
-    from tqdm import tqdm
-    import old
-    with open(f'{old.train_image_path}/classes.txt', 'rt') as classes_file:
-        old.class_names = [s.replace('\n', '') for s in classes_file.readlines()]
-    img_paths = glob(rf'{old.train_image_path}\*\*.jpg')
-    for cur_img_path in tqdm(img_paths):
-        x = cv2.imread(cur_img_path, old.img_type)
-        x = old.resize(x, (old.input_shape[1], old.input_shape[0]))
-        with open(rf'{cur_img_path[:-4]}.txt', mode='rt') as f:
-            lines = f.readlines()
-        y = np.zeros((old.input_shape[0], old.input_shape[1]), dtype=np.uint8)
-        for line in lines:
-            class_index, cx, cy, w, h = list(map(float, line.split(' ')))
-            x1, y1, x2, y2 = cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2
-            x1, y1, x2, y2 = int(x1 * x.shape[1]), int(y1 * x.shape[0]), int(x2 * x.shape[1]), int(y2 * x.shape[0])
-            cv2.rectangle(y, (x1, y1), (x2, y2), (255, 255, 255), -1)
-
-        contours, _ = cv2.findContours(y, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        for contour in contours:
-            pass
-
-
-def iou(a, b):
-    a_x_min, a_y_min, a_x_max, a_y_max = a
-    b_x_min, b_y_min, b_x_max, b_y_max = b
-    intersection_width = min(a_x_max, b_x_max) - max(a_x_min, b_x_min)
-    intersection_height = min(a_y_max, b_y_max) - max(a_y_min, b_y_min)
-    intersection_area = abs(intersection_width * intersection_height)
-    a_area = (a_x_max - a_x_min) * (a_y_max - a_y_min)
-    b_area = (b_x_max - b_x_min) * (b_y_max - b_y_min)
-    union_area = a_area + b_area - intersection_area
-    return intersection_area / float(union_area)
-
-
-def ccl():
-    from glob import glob
-    paths = glob('\\\\192.168.101.200/egkim/svn/ccl/to_raw_images/source/*.jpg')
-    for path in paths:
-        img = cv2.imread(path, cv2.IMREAD_COLOR)
-        proc = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        proc_not = cv2.bitwise_not(proc)
-
-        cv2.equalizeHist(proc, proc)
-        proc = cv2.GaussianBlur(proc, (3, 3), 0)
-        proc = cv2.Laplacian(proc, cv2.CV_8UC1, ksize=3)
-        _, proc = cv2.threshold(proc, 127, 255, cv2.THRESH_BINARY)
-        contours, _ = cv2.findContours(proc, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
-
-        cv2.equalizeHist(proc_not, proc_not)
-        proc_not = cv2.GaussianBlur(proc_not, (3, 3), 0)
-        proc_not = cv2.Laplacian(proc_not, cv2.CV_8UC1, ksize=3)
-        _, proc_not = cv2.threshold(proc_not, 127, 255, cv2.THRESH_BINARY)
-        contours_not, _ = cv2.findContours(proc_not, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
-
-        contours += contours_not
-
-        for contour in contours:
-            x, y, w, h = cv2.boundingRect(contour)
-            if w < 1 or 80 < w or h < 1 or 80 < h:
-                continue
-            cv2.rectangle(img, (x, y), (x + w, y + h), (0, 0, 255), 2)
-        cv2.imshow('proc', cv2.resize(proc, (0, 0), fx=4.0, fy=4.0))
-        cv2.imshow('proc_not', cv2.resize(proc_not, (0, 0), fx=4.0, fy=4.0))
-        cv2.imshow('img', cv2.resize(img, (0, 0), fx=4.0, fy=4.0))
-        cv2.waitKey(0)
-    pass
 
 
 def lab_forward(model, x, model_type='h5', input_shape=(0, 0), output_shape=(0, 0), img_channels=1):
@@ -584,58 +466,6 @@ def test_total_lpr_process():
     cv2.destroyAllWindows()
 
 
-def count_lp_type():
-    import old
-    from glob import glob
-    old.YoloDataGenerator.init_label()
-    old.freeze('over_fit_model.h5')
-    net = cv2.dnn.readNet('model.pb')
-    old.freeze('lp_type_model_1202.h5')
-    ltc_net = cv2.dnn.readNet('model.pb')
-    total_image_paths = glob(f'{old.train_image_path}/*/*.jpg')
-    classes = [0 for _ in range(8)]
-
-    from tqdm import tqdm
-    for path in tqdm(total_image_paths):
-        x = cv2.imread(path, cv2.IMREAD_COLOR)
-        x = old.resize(x, (old.input_shape[1], old.input_shape[0]))
-        res = old.forward(net, x)
-        for cur_res in res:
-            x1, y1, x2, y2 = cur_res['bbox']
-            plate = x[y1:y2, x1:x2]
-            plate = cv2.cvtColor(plate, cv2.COLOR_BGR2GRAY)
-            plate = old.resize(plate, (192, 96))
-            plate_x = np.asarray(plate).reshape((1, 1, 96, 192)).astype('float32') / 255.
-            ltc_net.setInput(plate_x)
-            res = ltc_net.lab_forward()
-            res = np.asarray(res).reshape(8, )
-            max_index = int(np.argmax(res))
-            if res[max_index] > 0.8:
-                classes[max_index] += 1
-    print(classes)
-
-
-def make_osd_array():
-    from glob import glob
-    for path in glob(r'C:\inz\osd\*.png'):
-        img = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
-        height, width = img.shape[0], img.shape[1]
-        osd_name = path.split('\\')[-1][:-4]
-        print(rf'unsigned char {osd_name}[MARK_HEIGHT][MARK_WIDTH] = {{')
-        for i in range(height):
-            print('\t{', end='')
-            for j in range(width):
-                print(f'{"0x0" if img[i][j] == 0 else "0xff"}', end='')
-                if j != width - 1:
-                    print(', ', end='')
-            print('}', end='')
-            if i != height - 1:
-                print(', ', end='')
-            print()
-        print('};')
-        print()
-
-
 def test_masked_image():
     import os
     from glob import glob
@@ -663,106 +493,33 @@ def test_masked_image():
             cv2.waitKey(0)
 
 
-def virtual_iou_precision(y_true, y_pred):
-    self_output_rows = 10
-    self_output_cols = 10
-    confidence = y_true[:, :, :, 0]
-    cx = y_true[:, :, :, 1]
-    cy = y_true[:, :, :, 2]
-    w = y_true[:, :, :, 3]
-    h = y_true[:, :, :, 4]
-    boxes_true = []
-    for i in range(self_output_rows):
-        for j in range(self_output_cols):
-            if confidence[i][j] == 1.0:
-                x_min = cx[i][j] - w[i][j] / 2.0
-                y_min = cy[i][j] - h[i][j] / 2.0
-                x_max = cx[i][j] + w[i][j] / 2.0
-                y_max = cy[i][j] + h[i][j] / 2.0
-                boxes_true.append([x_min, y_min, x_max, y_max])
-
-    confidence = y_pred[:, :, :, 0]
-    cx = y_pred[:, :, :, 1]
-    cy = y_pred[:, :, :, 2]
-    w = y_pred[:, :, :, 3]
-    h = y_pred[:, :, :, 4]
-    boxes_pred = []
-    for i in range(self_output_rows):
-        for j in range(self_output_cols):
-            if confidence[i][j] > 0.5:
-                x_min = cx[i][j] - w[i][j] / 2.0
-                y_min = cy[i][j] - h[i][j] / 2.0
-                x_max = cx[i][j] + w[i][j] / 2.0
-                y_max = cy[i][j] + h[i][j] / 2.0
-                boxes_pred.append([x_min, y_min, x_max, y_max])
+def __iou(a, b):
+    """
+    Intersection of union function.
+    :param a: [x_min, y_min, x_max, y_max] format box a
+    :param b: [x_min, y_min, x_max, y_max] format box b
+    """
+    a_x_min, a_y_min, a_x_max, a_y_max = a
+    b_x_min, b_y_min, b_x_max, b_y_max = b
+    intersection_width = min(a_x_max, b_x_max) - max(a_x_min, b_x_min)
+    intersection_height = min(a_y_max, b_y_max) - max(a_y_min, b_y_min)
+    if intersection_width <= 0 or intersection_height <= 0:
+        return 0.0
+    intersection_area = intersection_width * intersection_height
+    a_area = abs((a_x_max - a_x_min) * (a_y_max - a_y_min))
+    b_area = abs((b_x_max - b_x_min) * (b_y_max - b_y_min))
+    union_area = a_area + b_area - intersection_area
+    return intersection_area / (float(union_area) + 1e-5)
 
 
-def f_click():
-    import win32api
-    import win32con
-    previous = 0
-    while True:
-        ret = win32api.GetAsyncKeyState(ord('F'))
-        if ret == -32767:
-            win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
-        elif ret == 0 and previous == -32768:
-            win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
-        previous = ret
-
-
-def cv2_load_test():
-    from cv2 import cv2
+def test_kor():
     from glob import glob
-    from tqdm import tqdm
-    from concurrent.futures.thread import ThreadPoolExecutor
-    import os
-
-    pool = ThreadPoolExecutor(16)
-    paths = glob(r'C:\inz\train_data\lp_detection\*\*.jpg')
-
-    def __load_img(__path):
-        return cv2.imread(__path)
-
-    def __load_label(__path):
-        __label_path = f'{path[:-4]}.txt'
-        if not (os.path.exists(__label_path) and os.path.isfile(__label_path)):
-            return None, None
-        with open(__label_path, 'rt') as f:
-            return __path, f.readlines()
-
-    label_fs = []
-    for path in tqdm(paths):
-        label_fs.append(pool.submit(__load_label, path))
-    img_fs = []
-    for f in tqdm(label_fs):
-        path, label_lines = f.result()
-        if path is None:
-            continue
-        img_fs.append(pool.submit(__load_img, path))
-    for f in tqdm(img_fs):
-        img = f.result()
-
-    # for path in tqdm(paths):
-    #     cv2.imread(path)
-
-
-def resize_all_images():
-    from glob import glob
-    from tqdm import tqdm
-    paths = glob(r'C:\inz\train_data\lp_detection\crime_day_g2b_1\*.jpg')
-    for path in tqdm(paths):
-        img = cv2.imread(path, cv2.IMREAD_COLOR)
-        width, height = img.shape[1], img.shape[0]
-        flag = False
-        if width > 640 or height > 368:
-            img = cv2.resize(img, (640, 368), cv2.INTER_AREA)
-            flag = True
-        elif width < 640 or height < 368:
-            img = cv2.resize(img, (640, 368), cv2.INTER_LINEAR)
-            flag = True
-        if flag:
-            print(width, height)
-        #     cv2.imwrite(path, img)
+    paths = glob(r'\\Desktop-7d5ic8p\LPR3\site_ltc\*.jpg')
+    for path in paths:
+        for c in path:
+            if ord(c) > 127:
+                path = path.replace(c, '')
+        print(path)
 
 
 if __name__ == '__main__':
@@ -770,6 +527,7 @@ if __name__ == '__main__':
     # test_loss()
     # bounding_box_test()
     # test_interpolation()
+
     # ccl()
-    cv2_load_test()
-    # resize_all_images()
+    # cv2_load_test()
+    test_kor()
