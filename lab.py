@@ -514,12 +514,72 @@ def __iou(a, b):
 
 def test_kor():
     from glob import glob
+    import shutil as sh
+    import os
+    name_set = set()
     paths = glob(r'\\Desktop-7d5ic8p\LPR3\site_ltc\*.jpg')
     for path in paths:
+        original_path = path
         for c in path:
             if ord(c) > 127:
                 path = path.replace(c, '')
-        print(path)
+        sh.move(original_path, path)
+
+
+def hist_compare_test():
+    from glob import glob
+    from tqdm import tqdm
+    from time import time as t
+    from concurrent.futures.thread import ThreadPoolExecutor
+
+    def __load(__path):
+        __img = cv2.imread(__path, cv2.IMREAD_GRAYSCALE)
+        __hist = cv2.calcHist([__img], [0], None, [256], [0, 255])
+        __hist = np.asarray(__hist).reshape(-1)
+        __time = int(path.replace('\\', '/').split('/')[-1].split('_')[2])
+        return __path, __hist, __time
+
+    pool = ThreadPoolExecutor(16)
+
+    st = t()
+    fs = []
+    for path in sorted(glob(r'\\Desktop-7d5ic8p\LPR3\2021_02_26\ltc\BLACK_ONE_LINE_7\*.jpg')):
+        fs.append(pool.submit(__load, path))
+
+    paths = []
+    hists = []
+    times = []
+    for f in tqdm(fs):
+        path, hist, time = f.result()
+        paths.append(path)
+        hists.append(hist)
+        times.append(time)
+
+    duplicated_path_set = set()
+    for i in range(len(paths)):
+        for j in range(len(paths)):
+            if i == j:
+                continue
+
+            if abs(times[i] - times[j]) > 30:
+                continue
+
+            score = cv2.compareHist(hists[i], hists[j], cv2.HISTCMP_CORREL)
+            if score > 0.95:
+                duplicated_path_set.add(paths[i])
+                duplicated_path_set.add(paths[j])
+                # img_i = cv2.imread(paths[i], cv2.IMREAD_GRAYSCALE)
+                # img_j = cv2.imread(paths[j], cv2.IMREAD_GRAYSCALE)
+                # cv2.imshow('img_i', cv2.resize(img_i, (512, 256)))
+                # cv2.imshow('img_j', cv2.resize(img_j, (512, 256)))
+                # cv2.waitKey(0)
+
+    duplicated_paths = list(duplicated_path_set)
+    for path in duplicated_paths:
+        pass
+
+    et = t()
+    print(et - st)
 
 
 if __name__ == '__main__':
@@ -530,4 +590,4 @@ if __name__ == '__main__':
 
     # ccl()
     # cv2_load_test()
-    test_kor()
+    hist_compare_test()
