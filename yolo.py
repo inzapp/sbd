@@ -39,15 +39,14 @@ class Yolo:
         self.__train_data_generator = YoloDataGenerator.empty()
         self.__validation_data_generator = YoloDataGenerator.empty()
         self.__live_view_previous_time = time()
-        # self.__callbacks = [
-        #     tf.keras.callbacks.ModelCheckpoint(
-        #         filepath='checkpoints/model_epoch_{epoch}_f1_{f1:.4f}_val_f1_{val_f1:.4f}.h5',
-        #         monitor='val_f1',
-        #         mode='max',
-        #         save_best_only=True)]
         self.__callbacks = [
             tf.keras.callbacks.ModelCheckpoint(
-                filepath='checkpoints/model_epoch_{epoch}_loss_{loss:.4f}_val_loss_{val_loss:.4f}_f1_{f1:.4f}_val_f1_{val_f1:.4f}.h5')]
+                filepath='checkpoints/model_epoch_{epoch}_f1_{f1:.4f}_val_f1_{val_f1:.4f}.h5',
+                monitor='val_f1',
+                mode='max',
+                save_best_only=True)]
+        if not (os.path.exists('checkpoints') and os.path.isdir('checkpoints')):
+            os.makedirs('checkpoints', exist_ok=True)
 
         if os.path.exists(pretrained_model_path) and os.path.isfile(pretrained_model_path):
             self.__class_names, _ = self.__init_class_names(class_names_file_path)
@@ -229,6 +228,7 @@ class Yolo:
         :param font_scale: scale of font.
         :return: image of bounding boxed.
         """
+        padding = 5
         if len(img.shape) == 2:
             img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
         for i, cur_res in enumerate(yolo_res):
@@ -239,12 +239,13 @@ class Yolo:
                 class_name = self.__class_names[class_index].replace('/n', '')
             label_background_color = colors[class_index]
             label_font_color = (0, 0, 0) if self.__is_background_color_bright(label_background_color) else (255, 255, 255)
-            label_text = f'{class_name}({round(cur_res["confidence"] * 100.0)}%)'
-            label_width, label_height = self.__get_text_label_width_height(label_text, font_scale)
+            label_text = f'{class_name}({int(cur_res["confidence"] * 100.0)}%)'
             x1, y1, x2, y2 = cur_res['bbox']
+            l_size, baseline = cv2.getTextSize(label_text, cv2.FONT_HERSHEY_DUPLEX, font_scale, 1)
+            bw, bh = l_size[0] + (padding * 2), l_size[1] + (padding * 2) + baseline
             cv2.rectangle(img, (x1, y1), (x2, y2), label_background_color, 2)
-            cv2.rectangle(img, (x1 - 1, y1 - label_height), (x1 - 1 + label_width, y1), colors[class_index], -1)
-            cv2.putText(img, label_text, (x1 - 1, y1 - 5), cv2.FONT_HERSHEY_DUPLEX, fontScale=font_scale, color=label_font_color, thickness=1, lineType=cv2.LINE_AA)
+            cv2.rectangle(img, (x1 - 1, y1 - bh), (x1 - 1 + bw, y1), label_background_color, -1)
+            cv2.putText(img, label_text, (x1 + padding - 1, y1 - baseline - padding), cv2.FONT_HERSHEY_DUPLEX, fontScale=font_scale, color=label_font_color, thickness=1, lineType=cv2.LINE_AA)
         return img
 
     def evaluate(self):
@@ -377,22 +378,3 @@ class Yolo:
         cv2.rectangle(tmp, (0, 0), (1, 1), bgr, -1)
         tmp = cv2.cvtColor(tmp, cv2.COLOR_BGR2GRAY)
         return tmp[0][0] > 127
-
-    @staticmethod
-    def __get_text_label_width_height(text, font_scale):
-        """
-        Calculate label text position using contour of real text size.
-        :param text: label text(class name).
-        :param font_scale: scale of font.
-        :return: width, height of label text.
-        """
-        black = np.zeros((50, 500), dtype=np.uint8)
-        cv2.putText(black, text, (30, 30), cv2.FONT_HERSHEY_DUPLEX, fontScale=font_scale, color=(255, 255, 255), thickness=1, lineType=cv2.LINE_AA)
-        black = cv2.resize(black, (int(black.shape[1] / 2), int(black.shape[0] / 2)), interpolation=cv2.INTER_AREA)
-        black = cv2.dilate(black, np.ones((2, 2), dtype=np.uint8), iterations=2)
-        black = cv2.resize(black, (int(black.shape[1] * 2), int(black.shape[0] * 2)), interpolation=cv2.INTER_LINEAR)
-        _, black = cv2.threshold(black, 1, 255, cv2.THRESH_BINARY)
-        contours, _ = cv2.findContours(black, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-        hull = cv2.convexHull(contours[0])
-        x, y, w, h = cv2.boundingRect(hull)
-        return w - 5, h
