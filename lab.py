@@ -515,7 +515,6 @@ def __iou(a, b):
 def test_kor():
     from glob import glob
     import shutil as sh
-    import os
     name_set = set()
     paths = glob(r'\\Desktop-7d5ic8p\LPR3\site_ltc\*.jpg')
     for path in paths:
@@ -536,21 +535,29 @@ def hist_compare_test():
         __img = cv2.imread(__path, cv2.IMREAD_GRAYSCALE)
         __hist = cv2.calcHist([__img], [0], None, [256], [0, 255])
         __hist = np.asarray(__hist).reshape(-1)
-        __time = int(path.replace('\\', '/').split('/')[-1].split('_')[2])
+        __time = int(path.replace('\\', '/').split('/')[-1].split('_')[0])
         return __path, __hist, __time
 
     pool = ThreadPoolExecutor(16)
 
     st = t()
     fs = []
-    for path in sorted(glob(r'\\Desktop-7d5ic8p\LPR3\2021_02_26\ltc\BLACK_ONE_LINE_7\*.jpg')):
+    # paths = [r'\\Desktop-7d5ic8p/LPR3/site_ltc_merged/20210227023154_14루5992.jpg']
+    paths = sorted(glob(r'\\Desktop-7d5ic8p/LPR3/site_ltc_merged/*.jpg'))
+    for path in paths:
+        path = path.replace('\\', '/')
         fs.append(pool.submit(__load, path))
+
+    print(f'{len(fs)} images')
 
     paths = []
     hists = []
     times = []
     for f in tqdm(fs):
         path, hist, time = f.result()
+        print(path)
+        print(time)
+        print()
         paths.append(path)
         hists.append(hist)
         times.append(time)
@@ -566,7 +573,6 @@ def hist_compare_test():
 
             score = cv2.compareHist(hists[i], hists[j], cv2.HISTCMP_CORREL)
             if score > 0.95:
-                duplicated_path_set.add(paths[i])
                 duplicated_path_set.add(paths[j])
                 # img_i = cv2.imread(paths[i], cv2.IMREAD_GRAYSCALE)
                 # img_j = cv2.imread(paths[j], cv2.IMREAD_GRAYSCALE)
@@ -575,11 +581,32 @@ def hist_compare_test():
                 # cv2.waitKey(0)
 
     duplicated_paths = list(duplicated_path_set)
+
+    print(f'{len(duplicated_paths)} duplicated image detected.')
     for path in duplicated_paths:
+        # remove duplicated image
         pass
 
     et = t()
     print(et - st)
+
+
+def get_text_size_test():
+    font_scale = 0.6
+    text = 'license plate(99%)'
+    sp = (110, 255)  # bbox start pos
+    padding = 5
+
+    l_size, baseline = cv2.getTextSize(text, cv2.FONT_HERSHEY_DUPLEX, font_scale, 1)
+    bw, bh = l_size[0] + (padding * 2), l_size[1] + (padding * 2) + baseline
+
+    pan = np.zeros((500, 500), dtype=np.uint8)
+    cv2.putText(pan, text, (sp[0] + padding, sp[1] - baseline - padding), cv2.FONT_HERSHEY_DUPLEX, fontScale=font_scale, color=(255, 255, 255), thickness=1, lineType=cv2.LINE_AA)
+    cv2.rectangle(pan, (sp[0], sp[1] - bh), (sp[0] + bw, sp[1]), (255, 255, 255), thickness=1)
+    cv2.rectangle(pan, sp, (sp[0] + 256, sp[1] + 32), (255, 255, 255), thickness=1)
+
+    cv2.imshow('pan', pan)
+    cv2.waitKey(0)
 
 
 if __name__ == '__main__':
@@ -590,4 +617,4 @@ if __name__ == '__main__':
 
     # ccl()
     # cv2_load_test()
-    hist_compare_test()
+    get_text_size_test()
