@@ -17,9 +17,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-from f1_calculator import F1Calculator
 from yolo import Yolo
-from glob import glob
 
 if __name__ == '__main__':
     """
@@ -57,34 +55,13 @@ if __name__ == '__main__':
         During training, the image is forwarded in real time, showing the results are shown.
         False if training is on a server system without IO equipment.
     """
-    # model = Yolo(pretrained_model_path=r'C:/inz/git/yolo-lab/checkpoints/model_epoch_77_loss_2.0952_val_loss_4.8503_f1_0.9907_val_f1_0.8341.h5',
-    #              class_names_file_path=r'C:\inz\train_data\loon_detection\classes.txt')
-    # image_paths = glob(r'C:\inz\train_data\loon_detection\*.jpg')
-    # model.predict_images(image_paths=image_paths)
-
-    # model = Yolo()
-    # model.fit(
-    #     train_image_path=r'C:\inz\train_data\lp_detection',
-    #     input_shape=(368, 640, 1),
-    #     batch_size=2,
-    #     lr=1e-3,
-    #     epochs=300,
-    #     curriculum_epochs=5,
-    #     validation_split=0.2,
-    #     training_view=True)
-
-    model_paths = glob(r'C:\inz\git\yolo-lab\checkpoints\*.h5')
-    image_paths = glob(r'C:\inz\train_data\lp_detection\*\*.jpg')
-    F1Calculator(
-        model_paths=model_paths,
-        image_paths=image_paths,
-        confidence_threshold=0.25,
-        iou_threshold=0.6).calculate()
-
-    # model_paths = glob(r'C:\inz\git\yolo-lab\checkpoints\*.h5')
-    # image_paths = glob(r'C:\inz\train_data\loon_detection\*.jpg')
-    # F1Calculator(
-    #     model_paths=model_paths,
-    #     image_paths=image_paths,
-    #     confidence_threshold=0.25,
-    #     iou_threshold=0.75).calculate()
+    model = Yolo()
+    model.fit(
+        train_image_path=r'C:\inz\train_data\lp_detection',
+        input_shape=(368, 640, 1),
+        batch_size=2,
+        lr=1e-3,
+        epochs=300,
+        curriculum_epochs=5,
+        validation_split=0.2,
+        training_view=True)
