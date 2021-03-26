@@ -609,6 +609,32 @@ def get_text_size_test():
     cv2.waitKey(0)
 
 
+def mean_average_precision_test(model_path, classes_txt_path, image_paths):
+    from yolo import Yolo
+    iou_thresholds = [0.5]
+    confidence_thresholds = np.asarray(list(range(5, 100, 5))).astype('float32') / 100.0
+
+    raw_model = tf.keras.models.load_model(model_path, compile=False)
+    model = Yolo(pretrained_model_path=model_path, class_names_file_path=classes_txt_path)
+    input_shape = model.get_input_shape()
+    input_size = (input_shape[1], input_shape[0])
+    color_mode = cv2.IMREAD_GRAYSCALE if input_shape[-1] == 1 else cv2.IMREAD_COLOR
+    num_classes = model.get_output_shape()[-1]
+
+    @tf.function
+    def raw_predict(__model, __x):
+        return __model(__x, training=False)
+
+    class_precision_sum = [0.0 for _ in range(num_classes)]
+    class_recall_sum = [0.0 for _ in range(num_classes)]
+    for path in image_paths:
+        x = cv2.imread(path, color_mode)
+        x = cv2.resize(x, input_size)
+        x = np.asarray(x).astype('float32').reshape((1,) + input_shape) / 255.0
+        raw_y = raw_predict(raw_model, x)
+    pass
+
+
 if __name__ == '__main__':
     # compress_test()f
     # test_loss()

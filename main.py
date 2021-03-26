@@ -57,11 +57,18 @@ if __name__ == '__main__':
     """
     model = Yolo()
     model.fit(
-        train_image_path=r'C:\inz\train_data\lp_detection',
-        input_shape=(368, 640, 1),
+        # train_image_path=r'C:\inz\train_data\lp_detection',
+        # input_shape=(368, 640, 1),
+        train_image_path=r'C:\inz\train_data\lp_character_detection\lcd_white',
+        input_shape=(192, 384, 1),
         batch_size=2,
         lr=1e-3,
         epochs=300,
-        curriculum_epochs=5,
+        curriculum_epochs=0,
         validation_split=0.2,
-        training_view=True)
+        training_view=False,
+        mixed_float16_training=False)
+    # model = Yolo(pretrained_model_path=r'person_detector_model_epoch_17_f1_0.5952_val_f1_0.1739.h5', class_names_file_path=r'X:\person_data\classes.txt')
+    # from glob import glob
+    # model.predict_images(glob(r'X:\person_data\*.jpg'))
+

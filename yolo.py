@@ -94,9 +94,12 @@ class Yolo:
             self.__model.compile(
                 optimizer=optimizer,
                 loss=ConfidenceLoss())
-            self.__model.fit(
-                x=self.__train_data_generator.flow(),
-                batch_size=batch_size,
+            # self.__model.fit(
+            #     x=self.__train_data_generator.flow(),
+            #     batch_size=batch_size,
+            #     epochs=curriculum_epochs)
+            self.__model.fit_generator(
+                generator=self.__train_data_generator.flow(),
                 epochs=curriculum_epochs)
             self.__model.save(tmp_model_name)
             self.__model = tf.keras.models.load_model(tmp_model_name, compile=False)
@@ -111,9 +114,12 @@ class Yolo:
             self.__model.compile(
                 optimizer=optimizer,
                 loss=ConfidenceWithBoundingBoxLoss())
-            self.__model.fit(
-                x=self.__train_data_generator.flow(),
-                batch_size=batch_size,
+            # self.__model.fit(
+            #     x=self.__train_data_generator.flow(),
+            #     batch_size=batch_size,
+            #     epochs=curriculum_epochs)
+            self.__model.fit_generator(
+                generator=self.__train_data_generator.flow(),
                 epochs=curriculum_epochs)
             self.__model.save(tmp_model_name)
             self.__model = tf.keras.models.load_model(tmp_model_name, compile=False)
@@ -137,10 +143,15 @@ class Yolo:
                 output_shape=self.__model.output_shape[1:],
                 batch_size=batch_size)
             print(f'validate on {len(self.__validation_data_generator.train_image_paths)} samples.')
-            self.__model.fit(
-                x=self.__train_data_generator.flow(),
+            # self.__model.fit(
+            #     x=self.__train_data_generator.flow(),
+            #     validation_data=self.__validation_data_generator.flow(),
+            #     batch_size=batch_size,
+            #     epochs=epochs,
+            #     callbacks=self.__callbacks)
+            self.__model.fit_generator(
+                generator=self.__train_data_generator.flow(),
                 validation_data=self.__validation_data_generator.flow(),
-                batch_size=batch_size,
                 epochs=epochs,
                 callbacks=self.__callbacks)
         elif len(self.__train_data_generator.validation_image_paths) > 0:
@@ -148,19 +159,28 @@ class Yolo:
             Training case 2 : split validation data using validation ratio
             """
             print(f'validate on {len(self.__train_data_generator.validation_image_paths)} samples.')
-            self.__model.fit(
-                x=self.__train_data_generator.flow('training'),
+            # self.__model.fit(
+            #     x=self.__train_data_generator.flow('training'),
+            #     validation_data=self.__train_data_generator.flow('validation'),
+            #     batch_size=batch_size,
+            #     epochs=epochs,
+            #     callbacks=self.__callbacks)
+            self.__model.fit_generator(
+                generator=self.__train_data_generator.flow('training'),
                 validation_data=self.__train_data_generator.flow('validation'),
-                batch_size=batch_size,
                 epochs=epochs,
                 callbacks=self.__callbacks)
         else:
             """
             Training case 3 : no validation image path or validation ratio. just training set
             """
+            # self.__model.fit(
+            #     x=self.__train_data_generator.flow(),
+            #     batch_size=batch_size,
+            #     epochs=epochs,
+            #     callbacks=self.__callbacks)
             self.__model.fit(
-                x=self.__train_data_generator.flow(),
-                batch_size=batch_size,
+                generator=self.__train_data_generator.flow(),
                 epochs=epochs,
                 callbacks=self.__callbacks)
 
@@ -312,6 +332,9 @@ class Yolo:
 
     def get_input_shape(self):
         return self.__model.input_shape
+
+    def get_output_shape(self):
+        return self.__model.output_shape
 
     def __training_view(self, batch, logs):
         """
