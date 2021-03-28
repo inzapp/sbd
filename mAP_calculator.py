@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
-iou_thresholds = [0.5]
+iou_thresholds = [0.8]
 confidence_thresholds = np.asarray(list(range(5, 100, 5))).astype('float32') / 100.0
 nms_iou_threshold = 0.5
 
@@ -148,10 +148,34 @@ def calc_precision_recall(y, label_lines, iou_threshold, confidence_threshold, t
 
 def calc_ap(precisions, recalls):
     from matplotlib import pyplot as plt
-    # precisions = reversed(precisions)
-    # recalls = reversed(recalls)
-    # cv2.normalize(precisions, precisions, 0.0, 1.0, cv2.NORM_MINMAX, dtype=np.float32)
-    # cv2.normalize(recalls, recalls, 0.0, 1.0, cv2.NORM_MINMAX, dtype=np.float32)
+    for i in range(len(recalls)):
+        for j in range(len(recalls)):
+            if i == j:
+                continue
+            if recalls[i] < recalls[j]:
+                tmp = recalls[i]
+                recalls[i] = recalls[j]
+                recalls[j] = tmp
+
+                tmp = precisions[i]
+                precisions[i] = precisions[j]
+                precisions[j] = tmp
+
+    recall_check = np.asarray(list(range(5, 100, 5))).astype('float32') / 100.0
+    head_recall = list()
+    head_precision = list()
+    for i in range(len(recall_check)):
+        if recalls[0] > recall_check[i]:
+            head_precision.append(1.0)
+            head_recall.append(recall_check[i])
+        else:
+            break
+
+    precisions = head_precision + list(precisions)
+    recalls = head_recall + list(recalls)
+
+    if recalls[-1] < 1.0:
+        precisions[-1] = 0.0
 
     plt.figure()
     plt.step(recalls, precisions, where='post')
