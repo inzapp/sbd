@@ -111,12 +111,10 @@ def calc_precision_recall(y, label_lines, iou_threshold, confidence_threshold, t
     y_true = get_y_true(label_lines)
     y_pred = get_y_pred(y, confidence_threshold, target_class_index)
 
-    # print(y_true)
-    # print(y_pred)
-    # print()
-
     tp = 0
     for i in range(len(y_true)):
+        if y_true[i]['class'] != target_class_index:
+            continue
         for j in range(len(y_pred)):
             if y_pred[j]['discard'] or y_true[i]['class'] != y_pred[j]['class']:
                 continue
@@ -126,35 +124,36 @@ def calc_precision_recall(y, label_lines, iou_threshold, confidence_threshold, t
                 tp += 1
                 break
 
-    fp = 0
-    for i in range(len(y_pred)):
-        if not y_pred[i]['discard']:
-            fp += 1
-
-    fn = 0
-    for i in range(len(y_true)):
-        if not y_true[i]['discard']:
-            fn += 1
-
     """
     precision = True Positive / True Positive + False Positive
     precision = True Positive / All Detections
     """
-    precision = tp / float(tp + fp + 1e-5)
+    precision = tp / (float(len(y_pred)) + 1e-5)
 
     """
     recall = True Positive / True Positive + False Negative
     recall = True Positive / All Ground Truths
     """
-    recall = tp / float(tp + fn + 1e-5)
-
-    # print(precision)
-    # print(recall)
-    # print()
+    recall = tp / (float(len(y_true)) + 1e-5)
     return precision, recall
 
 
 def calc_ap(precisions, recalls):
+    from matplotlib import pyplot as plt
+    plt.figure()
+    plt.step(recalls, precisions, where='post')
+    plt.xlabel('Recall')
+    plt.ylabel('Precision')
+    plt.ylim([0.0, 1.1])
+    plt.xlim([0.0, 1.1])
+    plt.show()
+    for p in precisions:
+        print(f'{p:.2f}', end=' ')
+    print()
+    for p in recalls:
+        print(f'{p:.2f}', end=' ')
+    print()
+    print()
     return 1.0
 
 
@@ -171,9 +170,9 @@ def main(model_path, image_paths, class_names_file_path=''):
     color_mode = cv2.IMREAD_GRAYSCALE if input_shape[-1] == 1 else cv2.IMREAD_COLOR
     num_classes = model.output_shape[-1] - 5
 
-    valid_image_count = 0  # mAP 계산에 사용된 이미지 개수
-    class_ap_sum = [0.0 for _ in range(num_classes)]  # 클래스별 mAP를 구하기 위한 누적 변수 = sum of mean ap per iou
-    iou_threshold_mean_ap_sum = [0.0 for _ in range(len(iou_thresholds))]  # iou 별 mAP를 구하기 위한 누적 변수
+    valid_image_count = 0
+    precisions = list(np.zeros((len(iou_thresholds), num_classes, len(confidence_thresholds)), dtype=np.float32))
+    recalls = list(np.zeros((len(iou_thresholds), num_classes, len(confidence_thresholds)), dtype=np.float32))
 
     for image_path in tqdm(image_paths):
         label_path = f'{image_path[:-4]}.txt'
@@ -189,28 +188,68 @@ def main(model_path, image_paths, class_names_file_path=''):
         x = np.asarray(x).astype('float32').reshape((1,) + input_shape) / 255.0
         y = np.asarray(predict_on_graph(model, x))[0]  # 3D array
 
-        for iou_threshold in iou_thresholds:
-            cur_image_class_ap_sum = 0.0  # 현재 이미지의 mAP를 구하기 위한 누적변수 = sum of image class ap
+        for iou_index, iou_threshold in enumerate(iou_thresholds):
             for class_index in range(num_classes):
-                precisions = list()
-                recalls = list()
-                for confidence_threshold in confidence_thresholds:
+                for confidence_index, confidence_threshold in enumerate(confidence_thresholds):
                     precision, recall = calc_precision_recall(y, label_lines, iou_threshold, confidence_threshold, class_index)
-                    precisions.append(precision)
-                    recalls.append(recall)
-                cur_image_class_ap = calc_ap(precisions, recalls)
-                cur_image_class_ap_sum += cur_image_class_ap
-                class_ap_sum[class_index] += cur_image_class_ap  # 반복 끝나고 이걸 이미지 개수로 나눠야 한다
-            cur_image_mean_ap = cur_image_class_ap_sum / float(num_classes)
-            iou_threshold_mean_ap_sum[iou_thresholds.index(iou_threshold)] += cur_image_mean_ap
+                    precisions[iou_index][class_index][confidence_index] += precision
+                    recalls[iou_index][class_index][confidence_index] += recall
 
-    for i in range(num_classes):
-        class_ap_sum[i] = class_ap_sum[i] / float(valid_image_count)
-        print(f'class {i} ap : {class_ap_sum[i]:.4f}')
+    precisions = np.asarray(precisions)
+    recalls = np.asarray(recalls)
+    precisions /= float(valid_image_count)
+    recalls /= float(valid_image_count)
 
-    for i in range(len(iou_thresholds)):
-        iou_threshold_mean_ap_sum[i] = iou_threshold_mean_ap_sum[i] / float(valid_image_count)
-        print(f'mAP@{int(iou_thresholds[i] * 100)} : {iou_threshold_mean_ap_sum[i]:.4f}\n')
+    for iou_index, iou_threshold in enumerate(iou_thresholds):
+        class_ap_sum = 0.0
+        for class_index in range(num_classes):
+            cur_class_precisions = precisions[iou_index][class_index]
+            cur_class_recalls = recalls[iou_index][class_index]
+            cur_class_ap = calc_ap(cur_class_precisions, cur_class_recalls)
+            class_ap_sum += cur_class_ap
+            print(f'class {class_index} ap : {cur_class_ap:.4f}')
+        mean_ap = class_ap_sum / float(num_classes)
+        print(f'mAP@{int(iou_threshold * 100)} : {mean_ap:.4f}\n')
+
+
+# def main(model_path, image_paths, class_names_file_path=''):
+#     global iou_thresholds, confidence_thresholds
+#     model = tf.keras.models.load_model(model_path, compile=False)
+#     input_shape = model.input_shape[1:]
+#     input_size = (input_shape[1], input_shape[0])
+#     color_mode = cv2.IMREAD_GRAYSCALE if input_shape[-1] == 1 else cv2.IMREAD_COLOR
+#     num_classes = model.output_shape[-1] - 5
+#
+#     for iou_threshold in iou_thresholds:
+#         ap_sum = 0.0
+#         valid_image_count = 0
+#         for class_index in range(num_classes):
+#             precisions = [0.0 for _ in range(len(confidence_thresholds))]
+#             recalls = [0.0 for _ in range(len(confidence_thresholds))]
+#             for confidence_index, confidence_threshold in enumerate(confidence_thresholds):
+#                 for image_path in tqdm(image_paths):
+#                     label_path = f'{image_path[:-4]}.txt'
+#                     if not (os.path.exists(label_path) and os.path.isfile(label_path)):
+#                         continue
+#                     with open(label_path, mode='rt') as f:
+#                         label_lines = f.readlines()
+#                     if len(label_lines) == 0:
+#                         continue
+#                     valid_image_count += 1
+#                     x = cv2.imread(image_path, color_mode)
+#                     x = cv2.resize(x, input_size)
+#                     x = np.asarray(x).astype('float32').reshape((1,) + input_shape) / 255.0
+#                     y = np.asarray(predict_on_graph(model, x))[0]
+#                     precision, recall = calc_precision_recall(y, label_lines, iou_threshold, confidence_threshold, class_index)
+#                     precisions[confidence_index] += precision
+#                     recalls[confidence_index] += recall
+#             for i in range(len(precisions)):
+#                 precisions[i] /= float(valid_image_count)
+#                 recalls[i] /= float(valid_image_count)
+#             ap = calc_ap(precisions, recalls)
+#             ap_sum += ap
+#             print(f'ap : {ap}')
+#         print(f'mAP@{int(iou_threshold * 100)} : {(ap_sum / float(num_classes)):.4f}\n')
 
 
 if __name__ == '__main__':
