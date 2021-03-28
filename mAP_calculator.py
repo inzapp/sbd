@@ -10,9 +10,111 @@ os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
 iou_thresholds = [0.5]
 confidence_thresholds = np.asarray(list(range(5, 100, 5))).astype('float32') / 100.0
+nms_iou_threshold = 0.5
 
 
-def calc_precision_recall(y, label_lines, iou_threshold, confidence_threshold, class_index):
+def iou(a, b):
+    """
+    Intersection of union function.
+    :param a: [x_min, y_min, x_max, y_max] format box a
+    :param b: [x_min, y_min, x_max, y_max] format box b
+    """
+    a_x_min, a_y_min, a_x_max, a_y_max = a
+    b_x_min, b_y_min, b_x_max, b_y_max = b
+    intersection_width = min(a_x_max, b_x_max) - max(a_x_min, b_x_min)
+    intersection_height = min(a_y_max, b_y_max) - max(a_y_min, b_y_min)
+    if intersection_width <= 0 or intersection_height <= 0:
+        return 0.0
+    intersection_area = intersection_width * intersection_height
+    a_area = abs((a_x_max - a_x_min) * (a_y_max - a_y_min))
+    b_area = abs((b_x_max - b_x_min) * (b_y_max - b_y_min))
+    union_area = a_area + b_area - intersection_area
+    return intersection_area / (float(union_area) + 1e-5)
+
+
+def get_y_true(label_lines):
+    raw_width = 1000
+    raw_height = 1000
+    y_true = []
+    for label_line in label_lines:
+        class_index, cx, cy, w, h = list(map(float, label_line.split(' ')))
+        x1 = int((cx - w / 2.0) * raw_width)
+        x2 = int((cx + w / 2.0) * raw_width)
+        y1 = int((cy - h / 2.0) * raw_height)
+        y2 = int((cy + h / 2.0) * raw_height)
+        y_true.append({
+            'class': int(class_index),
+            'bbox': [x1, y1, x2, y2],
+            'discard': False})
+    return y_true
+
+
+def get_y_pred(y, confidence_threshold, target_class_index):
+    global nms_iou_threshold
+    raw_width = 1000
+    raw_height = 1000
+    rows, cols, channels = y.shape[0], y.shape[1], y.shape[2]
+
+    y_pred = []
+    for i in range(rows):
+        for j in range(cols):
+            confidence = y[i][j][0]
+            if confidence < confidence_threshold:
+                continue
+            cx_f = j / float(cols) + 1 / float(cols) * y[i][j][1]
+            cy_f = i / float(rows) + 1 / float(rows) * y[i][j][2]
+            w = y[i][j][3]
+            h = y[i][j][4]
+
+            x_min_f = cx_f - w / 2.0
+            y_min_f = cy_f - h / 2.0
+            x_max_f = cx_f + w / 2.0
+            y_max_f = cy_f + h / 2.0
+            x_min = int(x_min_f * raw_width)
+            y_min = int(y_min_f * raw_height)
+            x_max = int(x_max_f * raw_width)
+            y_max = int(y_max_f * raw_height)
+            class_index = -1
+            max_percentage = -1
+            for cur_channel_index in range(5, channels):
+                if max_percentage < y[i][j][cur_channel_index]:
+                    class_index = cur_channel_index
+                    max_percentage = y[i][j][cur_channel_index]
+            class_index -= 5
+            if class_index != target_class_index:
+                continue
+            y_pred.append({
+                'confidence': confidence,
+                'bbox': [x_min, y_min, x_max, y_max],
+                'class': class_index,
+                'discard': False})
+
+    for i in range(len(y_pred)):
+        if y_pred[i]['discard']:
+            continue
+        for j in range(len(y_pred)):
+            if i == j or y_pred[j]['discard']:
+                continue
+            if iou(y_pred[i]['bbox'], y_pred[j]['bbox']) > nms_iou_threshold:
+                if y_pred[i]['confidence'] >= y_pred[j]['confidence']:
+                    y_pred[j]['discard'] = True
+
+    y_pred_copy = np.asarray(y_pred.copy())
+    y_pred = []
+    for i in range(len(y_pred_copy)):
+        if not y_pred_copy[i]['discard']:
+            y_pred.append(y_pred_copy[i])
+    return y_pred
+
+
+def calc_precision_recall(y, label_lines, iou_threshold, confidence_threshold, target_class_index):
+    y_true = get_y_true(label_lines)
+    y_pred = get_y_pred(y, confidence_threshold, target_class_index)
+
+    print(y_true)
+    print(y_pred)
+    print()
+
     precision = 1.0
     recall = 1.0
     return precision, recall
