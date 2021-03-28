@@ -32,12 +32,14 @@ def iou(a, b):
     return intersection_area / (float(union_area) + 1e-5)
 
 
-def get_y_true(label_lines):
+def get_y_true(label_lines, target_class_index):
     raw_width = 1000
     raw_height = 1000
     y_true = []
     for label_line in label_lines:
         class_index, cx, cy, w, h = list(map(float, label_line.split(' ')))
+        if class_index != target_class_index:
+            continue
         x1 = int((cx - w / 2.0) * raw_width)
         x2 = int((cx + w / 2.0) * raw_width)
         y1 = int((cy - h / 2.0) * raw_height)
@@ -61,8 +63,18 @@ def get_y_pred(y, confidence_threshold, target_class_index):
             confidence = y[i][j][0]
             if confidence < confidence_threshold:
                 continue
-            cx_f = j / float(cols) + 1 / float(cols) * y[i][j][1]
-            cy_f = i / float(rows) + 1 / float(rows) * y[i][j][2]
+
+            class_index = -1
+            max_percentage = -1
+            for cur_channel_index in range(5, channels):
+                if max_percentage < y[i][j][cur_channel_index]:
+                    class_index = cur_channel_index - 5
+                    max_percentage = y[i][j][cur_channel_index]
+            if class_index != target_class_index:
+                continue
+
+            cx_f = j / float(cols) + 1.0 / float(cols) * y[i][j][1]
+            cy_f = i / float(rows) + 1.0 / float(rows) * y[i][j][2]
             w = y[i][j][3]
             h = y[i][j][4]
 
@@ -74,42 +86,40 @@ def get_y_pred(y, confidence_threshold, target_class_index):
             y_min = int(y_min_f * raw_height)
             x_max = int(x_max_f * raw_width)
             y_max = int(y_max_f * raw_height)
-            class_index = -1
-            max_percentage = -1
-            for cur_channel_index in range(5, channels):
-                if max_percentage < y[i][j][cur_channel_index]:
-                    class_index = cur_channel_index
-                    max_percentage = y[i][j][cur_channel_index]
-            class_index -= 5
-            if class_index != target_class_index:
-                continue
+
             y_pred.append({
                 'confidence': confidence,
                 'bbox': [x_min, y_min, x_max, y_max],
                 'class': class_index,
                 'discard': False})
-
-    for i in range(len(y_pred)):
-        if y_pred[i]['discard']:
-            continue
-        for j in range(len(y_pred)):
-            if i == j or y_pred[j]['discard']:
-                continue
-            if iou(y_pred[i]['bbox'], y_pred[j]['bbox']) > nms_iou_threshold:
-                if y_pred[i]['confidence'] >= y_pred[j]['confidence']:
-                    y_pred[j]['discard'] = True
-
-    y_pred_copy = np.asarray(y_pred.copy())
-    y_pred = []
-    for i in range(len(y_pred_copy)):
-        if not y_pred_copy[i]['discard']:
-            y_pred.append(y_pred_copy[i])
     return y_pred
+
+    # for i in range(len(y_pred)):
+    #     if y_pred[i]['discard']:
+    #         continue
+    #     for j in range(len(y_pred)):
+    #         if i == j or y_pred[j]['discard']:
+    #             continue
+    #         if iou(y_pred[i]['bbox'], y_pred[j]['bbox']) > nms_iou_threshold:
+    #             if y_pred[i]['confidence'] >= y_pred[j]['confidence']:
+    #                 y_pred[j]['discard'] = True
+
+    # y_pred_copy = np.asarray(y_pred.copy())
+    # y_pred = []
+    # for i in range(len(y_pred_copy)):
+    #     if not y_pred_copy[i]['discard']:
+    #         y_pred.append(y_pred_copy[i])
+    # return y_pred
 
 
 def calc_precision_recall(y, label_lines, iou_threshold, confidence_threshold, target_class_index):
-    y_true = get_y_true(label_lines)
+    y_true = get_y_true(label_lines, target_class_index)
     y_pred = get_y_pred(y, confidence_threshold, target_class_index)
+
+    # print(confidence_threshold)
+    # print(f'len y_true : {len(y_true)}')
+    # print(f'len y_pred : {len(y_pred)}')
+    # print()
 
     tp = 0
     for i in range(len(y_true)):
@@ -140,6 +150,11 @@ def calc_precision_recall(y, label_lines, iou_threshold, confidence_threshold, t
 
 def calc_ap(precisions, recalls):
     from matplotlib import pyplot as plt
+    # precisions = reversed(precisions)
+    # recalls = reversed(recalls)
+    # cv2.normalize(precisions, precisions, 0.0, 1.0, cv2.NORM_MINMAX, dtype=np.float32)
+    # cv2.normalize(recalls, recalls, 0.0, 1.0, cv2.NORM_MINMAX, dtype=np.float32)
+
     plt.figure()
     plt.step(recalls, precisions, where='post')
     plt.xlabel('Recall')
