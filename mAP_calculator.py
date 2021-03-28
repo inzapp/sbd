@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
-iou_thresholds = [0.8]
+iou_thresholds = [0.5]
 confidence_thresholds = np.asarray(list(range(5, 100, 5))).astype('float32') / 100.0
 nms_iou_threshold = 0.5
 
@@ -161,7 +161,7 @@ def calc_ap(precisions, recalls):
                 precisions[i] = precisions[j]
                 precisions[j] = tmp
 
-    recall_check = np.asarray(list(range(5, 100, 5))).astype('float32') / 100.0
+    recall_check = np.asarray(list(range(100))).astype('float32') / 100.0
     head_recall = list()
     head_precision = list()
     for i in range(len(recall_check)):
@@ -178,7 +178,7 @@ def calc_ap(precisions, recalls):
         precisions[-1] = 0.0
 
     plt.figure()
-    plt.step(recalls, precisions, where='post')
+    plt.plot(recalls, precisions)
     plt.xlabel('Recall')
     plt.ylabel('Precision')
     plt.ylim([0.0, 1.1])
