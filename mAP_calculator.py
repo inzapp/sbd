@@ -35,9 +35,9 @@ def main(model_path, image_paths, class_names_file_path=''):
     color_mode = cv2.IMREAD_GRAYSCALE if input_shape[-1] == 1 else cv2.IMREAD_COLOR
     num_classes = model.output_shape[-1] - 5
 
-    valid_image_count = 0
-    class_ap_sum = [0.0 for _ in range(num_classes)]
-    iou_threshold_ap_sum = [0.0 for _ in range(len(iou_thresholds))]
+    valid_image_count = 0  # mAP 계산에 사용된 이미지 개수
+    class_ap_sum = [0.0 for _ in range(num_classes)]  # 클래스별 mAP를 구하기 위한 누적 변수 = sum of mean ap per iou
+    iou_threshold_mean_ap_sum = [0.0 for _ in range(len(iou_thresholds))]  # iou 별 mAP를 구하기 위한 누적 변수
 
     for image_path in tqdm(image_paths):
         label_path = f'{image_path[:-4]}.txt'
@@ -51,9 +51,10 @@ def main(model_path, image_paths, class_names_file_path=''):
         x = cv2.imread(image_path, color_mode)
         x = cv2.resize(x, input_size)
         x = np.asarray(x).astype('float32').reshape((1,) + input_shape) / 255.0
-        y = np.asarray(predict_on_graph(model, x))[0]
+        y = np.asarray(predict_on_graph(model, x))[0]  # 3D array
 
         for iou_threshold in iou_thresholds:
+            cur_image_class_ap_sum = 0.0  # 현재 이미지의 mAP를 구하기 위한 누적변수 = sum of image class ap
             for class_index in range(num_classes):
                 precisions = list()
                 recalls = list()
@@ -61,15 +62,19 @@ def main(model_path, image_paths, class_names_file_path=''):
                     precision, recall = calc_precision_recall(y, label_lines, iou_threshold, confidence_threshold, class_index)
                     precisions.append(precision)
                     recalls.append(recall)
-                ap = calc_ap(precisions, recalls)
-                class_ap_sum[class_index] += ap
-            iou_threshold_ap_sum[iou_thresholds.index(iou_threshold)] +=
+                cur_image_class_ap = calc_ap(precisions, recalls)
+                cur_image_class_ap_sum += cur_image_class_ap
+                class_ap_sum[class_index] += cur_image_class_ap  # 반복 끝나고 이걸 이미지 개수로 나눠야 한다
+            cur_image_mean_ap = cur_image_class_ap_sum / float(num_classes)
+            iou_threshold_mean_ap_sum[iou_thresholds.index(iou_threshold)] += cur_image_mean_ap
 
-    class_ap = [0.0 for _ in range(num_classes)]
     for i in range(num_classes):
-        class_ap[i] = class_ap_sum[i] / float(valid_image_count)
-        print(f'class {i} ap : {class_ap[i]:.4f}')
-    print(f'mAP@{int(iou_threshold * 100)} : {mean_ap:.4f}\n')
+        class_ap_sum[i] = class_ap_sum[i] / float(valid_image_count)
+        print(f'class {i} ap : {class_ap_sum[i]:.4f}')
+
+    for i in range(len(iou_thresholds)):
+        iou_threshold_mean_ap_sum[i] = iou_threshold_mean_ap_sum[i] / float(valid_image_count)
+        print(f'mAP@{int(iou_thresholds[i] * 100)} : {iou_threshold_mean_ap_sum[i]:.4f}\n')
 
 
 if __name__ == '__main__':
