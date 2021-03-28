@@ -111,12 +111,46 @@ def calc_precision_recall(y, label_lines, iou_threshold, confidence_threshold, t
     y_true = get_y_true(label_lines)
     y_pred = get_y_pred(y, confidence_threshold, target_class_index)
 
-    print(y_true)
-    print(y_pred)
-    print()
+    # print(y_true)
+    # print(y_pred)
+    # print()
 
-    precision = 1.0
-    recall = 1.0
+    tp = 0
+    for i in range(len(y_true)):
+        for j in range(len(y_pred)):
+            if y_pred[j]['discard'] or y_true[i]['class'] != y_pred[j]['class']:
+                continue
+            if iou(y_true[i]['bbox'], y_pred[j]['bbox']) > iou_threshold:
+                y_true[i]['discard'] = True
+                y_pred[j]['discard'] = True
+                tp += 1
+                break
+
+    fp = 0
+    for i in range(len(y_pred)):
+        if not y_pred[i]['discard']:
+            fp += 1
+
+    fn = 0
+    for i in range(len(y_true)):
+        if not y_true[i]['discard']:
+            fn += 1
+
+    """
+    precision = True Positive / True Positive + False Positive
+    precision = True Positive / All Detections
+    """
+    precision = tp / float(tp + fp + 1e-5)
+
+    """
+    recall = True Positive / True Positive + False Negative
+    recall = True Positive / All Ground Truths
+    """
+    recall = tp / float(tp + fn + 1e-5)
+
+    # print(precision)
+    # print(recall)
+    # print()
     return precision, recall
 
 
