@@ -114,15 +114,14 @@ def get_y_pred(y, confidence_threshold, target_class_index):
 
 def calc_precision_recall(y, label_lines, iou_threshold, confidence_threshold, target_class_index):
     y_true = get_y_true(label_lines, target_class_index)
-    if len(y_true) == 0:
-        return None, None
+    num_obj = len(y_true)
+    if num_obj == 0:
+        return None, None, None, None, None, None
 
     y_pred = get_y_pred(y, confidence_threshold, target_class_index)
 
     tp = 0
     for i in range(len(y_true)):
-        # if y_true[i]['class'] != target_class_index:
-        #     continue
         for j in range(len(y_pred)):
             if y_pred[j]['discard'] or y_true[i]['class'] != y_pred[j]['class']:
                 continue
@@ -131,6 +130,15 @@ def calc_precision_recall(y, label_lines, iou_threshold, confidence_threshold, t
                 y_pred[j]['discard'] = True
                 tp += 1
                 break
+    fp = 0
+    for i in range(len(y_pred)):
+        if not y_pred[i]['discard']:
+            fp += 1
+
+    fn = 0
+    for i in range(len(y_true)):
+        if not y_true[i]['discard']:
+            fn += 1
 
     """
     precision = True Positive / True Positive + False Positive
@@ -143,7 +151,7 @@ def calc_precision_recall(y, label_lines, iou_threshold, confidence_threshold, t
     recall = True Positive / All Ground Truths
     """
     recall = tp / (float(len(y_true)) + 1e-5)
-    return precision, recall
+    return precision, recall, num_obj, tp, fp, fn
 
 
 def calc_ap(precisions, recalls):
@@ -226,9 +234,13 @@ def main(model_path, image_paths, class_names_file_path=''):
     color_mode = cv2.IMREAD_GRAYSCALE if input_shape[-1] == 1 else cv2.IMREAD_COLOR
     num_classes = model.output_shape[-1] - 5
 
+    obj_count = np.zeros((len(iou_thresholds), num_classes, len(confidence_thresholds)), dtype=np.int32)
     valid_count = np.zeros((len(iou_thresholds), num_classes, len(confidence_thresholds)), dtype=np.int32)
     precisions = np.zeros((len(iou_thresholds), num_classes, len(confidence_thresholds)), dtype=np.float32)
     recalls = np.zeros((len(iou_thresholds), num_classes, len(confidence_thresholds)), dtype=np.float32)
+    tps = np.zeros((len(iou_thresholds), num_classes, len(confidence_thresholds)), dtype=np.int32)
+    fps = np.zeros((len(iou_thresholds), num_classes, len(confidence_thresholds)), dtype=np.int32)
+    fns = np.zeros((len(iou_thresholds), num_classes, len(confidence_thresholds)), dtype=np.int32)
 
     for image_path in tqdm(image_paths):
         label_path = f'{image_path[:-4]}.txt'
@@ -246,16 +258,23 @@ def main(model_path, image_paths, class_names_file_path=''):
         for iou_index, iou_threshold in enumerate(iou_thresholds):
             for class_index in range(num_classes):
                 for confidence_index, confidence_threshold in enumerate(confidence_thresholds):
-                    precision, recall = calc_precision_recall(y, label_lines, iou_threshold, confidence_threshold, class_index)
+                    precision, recall, num_obj, tp, fp, fn = calc_precision_recall(y, label_lines, iou_threshold, confidence_threshold, class_index)
                     if precision is None and recall is None:
                         continue
                     valid_count[iou_index][class_index][confidence_index] += 1
                     precisions[iou_index][class_index][confidence_index] += precision
                     recalls[iou_index][class_index][confidence_index] += recall
 
+                    obj_count[iou_index][class_index][confidence_index] += num_obj
+                    tps[iou_index][class_index][confidence_index] += tp
+                    fps[iou_index][class_index][confidence_index] += fp
+                    fns[iou_index][class_index][confidence_index] += fn
+
     for iou_index in range(len(iou_thresholds)):
         for class_index in range(num_classes):
             for confidence_index in range(len(confidence_thresholds)):
+                if valid_count[iou_index][class_index][confidence_index] == 0:
+                    continue
                 precisions[iou_index][class_index][confidence_index] /= valid_count[iou_index][class_index][confidence_index]
                 recalls[iou_index][class_index][confidence_index] /= valid_count[iou_index][class_index][confidence_index]
 
@@ -266,13 +285,18 @@ def main(model_path, image_paths, class_names_file_path=''):
             cur_class_recalls = recalls[iou_index][class_index]
             cur_class_ap = calc_ap(cur_class_precisions, cur_class_recalls)
             class_ap_sum += cur_class_ap
-            print(f'class {class_index} ap : {cur_class_ap:.4f}')
+
+            cur_class_obj_count = obj_count[iou_index][class_index][0]
+            cur_class_tp = tps[iou_index][class_index][0]
+            cur_class_fp = fps[iou_index][class_index][0]
+            cur_class_fn = fns[iou_index][class_index][0]
+            print(f'class {str(class_index):3s} ap : {cur_class_ap:.4f}, obj_count : {str(cur_class_obj_count):5s}, tp : {str(cur_class_tp):5s}, fp : {str(cur_class_fp):5s}, fn : {str(cur_class_fn):5s}')
         mean_ap = class_ap_sum / float(num_classes)
         print(f'mAP@{int(iou_threshold * 100)} : {mean_ap:.4f}\n')
 
 
 if __name__ == '__main__':
     main(
-        r'C:\inz\git\yolo-lab\person_detector_model_epoch_17_f1_0.5952_val_f1_0.1739.h5',
-        glob(r'\\192.168.101.200\train_data\person_data\*.jpg'),
+        r'C:\inz\git\yolo-lab\checkpoints\model_epoch_128_loss_1.1383_val_loss_14.9503.h5',
+        glob(r'\\192.168.101.200\train_data\person_data_validation\*.jpg'),
         class_names_file_path=r'\\192.168.101.200\train_data\person_data\classes.txt')
