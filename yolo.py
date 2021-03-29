@@ -40,12 +40,13 @@ class Yolo:
         self.__train_data_generator = YoloDataGenerator.empty()
         self.__validation_data_generator = YoloDataGenerator.empty()
         self.__live_view_previous_time = time()
-        self.__callbacks = [
-            tf.keras.callbacks.ModelCheckpoint(
-                filepath='checkpoints/model_epoch_{epoch}_f1_{f1:.4f}_val_f1_{val_f1:.4f}.h5',
-                monitor='val_f1',
-                mode='max',
-                save_best_only=True)]
+        # self.__callbacks = [
+        #     tf.keras.callbacks.ModelCheckpoint(
+        #         filepath='checkpoints/model_epoch_{epoch}_loss_{loss:.4f}_val_loss_{val_loss:.4f}.h5',
+        #         monitor='val_loss',
+        #         mode='min',
+        #         save_best_only=True)]
+        self.__callbacks = []
         if not (os.path.exists('checkpoints') and os.path.isdir('checkpoints')):
             os.makedirs('checkpoints', exist_ok=True)
 
@@ -59,6 +60,7 @@ class Yolo:
             batch_size,
             lr,
             epochs,
+            model_name='model',
             curriculum_epochs=5,
             validation_split=0.0,
             validation_image_path='',
@@ -72,6 +74,10 @@ class Yolo:
             self.__model = Model(input_shape, num_classes + 5).build()
         if training_view:
             self.__callbacks += [tf.keras.callbacks.LambdaCallback(on_batch_end=self.__training_view)]
+        self.__callbacks += [
+            tf.keras.callbacks.ModelCheckpoint(
+                filepath='checkpoints/' + model_name + '_epoch_{epoch}_loss_{loss:.4f}_val_loss_{val_loss:.4f}.h5')]
+
         self.__model.summary()
         self.__train_data_generator = YoloDataGenerator(
             train_image_path=train_image_path,
