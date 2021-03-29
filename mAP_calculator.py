@@ -174,6 +174,24 @@ def calc_ap(precisions, recalls):
     precisions = head_precision + list(precisions)
     recalls = head_recall + list(recalls)
 
+    # interpolate precisions
+    sorted_pure_precisions = sorted(list(set(precisions)), reverse=True)
+
+    indexed_pure_precisions = list()
+    for i in range(len(sorted_pure_precisions)):
+        max_index = -1
+        for j in range(len(precisions)):
+            if sorted_pure_precisions[i] == precisions[j]:
+                max_index = j
+        indexed_pure_precisions.append({'max_index': max_index, 'val': sorted_pure_precisions[i]})
+
+    if len(indexed_pure_precisions) > 1:
+        for i in range(1, len(indexed_pure_precisions)):
+            start_index = indexed_pure_precisions[i - 1]['max_index'] + 1
+            end_index = indexed_pure_precisions[i]['max_index']
+            for interpolation_index in range(start_index, end_index + 1):
+                precisions[interpolation_index] = indexed_pure_precisions[i - 1]['val']
+
     if recalls[-1] < 1.0:
         precisions[-1] = 0.0
 
@@ -191,6 +209,9 @@ def calc_ap(precisions, recalls):
         print(f'{p:.2f}', end=' ')
     print()
     print()
+
+
+    # print(indexed_pure_precisions)
     return 1.0
 
 
@@ -254,6 +275,6 @@ def main(model_path, image_paths, class_names_file_path=''):
 
 if __name__ == '__main__':
     main(
-        'loon_detector_model_epoch_184_f1_0.9651_val_f1_0.8532.h5',
-        glob('C:/inz/train_data/loon_detection_train/*.jpg'),
-        class_names_file_path=r'C:\inz\train_data\loon_detection_train\classes.txt')
+        r'C:\inz\fixed_model\sbd\sbd_4680_epoch_28_loss_0.006669_val_loss_0.034237.h5',
+        glob(r'C:\inz\train_data\lp_detection\lane_day_ag_1\*.jpg'),
+        class_names_file_path=r'C:\inz\train_data\lp_detection\lane_day_ag_1\classes.txt')
