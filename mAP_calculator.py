@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
-iou_thresholds = [0.5]
+iou_thresholds = [0.9]
 confidence_thresholds = np.asarray(list(range(5, 100, 5))).astype('float32') / 100.0
 nms_iou_threshold = 0.5
 
@@ -148,6 +148,11 @@ def calc_precision_recall(y, label_lines, iou_threshold, confidence_threshold, t
 
 def calc_ap(precisions, recalls):
     from matplotlib import pyplot as plt
+
+    # precisions = [1.0, 0.5, 0.7, 0.6, 0.7, 0.6, 0.8, 0.5, 0.5]
+    # # recalls = [0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1]
+    # recalls = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+
     for i in range(len(recalls)):
         for j in range(len(recalls)):
             if i == j:
@@ -176,40 +181,33 @@ def calc_ap(precisions, recalls):
 
     # interpolate precisions
     sorted_pure_precisions = sorted(list(set(precisions)), reverse=True)
-
     indexed_pure_precisions = list()
+    prev_max_index = -1
     for i in range(len(sorted_pure_precisions)):
         max_index = -1
         for j in range(len(precisions)):
             if sorted_pure_precisions[i] == precisions[j]:
                 max_index = j
-        indexed_pure_precisions.append({'max_index': max_index, 'val': sorted_pure_precisions[i]})
-
+        if max_index > prev_max_index:
+            indexed_pure_precisions.append({'max_index': max_index, 'val': sorted_pure_precisions[i]})
+            prev_max_index = max_index
     if len(indexed_pure_precisions) > 1:
         for i in range(1, len(indexed_pure_precisions)):
             start_index = indexed_pure_precisions[i - 1]['max_index'] + 1
             end_index = indexed_pure_precisions[i]['max_index']
             for interpolation_index in range(start_index, end_index + 1):
-                precisions[interpolation_index] = indexed_pure_precisions[i - 1]['val']
+                precisions[interpolation_index] = indexed_pure_precisions[i]['val']
 
     if recalls[-1] < 1.0:
         precisions[-1] = 0.0
 
     plt.figure()
-    plt.plot(recalls, precisions)
+    plt.step(recalls, precisions)
     plt.xlabel('Recall')
     plt.ylabel('Precision')
     plt.ylim([0.0, 1.1])
     plt.xlim([0.0, 1.1])
     plt.show()
-    for p in precisions:
-        print(f'{p:.2f}', end=' ')
-    print()
-    for p in recalls:
-        print(f'{p:.2f}', end=' ')
-    print()
-    print()
-
 
     # print(indexed_pure_precisions)
     return 1.0
@@ -277,4 +275,5 @@ if __name__ == '__main__':
     main(
         r'C:\inz\fixed_model\sbd\sbd_4680_epoch_28_loss_0.006669_val_loss_0.034237.h5',
         glob(r'C:\inz\train_data\lp_detection\lane_day_ag_1\*.jpg'),
+        # glob(r'C:\inz\train_data\lp_detection\*\*.jpg'),
         class_names_file_path=r'C:\inz\train_data\lp_detection\lane_day_ag_1\classes.txt')
