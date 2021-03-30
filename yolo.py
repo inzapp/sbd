@@ -18,6 +18,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 import os
+import shutil as sh
 from time import time
 
 import numpy as np
@@ -28,6 +29,7 @@ from tensorflow.keras.mixed_precision import experimental as mixed_precision
 from box_colors import colors
 from generator import YoloDataGenerator
 from loss import YoloLoss, ConfidenceLoss, ConfidenceWithBoundingBoxLoss
+from mAP_calculator import calc_mean_average_precision
 from metrics import precision, recall, f1
 from model import Model
 
@@ -47,9 +49,10 @@ class Yolo:
         #         mode='min',
         #         save_best_only=True)]
         self.__callbacks = []
+        self.__max_mean_ap = 0.0
+        self.__model_name = 'model'
         if not (os.path.exists('checkpoints') and os.path.isdir('checkpoints')):
             os.makedirs('checkpoints', exist_ok=True)
-
         if os.path.exists(pretrained_model_path) and os.path.isfile(pretrained_model_path):
             self.__class_names, _ = self.__init_class_names(class_names_file_path)
             self.__model = tf.keras.models.load_model(pretrained_model_path, compile=False)
@@ -65,7 +68,8 @@ class Yolo:
             validation_split=0.0,
             validation_image_path='',
             training_view=False,
-            mixed_float16_training=False):
+            mixed_float16_training=False,
+            use_map_callback=False):
         num_classes = 0
         self.__input_shape = input_shape
         if len(self.__class_names) == 0:
@@ -74,9 +78,23 @@ class Yolo:
             self.__model = Model(input_shape, num_classes + 5).build()
         if training_view:
             self.__callbacks += [tf.keras.callbacks.LambdaCallback(on_batch_end=self.__training_view)]
+
+        """
+        model checkpoint callbacks
+        """
+        self.__model_name = model_name
         self.__callbacks += [
-            tf.keras.callbacks.ModelCheckpoint(
-                filepath='checkpoints/' + model_name + '_epoch_{epoch}_loss_{loss:.4f}_val_loss_{val_loss:.4f}.h5')]
+            tf.keras.callbacks.ModelCheckpoint(filepath='model.h5')]
+        if use_map_callback:
+            if validation_split > 0.0 or (os.path.exists(validation_image_path) and os.path.isdir(validation_image_path)):
+                self.__callbacks += [tf.keras.callbacks.LambdaCallback(on_epoch_end=self.__map_callback)]
+            else:
+                print('[mAP callback] no validation path provided')
+                use_map_callback = False
+        if not use_map_callback:
+            self.__callbacks += [
+                tf.keras.callbacks.ModelCheckpoint(
+                    filepath='checkpoints/' + model_name + '_epoch_{epoch}_loss_{loss:.4f}_val_loss_{val_loss:.4f}.h5')]
 
         self.__model.summary()
         self.__train_data_generator = YoloDataGenerator(
@@ -365,6 +383,21 @@ class Yolo:
             boxed_image = self.bounding_box(img, res)
             cv2.imshow('training view', boxed_image)
             cv2.waitKey(1)
+
+    def __map_callback(self, epoch, logs):
+        """
+        Mean average precision callback function.
+        Save better mAP model.
+        """
+        validation_image_paths = list()
+        if len(self.__train_data_generator.validation_image_paths) > 0:
+            validation_image_paths = self.__train_data_generator.validation_image_paths
+        elif len(self.__validation_data_generator.train_image_paths) > 0:
+            validation_image_paths = self.__validation_data_generator.train_image_paths
+        mean_ap = calc_mean_average_precision('model.h5', validation_image_paths)
+        if mean_ap > self.__max_mean_ap:
+            self.__max_mean_ap = mean_ap
+            sh.copy('model.h5', f'checkpoints/{self.__model_name}_epoch_{epoch + 1}_val_mAP_{mean_ap:.4f}.h5')
 
     @tf.function
     def __predict_on_graph(self, model, x):
