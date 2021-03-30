@@ -297,12 +297,17 @@ def calc_mean_average_precision(model_path, image_paths, class_names_file_path='
 
 
 if __name__ == '__main__':
-    calc_mean_average_precision(
-        r'C:\inz\git\yolo-lab\checkpoints\person_info_detector_epoch_36_loss_1.8349_val_loss_14.9586.h5',
-        glob(r'\\192.168.101.200\train_data\person_data_validation\*.jpg'),
-        class_names_file_path=r'\\192.168.101.200\train_data\person_data\classes.txt')
+    # calc_mean_average_precision(
+    #     r'C:\inz\git\yolo-lab\checkpoints\person_info_detector_epoch_36_loss_1.8349_val_loss_14.9586.h5',
+    #     glob(r'\\192.168.101.200\train_data\person_data_validation\*.jpg'),
+    #     class_names_file_path=r'\\192.168.101.200\train_data\person_data\classes.txt')
 
     # calc_mean_average_precision(
-    #     r'C:\inz\git\yolo-lab\checkpoints\lcd_288_144\lcd_b1_epoch_250_loss_0.3989_val_loss_6.0434.h5',
-    #     glob(r'C:\inz\train_data\lp_character_detection\lcd_b1\*\*.jpg'),
+    #     r'C:\inz\git\yolo-lab\checkpoints\v1_lcd_white_288_144_epoch_300_loss_0.4470_val_loss_5.3037.h5',
+    #     glob(r'C:\inz\train_data\lp_character_detection\lcd_white\*\*.jpg'),
     #     class_names_file_path=r'C:\inz\train_data\lp_character_detection\lcd_b1\classes.txt')
+
+    calc_mean_average_precision(
+        r'C:\inz\fixed_model\sbd\sbd_4680_epoch_28_loss_0.006669_val_loss_0.034237.h5',
+        glob(r'C:\inz\train_data\lp_detection\*\*.jpg'),
+        class_names_file_path=r'C:\inz\train_data\lp_character_detection\lcd_b1\classes.txt')
