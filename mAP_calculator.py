@@ -155,8 +155,6 @@ def calc_precision_recall(y, label_lines, iou_threshold, confidence_threshold, t
 
 
 def calc_ap(precisions, recalls):
-    from matplotlib import pyplot as plt
-
     for i in range(len(recalls)):
         for j in range(len(recalls)):
             if i == j:
@@ -226,7 +224,7 @@ def predict_on_graph(__model, __x):
     return __model(__x, training=False)
 
 
-def main(model_path, image_paths, class_names_file_path=''):
+def calc_mean_average_precision(model_path, image_paths, class_names_file_path=''):
     global iou_thresholds, confidence_thresholds
     model = tf.keras.models.load_model(model_path, compile=False)
     input_shape = model.input_shape[1:]
@@ -278,6 +276,7 @@ def main(model_path, image_paths, class_names_file_path=''):
                 precisions[iou_index][class_index][confidence_index] /= valid_count[iou_index][class_index][confidence_index]
                 recalls[iou_index][class_index][confidence_index] /= valid_count[iou_index][class_index][confidence_index]
 
+    mean_ap_sum = 0.0
     for iou_index, iou_threshold in enumerate(iou_thresholds):
         class_ap_sum = 0.0
         for class_index in range(num_classes):
@@ -292,11 +291,18 @@ def main(model_path, image_paths, class_names_file_path=''):
             cur_class_fn = fns[iou_index][class_index][0]
             print(f'class {str(class_index):3s} ap : {cur_class_ap:.4f}, obj_count : {str(cur_class_obj_count):5s}, tp : {str(cur_class_tp):5s}, fp : {str(cur_class_fp):5s}, fn : {str(cur_class_fn):5s}')
         mean_ap = class_ap_sum / float(num_classes)
+        mean_ap_sum += mean_ap
         print(f'mAP@{int(iou_threshold * 100)} : {mean_ap:.4f}\n')
+    return mean_ap_sum / len(iou_thresholds)
 
 
 if __name__ == '__main__':
-    main(
-        r'C:\inz\git\yolo-lab\checkpoints\model_epoch_128_loss_1.1383_val_loss_14.9503.h5',
+    calc_mean_average_precision(
+        r'C:\inz\git\yolo-lab\checkpoints\person_info_detector_epoch_36_loss_1.8349_val_loss_14.9586.h5',
         glob(r'\\192.168.101.200\train_data\person_data_validation\*.jpg'),
         class_names_file_path=r'\\192.168.101.200\train_data\person_data\classes.txt')
+
+    # calc_mean_average_precision(
+    #     r'C:\inz\git\yolo-lab\checkpoints\lcd_288_144\lcd_b1_epoch_250_loss_0.3989_val_loss_6.0434.h5',
+    #     glob(r'C:\inz\train_data\lp_character_detection\lcd_b1\*\*.jpg'),
+    #     class_names_file_path=r'C:\inz\train_data\lp_character_detection\lcd_b1\classes.txt')
