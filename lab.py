@@ -635,6 +635,53 @@ def mean_average_precision_test(model_path, classes_txt_path, image_paths):
     pass
 
 
+def view_test():
+    value_str = '201 204 209 214 217 221 224 229 232 233 232 232 233 233 237 240 240 239 237 236 234 234 235 238 240 241 241 243 244 245 244 242 205 209 214 218 221 223 225 228 229 228 226 226 228 229 232 236 237 235 234 232 231 230 232 234 236 236 236 238 243 248 248 246 207 211 214 217 218 217 215 212 208 202 196 194 195 195 199 203 204 204 203 202 200 200 201 206 209 212 215 224 235 245 248 248 203 205 206 208 205 199 191 179 165 153 142 134 131 131 133 137 140 142 143 142 142 142 144 149 156 167 180 199 218 235 243 246 200 202 204 204 200 190 173 150 127 107 89 80 77 77 79 82 84 87 88 87 85 85 88 94 109 129 153 181 206 228 241 247 202 204 205 204 202 190 167 135 105 79 60 55 60 66 71 74 74 72 70 65 58 56 57 66 85 111 142 175 206 229 242 248 205 205 204 201 198 184 155 121 94 75 65 73 93 112 125 131 128 120 111 99 86 77 74 80 96 119 148 180 209 232 243 246 209 207 204 201 198 179 148 112 86 74 73 94 131 163 183 191 187 178 167 153 137 126 120 122 133 151 172 197 221 239 246 247 210 210 210 208 204 185 153 112 83 70 72 102 150 191 212 218 218 216 214 209 204 200 196 195 199 206 215 226 238 246 248 248 213 213 213 213 209 190 158 115 84 69 69 101 153 196 219 227 229 230 230 230 231 230 230 231 232 235 237 241 245 249 248 246 214 214 215 216 214 195 162 120 87 69 68 98 150 196 222 232 233 232 231 231 233 234 236 238 240 241 242 244 246 248 247 245 215 215 215 215 209 190 158 116 85 69 68 99 149 193 216 224 226 227 227 228 231 234 238 241 241 240 241 242 243 246 247 248 217 217 216 215 208 188 155 112 81 66 65 88 125 156 171 177 181 186 190 194 197 202 215 229 236 238 240 242 243 246 248 250 218 217 215 214 210 191 155 111 80 66 60 67 83 96 103 105 110 119 127 130 134 143 166 196 217 231 241 245 246 246 248 250 218 215 212 210 208 190 154 110 79 63 54 53 58 62 62 59 62 71 79 81 82 89 107 135 163 193 223 237 242 244 244 243 216 213 210 206 204 187 155 114 84 67 55 55 62 69 70 67 67 70 71 69 63 60 62 74 100 136 175 204 222 234 238 238 213 211 207 204 201 187 160 125 99 84 74 77 89 101 109 113 114 110 103 91 76 62 53 51 63 85 113 149 187 217 229 235 209 207 205 203 199 190 174 157 141 129 122 127 140 152 161 166 167 162 153 140 123 104 82 62 54 55 68 102 146 186 208 222 206 207 205 203 198 195 195 197 195 190 187 192 200 205 206 205 204 203 201 196 186 165 133 93 68 55 55 77 112 144 177 204 206 207 208 207 205 202 205 211 214 212 213 216 221 224 225 224 224 224 223 219 211 191 160 123 92 71 57 68 94 125 163 198 207 208 209 210 211 209 210 212 215 217 218 221 228 233 235 235 235 234 230 227 220 206 182 151 118 87 62 67 88 117 158 199 209 207 207 206 206 205 207 209 212 213 215 220 228 233 235 235 235 235 234 232 226 215 200 177 144 104 68 67 86 114 156 200 206 203 200 196 191 187 184 181 182 184 188 199 214 226 230 231 231 233 233 230 225 217 203 178 145 107 74 77 101 131 167 201 202 197 190 182 175 166 154 141 136 140 148 167 193 213 225 228 228 228 229 227 223 214 195 167 134 100 76 89 121 154 182 202 199 192 183 172 157 141 122 103 94 96 107 134 169 199 216 222 224 225 225 224 218 203 177 144 114 86 71 93 132 168 193 208 197 190 181 168 149 129 109 90 78 74 80 100 130 156 170 176 179 180 181 179 174 161 139 113 91 74 69 97 137 173 198 211 195 191 183 169 151 131 115 101 87 74 67 72 83 92 98 100 99 99 100 102 103 99 89 77 70 65 70 102 144 180 201 210 193 190 184 172 153 137 124 116 101 83 68 60 58 55 54 53 52 53 54 55 58 59 59 59 61 65 75 108 150 187 206 215 194 192 188 178 163 151 141 133 122 109 94 83 76 71 67 66 67 70 71 70 68 69 72 78 84 90 101 130 165 197 213 222 205 203 200 193 186 178 171 166 161 153 146 138 132 126 120 117 117 118 120 119 116 116 121 131 139 144 152 170 194 211 221 224 213 211 210 209 208 205 202 199 196 193 190 189 187 183 179 175 174 176 178 176 173 172 175 184 190 195 200 208 217 223 223 224 217 215 214 213 216 218 217 215 213 210 209 211 214 215 215 215 216 218 219 218 214 211 210 212 215 216 219 223 227 229 226 223'
+    values = list(map(int, value_str.split(' ')))
+    values = np.asarray(values).reshape((32, 32, 1)).astype('uint8')
+    cv2.imshow('x', values)
+    cv2.waitKey(0)
+
+
+def find_only_car():
+    label_str = 'person bicycle car motorcycle airplane bus train truck boat traffic light fire hydrant stop sign parking meter bench bird cat dog horse sheep cow elephant bear zebra giraffe backpack umbrella handbag tie suitcase frisbee skis snowboard sports ball kite baseball bat baseball glove skateboard surfboard tennis racket bottle wine glass cup fork knife spoon bowl banana apple sandwich orange broccoli carrot hot dog pizza donut cake chair couch potted plant bed dining table toilet tv laptop mouse remote keyboard cell phone microwave oven toaster sink refrigerator book clock vase scissors teddy bear hair drier toothbrush'
+    labels = list(label_str.split(' '))
+    print(labels.index('car'))
+    print(labels.index('bus'))
+    print(labels.index('truck'))
+    print(labels)
+
+    # import shutil as sh
+    # from glob import glob
+    # from tqdm import tqdm
+    #
+    # train_label_paths = glob('/home2/ksil/darknet/scripts/coco/labels/train2014/*.txt')
+    # for label_path in tqdm(train_label_paths):
+    #     with open(label_path, mode='rt') as f:
+    #         label_lines = f.readlines()
+    #     for line in label_lines:
+    #         index = line.split(' ')[0]
+    #         if index == '2' or index == '5' or index == '7':
+    #             image_path = label_path.replace('labels', 'images')
+    #             image_path = f'{image_path[:-4]}.jpg'
+    #             sh.copy(image_path, '')
+    #             sh.copy(label_path, '')
+    #             break
+    #
+    # train_label_paths = glob('/home2/ksil/darknet/scripts/coco/labels/val2014/*.txt')
+    # for label_path in tqdm(train_label_paths):
+    #     with open(label_path, mode='rt') as f:
+    #         label_lines = f.readlines()
+    #     for line in label_lines:
+    #         index = line.split(' ')[0]
+    #         if index == '2' or index == '5' or index == '7':
+    #             image_path = label_path.replace('labels', 'images')
+    #             image_path = f'{image_path[:-4]}.jpg'
+    #             sh.copy(image_path, '')
+    #             sh.copy(label_path, '')
+    #             break
+
+
 if __name__ == '__main__':
     # compress_test()f
     # test_loss()
@@ -643,4 +690,5 @@ if __name__ == '__main__':
 
     # ccl()
     # cv2_load_test()
-    get_text_size_test()
+    # get_text_size_test()
+    find_only_car()

@@ -8,8 +8,9 @@ from tqdm import tqdm
 
 os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
-iou_thresholds = [0.5]
+iou_thresholds = [0.5, 0.6, 0.7, 0.8, 0.9]
 confidence_thresholds = np.asarray(list(range(5, 100, 5))).astype('float32') / 100.0
+# confidence_thresholds = [0.05, 0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95, 0.99]
 nms_iou_threshold = 0.5
 
 
@@ -307,7 +308,7 @@ if __name__ == '__main__':
     #     glob(r'C:\inz\train_data\lp_character_detection\lcd_white\*\*.jpg'),
     #     class_names_file_path=r'C:\inz\train_data\lp_character_detection\lcd_b1\classes.txt')
 
-    calc_mean_average_precision(
+    print(calc_mean_average_precision(
         r'C:\inz\fixed_model\sbd\sbd_4680_epoch_28_loss_0.006669_val_loss_0.034237.h5',
-        glob(r'C:\inz\train_data\lp_detection\*\*.jpg'),
-        class_names_file_path=r'C:\inz\train_data\lp_character_detection\lcd_b1\classes.txt')
+        glob(r'X:\lp_detection_validation\*.jpg'),
+        class_names_file_path=r'C:\inz\train_data\lp_character_detection\lcd_b1\classes.txt'))

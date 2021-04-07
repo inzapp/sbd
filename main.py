@@ -56,36 +56,16 @@ if __name__ == '__main__':
         False if training is on a server system without IO equipment.
     """
 
-    # model = Yolo()
-    # model.fit(
-    #     train_image_path=r'\\192.168.101.200\train_data\person_data_train',
-    #     validation_image_path=r'\\192.168.101.200\train_data\person_data_validation',
-    #     model_name='person_info_detector',
-    #     input_shape=(256, 128, 3),
-    #     batch_size=2,
-    #     lr=1e-3,
-    #     epochs=300,
-    #     curriculum_epochs=0,
-    #     validation_split=0.2,
-    #     training_view=False,
-    #     mixed_float16_training=False,
-    #     use_map_callback=True)
-
     model = Yolo()
     model.fit(
-        train_image_path=r'\\192.168.101.200\train_data\lp_detection_train',
-        validation_image_path=r'\\192.168.101.200\train_data\lp_detection_validation',
-        model_name='v2_sbd',
-        input_shape=(368, 640, 3),
+        train_image_path=r'C:\inz\train_data\lp_character_detection\lcd_b1',
+        model_name='v1_lcd_b1_192_384',
+        input_shape=(192, 384, 1),
         batch_size=2,
         lr=1e-3,
         epochs=300,
-        curriculum_epochs=5,
-        validation_split=0.0,
+        curriculum_epochs=0,
+        validation_split=0.2,
         training_view=False,
         mixed_float16_training=False,
-        use_map_callback=True)
-
-    # model = Yolo(pretrained_model_path=r'person_detector_model_epoch_17_f1_0.5952_val_f1_0.1739.h5', class_names_file_path=r'X:\person_data\classes.txt')
-    # from glob import glob
-    # model.predict_images(glob(r'X:\person_data\*.jpg'))
+        use_map_callback=False)
