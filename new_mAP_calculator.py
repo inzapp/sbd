@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
-iou_thresholds = [0.5]
+iou_thresholds = [0.5, 0.75]
 confidence_threshold = 0.15  # only for tp, fp, fn
 nms_iou_threshold = 0.45
 
@@ -291,8 +291,10 @@ def calc_mean_average_precision(model_path, image_paths, class_names_file_path='
                     fns[iou_index][class_index] += fn
 
     mean_ap_sum = 0.0
+    f1_sum = 0.0
     for iou_index, iou_threshold in enumerate(iou_thresholds):
         class_ap_sum = 0.0
+        class_f1_sum = 0.0
         print(f'confidence threshold for tp, fp, fn calculate : {confidence_threshold:.2f}')
         for class_index in range(num_classes):
             cur_class_ap = aps[iou_index][class_index] / float(valid_count[iou_index][class_index])
@@ -303,10 +305,14 @@ def calc_mean_average_precision(model_path, image_paths, class_names_file_path='
             cur_class_fn = fns[iou_index][class_index]
             cur_class_precision = cur_class_tp / (float(cur_class_tp + cur_class_fp) + 1e-5)
             cur_class_recall = cur_class_tp / (float(cur_class_tp + cur_class_fn) + 1e-5)
-            cur_class_f1_score = 2.0 * (cur_class_precision * cur_class_recall) / (cur_class_precision + cur_class_recall)
-            print(f'class {str(class_index):3s} ap : {cur_class_ap:.4f}, obj_count : {str(cur_class_obj_count):6s}, tp : {str(cur_class_tp):6s}, fp : {str(cur_class_fp):6s}, fn : {str(cur_class_fn):6s}, precision : {cur_class_precision:.4f}, recall : {cur_class_recall:.4f}, f1 score : {cur_class_f1_score:.4f}')
+            cur_class_f1 = 2.0 * (cur_class_precision * cur_class_recall) / (cur_class_precision + cur_class_recall)
+            class_f1_sum += cur_class_f1
+            print(f'class {str(class_index):3s} ap : {cur_class_ap:.4f}, obj_count : {str(cur_class_obj_count):6s}, tp : {str(cur_class_tp):6s}, fp : {str(cur_class_fp):6s}, fn : {str(cur_class_fn):6s}, precision : {cur_class_precision:.4f}, recall : {cur_class_recall:.4f}, f1 score : {cur_class_f1:.4f}')
         mean_ap = class_ap_sum / float(num_classes)
         mean_ap_sum += mean_ap
+        avg_f1_score = class_f1_sum / float(num_classes)
+        f1_sum += avg_f1_score
+        print(f'F1@{int(iou_threshold * 100)} : {avg_f1_score:.4f}')
         print(f'mAP@{int(iou_threshold * 100)} : {mean_ap:.4f}\n')
     return mean_ap_sum / len(iou_thresholds)
 
@@ -318,7 +324,12 @@ if __name__ == '__main__':
     #     # glob(r'C:\inz\train_data\train_val_split\sbd\validation\*.jpg'),
     #     class_names_file_path=r'C:\inz\train_data\lp_character_detection\lcd_b1\classes.txt'))
 
+    # print(calc_mean_average_precision(
+    #     r'C:\inz\fixed_model\lcd_b1\lcd_b1_model_epoch_76_f1_0.9938_val_f1_0.9032.h5',
+    #     glob(r'C:\inz\train_data\lp_character_detection\lcd_b1\*\*.jpg'),
+    #     class_names_file_path=r'C:\inz\train_data\loon_detection\classes.txt'))
+
     print(calc_mean_average_precision(
-        r'C:\inz\fixed_model\lcd_b1\lcd_b1_model_epoch_76_f1_0.9938_val_f1_0.9032.h5',
-        glob(r'C:\inz\train_data\lp_character_detection\lcd_b1\*\*.jpg'),
+        r'C:\inz\git\yolo-lab\checkpoints\loon\model_epoch_92_loss_2.1282_val_loss_4.8404_f1_0.9896_val_f1_0.8348.h5',
+        glob(r'C:\inz\train_data\loon_detection\*.jpg'),
         class_names_file_path=r'C:\inz\train_data\loon_detection\classes.txt'))
