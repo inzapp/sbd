@@ -9,7 +9,7 @@ from tqdm import tqdm
 os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
 iou_thresholds = [0.5]
-confidence_threshold = 0.25  # only for tp, fp, fn
+confidence_threshold = 0.1  # only for tp, fp, fn
 nms_iou_threshold = 0.5
 
 
@@ -61,7 +61,7 @@ def get_y_pred(y, target_class_index):
     for i in range(rows):
         for j in range(cols):
             confidence = y[i][j][0]
-            if confidence < 0.25:
+            if confidence < 0.1:
                 continue
 
             class_index = -1
@@ -118,12 +118,9 @@ def calc_ap(precisions, recalls):
     recall_check = np.asarray(list(range(100))).astype('float32') / 100.0
     head_recall = list()
     head_precision = list()
-    for i in range(len(recall_check)):
-        if recalls[0] > recall_check[i]:
-            head_precision.append(1.0)
-            head_recall.append(recall_check[i])
-        else:
-            break
+    if recalls[0] > recall_check[0]:
+        head_precision.append(1.0)
+        head_recall.append(recall_check[0])
 
     precisions = head_precision + list(precisions)
     recalls = head_recall + list(recalls)
@@ -313,8 +310,13 @@ def calc_mean_average_precision(model_path, image_paths, class_names_file_path='
 
 
 if __name__ == '__main__':
+    # print(calc_mean_average_precision(
+    #     r'C:\inz\fixed_model\sbd\sbd_4680_epoch_28_loss_0.006669_val_loss_0.034237.h5',
+    #     glob(r'X:\lp_detection_validation\*.jpg'),
+    #     # glob(r'C:\inz\train_data\train_val_split\sbd\validation\*.jpg'),
+    #     class_names_file_path=r'C:\inz\train_data\lp_character_detection\lcd_b1\classes.txt'))
+
     print(calc_mean_average_precision(
-        r'C:\inz\fixed_model\sbd\sbd_4680_epoch_28_loss_0.006669_val_loss_0.034237.h5',
-        glob(r'X:\lp_detection_validation\*.jpg'),
-        # glob(r'C:\inz\train_data\train_val_split\sbd\validation\*.jpg'),
-        class_names_file_path=r'C:\inz\train_data\lp_character_detection\lcd_b1\classes.txt'))
+        r'C:\inz\git\yolo-lab\checkpoints\loon\model_epoch_89_loss_2.2668_val_loss_4.9750_f1_0.9800_val_f1_0.8206.h5',
+        glob(r'C:\inz\train_data\loon_detection\*.jpg'),
+        class_names_file_path=r'C:\inz\train_data\loon_detection\classes.txt'))
