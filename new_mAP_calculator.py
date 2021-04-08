@@ -8,8 +8,8 @@ from tqdm import tqdm
 
 os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
-iou_thresholds = [0.5, 0.75]
-confidence_threshold = 0.1  # only for tp, fp, fn
+iou_thresholds = [0.5]
+confidence_threshold = 0.15  # only for tp, fp, fn
 nms_iou_threshold = 0.5
 
 
@@ -51,7 +51,7 @@ def get_y_true(label_lines, target_class_index):
 
 
 def get_y_pred(y, target_class_index):
-    global nms_iou_threshold
+    global nms_iou_threshold, confidence_threshold
     raw_width = 1000
     raw_height = 1000
     rows, cols, channels = y.shape[0], y.shape[1], y.shape[2]
@@ -60,7 +60,7 @@ def get_y_pred(y, target_class_index):
     for i in range(rows):
         for j in range(cols):
             confidence = y[i][j][0]
-            if confidence < 0.1:
+            if confidence < confidence_threshold:
                 continue
 
             class_index = -1
@@ -309,13 +309,13 @@ def calc_mean_average_precision(model_path, image_paths, class_names_file_path='
 
 
 if __name__ == '__main__':
-    # print(calc_mean_average_precision(
-    #     r'C:\inz\fixed_model\sbd\sbd_4680_epoch_28_loss_0.006669_val_loss_0.034237.h5',
-    #     glob(r'X:\lp_detection_validation\*.jpg'),
-    #     # glob(r'C:\inz\train_data\train_val_split\sbd\validation\*.jpg'),
-    #     class_names_file_path=r'C:\inz\train_data\lp_character_detection\lcd_b1\classes.txt'))
-
     print(calc_mean_average_precision(
-        r'C:\inz\git\yolo-lab\checkpoints\loon\model_epoch_89_loss_2.2668_val_loss_4.9750_f1_0.9800_val_f1_0.8206.h5',
-        glob(r'C:\inz\train_data\loon_detection\*.jpg'),
-        class_names_file_path=r'C:\inz\train_data\loon_detection\classes.txt'))
+        r'C:\inz\fixed_model\sbd\sbd_4680_epoch_28_loss_0.006669_val_loss_0.034237.h5',
+        glob(r'X:\lp_detection_validation\*.jpg'),
+        # glob(r'C:\inz\train_data\train_val_split\sbd\validation\*.jpg'),
+        class_names_file_path=r'C:\inz\train_data\lp_character_detection\lcd_b1\classes.txt'))
+
+    # print(calc_mean_average_precision(
+    #     r'C:\inz\git\yolo-lab\checkpoints\loon\model_epoch_89_loss_2.2668_val_loss_4.9750_f1_0.9800_val_f1_0.8206.h5',
+    #     glob(r'C:\inz\train_data\loon_detection\*.jpg'),
+    #     class_names_file_path=r'C:\inz\train_data\loon_detection\classes.txt'))
