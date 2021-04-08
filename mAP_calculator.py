@@ -308,7 +308,12 @@ if __name__ == '__main__':
     #     glob(r'C:\inz\train_data\lp_character_detection\lcd_white\*\*.jpg'),
     #     class_names_file_path=r'C:\inz\train_data\lp_character_detection\lcd_b1\classes.txt')
 
+    # print(calc_mean_average_precision(
+    #     r'C:\inz\fixed_model\sbd\sbd_4680_epoch_28_loss_0.006669_val_loss_0.034237.h5',
+    #     glob(r'X:\lp_detection_validation\*.jpg'),
+    #     class_names_file_path=r'C:\inz\train_data\lp_character_detection\lcd_b1\classes.txt'))
+
     print(calc_mean_average_precision(
-        r'C:\inz\fixed_model\sbd\sbd_4680_epoch_28_loss_0.006669_val_loss_0.034237.h5',
-        glob(r'X:\lp_detection_validation\*.jpg'),
-        class_names_file_path=r'C:\inz\train_data\lp_character_detection\lcd_b1\classes.txt'))
+        r'C:\inz\git\yolo-lab\checkpoints\loon\model_epoch_89_loss_2.2668_val_loss_4.9750_f1_0.9800_val_f1_0.8206.h5',
+        glob(r'C:\inz\train_data\loon_detection\*.jpg'),
+        class_names_file_path=r'C:\inz\train_data\loon_detection\classes.txt'))

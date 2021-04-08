@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
-iou_thresholds = [0.5]
+iou_thresholds = [0.5, 0.75]
 confidence_threshold = 0.1  # only for tp, fp, fn
 nms_iou_threshold = 0.5
 
@@ -38,16 +38,15 @@ def get_y_true(label_lines, target_class_index):
     y_true = []
     for label_line in label_lines:
         class_index, cx, cy, w, h = list(map(float, label_line.split(' ')))
-        if int(class_index) != target_class_index:
-            continue
-        x1 = int((cx - w / 2.0) * raw_width)
-        x2 = int((cx + w / 2.0) * raw_width)
-        y1 = int((cy - h / 2.0) * raw_height)
-        y2 = int((cy + h / 2.0) * raw_height)
-        y_true.append({
-            'class': int(class_index),
-            'bbox': [x1, y1, x2, y2],
-            'discard': False})
+        if int(class_index) == target_class_index:
+            x1 = int((cx - w / 2.0) * raw_width)
+            x2 = int((cx + w / 2.0) * raw_width)
+            y1 = int((cy - h / 2.0) * raw_height)
+            y2 = int((cy + h / 2.0) * raw_height)
+            y_true.append({
+                'class': int(class_index),
+                'bbox': [x1, y1, x2, y2],
+                'discard': False})
     return y_true
 
 
