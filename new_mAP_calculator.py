@@ -9,7 +9,7 @@ from tqdm import tqdm
 os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
 iou_thresholds = [0.5]
-confidence_threshold = 0.25
+confidence_threshold = 0.25  # only for tp, fp, fn
 nms_iou_threshold = 0.5
 
 
@@ -61,7 +61,7 @@ def get_y_pred(y, target_class_index):
     for i in range(rows):
         for j in range(cols):
             confidence = y[i][j][0]
-            if confidence < 0.001:
+            if confidence < 0.25:
                 continue
 
             class_index = -1
