@@ -10,7 +10,7 @@ os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
 iou_thresholds = [0.5]
 confidence_threshold = 0.15  # only for tp, fp, fn
-nms_iou_threshold = 0.5
+nms_iou_threshold = 0.45
 
 
 def iou(a, b):
@@ -60,7 +60,7 @@ def get_y_pred(y, target_class_index):
     for i in range(rows):
         for j in range(cols):
             confidence = y[i][j][0]
-            if confidence < confidence_threshold:
+            if confidence < 0.005:
                 continue
 
             class_index = -1
@@ -278,7 +278,7 @@ def calc_mean_average_precision(model_path, image_paths, class_names_file_path='
         x = cv2.imread(image_path, color_mode)
         x = cv2.resize(x, input_size)
         x = np.asarray(x).astype('float32').reshape((1,) + input_shape) / 255.0
-        y = np.asarray(predict_on_graph(model, x))[0]  # 3D array
+        y = np.asarray(predict_on_graph(model, x))[0]
 
         for iou_index, iou_threshold in enumerate(iou_thresholds):
             for class_index in range(num_classes):
@@ -294,6 +294,7 @@ def calc_mean_average_precision(model_path, image_paths, class_names_file_path='
     mean_ap_sum = 0.0
     for iou_index, iou_threshold in enumerate(iou_thresholds):
         class_ap_sum = 0.0
+        print(f'confidence threshold for tp, fp, fn calculate : {confidence_threshold:.2f}')
         for class_index in range(num_classes):
             cur_class_ap = aps[iou_index][class_index] / float(valid_count[iou_index][class_index])
             class_ap_sum += cur_class_ap
