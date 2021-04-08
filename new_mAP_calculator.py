@@ -9,7 +9,7 @@ from tqdm import tqdm
 os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
 iou_thresholds = [0.5]
-g_confidence_threshold = 0.25
+confidence_threshold = 0.25
 nms_iou_threshold = 0.5
 
 
@@ -61,7 +61,7 @@ def get_y_pred(y, target_class_index):
     for i in range(rows):
         for j in range(cols):
             confidence = y[i][j][0]
-            if confidence < 0.25:
+            if confidence < 0.001:
                 continue
 
             class_index = -1
@@ -170,7 +170,7 @@ def calc_ap(precisions, recalls):
 
 
 def calc_tp_fp_fn(y_true, y_pred, iou_threshold):
-    global g_confidence_threshold
+    global confidence_threshold
     for i in range(len(y_true)):
         y_true[i]['discard'] = False
     for i in range(len(y_pred)):
@@ -181,7 +181,7 @@ def calc_tp_fp_fn(y_true, y_pred, iou_threshold):
         for j in range(len(y_pred)):
             if y_pred[j]['discard'] or y_true[i]['class'] != y_pred[j]['class']:
                 continue
-            if y_pred[j]['confidence'] < g_confidence_threshold:
+            if y_pred[j]['confidence'] < confidence_threshold:
                 continue
             if iou(y_true[i]['bbox'], y_pred[j]['bbox']) > iou_threshold:
                 y_true[i]['discard'] = True
@@ -203,7 +203,7 @@ def calc_tp_fp_fn(y_true, y_pred, iou_threshold):
 
 
 def calc_ap_tp_fp_fn(y, label_lines, iou_threshold, target_class_index):
-    global g_confidence_threshold
+    global confidence_threshold
     y_true = get_y_true(label_lines, target_class_index)
     num_class_obj = len(y_true)
     if num_class_obj == 0:
@@ -240,14 +240,13 @@ def calc_ap_tp_fp_fn(y, label_lines, iou_threshold, target_class_index):
     y_pred = sorted(y_pred, key=lambda x: x['recall'])
     precisions = []
     recalls = []
+    ap = 0.0
     for i in range(len(y_pred)):
         precisions.append(y_pred[i]['precision'])
         recalls.append(y_pred[i]['recall'])
-    if len(precisions) == 0:
-        precisions.append(0.0)
-        recalls.append(0.0)
-    ap = calc_ap(precisions, recalls)
 
+    if len(y_pred) != 0:
+        ap = calc_ap(precisions, recalls)
     tp, fp, fn = calc_tp_fp_fn(y_true, y_pred, iou_threshold)
     return ap, tp, fp, fn, num_class_obj
 
