@@ -199,7 +199,6 @@ def calc_tp_fp_fn(y_true, y_pred, iou_threshold):
 
 
 def calc_ap_tp_fp_fn(y, label_lines, iou_threshold, target_class_index):
-    global confidence_threshold
     y_true = get_y_true(label_lines, target_class_index)
     num_class_obj = len(y_true)
     if num_class_obj == 0:
@@ -302,7 +301,10 @@ def calc_mean_average_precision(model_path, image_paths, class_names_file_path='
             cur_class_tp = tps[iou_index][class_index]
             cur_class_fp = fps[iou_index][class_index]
             cur_class_fn = fns[iou_index][class_index]
-            print(f'class {str(class_index):3s} ap : {cur_class_ap:.4f}, obj_count : {str(cur_class_obj_count):5s}, tp : {str(cur_class_tp):5s}, fp : {str(cur_class_fp):5s}, fn : {str(cur_class_fn):5s}')
+            cur_class_precision = cur_class_tp / (float(cur_class_tp + cur_class_fp) + 1e-5)
+            cur_class_recall = cur_class_tp / (float(cur_class_tp + cur_class_fn) + 1e-5)
+            cur_class_f1_score = 2.0 * (cur_class_precision * cur_class_recall) / (cur_class_precision + cur_class_recall)
+            print(f'class {str(class_index):3s} ap : {cur_class_ap:.4f}, obj_count : {str(cur_class_obj_count):6s}, tp : {str(cur_class_tp):6s}, fp : {str(cur_class_fp):6s}, fn : {str(cur_class_fn):6s}, precision : {cur_class_precision:.4f}, recall : {cur_class_recall:.4f}, f1 score : {cur_class_f1_score:.4f}')
         mean_ap = class_ap_sum / float(num_classes)
         mean_ap_sum += mean_ap
         print(f'mAP@{int(iou_threshold * 100)} : {mean_ap:.4f}\n')
@@ -310,13 +312,13 @@ def calc_mean_average_precision(model_path, image_paths, class_names_file_path='
 
 
 if __name__ == '__main__':
-    print(calc_mean_average_precision(
-        r'C:\inz\fixed_model\sbd\sbd_4680_epoch_28_loss_0.006669_val_loss_0.034237.h5',
-        glob(r'X:\lp_detection_validation\*.jpg'),
-        # glob(r'C:\inz\train_data\train_val_split\sbd\validation\*.jpg'),
-        class_names_file_path=r'C:\inz\train_data\lp_character_detection\lcd_b1\classes.txt'))
-
     # print(calc_mean_average_precision(
-    #     r'C:\inz\git\yolo-lab\checkpoints\loon\model_epoch_89_loss_2.2668_val_loss_4.9750_f1_0.9800_val_f1_0.8206.h5',
-    #     glob(r'C:\inz\train_data\loon_detection\*.jpg'),
-    #     class_names_file_path=r'C:\inz\train_data\loon_detection\classes.txt'))
+    #     r'C:\inz\fixed_model\sbd\sbd_4680_epoch_28_loss_0.006669_val_loss_0.034237.h5',
+    #     glob(r'X:\lp_detection_validation\*.jpg'),
+    #     # glob(r'C:\inz\train_data\train_val_split\sbd\validation\*.jpg'),
+    #     class_names_file_path=r'C:\inz\train_data\lp_character_detection\lcd_b1\classes.txt'))
+
+    print(calc_mean_average_precision(
+        r'C:\inz\fixed_model\lcd_b1\lcd_b1_model_epoch_76_f1_0.9938_val_f1_0.9032.h5',
+        glob(r'C:\inz\train_data\lp_character_detection\lcd_b1\*\*.jpg'),
+        class_names_file_path=r'C:\inz\train_data\loon_detection\classes.txt'))
