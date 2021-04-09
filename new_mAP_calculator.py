@@ -61,7 +61,7 @@ def get_y_pred(y, target_class_index):
     for i in range(rows):
         for j in range(cols):
             confidence = y[i][j][0]
-            if confidence < 0.005:
+            if confidence < 0.005:  # darknet yolo mAP confidence threshold value
                 continue
 
             class_index = -1
@@ -286,7 +286,7 @@ def calc_mean_average_precision(model_path, image_paths, class_names_file_path='
     fs = []
     for image_path in image_paths:
         fs.append(pool.submit(load_x_label_lines, image_path, color_mode, input_size, input_shape))
-        
+
     for f in tqdm(fs):
         x, label_lines = f.result()
         if x is None:
@@ -333,18 +333,18 @@ def calc_mean_average_precision(model_path, image_paths, class_names_file_path='
 
 
 if __name__ == '__main__':
-    print(calc_mean_average_precision(
-        r'C:\inz\fixed_model\sbd\sbd_4680_epoch_28_loss_0.006669_val_loss_0.034237.h5',
-        glob(r'X:\lp_detection_validation\*.jpg'),
-        # glob(r'C:\inz\train_data\train_val_split\sbd\validation\*.jpg'),
-        class_names_file_path=r'C:\inz\train_data\lp_character_detection\lcd_b1\classes.txt'))
+    # print(calc_mean_average_precision(
+    #     r'C:\inz\fixed_model\sbd\sbd_4680_epoch_28_loss_0.006669_val_loss_0.034237.h5',
+    #     # glob(r'X:\lp_detection_validation\*.jpg'),
+    #     glob(r'C:\inz\train_data\train_val_split\sbd\validation\*.jpg'),
+    #     class_names_file_path=r'C:\inz\train_data\lp_character_detection\lcd_b1\classes.txt'))
 
     # print(calc_mean_average_precision(
     #     r'C:\inz\fixed_model\lcd_b1\lcd_b1_model_epoch_76_f1_0.9938_val_f1_0.9032.h5',
     #     glob(r'C:\inz\train_data\lp_character_detection\lcd_b1\*\*.jpg'),
     #     class_names_file_path=r'C:\inz\train_data\loon_detection\classes.txt'))
 
-    # print(calc_mean_average_precision(
-    #     r'C:\inz\git\yolo-lab\checkpoints\loon\model_epoch_92_loss_2.1282_val_loss_4.8404_f1_0.9896_val_f1_0.8348.h5',
-    #     glob(r'C:\inz\train_data\loon_detection\*.jpg'),
-    #     class_names_file_path=r'C:\inz\train_data\loon_detection\classes.txt'))
+    print(calc_mean_average_precision(
+        r'C:\inz\git\yolo-lab\checkpoints\loon\model_epoch_92_loss_2.1282_val_loss_4.8404_f1_0.9896_val_f1_0.8348.h5',
+        glob(r'C:\inz\train_data\loon_detection\*.jpg'),
+        class_names_file_path=r'C:\inz\train_data\loon_detection\classes.txt'))
