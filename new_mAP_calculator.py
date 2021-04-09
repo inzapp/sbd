@@ -1,4 +1,5 @@
 import os
+from concurrent.futures import ThreadPoolExecutor
 from glob import glob
 
 import numpy as np
@@ -251,6 +252,20 @@ def predict_on_graph(__model, __x):
     return __model(__x, training=False)
 
 
+def load_x_label_lines(image_path, color_mode, input_size, input_shape):
+    label_path = f'{image_path[:-4]}.txt'
+    if not (os.path.exists(label_path) and os.path.isfile(label_path)):
+        return None, None
+    with open(label_path, mode='rt') as f:
+        label_lines = f.readlines()
+    if len(label_lines) == 0:
+        return None, None
+    x = cv2.imread(image_path, color_mode)
+    x = cv2.resize(x, input_size)
+    x = np.asarray(x).astype('float32').reshape((1,) + input_shape) / 255.0
+    return x, label_lines
+
+
 def calc_mean_average_precision(model_path, image_paths, class_names_file_path=''):
     global iou_thresholds
     model = tf.keras.models.load_model(model_path, compile=False)
@@ -266,17 +281,16 @@ def calc_mean_average_precision(model_path, image_paths, class_names_file_path='
     fps = np.zeros((len(iou_thresholds), num_classes), dtype=np.int32)
     fns = np.zeros((len(iou_thresholds), num_classes), dtype=np.int32)
 
-    for image_path in tqdm(image_paths):
-        label_path = f'{image_path[:-4]}.txt'
-        if not (os.path.exists(label_path) and os.path.isfile(label_path)):
+    pool = ThreadPoolExecutor(8)
+
+    fs = []
+    for image_path in image_paths:
+        fs.append(pool.submit(load_x_label_lines, image_path, color_mode, input_size, input_shape))
+        
+    for f in tqdm(fs):
+        x, label_lines = f.result()
+        if x is None:
             continue
-        with open(label_path, mode='rt') as f:
-            label_lines = f.readlines()
-        if len(label_lines) == 0:
-            continue
-        x = cv2.imread(image_path, color_mode)
-        x = cv2.resize(x, input_size)
-        x = np.asarray(x).astype('float32').reshape((1,) + input_shape) / 255.0
         y = np.asarray(predict_on_graph(model, x))[0]
 
         for iou_index, iou_threshold in enumerate(iou_thresholds):
