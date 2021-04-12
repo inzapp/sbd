@@ -10,7 +10,7 @@ from tqdm import tqdm
 os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
 iou_thresholds = [0.5]
-confidence_threshold = 0.15  # only for tp, fp, fn
+confidence_threshold = 0.25  # only for tp, fp, fn
 nms_iou_threshold = 0.45  # darknet yolo nms threshold value
 
 
@@ -241,7 +241,7 @@ def calc_ap_tp_fp_fn(y, label_lines, iou_threshold, target_class_index):
         precisions.append(y_pred[i]['precision'])
         recalls.append(y_pred[i]['recall'])
 
-    if len(y_pred) != 0:
+    if len(y_pred) > 0:
         ap = calc_ap(precisions, recalls)
     tp, fp, fn = calc_tp_fp_fn(y_true, y_pred, iou_threshold)
     return ap, tp, fp, fn, num_class_obj
@@ -266,7 +266,7 @@ def load_x_label_lines(image_path, color_mode, input_size, input_shape):
     return x, label_lines
 
 
-def calc_mean_average_precision(model_path, image_paths, class_names_file_path=''):
+def calc_mean_average_precision(model_path, image_paths):
     global iou_thresholds
     model = tf.keras.models.load_model(model_path, compile=False)
     input_shape = model.input_shape[1:]
@@ -333,18 +333,23 @@ def calc_mean_average_precision(model_path, image_paths, class_names_file_path='
 
 
 if __name__ == '__main__':
-    # print(calc_mean_average_precision(
-    #     r'C:\inz\fixed_model\sbd\sbd_4680_epoch_28_loss_0.006669_val_loss_0.034237.h5',
-    #     # glob(r'X:\lp_detection_validation\*.jpg'),
-    #     glob(r'C:\inz\train_data\train_val_split\sbd\validation\*.jpg'),
-    #     class_names_file_path=r'C:\inz\train_data\lp_character_detection\lcd_b1\classes.txt'))
+    avg_mAP = calc_mean_average_precision(
+        r'C:\inz\fixed_model\sbd\sbd_4680_epoch_28_loss_0.006669_val_loss_0.034237.h5',
+        glob(r'X:\lp_detection_validation\*.jpg'))
+    print(f'avg mAP : {avg_mAP:.4f}')
 
     # print(calc_mean_average_precision(
     #     r'C:\inz\fixed_model\lcd_b1\lcd_b1_model_epoch_76_f1_0.9938_val_f1_0.9032.h5',
-    #     glob(r'C:\inz\train_data\lp_character_detection\lcd_b1\*\*.jpg'),
-    #     class_names_file_path=r'C:\inz\train_data\loon_detection\classes.txt'))
+    #     glob(r'C:\inz\train_data\lp_character_detection\lcd_b1\*\*.jpg')))
 
-    print(calc_mean_average_precision(
-        r'C:\inz\git\yolo-lab\checkpoints\loon\model_epoch_92_loss_2.1282_val_loss_4.8404_f1_0.9896_val_f1_0.8348.h5',
-        glob(r'C:\inz\train_data\loon_detection\*.jpg'),
-        class_names_file_path=r'C:\inz\train_data\loon_detection\classes.txt'))
+    # print(calc_mean_average_precision(
+    #     r'C:\inz\git\yolo-lab\checkpoints\lcd_288_144\lcd_white_epoch_300_loss_0.4335_val_loss_5.3929.h5',
+    #     glob(r'C:\inz\train_data\lp_character_detection\lcd_white\*\*.jpg')))
+
+    # print(calc_mean_average_precision(
+    #     r'C:\inz\git\yolo-lab\checkpoints\person\person_detector_model_epoch_17_f1_0.5952_val_f1_0.1739.h5',
+    #     glob(r'X:\person_data_face_add\*.jpg')))
+
+    # print(calc_mean_average_precision(
+    #     r'C:\inz\git\yolo-lab\checkpoints\loon\model_epoch_92_loss_2.1282_val_loss_4.8404_f1_0.9896_val_f1_0.8348.h5',
+    #     glob(r'C:\inz\train_data\loon_detection\*.jpg')))
