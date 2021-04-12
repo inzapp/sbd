@@ -304,8 +304,8 @@ def calc_mean_average_precision(model_path, image_paths):
                     fps[iou_index][class_index] += fp
                     fns[iou_index][class_index] += fn
 
-    mean_ap_sum = 0.0
     f1_sum = 0.0
+    mean_ap_sum = 0.0
     for iou_index, iou_threshold in enumerate(iou_thresholds):
         class_ap_sum = 0.0
         class_f1_sum = 0.0
