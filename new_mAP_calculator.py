@@ -248,8 +248,8 @@ def calc_ap_tp_fp_fn(y, label_lines, iou_threshold, target_class_index):
 
 
 @tf.function
-def predict_on_graph(__model, __x):
-    return __model(__x, training=False)
+def predict_on_graph(model, x):
+    return model(x, training=False)
 
 
 def load_x_label_lines(image_path, color_mode, input_size, input_shape):
