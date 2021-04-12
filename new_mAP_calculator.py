@@ -321,8 +321,7 @@ def calc_mean_average_precision(model_path, image_paths):
             cur_class_recall = cur_class_tp / (float(cur_class_tp + cur_class_fn) + 1e-5)
             cur_class_f1 = 2.0 * (cur_class_precision * cur_class_recall) / (cur_class_precision + cur_class_recall)
             class_f1_sum += cur_class_f1
-            print(
-                f'class {str(class_index):3s} ap : {cur_class_ap:.4f}, obj_count : {str(cur_class_obj_count):6s}, tp : {str(cur_class_tp):6s}, fp : {str(cur_class_fp):6s}, fn : {str(cur_class_fn):6s}, precision : {cur_class_precision:.4f}, recall : {cur_class_recall:.4f}, f1 score : {cur_class_f1:.4f}')
+            print(f'class {str(class_index):3s} ap : {cur_class_ap:.4f}, obj_count : {str(cur_class_obj_count):6s}, tp : {str(cur_class_tp):6s}, fp : {str(cur_class_fp):6s}, fn : {str(cur_class_fn):6s}, precision : {cur_class_precision:.4f}, recall : {cur_class_recall:.4f}, f1 score : {cur_class_f1:.4f}')
         mean_ap = class_ap_sum / float(num_classes)
         mean_ap_sum += mean_ap
         avg_f1_score = class_f1_sum / float(num_classes)
