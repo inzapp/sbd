@@ -115,15 +115,29 @@ def get_y_pred(y, target_class_index):
 
 
 def calc_ap(precisions, recalls):
-    recall_check = np.asarray(list(range(100))).astype('float32') / 100.0
-    head_recall = list()
-    head_precision = list()
-    if recalls[0] > recall_check[0]:
-        head_precision.append(1.0)
-        head_recall.append(recall_check[0])
+    # recall_check = np.asarray(list(range(100))).astype('float32') / 100.0
+    # head_recall = list()
+    # head_precision = list()
+    # if recalls[0] > recall_check[0]:
+    #     head_precision.append(1.0)
+    #     head_recall.append(recall_check[0])
+    # precisions = head_precision + list(precisions)
+    # recalls = head_recall + list(recalls)
 
-    precisions = head_precision + list(precisions)
-    recalls = head_recall + list(recalls)
+    precisions = [1.0] + precisions
+    recalls = [0.0] + recalls
+
+    # print('\n\n')
+    # print(precisions)
+    # print(recalls)
+    # from matplotlib import pyplot as plt
+    # plt.figure()
+    # plt.step(recalls, precisions)
+    # plt.xlabel('Recall')
+    # plt.ylabel('Precision')
+    # plt.ylim([0.0, 1.1])
+    # plt.xlim([0.0, 1.1])
+    # plt.show()
 
     """
     interpolate precisions
@@ -153,6 +167,9 @@ def calc_ap(precisions, recalls):
     for i in range(len(precisions) - 1):
         ap += precisions[i] * (recalls[i + 1] - recalls[i])
 
+    # print('\n\n')
+    # print(precisions)
+    # print(recalls)
     # print(ap)
     # from matplotlib import pyplot as plt
     # plt.figure()
@@ -319,7 +336,7 @@ def calc_mean_average_precision(model_path, image_paths):
             cur_class_fn = fns[iou_index][class_index]
             cur_class_precision = cur_class_tp / (float(cur_class_tp + cur_class_fp) + 1e-5)
             cur_class_recall = cur_class_tp / (float(cur_class_tp + cur_class_fn) + 1e-5)
-            cur_class_f1 = 2.0 * (cur_class_precision * cur_class_recall) / (cur_class_precision + cur_class_recall)
+            cur_class_f1 = 2.0 * (cur_class_precision * cur_class_recall) / (cur_class_precision + cur_class_recall + 1e-5)
             class_f1_sum += cur_class_f1
             print(f'class {str(class_index):3s} ap : {cur_class_ap:.4f}, obj_count : {str(cur_class_obj_count):6s}, tp : {str(cur_class_tp):6s}, fp : {str(cur_class_fp):6s}, fn : {str(cur_class_fn):6s}, precision : {cur_class_precision:.4f}, recall : {cur_class_recall:.4f}, f1 score : {cur_class_f1:.4f}')
         mean_ap = class_ap_sum / float(num_classes)
@@ -332,14 +349,15 @@ def calc_mean_average_precision(model_path, image_paths):
 
 
 if __name__ == '__main__':
-    avg_mAP = calc_mean_average_precision(
-        r'C:\inz\fixed_model\sbd\sbd_4680_epoch_28_loss_0.006669_val_loss_0.034237.h5',
-        glob(r'X:\lp_detection_validation\*.jpg'))
-    print(f'avg mAP : {avg_mAP:.4f}')
+    # avg_mAP = calc_mean_average_precision(
+    #     r'C:\inz\fixed_model\sbd\sbd_4680_epoch_28_loss_0.006669_val_loss_0.034237.h5',
+    #     glob(r'X:\lp_detection_validation\*.jpg'))
+    # print(f'avg mAP : {avg_mAP:.4f}')
 
-    # print(calc_mean_average_precision(
-    #     r'C:\inz\fixed_model\lcd_b1\lcd_b1_model_epoch_76_f1_0.9938_val_f1_0.9032.h5',
-    #     glob(r'C:\inz\train_data\lp_character_detection\lcd_b1\*\*.jpg')))
+    avg_mAP = calc_mean_average_precision(
+        r'C:\inz\fixed_model\lcd_b1\lcd_b1_model_epoch_76_f1_0.9938_val_f1_0.9032.h5',
+        glob(r'C:\inz\train_data\lp_character_detection\lcd_b1\*\*.jpg'))
+    print(f'avg mAP : {avg_mAP:.4f}')
 
     # print(calc_mean_average_precision(
     #     r'C:\inz\git\yolo-lab\checkpoints\lcd_288_144\lcd_white_epoch_300_loss_0.4335_val_loss_5.3929.h5',
