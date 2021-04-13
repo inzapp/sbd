@@ -682,8 +682,29 @@ def find_only_car():
     #             break
 
 
+def test():
+    ps = [1.0, 1.0, 0.6, 0.7, 0.8, 0.8, 0.7, 0.8, 0.7, 0.5, 0.6, 0.6]
+    spp = list(sorted(list(set(ps)), reverse=True))  # [1.0, 0.8, 0.7, 0.6]
+    spp_ds = list()
+
+    inc = 0
+    for spp_val in spp:
+        for i in range(len(ps) - 1, 0):
+            if ps[i] == spp[inc]:
+                pass
+
+    inc = 0
+    for i in range(len(ps)):
+        if ps[i] == spp[inc]:
+            inc += 1
+        elif ps[i] < spp[inc]:
+            ps[i] = spp[inc]
+
+    print(ps)
+
+
 if __name__ == '__main__':
-    # compress_test()f
+    # compress_test()
     # test_loss()
     # bounding_box_test()
     # test_interpolation()
@@ -691,4 +712,4 @@ if __name__ == '__main__':
     # ccl()
     # cv2_load_test()
     # get_text_size_test()
-    find_only_car()
+    test()
