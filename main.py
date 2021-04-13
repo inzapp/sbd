@@ -58,14 +58,18 @@ if __name__ == '__main__':
 
     model = Yolo()
     model.fit(
-        train_image_path=r'C:\inz\train_data\lp_character_detection\lcd_b1',
-        model_name='v1_lcd_b1_192_384',
-        input_shape=(192, 384, 1),
+        train_image_path=r'X:\person_data_face_add\train',
+        validation_image_path=r'X:\person_data_face_add\validation',
+        model_name='v2_person_info_detector_192_96',
+        input_shape=(192, 96, 1),
         batch_size=2,
         lr=1e-3,
         epochs=300,
-        curriculum_epochs=0,
-        validation_split=0.2,
-        training_view=False,
+        curriculum_epochs=5,
+        validation_split=0.0,
+        training_view=True,
         mixed_float16_training=False,
-        use_map_callback=False)
+        use_map_callback=True)
+
+    # model = Yolo(pretrained_model_path=r'C:\inz\fixed_model\sbd\sbd_4680_epoch_28_loss_0.006669_val_loss_0.034237.h5')
+    # model.predict_images([r'C:\inz\truen_1.jpg'])
