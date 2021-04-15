@@ -65,10 +65,10 @@ if __name__ == '__main__':
         batch_size=2,
         lr=1e-3,
         epochs=300,
-        curriculum_epochs=5,
+        curriculum_epochs=3,
         validation_split=0.0,
         training_view=True,
-        mixed_float16_training=False,
+        mixed_float16_training=True,
         use_map_callback=True)
 
     # model = Yolo(pretrained_model_path=r'C:\inz\fixed_model\sbd\sbd_4680_epoch_28_loss_0.006669_val_loss_0.034237.h5')
