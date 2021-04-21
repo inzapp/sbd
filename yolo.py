@@ -42,15 +42,11 @@ class Yolo:
         self.__train_data_generator = YoloDataGenerator.empty()
         self.__validation_data_generator = YoloDataGenerator.empty()
         self.__live_view_previous_time = time()
-        # self.__callbacks = [
-        #     tf.keras.callbacks.ModelCheckpoint(
-        #         filepath='checkpoints/model_epoch_{epoch}_loss_{loss:.4f}_val_loss_{val_loss:.4f}.h5',
-        #         monitor='val_loss',
-        #         mode='min',
-        #         save_best_only=True)]
         self.__callbacks = []
         self.__max_mean_ap = 0.0
         self.__model_name = 'model'
+        self.__lr_scheduler_start_epoch = 20
+        self.__lr_scheduler_reduce_factor = 0.95
         if not (os.path.exists('checkpoints') and os.path.isdir('checkpoints')):
             os.makedirs('checkpoints', exist_ok=True)
         if os.path.exists(pretrained_model_path) and os.path.isfile(pretrained_model_path):
@@ -64,12 +60,15 @@ class Yolo:
             lr,
             epochs,
             model_name='model',
-            curriculum_epochs=5,
+            curriculum_epochs=10,
             validation_split=0.0,
             validation_image_path='',
             training_view=False,
             mixed_float16_training=False,
-            use_map_callback=False):
+            use_map_callback=False,
+            use_lr_scheduler=False,
+            lr_scheduler_start_epoch=20,
+            lr_scheduler_reduce_factor=0.95):
         num_classes = 0
         self.__input_shape = input_shape
         if len(self.__class_names) == 0:
@@ -95,6 +94,15 @@ class Yolo:
             self.__callbacks += [
                 tf.keras.callbacks.ModelCheckpoint(
                     filepath='checkpoints/' + model_name + '_epoch_{epoch}_loss_{loss:.4f}_val_loss_{val_loss:.4f}.h5')]
+
+        """
+        lr scheduler callback
+        """
+        if use_lr_scheduler:
+            self.__lr_scheduler_start_epoch = lr_scheduler_start_epoch
+            self.__lr_scheduler_reduce_factor = lr_scheduler_reduce_factor
+            self.__callbacks += [
+                tf.keras.callbacks.LearningRateScheduler(self.__lr_scheduler, 1)]
 
         self.__model.summary()
         self.__train_data_generator = YoloDataGenerator(
@@ -398,6 +406,15 @@ class Yolo:
         if mean_ap > self.__max_mean_ap:
             self.__max_mean_ap = mean_ap
             sh.copy('model.h5', f'checkpoints/{self.__model_name}_epoch_{epoch + 1}_val_mAP_{mean_ap:.4f}.h5')
+
+    def __lr_scheduler(self, epoch, lr):
+        """
+        Learning rate scheduler callback function.
+        """
+        if epoch < self.__lr_scheduler_start_epoch:
+            return lr
+        else:
+            return lr * self.__lr_scheduler_reduce_factor
 
     @tf.function
     def __predict_on_graph(self, model, x):

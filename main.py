@@ -56,20 +56,23 @@ if __name__ == '__main__':
         False if training is on a server system without IO equipment.
     """
 
-    model = Yolo()
+    model = Yolo(pretrained_model_path=r'C:\inz\git\yolo-lab\checkpoints\v2_person_info_detector_192_96_epoch_57_val_mAP_0.2341.h5')
     model.fit(
-        train_image_path=r'X:\person_data_face_add\train',
-        validation_image_path=r'X:\person_data_face_add\validation',
+        train_image_path=r'X:\person\face_helmet_added\train',
+        validation_image_path=r'X:\person\face_helmet_added\validation',
         model_name='v2_person_info_detector_192_96',
         input_shape=(192, 96, 1),
         batch_size=2,
-        lr=1e-3,
+        lr=5e-4,
         epochs=300,
-        curriculum_epochs=3,
+        curriculum_epochs=0,
         validation_split=0.0,
         training_view=True,
         mixed_float16_training=True,
-        use_map_callback=True)
+        use_map_callback=True,
+        use_lr_scheduler=True,
+        lr_scheduler_start_epoch=1,
+        lr_scheduler_reduce_factor=0.95)
 
     # model = Yolo(pretrained_model_path=r'C:\inz\fixed_model\sbd\sbd_4680_epoch_28_loss_0.006669_val_loss_0.034237.h5')
     # model.predict_images([r'C:\inz\truen_1.jpg'])
