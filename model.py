@@ -86,7 +86,7 @@ class Model:
         return tf.keras.models.Model(input_layer, x)
 
     # input_shape=(192, 384, 1)
-    def __build_lcd_cv2(self):
+    def __build_lightnet(self):
         input_layer = tf.keras.layers.Input(shape=self.__input_shape)
         x = self.__conv_block(16, 3, input_layer, True)
         x = self.__conv_block(32, 3, x, True)
@@ -141,50 +141,81 @@ class Model:
         x = self.__point_wise_conv(self.__output_channel, x)
         return tf.keras.models.Model(input_layer, x)
 
-    def __darknet_53(self):
+    def __darknet_19(self):
+        if self.__input_shape[0] < 224 and self.__input_shape[1] < 224:
+            print('[ERROR] minimum input size of darknet 19 is (224, 224). consider using smaller networks to train images of smaller sizes.')
+            exit(-1)
+
         input_layer = tf.keras.layers.Input(shape=self.__input_shape)
-        x = self.__conv_blocks(1, 32, 3, input_layer, False)
+        x = self.__conv_block(32, 3, input_layer, True)
+        x = self.__conv_block(64, 3, x, True)
+
+        x = self.__conv_block(128, 3, x)
+        x = self.__conv_block(64, 1, x)
+        x = self.__conv_block(128, 3, x, True)
+
+        x = self.__conv_block(256, 3, x)
+        x = self.__conv_block(128, 1, x)
+        x = self.__conv_block(256, 3, x, True)
+
+        x = self.__conv_block(512, 3, x)
+        x = self.__conv_block(256, 1, x)
+        x = self.__conv_block(512, 3, x)
+        x = self.__conv_block(256, 1, x)
+        x = self.__conv_block(512, 3, x, True)
+
+        x = self.__conv_block(1024, 3, x)
+        x = self.__conv_block(512, 1, x)
+        x = self.__conv_block(1024, 3, x)
+        x = self.__conv_block(512, 1, x)
+        x = self.__conv_block(1024, 3, x)
+
+        x = self.__point_wise_conv(self.__output_channel, x)
+        return tf.keras.models.Model(input_layer, x)
+
+    def __darknet_53(self):
+        if self.__input_shape[0] < 224 and self.__input_shape[1] < 224:
+            print('[ERROR] minimum input size of darknet 53 is (224, 224). consider using smaller networks to train images of smaller sizes.')
+            exit(-1)
+
+        input_layer = tf.keras.layers.Input(shape=self.__input_shape)
+        x = self.__conv_blocks(1, 32, 3, input_layer)
         x = self.__conv_blocks(1, 64, 3, x, True)
         skip_connection = x
 
-        # residual block 1
-        x = self.__conv_blocks(1, 32, 1, x, False)
-        x = self.__conv_blocks(1, 64, 3, x, False)
+        x = self.__conv_blocks(1, 32, 1, x)
+        x = self.__conv_blocks(1, 64, 3, x)
         x = tf.keras.layers.Add()([skip_connection, x])
         x = self.__conv_blocks(1, 128, 3, x, True)
         skip_connection = x
 
-        # residual block 2
         for _ in range(2):
-            x = self.__conv_blocks(1, 64, 1, x, False)
-            x = self.__conv_blocks(1, 128, 3, x, False)
+            x = self.__conv_blocks(1, 64, 1, x)
+            x = self.__conv_blocks(1, 128, 3, x)
             x = tf.keras.layers.Add()([skip_connection, x])
             skip_connection = x
         x = self.__conv_blocks(1, 256, 3, x, True)
         skip_connection = x
 
-        # residual block 3
         for _ in range(8):
-            x = self.__conv_blocks(1, 128, 1, x, False)
-            x = self.__conv_blocks(1, 256, 3, x, False)
+            x = self.__conv_blocks(1, 128, 1, x)
+            x = self.__conv_blocks(1, 256, 3, x)
             x = tf.keras.layers.Add()([skip_connection, x])
             skip_connection = x
         x = self.__conv_blocks(1, 512, 3, x, True)
         skip_connection = x
 
-        # residual block 3
         for _ in range(4):
-            x = self.__conv_blocks(1, 256, 1, x, False)
-            x = self.__conv_blocks(1, 512, 3, x, False)
+            x = self.__conv_blocks(1, 256, 1, x)
+            x = self.__conv_blocks(1, 512, 3, x)
             x = tf.keras.layers.Add()([skip_connection, x])
             skip_connection = x
         x = self.__conv_blocks(1, 1024, 3, x, True)
         skip_connection = x
 
-        # residual block 4
         for _ in range(4):
-            x = self.__conv_blocks(1, 512, 1, x, False)
-            x = self.__conv_blocks(1, 1024, 3, x, False)
+            x = self.__conv_blocks(1, 512, 1, x)
+            x = self.__conv_blocks(1, 1024, 3, x)
             x = tf.keras.layers.Add()([skip_connection, x])
             skip_connection = x
 
