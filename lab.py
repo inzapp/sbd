@@ -893,6 +893,38 @@ def view_boxed_image():
     cv2.waitKey(0)
 
 
+def index_test():
+    dims = [3, 5, 2]
+
+    n = 1
+    for dim in dims:
+        n *= dim
+
+    a = np.arange(n).astype('int32')
+    for i in range(dims[0]):
+        for j in range(dims[1]):
+            for k in range(dims[2]):
+                index = i * dims[1] * dims[2]
+                index += j * dims[2]
+                index += k
+                print(a[index])
+    pass
+
+
+def model_summary():
+    model = tf.keras.models.load_model(r'C:\inz\git\yolo-lab\checkpoints\person\v2_2ms_person_info_detector_192_96_epoch_284_val_mAP_0.2530.h5', compile=False)
+    model.summary()
+
+
+def lr_test():
+    lr = 0.001
+    for i in range(400):
+        lr *= 0.98
+        print(f'{i + 1} : {lr:.6f}')
+        pass
+    pass
+
+
 if __name__ == '__main__':
     # compress_test()
     # test_loss()
@@ -902,4 +934,4 @@ if __name__ == '__main__':
     # ccl()
     # cv2_load_test()
     # get_text_size_test()
-    view_boxed_image()
+    lr_test()

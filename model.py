@@ -54,22 +54,51 @@ class Model:
         return tf.keras.models.Model(input_layer, x)
 
     # input_shape=(128, 64, 1) or input_shape=(192, 96, 1)
+    # def __build_person_info_detector(self):
+    #     input_layer = tf.keras.layers.Input(shape=self.__input_shape)
+    #     x = self.__conv_block(8, 3, input_layer, True)
+    #     x = self.__conv_block(16, 3, x, True)
+    #     x = self.__conv_block(32, 3, x, True)
+    #
+    #     x = self.__conv_block(64, 3, x)
+    #     x = self.__conv_block(64, 3, x)
+    #     x = self.__conv_block(64, 3, x, True)
+    #     sc = x
+    #
+    #     x = self.__conv_block(128, 3, x)
+    #     x = self.__conv_block(128, 3, x)
+    #     x = self.__conv_block(128, 3, x)
+    #
+    #     x = tf.keras.layers.Concatenate()([x, sc])
+    #     x = self.__point_wise_conv(self.__output_channel, x)
+    #     return tf.keras.models.Model(input_layer, x)
+
+    # input_shape=(128, 64, 1) or input_shape=(192, 96, 1)
     def __build_person_info_detector(self):
         input_layer = tf.keras.layers.Input(shape=self.__input_shape)
         x = self.__conv_block(8, 3, input_layer, True)
         x = self.__conv_block(16, 3, x, True)
         x = self.__conv_block(32, 3, x, True)
-
-        x = self.__conv_block(64, 3, x)
-        x = self.__conv_block(64, 3, x)
         x = self.__conv_block(64, 3, x, True)
-        sc = x
-
-        x = self.__conv_block(128, 3, x)
-        x = self.__conv_block(128, 3, x)
         x = self.__conv_block(128, 3, x)
 
-        x = tf.keras.layers.Concatenate()([x, sc])
+        x = self.__conv_block(64, 1, x)
+        x = self.__conv_block(128, 3, x)
+        sc_1 = x
+
+        x = self.__conv_block(64, 1, x)
+        x = self.__conv_block(128, 3, x)
+        sc_2 = x
+
+        x = self.__conv_block(64, 1, x)
+        x = self.__conv_block(128, 3, x)
+        sc_3 = x
+
+        x = self.__conv_block(64, 1, x)
+        x = self.__conv_block(128, 3, x)
+        sc_4 = x
+
+        x = tf.keras.layers.Concatenate()([sc_1, sc_2, sc_3, sc_4])
         x = self.__point_wise_conv(self.__output_channel, x)
         return tf.keras.models.Model(input_layer, x)
 

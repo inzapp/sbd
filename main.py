@@ -56,23 +56,24 @@ if __name__ == '__main__':
         False if training is on a server system without IO equipment.
     """
 
-    model = Yolo(pretrained_model_path=r'C:\inz\git\yolo-lab\checkpoints\v2_person_info_detector_192_96_epoch_57_val_mAP_0.2341.h5')
+    model = Yolo()
     model.fit(
         train_image_path=r'X:\person\face_helmet_added\train',
         validation_image_path=r'X:\person\face_helmet_added\validation',
-        model_name='v2_person_info_detector_192_96',
+        model_name='sgd_v2_person_info_detector_192_96',
         input_shape=(192, 96, 1),
         batch_size=2,
         lr=1e-3,
-        epochs=300,
-        curriculum_epochs=10,
+        epochs=500,
+        curriculum_epochs=5,
         validation_split=0.0,
         training_view=True,
         mixed_float16_training=True,
         use_map_callback=True,
         use_lr_scheduler=True,
-        lr_scheduler_start_epoch=1,
-        lr_scheduler_reduce_factor=0.95)
+        lr_scheduler_start_epoch=100,
+        lr_scheduler_reduce_factor=0.98)
 
-    # model = Yolo(pretrained_model_path=r'C:\inz\fixed_model\sbd\sbd_4680_epoch_28_loss_0.006669_val_loss_0.034237.h5')
-    # model.predict_images([r'C:\inz\truen_1.jpg'])
+    # from glob import glob
+    # model = Yolo(pretrained_model_path=r'C:\inz\git\yolo-lab\checkpoints\v2_person_info_detector_192_96_epoch_19_val_mAP_0.2353.h5', class_names_file_path=r'X:\person\face_helmet_added\validation\classes.txt')
+    # model.predict_images(glob(r'X:\person\face_helmet_added\validation\*.jpg'))

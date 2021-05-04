@@ -120,7 +120,8 @@ class Yolo:
             """
             Confidence curriculum training
             """
-            optimizer = tf.keras.optimizers.Adam(lr=lr)
+            # optimizer = tf.keras.optimizers.Adam(lr=lr)
+            optimizer = tf.keras.optimizers.SGD(lr=lr, momentum=0.9, nesterov=True)
             if mixed_float16_training:
                 optimizer = mixed_precision.LossScaleOptimizer(optimizer=optimizer, loss_scale='dynamic')
             self.__model.compile(
@@ -140,7 +141,8 @@ class Yolo:
             """
             Confidence and bbox curriculum training
             """
-            optimizer = tf.keras.optimizers.Adam(lr=lr)
+            # optimizer = tf.keras.optimizers.Adam(lr=lr)
+            optimizer = tf.keras.optimizers.SGD(lr=lr, momentum=0.9, nesterov=True)
             if mixed_float16_training:
                 optimizer = mixed_precision.LossScaleOptimizer(optimizer=optimizer, loss_scale='dynamic')
             self.__model.compile(
@@ -157,7 +159,8 @@ class Yolo:
             self.__model = tf.keras.models.load_model(tmp_model_name, compile=False)
             os.remove(tmp_model_name)
 
-        optimizer = tf.keras.optimizers.Adam(lr=lr)
+        # optimizer = tf.keras.optimizers.Adam(lr=lr)
+        optimizer = tf.keras.optimizers.SGD(lr=lr, momentum=0.9, nesterov=True)
         if mixed_float16_training:
             optimizer = mixed_precision.LossScaleOptimizer(optimizer=optimizer, loss_scale='dynamic')
         self.__model.compile(

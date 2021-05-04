@@ -354,18 +354,14 @@ if __name__ == '__main__':
     #     glob(r'X:\lp_detection_validation\*.jpg'))
     # print(f'avg mAP : {avg_mAP:.4f}')
 
-    avg_mAP = calc_mean_average_precision(
-        r'C:\inz\fixed_model\lcd_b1\lcd_b1_model_epoch_76_f1_0.9938_val_f1_0.9032.h5',
-        glob(r'C:\inz\train_data\lp_character_detection\lcd_b1\*\*.jpg'))
-    print(f'avg mAP : {avg_mAP:.4f}')
+    # avg_mAP = calc_mean_average_precision(
+    #     r'C:\inz\fixed_model\lcd_b1\lcd_b1_model_epoch_76_f1_0.9938_val_f1_0.9032.h5',
+    #     glob(r'C:\inz\train_data\lp_character_detection\lcd_b1\*\*.jpg'))
+    # print(f'avg mAP : {avg_mAP:.4f}')
 
-    # print(calc_mean_average_precision(
-    #     r'C:\inz\git\yolo-lab\checkpoints\lcd_288_144\lcd_white_epoch_300_loss_0.4335_val_loss_5.3929.h5',
-    #     glob(r'C:\inz\train_data\lp_character_detection\lcd_white\*\*.jpg')))
-
-    # print(calc_mean_average_precision(
-    #     r'C:\inz\git\yolo-lab\checkpoints\person\person_detector_model_epoch_17_f1_0.5952_val_f1_0.1739.h5',
-    #     glob(r'X:\person_data_face_add\*.jpg')))
+    print(calc_mean_average_precision(
+        r'C:\inz\git\yolo-lab\checkpoints\v2_person_info_detector_192_96_epoch_19_val_mAP_0.2353.h5',
+        glob(r'X:\person\face_helmet_added\validation\*.jpg')))
 
     # print(calc_mean_average_precision(
     #     r'C:\inz\git\yolo-lab\checkpoints\loon\model_epoch_92_loss_2.1282_val_loss_4.8404_f1_0.9896_val_f1_0.8348.h5',
