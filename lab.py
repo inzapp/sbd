@@ -923,20 +923,13 @@ def color_regression():
         cv2.imshow('img', img)
         cv2.imshow('x', x)
         cv2.waitKey(0)
+
+
+def color_saver():
+    from glob import glob
+    for path in glob(r'C:\inz\train_data\car_color_regression\*.jpg'):
+        img = cv2.imread(path, cv2.IMREAD_COLOR)
         pass
-    # img = cv2.imread(r'X:\person\face_helmet_added\validation\20210217_204853_person_3.jpg', cv2.IMREAD_COLOR)
-    # x = np.moveaxis(img, -1, 0)
-    # print(x.shape)
-    # input('a')
-    # x = np.asarray(img).reshape(-1) / 255.0
-    # s = 0
-    # for v in x:
-    #     s += v
-    # s /= len(x)
-    # a = np.asarray([s, s, s]) * 255.0
-    # a = np.clip(a, 0.0, 255.0).astype('uint8')
-    #
-    # cv2.imshow('a', a)
 
 
 if __name__ == '__main__':
