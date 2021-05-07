@@ -360,7 +360,7 @@ if __name__ == '__main__':
     # print(f'avg mAP : {avg_mAP:.4f}')
 
     print(calc_mean_average_precision(
-        r'C:\inz\git\yolo-lab\checkpoints\v2_person_info_detector_192_96_epoch_19_val_mAP_0.2353.h5',
+        r'C:\inz\git\yolo-lab\checkpoints\sgd_v2_person_info_detector_192_96_epoch_23_val_mAP_0.2522.h5',
         glob(r'X:\person\face_helmet_added\validation\*.jpg')))
 
     # print(calc_mean_average_precision(

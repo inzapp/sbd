@@ -58,22 +58,22 @@ if __name__ == '__main__':
 
     model = Yolo()
     model.fit(
-        train_image_path=r'X:\person\face_helmet_added\train',
-        validation_image_path=r'X:\person\face_helmet_added\validation',
-        model_name='sgd_v2_person_info_detector_192_96',
+        train_image_path=r'X:\person\4_class_merged\train',
+        validation_image_path=r'X:\person\4_class_merged\validation',
+        model_name='new_loss_person_3_class_192_96',
         input_shape=(192, 96, 1),
         batch_size=2,
         lr=1e-3,
         epochs=500,
-        curriculum_epochs=5,
+        curriculum_epochs=0,
         validation_split=0.0,
         training_view=True,
         mixed_float16_training=True,
         use_map_callback=True,
         use_lr_scheduler=True,
-        lr_scheduler_start_epoch=100,
+        lr_scheduler_start_epoch=150,
         lr_scheduler_reduce_factor=0.98)
 
     # from glob import glob
-    # model = Yolo(pretrained_model_path=r'C:\inz\git\yolo-lab\checkpoints\v2_person_info_detector_192_96_epoch_19_val_mAP_0.2353.h5', class_names_file_path=r'X:\person\face_helmet_added\validation\classes.txt')
-    # model.predict_images(glob(r'X:\person\face_helmet_added\validation\*.jpg'))
+    # model = Yolo(pretrained_model_path=r'C:\inz\git\yolo-lab\checkpoints\sgd_v2_person_info_detector_192_96_epoch_23_val_mAP_0.2522.h5', class_names_file_path=r'X:\person\face_helmet_added\validation\classes.txt')
+    # model.predict_images([r'C:\inz\detail_96_192_1.jpg'])

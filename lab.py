@@ -893,45 +893,51 @@ def view_boxed_image():
     cv2.waitKey(0)
 
 
-def index_test():
-    dims = [3, 5, 2]
-
-    n = 1
-    for dim in dims:
-        n *= dim
-
-    a = np.arange(n).astype('int32')
-    for i in range(dims[0]):
-        for j in range(dims[1]):
-            for k in range(dims[2]):
-                index = i * dims[1] * dims[2]
-                index += j * dims[2]
-                index += k
-                print(a[index])
-    pass
-
-
 def model_summary():
     model = tf.keras.models.load_model(r'C:\inz\git\yolo-lab\checkpoints\person\v2_2ms_person_info_detector_192_96_epoch_284_val_mAP_0.2530.h5', compile=False)
     model.summary()
 
 
-def lr_test():
-    lr = 0.001
-    for i in range(400):
-        lr *= 0.98
-        print(f'{i + 1} : {lr:.6f}')
+def model_forward():
+    from yolo import Yolo
+    from glob import glob
+    model = Yolo(pretrained_model_path=r'C:\inz\git\yolo-lab\checkpoints\sgd_v2_person_info_detector_192_96_epoch_23_val_mAP_0.2522.h5', class_names_file_path=r'X:\person\face_helmet_added\validation\classes.txt')
+    # model.predict_images([r'C:\inz\detail_96_192_1.jpg'])
+    model.predict_images(glob(r'X:\person\face_helmet_added\validation\*.jpg'))
+
+
+def color_regression():
+    from glob import glob
+    for path in glob(r'C:\inz\train_data\car_color_regression\*.jpg'):
+        img = cv2.imread(path, cv2.IMREAD_COLOR)
+        img = cv2.resize(img, (128, 128), interpolation=cv2.INTER_AREA)
+
+        x = np.moveaxis(img, -1, 0)
+        x = np.mean(x, axis=-1)
+        x = np.mean(x, axis=-1)
+        x = x.reshape((1, 1, 3)).astype('uint8')
+        x = cv2.resize(x, (128, 128))
+        print(path)
+        print(x)
+        print()
+        cv2.imshow('img', img)
+        cv2.imshow('x', x)
+        cv2.waitKey(0)
         pass
-    pass
+    # img = cv2.imread(r'X:\person\face_helmet_added\validation\20210217_204853_person_3.jpg', cv2.IMREAD_COLOR)
+    # x = np.moveaxis(img, -1, 0)
+    # print(x.shape)
+    # input('a')
+    # x = np.asarray(img).reshape(-1) / 255.0
+    # s = 0
+    # for v in x:
+    #     s += v
+    # s /= len(x)
+    # a = np.asarray([s, s, s]) * 255.0
+    # a = np.clip(a, 0.0, 255.0).astype('uint8')
+    #
+    # cv2.imshow('a', a)
 
 
 if __name__ == '__main__':
-    # compress_test()
-    # test_loss()
-    # bounding_box_test()
-    # test_interpolation()
-
-    # ccl()
-    # cv2_load_test()
-    # get_text_size_test()
-    lr_test()
+    color_regression()

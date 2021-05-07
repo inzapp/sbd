@@ -38,6 +38,7 @@ class Model:
         # return self.__darknet_53()
         # return self.__build_loon_detector()
         return self.__build_person_info_detector()
+        # return self.__build_loon_detector()
         # return self.__build_lcd()
         # return self.__build_lcd_cv2()
         # return self.__build_sbd()
@@ -59,17 +60,26 @@ class Model:
     #     x = self.__conv_block(8, 3, input_layer, True)
     #     x = self.__conv_block(16, 3, x, True)
     #     x = self.__conv_block(32, 3, x, True)
-    #
-    #     x = self.__conv_block(64, 3, x)
-    #     x = self.__conv_block(64, 3, x)
     #     x = self.__conv_block(64, 3, x, True)
-    #     sc = x
-    #
-    #     x = self.__conv_block(128, 3, x)
-    #     x = self.__conv_block(128, 3, x)
     #     x = self.__conv_block(128, 3, x)
     #
-    #     x = tf.keras.layers.Concatenate()([x, sc])
+    #     x = self.__conv_block(64, 1, x)
+    #     x = self.__conv_block(128, 3, x)
+    #     sc_1 = x
+    #
+    #     x = self.__conv_block(64, 1, x)
+    #     x = self.__conv_block(128, 3, x)
+    #     sc_2 = x
+    #
+    #     x = self.__conv_block(64, 1, x)
+    #     x = self.__conv_block(128, 3, x)
+    #     sc_3 = x
+    #
+    #     x = self.__conv_block(64, 1, x)
+    #     x = self.__conv_block(128, 3, x)
+    #     sc_4 = x
+    #
+    #     x = tf.keras.layers.Concatenate()([sc_1, sc_2, sc_3, sc_4])
     #     x = self.__point_wise_conv(self.__output_channel, x)
     #     return tf.keras.models.Model(input_layer, x)
 
@@ -82,19 +92,19 @@ class Model:
         x = self.__conv_block(64, 3, x, True)
         x = self.__conv_block(128, 3, x)
 
-        x = self.__conv_block(64, 1, x)
+        x = self.__conv_block(128, 3, x)
         x = self.__conv_block(128, 3, x)
         sc_1 = x
 
-        x = self.__conv_block(64, 1, x)
+        x = self.__conv_block(128, 3, x)
         x = self.__conv_block(128, 3, x)
         sc_2 = x
 
-        x = self.__conv_block(64, 1, x)
+        x = self.__conv_block(128, 3, x)
         x = self.__conv_block(128, 3, x)
         sc_3 = x
 
-        x = self.__conv_block(64, 1, x)
+        x = self.__conv_block(128, 3, x)
         x = self.__conv_block(128, 3, x)
         sc_4 = x
 
@@ -110,18 +120,6 @@ class Model:
         x = self.__conv_block(64, 3, x, True)
         x = self.__conv_block(128, 3, x, True)
         x = self.__conv_block(256, 3, x)
-        x = self.__conv_block(512, 3, x)
-        x = self.__point_wise_conv(self.__output_channel, x)
-        return tf.keras.models.Model(input_layer, x)
-
-    # input_shape=(192, 384, 1)
-    def __build_lightnet(self):
-        input_layer = tf.keras.layers.Input(shape=self.__input_shape)
-        x = self.__conv_block(16, 3, input_layer, True)
-        x = self.__conv_block(32, 3, x, True)
-        x = self.__conv_block(64, 3, x, True)
-        x = self.__conv_block(128, 3, x, True)
-        x = self.__conv_block(256, 3, x, True)
         x = self.__conv_block(512, 3, x)
         x = self.__point_wise_conv(self.__output_channel, x)
         return tf.keras.models.Model(input_layer, x)
