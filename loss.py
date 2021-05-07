@@ -26,7 +26,8 @@ class ConfidenceLoss(tf.keras.losses.Loss):
     This loss function is used to reduce the loss of the confidence channel with some epochs before training begins.
     """
 
-    def __init__(self):
+    def __init__(self, no_obj=0.5):
+        self.no_obj = no_obj
         super(ConfidenceLoss, self).__init__()
 
     def call(self, y_true, y_pred):
@@ -43,8 +44,23 @@ class ConfidenceLoss(tf.keras.losses.Loss):
         The larger the output grid size, the worse this will be.
         
         We recommend using pre confidence train because experimentally demonstrates that it is better to use it.
+        
+        TODO : 수정필요
+        TODO : 수정필요
+        TODO : 수정필요
+        TODO : 수정필요
+        TODO : 수정필요
+        TODO : 수정필요
+        TODO : 수정필요
+        TODO : 수정필요
+        TODO : 수정필요
         """
-        return tf.reduce_sum(tf.square(y_true[:, :, :, 0] - y_pred[:, :, :, 0]))
+        obj_true = y_true[:, :, :, 0]
+        obj_pred = y_pred[:, :, :, 0]
+        obj_false = tf.ones(shape=tf.shape(obj_true)) - obj_true
+        obj_confidence_loss = tf.reduce_sum(tf.square(obj_true - (obj_pred * obj_true)))
+        no_obj_confidence_loss = tf.reduce_sum(tf.square((obj_pred * obj_false) - tf.zeros(shape=tf.shape(obj_true)))) * self.no_obj
+        return obj_confidence_loss + no_obj_confidence_loss
 
 
 class ConfidenceWithBoundingBoxLoss(tf.keras.losses.Loss):
