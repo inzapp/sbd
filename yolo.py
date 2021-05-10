@@ -275,7 +275,7 @@ class Yolo:
             if res[i]['discard']:
                 continue
             for j in range(len(res)):
-                if i == j or res[j]['discard']:
+                if i == j or res[j]['discard'] or res[i]['class'] != res[j]['class']:
                     continue
                 if self.__iou(res[i]['bbox'], res[j]['bbox']) > nms_iou_threshold:
                     if res[i]['confidence'] >= res[j]['confidence']:
