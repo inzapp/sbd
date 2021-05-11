@@ -37,11 +37,11 @@ class Model:
         # return self.__vgg_19()
         # return self.__darknet_53()
         # return self.__build_loon_detector()
-        return self.__build_person_info_detector()
+        # return self.__build_person_info_detector()
         # return self.__build_loon_detector()
         # return self.__build_lcd()
         # return self.__build_lcd_cv2()
-        # return self.__build_sbd()
+        return self.__build_sbd()
 
     # just for testing
     def __build_loon_detector(self):
@@ -128,11 +128,19 @@ class Model:
     def __build_sbd(self):
         input_layer = tf.keras.layers.Input(shape=self.__input_shape)
         x = tf.keras.layers.Conv2D(
-            filters=16,
+            filters=8,
             kernel_size=3,
             kernel_initializer='he_uniform',
             padding='same',
             activation='relu')(input_layer)
+        x = tf.keras.layers.BatchNormalization()(x)
+        x = tf.keras.layers.MaxPool2D()(x)
+        x = tf.keras.layers.Conv2D(
+            filters=16,
+            kernel_size=3,
+            kernel_initializer='he_uniform',
+            padding='same',
+            activation='relu')(x)
         x = tf.keras.layers.BatchNormalization()(x)
         x = tf.keras.layers.MaxPool2D()(x)
         x = tf.keras.layers.Conv2D(
@@ -150,16 +158,8 @@ class Model:
             padding='same',
             activation='relu')(x)
         x = tf.keras.layers.BatchNormalization()(x)
-        x = tf.keras.layers.MaxPool2D()(x)
         x = tf.keras.layers.Conv2D(
             filters=128,
-            kernel_size=3,
-            kernel_initializer='he_uniform',
-            padding='same',
-            activation='relu')(x)
-        x = tf.keras.layers.BatchNormalization()(x)
-        x = tf.keras.layers.Conv2D(
-            filters=256,
             kernel_size=3,
             kernel_initializer='he_uniform',
             padding='same',
