@@ -30,7 +30,6 @@ from box_colors import colors
 from generator import YoloDataGenerator
 from loss import YoloLoss, ConfidenceLoss, ConfidenceWithBoundingBoxLoss
 from mAP_calculator import calc_mean_average_precision
-from metrics import precision, recall, f1
 from model import Model
 
 
