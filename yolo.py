@@ -165,8 +165,7 @@ class Yolo:
             optimizer = mixed_precision.LossScaleOptimizer(optimizer=optimizer, loss_scale='dynamic')
         self.__model.compile(
             optimizer=optimizer,
-            loss=YoloLoss(),
-            metrics=[precision, recall, f1])
+            loss=YoloLoss())
         print(f'\ntrain on {len(self.__train_data_generator.train_image_paths)} samples.')
         if os.path.exists(validation_image_path) and os.path.isdir(validation_image_path):
             """
