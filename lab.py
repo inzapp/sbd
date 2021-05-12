@@ -471,7 +471,7 @@ def color_regression():
 
 
 def save_test():
-    confidence_threshold = 0.25
+    confidence_threshold = 0.15
     model_path = r'C:\inz\git\yolo-lab\checkpoints\person\person_3_class_192_96_epoch_182_val_mAP_0.7454.h5'
     classes_txt_path = r'X:\person\3_class_merged\train\classes.txt'
     image_path = r'X:\person\3_class_merged\validation'
@@ -523,6 +523,8 @@ def save_test():
                 x2 = cx + width / 2.0
                 y2 = cy + height / 2.0
 
+                x1, y1, x2, y2 = np.clip(np.array([x1, y1, x2, y2]), 0.0, 1.0)
+
                 x1 = int(x1 * raw_width)
                 y1 = int(y1 * raw_height)
                 x2 = int(x2 * raw_width)
@@ -541,7 +543,7 @@ def save_test():
                     os.makedirs(class_dir_path, exist_ok=True)
 
                 class_image = raw[y1:y2, x1:x2]
-                raw_file_name = path.split('/')[-1][:-4]
+                raw_file_name = path.replace('\\', '/').split('/')[-1][:-4]
                 cv2.imwrite(f'{class_dir_path}/{raw_file_name}_{inc}.jpg', class_image)
                 inc += 1
 
