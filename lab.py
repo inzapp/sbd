@@ -18,9 +18,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+import os
+from glob import glob
+
 import numpy as np
 import tensorflow as tf
 from cv2 import cv2
+from tqdm import tqdm
+
+os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
 
 def main():
@@ -464,5 +470,81 @@ def color_regression():
         cv2.waitKey(0)
 
 
+def save_test():
+    confidence_threshold = 0.25
+    model_path = r'C:\inz\git\yolo-lab\checkpoints\person\person_3_class_192_96_epoch_182_val_mAP_0.7454.h5'
+    classes_txt_path = r'X:\person\3_class_merged\train\classes.txt'
+    image_path = r'X:\person\3_class_merged\validation'
+    save_path = r'C:\inz\etc\tmp'
+
+    model = tf.keras.models.load_model(model_path, compile=False)
+    input_shape = model.input_shape
+    input_height, input_width, input_channels = input_shape[1], input_shape[2], input_shape[3]
+    color_mode = cv2.IMREAD_GRAYSCALE if model.input_shape[3] == 1 else cv2.IMREAD_COLOR
+
+    output_shape = model.output_shape
+    output_rows, output_cols, num_classes = output_shape[1], output_shape[2], output_shape[3] - 5
+
+    class_names = []
+    if os.path.exists(classes_txt_path) and os.path.isfile(classes_txt_path):
+        with open(classes_txt_path, mode='rt') as f:
+            lines = f.readlines()
+        for i in range(len(lines)):
+            lines[i] = lines[i].replace('\n', '')
+        class_names = lines
+    if len(class_names) == 0:
+        print('classes.txt file not found.')
+
+    for path in tqdm(glob(f'{image_path}/*.jpg')):
+        x = cv2.imread(path, cv2.IMREAD_COLOR)
+        raw = x.copy()
+        raw_height, raw_width = raw.shape[0], raw.shape[1]
+        if color_mode == cv2.IMREAD_GRAYSCALE:
+            x = cv2.cvtColor(x, cv2.COLOR_BGR2GRAY)
+
+        x = cv2.resize(x, (input_width, input_height))
+        x = np.asarray(x).reshape((1,) + model.input_shape[1:]).astype('float32') / 255.0
+        y = model.predict(x=x, batch_size=1)[0]
+
+        inc = 0
+        for i in range(output_rows):
+            for j in range(output_cols):
+                confidence = y[i][j][0]
+                if confidence < confidence_threshold:
+                    continue
+
+                cx = j / float(output_cols) + 1.0 / float(output_cols) * y[i][j][1]
+                cy = i / float(output_rows) + 1.0 / float(output_rows) * y[i][j][2]
+                width = y[i][j][3]
+                height = y[i][j][4]
+
+                x1 = cx - width / 2.0
+                y1 = cy - height / 2.0
+                x2 = cx + width / 2.0
+                y2 = cy + height / 2.0
+
+                x1 = int(x1 * raw_width)
+                y1 = int(y1 * raw_height)
+                x2 = int(x2 * raw_width)
+                y2 = int(y2 * raw_height)
+
+                max_class_score = 0.0
+                max_class_index = -1
+                for class_index in range(5, 5 + num_classes):
+                    if y[i][j][class_index] > max_class_score:
+                        max_class_score = y[i][j][class_index]
+                        max_class_index = class_index - 5
+
+                class_name = str(max_class_index) if len(class_names) == 0 else class_names[max_class_index]
+                class_dir_path = f'{save_path}/{class_name}'
+                if not (os.path.exists(class_dir_path) and os.path.isdir(class_dir_path)):
+                    os.makedirs(class_dir_path, exist_ok=True)
+
+                class_image = raw[y1:y2, x1:x2]
+                raw_file_name = path.split('/')[-1][:-4]
+                cv2.imwrite(f'{class_dir_path}/{raw_file_name}_{inc}.jpg', class_image)
+                inc += 1
+
+
 if __name__ == '__main__':
-    model_summary()
+    save_test()
