@@ -439,7 +439,7 @@ def view_boxed_image():
 
 
 def model_summary():
-    model = tf.keras.models.load_model(r'C:\inz\git\yolo-lab\checkpoints\person\new_loss_person_3_class_192_96_epoch_182_val_mAP_0.7454.h5', compile=False)
+    model = tf.keras.models.load_model(r'\\192.168.101.200\egkim_inz\real_person_epoch_66_loss_0.0002_val_loss_0.1180_recall_1.0000_val_recall_0.9544.h5', compile=False)
     model.summary()
 
 
@@ -548,5 +548,63 @@ def save_test():
                 inc += 1
 
 
+def tmp():
+    total_person_cnt = 0
+    removed_person_cnt = 0
+    model = tf.keras.models.load_model(r'\\192.168.101.200\egkim_inz\real_person_epoch_66_loss_0.0002_val_loss_0.1180_recall_1.0000_val_recall_0.9544.h5', compile=False)
+
+    @tf.function
+    def predict_on_graph(__model, __x):
+        return __model(__x, training=False)
+
+    for path in tqdm(glob(r'\\192.168.101.200\egkim_inz\train_data\coco_train_lp_added_invalid_person_removed\*.jpg')):
+        img = cv2.imread(path, cv2.IMREAD_COLOR)
+        raw_height, raw_width = img.shape[0], img.shape[1]
+        label_path = f'{path[:-4]}.txt'
+        with open(label_path, 'rt') as f:
+            lines = f.readlines()
+
+        s = ''
+        person_found = False
+        for line in lines:
+            line = line.replace('\n', '')
+            if len(line) == 0:
+                continue
+
+            class_index, cx, cy, w, h = list(map(float, line.split(' ')))
+            class_index = int(class_index)
+            if class_index == 0:
+                total_person_cnt += 1
+                print(f'{removed_person_cnt} / {total_person_cnt} removed')
+
+                person_found = True
+                x1 = cx - w / 2.0
+                y1 = cy - h / 2.0
+                x2 = cx + w / 2.0
+                y2 = cy + h / 2.0
+
+                x1 = int(x1 * raw_width)
+                y1 = int(y1 * raw_height)
+                x2 = int(x2 * raw_width)
+                y2 = int(y2 * raw_height)
+
+                sub = img[y1:y2, x1:x2]
+                sub = cv2.cvtColor(sub, cv2.COLOR_BGR2GRAY)
+                sub = cv2.resize(sub, (192, 192))
+                x = np.asarray(sub).reshape((1, 192, 192, 1)).astype('float32') / 255.0
+                max_index = np.argmax(predict_on_graph(model, x)[0])
+                if max_index == 2:
+                    s += f'{line}\n'
+                else:
+                    removed_person_cnt += 1
+                    print(f'{removed_person_cnt} / {total_person_cnt} removed')
+            else:
+                s += f'{line}\n'
+
+        if person_found:
+            with open(label_path, 'wt') as f:
+                f.writelines(s)
+
+
 if __name__ == '__main__':
-    save_test()
+    tmp()

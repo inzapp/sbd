@@ -58,22 +58,26 @@ if __name__ == '__main__':
 
     model = Yolo()
     model.fit(
-        train_image_path=r'X:\person\4_class_merged\train',
-        validation_image_path=r'X:\person\4_class_merged\validation',
-        model_name='new_loss_person_3_class_192_96',
-        input_shape=(192, 96, 1),
+        train_image_path=r'X:\200m_detection\train',
+        # validation_image_path=r'X:\200m_detection\validation',
+        model_name='200m',
+        input_shape=(704, 1280, 1),
         batch_size=2,
         lr=1e-3,
         epochs=500,
-        curriculum_epochs=0,
-        validation_split=0.0,
+        curriculum_epochs=1,
+        validation_split=0.2,
         training_view=True,
         mixed_float16_training=True,
         use_map_callback=True,
         use_lr_scheduler=True,
-        lr_scheduler_start_epoch=150,
-        lr_scheduler_reduce_factor=0.98)
+        lr_scheduler_start_epoch=20,
+        lr_scheduler_reduce_factor=0.99)
 
     # from glob import glob
-    # model = Yolo(pretrained_model_path=r'C:\inz\git\yolo-lab\checkpoints\sgd_v2_person_info_detector_192_96_epoch_23_val_mAP_0.2522.h5', class_names_file_path=r'X:\person\face_helmet_added\validation\classes.txt')
-    # model.predict_images([r'C:\inz\detail_96_192_1.jpg'])
+    # from random import shuffle
+    # model = Yolo(pretrained_model_path=r'C:\inz\git\yolo-lab\checkpoints\200m_epoch_4_val_mAP_0.5851.h5', class_names_file_path=r'X:\200m_detection\train\classes.txt')
+    # paths = glob(r'C:\inz\videos\200m_detection_2\*.mp4')
+    # shuffle(paths)
+    # for video_path in paths:
+    #     model.predict_video(video_path=video_path)

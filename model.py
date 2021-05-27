@@ -41,7 +41,129 @@ class Model:
         # return self.__build_loon_detector()
         # return self.__build_lcd()
         # return self.__build_lcd_cv2()
-        return self.__build_sbd()
+        # return self.__build_sbd()
+        return self.__build_200m_detector()
+
+    # input_shape=(128, 64, 1) or input_shape=(192, 96, 1)
+    def __build_200m_detector(self):
+        input_layer = tf.keras.layers.Input(shape=self.__input_shape)
+        x = tf.keras.layers.Conv2D(
+            filters=8,
+            kernel_size=3,
+            kernel_initializer='he_uniform',
+            padding='same')(input_layer)
+        x = tf.keras.layers.ReLU()(x)
+        x = tf.keras.layers.BatchNormalization()(x)
+        x = tf.keras.layers.MaxPool2D()(x)
+
+        x = tf.keras.layers.Conv2D(
+            filters=16,
+            kernel_size=3,
+            kernel_initializer='he_uniform',
+            padding='same')(x)
+        x = tf.keras.layers.ReLU()(x)
+        x = tf.keras.layers.BatchNormalization()(x)
+        x = tf.keras.layers.MaxPool2D()(x)
+
+        x = tf.keras.layers.Conv2D(
+            filters=32,
+            kernel_size=3,
+            kernel_initializer='he_uniform',
+            padding='same')(x)
+        x = tf.keras.layers.ReLU()(x)
+        x = tf.keras.layers.BatchNormalization()(x)
+        x = tf.keras.layers.MaxPool2D()(x)
+
+        x = tf.keras.layers.Conv2D(
+            filters=64,
+            kernel_size=3,
+            kernel_initializer='he_uniform',
+            padding='same')(x)
+        x = tf.keras.layers.ReLU()(x)
+        x = tf.keras.layers.BatchNormalization()(x)
+
+        x = tf.keras.layers.Conv2D(
+            filters=64,
+            kernel_size=3,
+            kernel_initializer='he_uniform',
+            padding='same')(x)
+        x = tf.keras.layers.ReLU()(x)
+        x = tf.keras.layers.BatchNormalization()(x)
+
+        x = tf.keras.layers.Conv2D(
+            filters=128,
+            kernel_size=3,
+            kernel_initializer='he_uniform',
+            padding='same')(x)
+        x = tf.keras.layers.ReLU()(x)
+        x = tf.keras.layers.BatchNormalization()(x)
+
+        x = tf.keras.layers.Conv2D(
+            filters=128,
+            kernel_size=3,
+            kernel_initializer='he_uniform',
+            padding='same')(x)
+        x = tf.keras.layers.ReLU()(x)
+        x = tf.keras.layers.BatchNormalization()(x)
+        sc_1 = x
+        sc_1 = tf.keras.layers.MaxPool2D()(sc_1)
+        sc_1 = tf.keras.layers.MaxPool2D()(sc_1)
+
+        x = tf.keras.layers.MaxPool2D()(x)
+        x = tf.keras.layers.Conv2D(
+            filters=128,
+            kernel_size=3,
+            kernel_initializer='he_uniform',
+            padding='same')(x)
+        x = tf.keras.layers.ReLU()(x)
+        x = tf.keras.layers.BatchNormalization()(x)
+
+        x = tf.keras.layers.Conv2D(
+            filters=128,
+            kernel_size=3,
+            kernel_initializer='he_uniform',
+            padding='same')(x)
+        x = tf.keras.layers.ReLU()(x)
+        x = tf.keras.layers.BatchNormalization()(x)
+
+        x = tf.keras.layers.Conv2D(
+            filters=128,
+            kernel_size=3,
+            kernel_initializer='he_uniform',
+            padding='same')(x)
+        x = tf.keras.layers.ReLU()(x)
+        x = tf.keras.layers.BatchNormalization()(x)
+        sc_2 = x
+        sc_2 = tf.keras.layers.MaxPool2D()(sc_2)
+
+        x = tf.keras.layers.MaxPool2D()(x)
+        x = tf.keras.layers.Conv2D(
+            filters=128,
+            kernel_size=3,
+            kernel_initializer='he_uniform',
+            padding='same')(x)
+        x = tf.keras.layers.ReLU()(x)
+        x = tf.keras.layers.BatchNormalization()(x)
+
+        x = tf.keras.layers.Conv2D(
+            filters=128,
+            kernel_size=3,
+            kernel_initializer='he_uniform',
+            padding='same')(x)
+        x = tf.keras.layers.ReLU()(x)
+        x = tf.keras.layers.BatchNormalization()(x)
+
+        x = tf.keras.layers.Conv2D(
+            filters=128,
+            kernel_size=3,
+            kernel_initializer='he_uniform',
+            padding='same')(x)
+        x = tf.keras.layers.ReLU()(x)
+        x = tf.keras.layers.BatchNormalization()(x)
+
+        x = tf.keras.layers.Concatenate()([x, sc_1, sc_2])
+        x = self.__point_wise_conv(self.__output_channel, x)
+        return tf.keras.models.Model(input_layer, x)
 
     # just for testing
     def __build_loon_detector(self):

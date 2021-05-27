@@ -27,6 +27,9 @@ class ConfidenceLoss(tf.keras.losses.Loss):
     """
 
     def __init__(self, no_obj=0.5):
+        """
+        :param no_obj: value for reduce gradient of confidence channel where no object. 0.5 is recommendation value in yolo paper.
+        """
         self.no_obj = no_obj
         super(ConfidenceLoss, self).__init__()
 
@@ -55,11 +58,12 @@ class ConfidenceLoss(tf.keras.losses.Loss):
         TODO : 수정필요
         TODO : 수정필요
         """
+        # TODO : label smoothing 적용되어있음
         obj_true = y_true[:, :, :, 0]
         obj_pred = y_pred[:, :, :, 0]
-        obj_false = tf.ones(shape=tf.shape(obj_true)) - obj_true
+        obj_false = (tf.ones(shape=tf.shape(obj_true), dtype=tf.dtypes.float32) - 0.02) - obj_true
         obj_confidence_loss = tf.reduce_sum(tf.square(obj_true - (obj_pred * obj_true)))
-        no_obj_confidence_loss = tf.reduce_sum(tf.square((obj_pred * obj_false) - tf.zeros(shape=tf.shape(obj_true))))
+        no_obj_confidence_loss = tf.reduce_sum(tf.square((obj_pred * obj_false) - (tf.zeros(shape=tf.shape(obj_true), dtype=tf.dtypes.float32) + 0.02)))
         return obj_confidence_loss + (no_obj_confidence_loss * self.no_obj)
 
 

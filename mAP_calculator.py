@@ -328,7 +328,7 @@ def calc_mean_average_precision(model_path, image_paths):
         class_f1_sum = 0.0
         print(f'confidence threshold for tp, fp, fn calculate : {confidence_threshold:.2f}')
         for class_index in range(num_classes):
-            cur_class_ap = aps[iou_index][class_index] / float(valid_count[iou_index][class_index])
+            cur_class_ap = aps[iou_index][class_index] / (float(valid_count[iou_index][class_index]) + 1e-5)
             class_ap_sum += cur_class_ap
             cur_class_obj_count = obj_count[iou_index][class_index]
             cur_class_tp = tps[iou_index][class_index]
@@ -345,24 +345,18 @@ def calc_mean_average_precision(model_path, image_paths):
         f1_sum += avg_f1_score
         print(f'F1@{int(iou_threshold * 100)} : {avg_f1_score:.4f}')
         print(f'mAP@{int(iou_threshold * 100)} : {mean_ap:.4f}\n')
-    return mean_ap_sum / len(iou_thresholds)
+
+    # TODO : f1 으로 임시로 사용중임!!!!!!!!!!
+    return f1_sum / len(iou_thresholds)
 
 
 if __name__ == '__main__':
-    # avg_mAP = calc_mean_average_precision(
-    #     r'C:\inz\fixed_model\sbd\sbd_4680_epoch_28_loss_0.006669_val_loss_0.034237.h5',
-    #     glob(r'X:\lp_detection_validation\*.jpg'))
-    # print(f'avg mAP : {avg_mAP:.4f}')
-
-    # avg_mAP = calc_mean_average_precision(
-    #     r'C:\inz\fixed_model\lcd_b1\lcd_b1_model_epoch_76_f1_0.9938_val_f1_0.9032.h5',
-    #     glob(r'C:\inz\train_data\lp_character_detection\lcd_b1\*\*.jpg'))
-    # print(f'avg mAP : {avg_mAP:.4f}')
-
-    print(calc_mean_average_precision(
-        r'C:\inz\git\yolo-lab\checkpoints\sgd_v2_person_info_detector_192_96_epoch_23_val_mAP_0.2522.h5',
-        glob(r'X:\person\face_helmet_added\validation\*.jpg')))
+    avg_mAP = calc_mean_average_precision(
+        r'C:\inz\git\yolo-lab\checkpoints\sbd\lp_detection_sbd_epoch_147_val_mAP_0.8748.h5',
+        glob(r'X:\lp_detection_validation\*.jpg'))
+    print(f'avg mAP : {avg_mAP:.4f}')
 
     # print(calc_mean_average_precision(
-    #     r'C:\inz\git\yolo-lab\checkpoints\loon\model_epoch_92_loss_2.1282_val_loss_4.8404_f1_0.9896_val_f1_0.8348.h5',
-    #     glob(r'C:\inz\train_data\loon_detection\*.jpg')))
+    #     r'C:\inz\git\yolo-lab\checkpoints\person\person_3_class_192_96_epoch_131_val_mAP_0.7510.h5',
+    #     glob(r'X:\person\3_class_merged\validation\*.jpg')))
+
