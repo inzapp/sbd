@@ -48,7 +48,7 @@ class Model:
     def __build_200m_detector(self):
         input_layer = tf.keras.layers.Input(shape=self.__input_shape)
         x = tf.keras.layers.Conv2D(
-            filters=8,
+            filters=16,
             kernel_size=3,
             kernel_initializer='he_uniform',
             padding='same')(input_layer)
@@ -62,6 +62,7 @@ class Model:
             kernel_initializer='he_uniform',
             padding='same')(x)
         x = tf.keras.layers.BatchNormalization()(x)
+        sc = x
         x = tf.keras.layers.ReLU()(x)
         x = tf.keras.layers.Conv2D(
             filters=16,
@@ -70,8 +71,24 @@ class Model:
             padding='same')(x)
         x = tf.keras.layers.BatchNormalization()(x)
         x = tf.keras.layers.ReLU()(x)
+        x = tf.keras.layers.Conv2D(
+            filters=16,
+            kernel_size=3,
+            kernel_initializer='he_uniform',
+            padding='same')(x)
+        x = tf.keras.layers.BatchNormalization()(x)
+        x = tf.keras.layers.Add()([x, sc])
+        x = tf.keras.layers.ReLU()(x)
         x = tf.keras.layers.MaxPool2D()(x)
 
+        x = tf.keras.layers.Conv2D(
+            filters=32,
+            kernel_size=3,
+            kernel_initializer='he_uniform',
+            padding='same')(x)
+        x = tf.keras.layers.BatchNormalization()(x)
+        sc = x
+        x = tf.keras.layers.ReLU()(x)
         x = tf.keras.layers.Conv2D(
             filters=32,
             kernel_size=3,
@@ -85,6 +102,7 @@ class Model:
             kernel_initializer='he_uniform',
             padding='same')(x)
         x = tf.keras.layers.BatchNormalization()(x)
+        x = tf.keras.layers.Add()([x, sc])
         x = tf.keras.layers.ReLU()(x)
         x = tf.keras.layers.MaxPool2D()(x)
 
@@ -163,7 +181,6 @@ class Model:
         x = tf.keras.layers.ReLU()(x)
         x = tf.keras.layers.MaxPool2D()(x)
         sc = x
-        sc = tf.keras.layers.MaxPool2D()(sc)
 
         x = tf.keras.layers.Conv2D(
             filters=128,
