@@ -58,20 +58,20 @@ if __name__ == '__main__':
 
     model = Yolo()
     model.fit(
-        train_image_path=r'X:\200m_detection\train',
-        # validation_image_path=r'X:\200m_detection\validation',
+        train_image_path=r'X:\tmp_200m_detection+coco_person\train',
+        validation_image_path=r'X:\tmp_200m_detection+coco_person\validation',
         model_name='200m',
         input_shape=(704, 1280, 1),
         batch_size=2,
         lr=1e-3,
         epochs=500,
-        curriculum_epochs=1,
-        validation_split=0.2,
-        training_view=True,
+        curriculum_epochs=0,
+        validation_split=0.0,
+        training_view=False,
         mixed_float16_training=True,
         use_map_callback=True,
         use_lr_scheduler=True,
-        lr_scheduler_start_epoch=20,
+        lr_scheduler_start_epoch=100,
         lr_scheduler_reduce_factor=0.99)
 
     # from glob import glob
