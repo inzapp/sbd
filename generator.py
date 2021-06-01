@@ -118,7 +118,9 @@ class GeneratorFlow(tf.keras.utils.Sequence):
 
     def __getitem__(self, index):
         batch_x = []
-        batch_y = []
+        batch_y1 = []
+        batch_y2 = []
+        batch_y3 = []
         start_index = index * self.batch_size
         fs = []
         for i in range(start_index, start_index + self.batch_size):
@@ -134,24 +136,37 @@ class GeneratorFlow(tf.keras.utils.Sequence):
 
             with open(f'{cur_img_path[:-4]}.txt', mode='rt') as file:
                 label_lines = file.readlines()
-            y = np.zeros((self.output_shape[2], self.output_shape[0], self.output_shape[1]), dtype=np.float32)
-            grid_width_ratio = 1 / float(self.output_shape[1])
-            grid_height_ratio = 1 / float(self.output_shape[0])
+
+            y = []
+            for i in range(3):
+                y.append(np.zeros((self.output_shape[i][1], self.output_shape[i][2], self.output_shape[i][3]), dtype=np.float32))
             for label_line in label_lines:
                 class_index, cx, cy, w, h = list(map(float, label_line.split(' ')))
-                center_row = int(cy * self.output_shape[0])
-                center_col = int(cx * self.output_shape[1])
-                y[0][center_row][center_col] = 1.0
-                y[1][center_row][center_col] = (cx - (center_col * grid_width_ratio)) / grid_width_ratio
-                y[2][center_row][center_col] = (cy - (center_row * grid_height_ratio)) / grid_height_ratio
-                y[3][center_row][center_col] = w
-                y[4][center_row][center_col] = h
-                y[int(class_index + 5)][center_row][center_col] = 1.0
-            y = np.moveaxis(np.asarray(y), 0, -1).reshape(self.output_shape)
-            batch_y.append(y)
-        batch_x = np.asarray(batch_x)
-        batch_y = np.asarray(batch_y)
-        return batch_x, batch_y
+                if w > 0.3 or h > 0.3:
+                    output_layer_index = 2
+                elif w > 0.1 or h > 0.1:
+                    output_layer_index = 1
+                else:
+                    output_layer_index = 0
+
+                grid_width_ratio = 1 / float(self.output_shape[output_layer_index][2])
+                grid_height_ratio = 1 / float(self.output_shape[output_layer_index][1])
+                center_row = int(cy * self.output_shape[output_layer_index][1])
+                center_col = int(cx * self.output_shape[output_layer_index][2])
+                y[output_layer_index][center_row][center_col][0] = 1.0
+                y[output_layer_index][center_row][center_col][1] = (cx - (center_col * grid_width_ratio)) / grid_width_ratio
+                y[output_layer_index][center_row][center_col][2] = (cy - (center_row * grid_height_ratio)) / grid_height_ratio
+                y[output_layer_index][center_row][center_col][3] = w
+                y[output_layer_index][center_row][center_col][4] = h
+                y[output_layer_index][center_row][center_col][int(class_index + 5)] = 1.0
+            batch_y1.append(y[0])
+            batch_y2.append(y[1])
+            batch_y3.append(y[2])
+        batch_x = np.asarray(batch_x).astype('float32')
+        batch_y1 = np.asarray(batch_y1).astype('float32')
+        batch_y2 = np.asarray(batch_y2).astype('float32')
+        batch_y3 = np.asarray(batch_y3).astype('float32')
+        return batch_x, [batch_y1, batch_y2, batch_y3]
 
     def __load_img(self, path):
         return path, cv2.imread(path, cv2.IMREAD_GRAYSCALE if self.input_shape[2] == 1 else cv2.IMREAD_COLOR)

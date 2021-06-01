@@ -351,9 +351,10 @@ def calc_mean_average_precision(model_path, image_paths):
 
 
 if __name__ == '__main__':
+    paths = glob(r'X:\200m_detection\validation\*.jpg')
+    paths += glob(r'X:\coco\person_car_valid_checked\validation\*.jpg')
     avg_mAP = calc_mean_average_precision(
-        r'C:\inz\git\yolo-lab\checkpoints\sbd\lp_detection_sbd_epoch_147_val_mAP_0.8748.h5',
-        glob(r'X:\lp_detection_validation\*.jpg'))
+        r'200m_epoch_122_val_mAP_0.2202.h5', paths)
     print(f'avg mAP : {avg_mAP:.4f}')
 
     # print(calc_mean_average_precision(

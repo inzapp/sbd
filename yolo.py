@@ -107,7 +107,7 @@ class Yolo:
         self.__train_data_generator = YoloDataGenerator(
             train_image_path=train_image_path,
             input_shape=input_shape,
-            output_shape=self.__model.output_shape[1:],
+            output_shape=self.__model.output_shape,
             batch_size=batch_size,
             validation_split=validation_split)
 
@@ -173,7 +173,7 @@ class Yolo:
             self.__validation_data_generator = YoloDataGenerator(
                 train_image_path=validation_image_path,
                 input_shape=input_shape,
-                output_shape=self.__model.output_shape[1:],
+                output_shape=self.__model.output_shape,
                 batch_size=batch_size)
             print(f'validate on {len(self.__validation_data_generator.train_image_paths)} samples.')
             # self.__model.fit(
@@ -227,47 +227,48 @@ class Yolo:
         each dictionary has class index and bbox info: [x1, y1, x2, y2].
         """
         raw_width, raw_height = img.shape[1], img.shape[0]
-        input_shape = self.__model.input.shape[1:]
-        output_shape = self.__model.output.shape[1:]
+        input_shape = self.__model.input_shape[1:]
+        output_shape = self.__model.output_shape
+
         if img.shape[1] > input_shape[1] or img.shape[0] > input_shape[0]:
             img = cv2.resize(img, (input_shape[1], input_shape[0]), interpolation=cv2.INTER_AREA)
         else:
             img = cv2.resize(img, (input_shape[1], input_shape[0]), interpolation=cv2.INTER_LINEAR)
 
         img = np.asarray(img).reshape((1,) + input_shape).astype('float32') / 255.0
-        y = self.__predict_on_graph(self.__model, img)[0]
-        y = np.moveaxis(y, -1, 0)
+        y = self.__predict_on_graph(self.__model, img)
 
         res = []
-        for i in range(output_shape[0]):
-            for j in range(output_shape[1]):
-                confidence = y[0][i][j]
-                if confidence < confidence_threshold:
-                    continue
-                cx_f = j / float(output_shape[1]) + 1 / float(output_shape[1]) * y[1][i][j]
-                cy_f = i / float(output_shape[0]) + 1 / float(output_shape[0]) * y[2][i][j]
-                w = y[3][i][j]
-                h = y[4][i][j]
+        for layer_index in range(len(output_shape)):
+            for i in range(output_shape[layer_index][1]):
+                for j in range(output_shape[layer_index][2]):
+                    confidence = y[layer_index][0][i][j][0]
+                    if confidence < confidence_threshold:
+                        continue
+                    cx_f = j / float(output_shape[layer_index][2]) + 1 / float(output_shape[layer_index][2]) * y[layer_index][0][i][j][1]
+                    cy_f = i / float(output_shape[layer_index][1]) + 1 / float(output_shape[layer_index][1]) * y[layer_index][0][i][j][2]
+                    w = y[layer_index][0][i][j][3]
+                    h = y[layer_index][0][i][j][4]
 
-                x_min_f = cx_f - w / 2.0
-                y_min_f = cy_f - h / 2.0
-                x_max_f = cx_f + w / 2.0
-                y_max_f = cy_f + h / 2.0
-                x_min = int(x_min_f * raw_width)
-                y_min = int(y_min_f * raw_height)
-                x_max = int(x_max_f * raw_width)
-                y_max = int(y_max_f * raw_height)
-                class_index = -1
-                max_percentage = -1
-                for cur_channel_index in range(5, len(y)):
-                    if max_percentage < y[cur_channel_index][i][j]:
-                        class_index = cur_channel_index
-                        max_percentage = y[cur_channel_index][i][j]
-                res.append({
-                    'confidence': confidence,
-                    'bbox': [x_min, y_min, x_max, y_max],
-                    'class': class_index - 5,
-                    'discard': False})
+                    x_min_f = cx_f - w / 2.0
+                    y_min_f = cy_f - h / 2.0
+                    x_max_f = cx_f + w / 2.0
+                    y_max_f = cy_f + h / 2.0
+                    x_min = int(x_min_f * raw_width)
+                    y_min = int(y_min_f * raw_height)
+                    x_max = int(x_max_f * raw_width)
+                    y_max = int(y_max_f * raw_height)
+                    class_index = -1
+                    max_percentage = -1
+                    for cur_channel_index in range(5, output_shape[layer_index][3]):
+                        if max_percentage < y[layer_index][0][i][j][cur_channel_index]:
+                            class_index = cur_channel_index
+                            max_percentage = y[layer_index][0][i][j][cur_channel_index]
+                    res.append({
+                        'confidence': confidence,
+                        'bbox': [x_min, y_min, x_max, y_max],
+                        'class': class_index - 5,
+                        'discard': False})
 
         for i in range(len(res)):
             if res[i]['discard']:
@@ -302,7 +303,7 @@ class Yolo:
             if len(self.__class_names) == 0:
                 class_name = str(class_index)
             else:
-                class_name = self.__class_names[class_index].replace('/n', '')
+                class_name = self.__class_names[class_index].replace('\n', '')
             label_background_color = colors[class_index]
             label_font_color = (0, 0, 0) if self.__is_background_color_bright(label_background_color) else (255, 255, 255)
             label_text = f'{class_name}({int(cur_res["confidence"] * 100.0)}%)'
