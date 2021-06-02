@@ -55,46 +55,51 @@ def get_y_pred(y, target_class_index):
     global nms_iou_threshold, confidence_threshold
     raw_width = 1000
     raw_height = 1000
-    rows, cols, channels = y.shape[0], y.shape[1], y.shape[2]
 
     y_pred = []
-    for i in range(rows):
-        for j in range(cols):
-            confidence = y[i][j][0]
-            if confidence < 0.005:  # darknet yolo mAP confidence threshold value
-                continue
+    for layer_index in range(len(y)):
+        rows = y[layer_index][0].shape[0]
+        cols = y[layer_index][0].shape[1]
+        channels = y[layer_index][0].shape[2]
 
-            class_index = -1
-            max_percentage = -1
-            for cur_channel_index in range(5, channels):
-                if max_percentage < y[i][j][cur_channel_index]:
-                    class_index = cur_channel_index - 5
-                    max_percentage = y[i][j][cur_channel_index]
-            if class_index != target_class_index:
-                continue
+        for i in range(rows):
+            for j in range(cols):
+                confidence = y[layer_index][0][i][j][0]
+                if confidence < 0.005:  # darknet yolo mAP confidence threshold value
+                    continue
 
-            cx_f = j / float(cols) + 1.0 / float(cols) * y[i][j][1]
-            cy_f = i / float(rows) + 1.0 / float(rows) * y[i][j][2]
-            w = y[i][j][3]
-            h = y[i][j][4]
+                class_index = -1
+                max_percentage = 0.0
+                for cur_channel_index in range(5, channels):
+                    if max_percentage < y[layer_index][0][i][j][cur_channel_index]:
+                        class_index = cur_channel_index - 5
+                        max_percentage = y[layer_index][0][i][j][cur_channel_index]
 
-            x_min_f = cx_f - w / 2.0
-            y_min_f = cy_f - h / 2.0
-            x_max_f = cx_f + w / 2.0
-            y_max_f = cy_f + h / 2.0
-            x_min = int(x_min_f * raw_width)
-            y_min = int(y_min_f * raw_height)
-            x_max = int(x_max_f * raw_width)
-            y_max = int(y_max_f * raw_height)
+                if class_index != target_class_index:
+                    continue
 
-            y_pred.append({
-                'confidence': confidence,
-                'bbox': [x_min, y_min, x_max, y_max],
-                'class': class_index,
-                'result': '',
-                'precision': 0.0,
-                'recall': 0.0,
-                'discard': False})
+                cx_f = j / float(cols) + 1.0 / float(cols) * y[layer_index][0][i][j][1]
+                cy_f = i / float(rows) + 1.0 / float(rows) * y[layer_index][0][i][j][2]
+                w = y[layer_index][0][i][j][3]
+                h = y[layer_index][0][i][j][4]
+
+                x_min_f = cx_f - w / 2.0
+                y_min_f = cy_f - h / 2.0
+                x_max_f = cx_f + w / 2.0
+                y_max_f = cy_f + h / 2.0
+                x_min = int(x_min_f * raw_width)
+                y_min = int(y_min_f * raw_height)
+                x_max = int(x_max_f * raw_width)
+                y_max = int(y_max_f * raw_height)
+
+                y_pred.append({
+                    'confidence': confidence,
+                    'bbox': [x_min, y_min, x_max, y_max],
+                    'class': class_index,
+                    'result': '',
+                    'precision': 0.0,
+                    'recall': 0.0,
+                    'discard': False})
 
     for i in range(len(y_pred)):
         if y_pred[i]['discard']:
@@ -289,7 +294,7 @@ def calc_mean_average_precision(model_path, image_paths):
     input_shape = model.input_shape[1:]
     input_size = (input_shape[1], input_shape[0])
     color_mode = cv2.IMREAD_GRAYSCALE if input_shape[-1] == 1 else cv2.IMREAD_COLOR
-    num_classes = model.output_shape[-1] - 5
+    num_classes = model.output_shape[0][-1] - 5
 
     obj_count = np.zeros((len(iou_thresholds), num_classes), dtype=np.int32)
     valid_count = np.zeros((len(iou_thresholds), num_classes), dtype=np.int32)
@@ -308,7 +313,7 @@ def calc_mean_average_precision(model_path, image_paths):
         x, label_lines = f.result()
         if x is None:
             continue
-        y = np.asarray(predict_on_graph(model, x))[0]
+        y = np.asarray(predict_on_graph(model, x))
 
         for iou_index, iou_threshold in enumerate(iou_thresholds):
             for class_index in range(num_classes):
