@@ -66,11 +66,11 @@ if __name__ == '__main__':
         batch_size=2,
         lr=0.01,
         epochs=200,
-        curriculum_epochs=0,
+        curriculum_epochs=5,
         validation_split=0.2,
-        training_view=False,
+        training_view=True,
         mixed_float16_training=False,
-        use_map_callback=False,
+        use_map_callback=True,
         use_lr_scheduler=True)
 
     # from glob import glob

@@ -269,11 +269,6 @@ def calc_ap_tp_fp_fn(y, label_lines, iou_threshold, target_class_index):
     return ap, tp, fp, fn, num_class_obj
 
 
-@tf.function
-def predict_on_graph(model, x):
-    return model(x, training=False)
-
-
 def load_x_label_lines(image_path, color_mode, input_size, input_shape):
     label_path = f'{image_path[:-4]}.txt'
     if not (os.path.exists(label_path) and os.path.isfile(label_path)):
@@ -313,7 +308,7 @@ def calc_mean_average_precision(model_path, image_paths):
         x, label_lines = f.result()
         if x is None:
             continue
-        y = np.asarray(predict_on_graph(model, x))
+        y = model.predict(x=x, batch_size=1)
 
         for iou_index, iou_threshold in enumerate(iou_thresholds):
             for class_index in range(num_classes):
@@ -343,7 +338,8 @@ def calc_mean_average_precision(model_path, image_paths):
             cur_class_recall = cur_class_tp / (float(cur_class_tp + cur_class_fn) + 1e-5)
             cur_class_f1 = 2.0 * (cur_class_precision * cur_class_recall) / (cur_class_precision + cur_class_recall + 1e-5)
             class_f1_sum += cur_class_f1
-            print(f'class {str(class_index):3s} ap : {cur_class_ap:.4f}, obj_count : {str(cur_class_obj_count):6s}, tp : {str(cur_class_tp):6s}, fp : {str(cur_class_fp):6s}, fn : {str(cur_class_fn):6s}, precision : {cur_class_precision:.4f}, recall : {cur_class_recall:.4f}, f1 score : {cur_class_f1:.4f}')
+            print(
+                f'class {str(class_index):3s} ap : {cur_class_ap:.4f}, obj_count : {str(cur_class_obj_count):6s}, tp : {str(cur_class_tp):6s}, fp : {str(cur_class_fp):6s}, fn : {str(cur_class_fn):6s}, precision : {cur_class_precision:.4f}, recall : {cur_class_recall:.4f}, f1 score : {cur_class_f1:.4f}')
         mean_ap = class_ap_sum / float(num_classes)
         mean_ap_sum += mean_ap
         avg_f1_score = class_f1_sum / float(num_classes)
@@ -365,4 +361,3 @@ if __name__ == '__main__':
     # print(calc_mean_average_precision(
     #     r'C:\inz\git\yolo-lab\checkpoints\person\person_3_class_192_96_epoch_131_val_mAP_0.7510.h5',
     #     glob(r'X:\person\3_class_merged\validation\*.jpg')))
-

@@ -215,7 +215,7 @@ class Yolo:
             #     batch_size=batch_size,
             #     epochs=epochs,
             #     callbacks=self.__callbacks)
-            self.__model.fit(
+            self.__model.fit_generator(
                 generator=self.__train_data_generator.flow(),
                 epochs=epochs,
                 callbacks=self.__callbacks)
@@ -238,8 +238,8 @@ class Yolo:
         else:
             img = cv2.resize(img, (input_shape[1], input_shape[0]), interpolation=cv2.INTER_LINEAR)
 
-        img = np.asarray(img).reshape((1,) + input_shape).astype('float32') / 255.0
-        y = self.__predict_on_graph(self.__model, img)
+        x = np.asarray(img).reshape((1,) + input_shape).astype('float32') / 255.0
+        y = self.__model.predict(x=x, batch_size=1)
 
         res = []
         for layer_index in range(len(output_shape)):
@@ -411,13 +411,6 @@ class Yolo:
         if mean_ap > self.__max_mean_ap:
             self.__max_mean_ap = mean_ap
             sh.copy('model.h5', f'checkpoints/{self.__model_name}_epoch_{epoch + 1}_val_mAP_{mean_ap:.4f}.h5')
-
-    @tf.function
-    def __predict_on_graph(self, model, x):
-        """
-        Tensorflow graph forward function.
-        """
-        return model(x, training=False)
 
     @staticmethod
     def __init_class_names(class_names_file_path):
