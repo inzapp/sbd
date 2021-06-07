@@ -136,7 +136,7 @@ class Model:
         x = tf.keras.layers.BatchNormalization()(x)
         x = tf.keras.layers.Add()([x, sc])
         x = tf.keras.layers.ReLU()(x)
-        y1 = self.__point_wise_conv(self.__output_channel, x)
+        y1 = self.__point_wise_conv(self.__output_channel, x, name='detection_layer_1')
         x = tf.keras.layers.MaxPool2D()(x)
 
         x = tf.keras.layers.Conv2D(
@@ -169,7 +169,7 @@ class Model:
         x = tf.keras.layers.BatchNormalization()(x)
         x = tf.keras.layers.Add()([x, sc])
         x = tf.keras.layers.ReLU()(x)
-        y2 = self.__point_wise_conv(self.__output_channel, x)
+        y2 = self.__point_wise_conv(self.__output_channel, x, name='detection_layer_2')
         x = tf.keras.layers.MaxPool2D()(x)
 
         x = tf.keras.layers.Conv2D(
@@ -202,7 +202,7 @@ class Model:
         x = tf.keras.layers.BatchNormalization()(x)
         x = tf.keras.layers.Add()([x, sc])
         x = tf.keras.layers.ReLU()(x)
-        y3 = self.__point_wise_conv(self.__output_channel, x)
+        y3 = self.__point_wise_conv(self.__output_channel, x, name='detection_layer_3')
         return tf.keras.models.Model(input_layer, [y1, y2, y3])
 
     # just for testing
@@ -463,8 +463,9 @@ class Model:
         return x
 
     @staticmethod
-    def __point_wise_conv(filters, x):
+    def __point_wise_conv(filters, x, name='detection_layer'):
         return tf.keras.layers.Conv2D(
             filters=filters,
             kernel_size=1,
-            activation='sigmoid')(x)
+            activation='sigmoid',
+            name=name)(x)
