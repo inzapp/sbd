@@ -346,8 +346,6 @@ def calc_mean_average_precision(model_path, image_paths):
         f1_sum += avg_f1_score
         print(f'F1@{int(iou_threshold * 100)} : {avg_f1_score:.4f}')
         print(f'mAP@{int(iou_threshold * 100)} : {mean_ap:.4f}\n')
-
-    # TODO : f1 으로 임시로 사용중임!!!!!!!!!!
     return f1_sum / len(iou_thresholds)
 
 
@@ -357,7 +355,3 @@ if __name__ == '__main__':
     avg_mAP = calc_mean_average_precision(
         r'200m_epoch_122_val_mAP_0.2202.h5', paths)
     print(f'avg mAP : {avg_mAP:.4f}')
-
-    # print(calc_mean_average_precision(
-    #     r'C:\inz\git\yolo-lab\checkpoints\person\person_3_class_192_96_epoch_131_val_mAP_0.7510.h5',
-    #     glob(r'X:\person\3_class_merged\validation\*.jpg')))
