@@ -33,6 +33,19 @@ from mAP_calculator import calc_mean_average_precision
 from model import Model
 
 
+class LearningRateScheduler(tf.keras.callbacks.Callback):
+    def __init__(self, lr, epochs):
+        self.lr = lr
+        self.epochs = epochs
+        self.decay_step = epochs / 10
+        super().__init__()
+
+    def on_epoch_end(self, epoch, logs=None):
+        if epoch != 1 and (epoch - 1) % self.decay_step == 0:
+            self.lr *= 0.5
+            tf.keras.backend.set_value(self.model.optimizer.lr, self.lr)
+
+
 class Yolo:
     def __init__(self, pretrained_model_path='', class_names_file_path=''):
         self.__class_names = []
@@ -44,8 +57,6 @@ class Yolo:
         self.__callbacks = []
         self.__max_mean_ap = 0.0
         self.__model_name = 'model'
-        self.__lr_scheduler_start_epoch = 20
-        self.__lr_scheduler_reduce_factor = 0.95
         if not (os.path.exists('checkpoints') and os.path.isdir('checkpoints')):
             os.makedirs('checkpoints', exist_ok=True)
         if os.path.exists(pretrained_model_path) and os.path.isfile(pretrained_model_path):
@@ -65,9 +76,7 @@ class Yolo:
             training_view=False,
             mixed_float16_training=False,
             use_map_callback=False,
-            use_lr_scheduler=False,
-            lr_scheduler_start_epoch=20,
-            lr_scheduler_reduce_factor=0.95):
+            use_lr_scheduler=False):
         num_classes = 0
         self.__input_shape = input_shape
         if len(self.__class_names) == 0:
@@ -98,10 +107,7 @@ class Yolo:
         lr scheduler callback
         """
         if use_lr_scheduler:
-            self.__lr_scheduler_start_epoch = lr_scheduler_start_epoch
-            self.__lr_scheduler_reduce_factor = lr_scheduler_reduce_factor
-            self.__callbacks += [
-                tf.keras.callbacks.LearningRateScheduler(self.__lr_scheduler, 1)]
+            self.__callbacks += [LearningRateScheduler(lr, epochs)]
 
         self.__model.summary()
         self.__train_data_generator = YoloDataGenerator(
@@ -120,7 +126,6 @@ class Yolo:
             Confidence curriculum training
             """
             optimizer = tf.keras.optimizers.Adam(lr=lr)
-            # optimizer = tf.keras.optimizers.SGD(lr=lr, momentum=0.9, nesterov=True)
             if mixed_float16_training:
                 optimizer = mixed_precision.LossScaleOptimizer(optimizer=optimizer, loss_scale='dynamic')
             self.__model.compile(
@@ -141,7 +146,6 @@ class Yolo:
             Confidence and bbox curriculum training
             """
             optimizer = tf.keras.optimizers.Adam(lr=lr)
-            # optimizer = tf.keras.optimizers.SGD(lr=lr, momentum=0.9, nesterov=True)
             if mixed_float16_training:
                 optimizer = mixed_precision.LossScaleOptimizer(optimizer=optimizer, loss_scale='dynamic')
             self.__model.compile(
@@ -159,7 +163,6 @@ class Yolo:
             os.remove(tmp_model_name)
 
         optimizer = tf.keras.optimizers.Adam(lr=lr)
-        # optimizer = tf.keras.optimizers.SGD(lr=lr, momentum=0.9, nesterov=True)
         if mixed_float16_training:
             optimizer = mixed_precision.LossScaleOptimizer(optimizer=optimizer, loss_scale='dynamic')
         self.__model.compile(
@@ -408,15 +411,6 @@ class Yolo:
         if mean_ap > self.__max_mean_ap:
             self.__max_mean_ap = mean_ap
             sh.copy('model.h5', f'checkpoints/{self.__model_name}_epoch_{epoch + 1}_val_mAP_{mean_ap:.4f}.h5')
-
-    def __lr_scheduler(self, epoch, lr):
-        """
-        Learning rate scheduler callback function.
-        """
-        if epoch < self.__lr_scheduler_start_epoch:
-            return lr
-        else:
-            return lr * self.__lr_scheduler_reduce_factor
 
     @tf.function
     def __predict_on_graph(self, model, x):

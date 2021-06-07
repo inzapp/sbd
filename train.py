@@ -64,16 +64,14 @@ if __name__ == '__main__':
         model_name='200m',
         input_shape=(608, 608, 1),
         batch_size=2,
-        lr=1e-3,
-        epochs=500,
+        lr=0.01,
+        epochs=200,
         curriculum_epochs=0,
         validation_split=0.2,
         training_view=False,
         mixed_float16_training=False,
-        use_map_callback=True,
-        use_lr_scheduler=True,
-        lr_scheduler_start_epoch=100,
-        lr_scheduler_reduce_factor=0.99)
+        use_map_callback=False,
+        use_lr_scheduler=True)
 
     # from glob import glob
     # from random import shuffle
