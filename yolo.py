@@ -17,6 +17,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
+import math
 import os
 import shutil as sh
 from time import time
@@ -37,7 +38,7 @@ class LearningRateScheduler(tf.keras.callbacks.Callback):
     def __init__(self, lr, epochs):
         self.lr = lr
         self.epochs = epochs
-        self.decay_step = epochs / 10
+        self.decay_step = epochs / 3
         super().__init__()
 
     def on_epoch_end(self, epoch, logs=None):
@@ -109,6 +110,14 @@ class Yolo:
         if use_lr_scheduler:
             self.__callbacks += [LearningRateScheduler(lr, epochs)]
 
+            # tmp reduce lr on plateau callback
+            #self.__callbacks += [tf.keras.callbacks.ReduceLROnPlateau(
+            #    monitor='val_loss',
+            #    mode='min',
+            #    factor=0.5,
+            #    patience=10,
+            #    verbose=1)]
+
         self.__model.summary()
         self.__train_data_generator = YoloDataGenerator(
             train_image_path=train_image_path,
@@ -125,7 +134,8 @@ class Yolo:
             """
             Confidence curriculum training
             """
-            optimizer = tf.keras.optimizers.Adam(lr=lr)
+            #optimizer = tf.keras.optimizers.Adam(lr=lr)
+            optimizer = tf.keras.optimizers.SGD(lr=lr, momentum=0.9, nesterov=True)
             if mixed_float16_training:
                 optimizer = mixed_precision.LossScaleOptimizer(optimizer=optimizer, loss_scale='dynamic')
             self.__model.compile(
@@ -145,7 +155,8 @@ class Yolo:
             """
             Confidence and bbox curriculum training
             """
-            optimizer = tf.keras.optimizers.Adam(lr=lr)
+            #optimizer = tf.keras.optimizers.Adam(lr=lr)
+            optimizer = tf.keras.optimizers.SGD(lr=lr, momentum=0.9, nesterov=True)
             if mixed_float16_training:
                 optimizer = mixed_precision.LossScaleOptimizer(optimizer=optimizer, loss_scale='dynamic')
             self.__model.compile(
@@ -162,12 +173,13 @@ class Yolo:
             self.__model = tf.keras.models.load_model(tmp_model_name, compile=False)
             os.remove(tmp_model_name)
 
-        optimizer = tf.keras.optimizers.Adam(lr=lr)
+        #optimizer = tf.keras.optimizers.Adam(lr=lr)
+        optimizer = tf.keras.optimizers.SGD(lr=lr, momentum=0.9, nesterov=True)
         if mixed_float16_training:
             optimizer = mixed_precision.LossScaleOptimizer(optimizer=optimizer, loss_scale='dynamic')
         self.__model.compile(
             optimizer=optimizer,
-            loss=YoloLoss())
+            loss=YoloLoss(num_classes=num_classes))
         print(f'\ntrain on {len(self.__train_data_generator.train_image_paths)} samples.')
         if os.path.exists(validation_image_path) and os.path.isdir(validation_image_path):
             """
