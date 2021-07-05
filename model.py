@@ -37,7 +37,7 @@ class Model:
         # return self.__vgg_19()
         # return self.__darknet_53()
         # return self.__build_loon_detector()
-        return self.__build_person_info_detector()
+        return self.__person_detail()
         # return self.__build_loon_detector()
         # return self.__build_lcd()
         # return self.__build_lcd_cv2()
@@ -45,131 +45,80 @@ class Model:
         # return self.__build_200m_detector()
 
     # input_shape=(128, 64, 1) or input_shape=(192, 96, 1)
-    def __build_200m_detector(self):
+    def __200m(self):
         input_layer = tf.keras.layers.Input(shape=self.__input_shape)
-        x = self.__conv_block(16, 3, input_layer, True)
-        x = self.__conv_block(32, 3, x, True)
-        x = self.__conv_block(64, 3, x, True)
-        x = self.__conv_block(128, 3, x, True)
+        x = self.__conv_block(16, 3, input_layer, max_pool=True)
+        x = self.__conv_block(32, 3, x, max_pool=True)
+        x = self.__conv_block(64, 3, x, max_pool=True)
+        x = self.__conv_block(128, 3, x, max_pool=True)
         y1 = self.__point_wise_conv(self.__output_channel, x, 'output_1')
-        x = self.__conv_block(256, 3, x, True)
+        x = self.__conv_block(256, 3, x, max_pool=True)
         y2 = self.__point_wise_conv(self.__output_channel, x, 'output_2')
-        x = self.__conv_block(512, 3, x, True)
+        x = self.__conv_block(512, 3, x, max_pool=True)
         y3 = self.__point_wise_conv(self.__output_channel, x, 'output_3')
         return tf.keras.models.Model(input_layer, [y1, y2, y3])
 
-    def __build_loon_detector(self):
+    def __loon(self):
         input_layer = tf.keras.layers.Input(shape=self.__input_shape)
-        x = self.__conv_block(8, 3, input_layer, True)
-        x = self.__conv_block(16, 3, x, True)
-        x = self.__conv_block(32, 3, x, True)
+        x = self.__conv_block(8, 3, input_layer, max_pool=True)
+        x = self.__conv_block(16, 3, x, max_pool=True)
+        x = self.__conv_block(32, 3, x, max_pool=True)
         y1 = self.__point_wise_conv(self.__output_channel, x, 'output_1')
-        x = self.__conv_block(64, 3, x, True)
+        x = self.__conv_block(64, 3, x, max_pool=True)
         y2 = self.__point_wise_conv(self.__output_channel, x, 'output_2')
-        x = self.__conv_block(128, 3, x, True)
+        x = self.__conv_block(128, 3, x, max_pool=True)
         y3 = self.__point_wise_conv(self.__output_channel, x, 'output_3')
         return tf.keras.models.Model(input_layer, [y1, y2, y3])
 
     # input_shape=(128, 64, 1) or input_shape=(192, 96, 1)
-    def __build_person_info_detector(self):
+    def __person_detail(self):
         input_layer = tf.keras.layers.Input(shape=self.__input_shape)
-        x = self.__conv_block(16, 3, input_layer, True)
-        x = self.__conv_block(32, 3, x, True)
-        x = self.__conv_block(64, 3, x, True)
+        x = self.__conv_block(16, 3, input_layer, max_pool=True)
+        x = self.__conv_block(32, 3, x, max_pool=True)
+        x = self.__conv_block(64, 3, x, max_pool=True)
 
-        #x = tf.keras.layers.Dropout(0.1)(x)
+        # x = tf.keras.layers.Dropout(0.1)(x)
         x = self.__conv_block(128, 3, x)
         x = self.__conv_block(128, 3, x)
         y1 = self.__point_wise_conv(self.__output_channel, x, 'output_1')
         x = tf.keras.layers.MaxPool2D()(x)
 
-        #x = tf.keras.layers.Dropout(0.2)(x)
+        # x = tf.keras.layers.Dropout(0.2)(x)
         x = self.__conv_block(256, 3, x)
         x = self.__conv_block(256, 3, x)
         y2 = self.__point_wise_conv(self.__output_channel, x, 'output_2')
         x = tf.keras.layers.MaxPool2D()(x)
 
-        #x = tf.keras.layers.Dropout(0.2)(x)
+        # x = tf.keras.layers.Dropout(0.2)(x)
         x = self.__conv_block(256, 3, x)
         x = self.__conv_block(256, 3, x)
         y3 = self.__point_wise_conv(self.__output_channel, x, 'output_3')
         return tf.keras.models.Model(input_layer, [y1, y2, y3])
 
     # input_shape=(96, 192, 1) or input_shape=(144, 288, 1)
-    def __build_lcd(self):
+    def __lcd(self):
         input_layer = tf.keras.layers.Input(shape=self.__input_shape)
-        x = self.__conv_block(16, 3, input_layer, True)
-        x = self.__conv_block(32, 3, x, True)
-        x = self.__conv_block(64, 3, x, True)
+        x = self.__conv_block(16, 3, input_layer, max_pool=True)
+        x = self.__conv_block(32, 3, x, max_pool=True)
+        x = self.__conv_block(64, 3, x, max_pool=True)
         y1 = self.__point_wise_conv(self.__output_channel, x, 'output_1')
-        x = self.__conv_block(128, 3, x, True)
+        x = self.__conv_block(128, 3, x, max_pool=True)
         y2 = self.__point_wise_conv(self.__output_channel, x, 'output_2')
-        x = self.__conv_block(256, 3, x, True)
+        x = self.__conv_block(256, 3, x, max_pool=True)
         x = self.__conv_block(512, 3, x)
         y3 = self.__point_wise_conv(self.__output_channel, x, 'output_3')
         return tf.keras.models.Model(input_layer, [y1, y2, y3])
 
     # input_shape=(368, 640, 1)
-    def __build_sbd(self):
+    def __lp_detection_sbd(self):
         input_layer = tf.keras.layers.Input(shape=self.__input_shape)
-        x = tf.keras.layers.Conv2D(
-            filters=8,
-            kernel_size=3,
-            kernel_initializer='he_uniform',
-            padding='same')(input_layer)
-        x = tf.keras.layers.ReLU()(x)
-        x = tf.keras.layers.BatchNormalization()(x)
-        x = tf.keras.layers.MaxPool2D()(x)
-
-        x = tf.keras.layers.Conv2D(
-            filters=16,
-            kernel_size=3,
-            kernel_initializer='he_uniform',
-            padding='same')(x)
-        x = tf.keras.layers.ReLU()(x)
-        x = tf.keras.layers.BatchNormalization()(x)
-        x = tf.keras.layers.MaxPool2D()(x)
-
-        x = tf.keras.layers.Conv2D(
-            filters=32,
-            kernel_size=3,
-            kernel_initializer='he_uniform',
-            padding='same')(x)
-        x = tf.keras.layers.ReLU()(x)
-        x = tf.keras.layers.BatchNormalization()(x)
-        x = tf.keras.layers.MaxPool2D()(x)
-
-        x = tf.keras.layers.Conv2D(
-            filters=64,
-            kernel_size=3,
-            kernel_initializer='he_uniform',
-            padding='same')(x)
-        x = tf.keras.layers.ReLU()(x)
-        x = tf.keras.layers.BatchNormalization()(x)
-
-        x = tf.keras.layers.Conv2D(
-            filters=64,
-            kernel_size=3,
-            kernel_initializer='he_uniform',
-            padding='same',
-            activation='relu')(x)
-        x = tf.keras.layers.BatchNormalization()(x)
-
-        x = tf.keras.layers.Conv2D(
-            filters=128,
-            kernel_size=3,
-            kernel_initializer='he_uniform',
-            padding='same',
-            activation='relu')(x)
-        x = tf.keras.layers.BatchNormalization()(x)
-
-        x = tf.keras.layers.Conv2D(
-            filters=128,
-            kernel_size=3,
-            kernel_initializer='he_uniform',
-            padding='same',
-            activation='relu')(x)
-        x = tf.keras.layers.BatchNormalization()(x)
+        x = self.__conv_block(8, 3, input_layer, activation_first=True, max_pool=True)
+        x = self.__conv_block(16, 3, x, activation_first=True, max_pool=True)
+        x = self.__conv_block(32, 3, x, activation_first=True, max_pool=True)
+        x = self.__conv_block(64, 3, x, activation_first=True)
+        x = self.__conv_block(64, 3, x, activation_first=True)
+        x = self.__conv_block(128, 3, x, activation_first=True)
+        x = self.__conv_block(128, 3, x, activation_first=True)
         x = self.__point_wise_conv(self.__output_channel, x)
         return tf.keras.models.Model(input_layer, x)
 
@@ -179,12 +128,12 @@ class Model:
             exit(-1)
 
         input_layer = tf.keras.layers.Input(shape=self.__input_shape)
-        x = self.__conv_block(32, 3, input_layer, True)
-        x = self.__conv_block(64, 3, x, True)
+        x = self.__conv_block(32, 3, input_layer, max_pool=True)
+        x = self.__conv_block(64, 3, x, max_pool=True)
 
         x = self.__conv_block(128, 3, x)
         x = self.__conv_block(64, 1, x)
-        x = self.__conv_block(128, 3, x, True)
+        x = self.__conv_block(128, 3, x, max_pool=True)
 
         x = self.__conv_block(256, 3, x)
         x = self.__conv_block(128, 1, x)
@@ -215,13 +164,13 @@ class Model:
 
         input_layer = tf.keras.layers.Input(shape=self.__input_shape)
         x = self.__conv_blocks(1, 32, 3, input_layer)
-        x = self.__conv_blocks(1, 64, 3, x, True)
+        x = self.__conv_blocks(1, 64, 3, x, max_pool=True)
         skip_connection = x
 
         x = self.__conv_blocks(1, 32, 1, x)
         x = self.__conv_blocks(1, 64, 3, x)
         x = tf.keras.layers.Add()([skip_connection, x])
-        x = self.__conv_blocks(1, 128, 3, x, True)
+        x = self.__conv_blocks(1, 128, 3, x, max_pool=True)
         skip_connection = x
 
         for _ in range(2):
@@ -229,7 +178,7 @@ class Model:
             x = self.__conv_blocks(1, 128, 3, x)
             x = tf.keras.layers.Add()([skip_connection, x])
             skip_connection = x
-        x = self.__conv_blocks(1, 256, 3, x, True)
+        x = self.__conv_blocks(1, 256, 3, x, max_pool=True)
         y1 = self.__point_wise_conv(self.__output_channel, x, name='detection_layer_1')
         skip_connection = x
 
@@ -238,7 +187,7 @@ class Model:
             x = self.__conv_blocks(1, 256, 3, x)
             x = tf.keras.layers.Add()([skip_connection, x])
             skip_connection = x
-        x = self.__conv_blocks(1, 512, 3, x, True)
+        x = self.__conv_blocks(1, 512, 3, x, max_pool=True)
         y2 = self.__point_wise_conv(self.__output_channel, x, name='detection_layer_2')
         skip_connection = x
 
@@ -247,7 +196,7 @@ class Model:
             x = self.__conv_blocks(1, 512, 3, x)
             x = tf.keras.layers.Add()([skip_connection, x])
             skip_connection = x
-        x = self.__conv_blocks(1, 1024, 3, x, True)
+        x = self.__conv_blocks(1, 1024, 3, x, max_pool=True)
         skip_connection = x
 
         for _ in range(4):
@@ -260,13 +209,13 @@ class Model:
 
     def __vgg_19(self):
         input_layer = tf.keras.layers.Input(shape=self.__input_shape)
-        x = self.__conv_blocks(2, 64, 3, input_layer, True)
-        x = self.__conv_blocks(3, 128, 3, x, True)
-        x = self.__conv_blocks(4, 256, 3, x, True)
+        x = self.__conv_blocks(2, 64, 3, input_layer, max_pool=True)
+        x = self.__conv_blocks(3, 128, 3, x, max_pool=True)
+        x = self.__conv_blocks(4, 256, 3, x, max_pool=True)
         y1 = self.__point_wise_conv(self.__output_channel, x, name='detection_layer_1')
-        x = self.__conv_blocks(4, 512, 3, x, True)
+        x = self.__conv_blocks(4, 512, 3, x, max_pool=True)
         y2 = self.__point_wise_conv(self.__output_channel, x, name='detection_layer_2')
-        x = self.__conv_blocks(4, 512, 3, x, True)
+        x = self.__conv_blocks(4, 512, 3, x, max_pool=True)
         y3 = self.__point_wise_conv(self.__output_channel, x, name='detection_layer_3')
         return tf.keras.models.Model(input_layer, [y1, y2, y3])
 
@@ -278,15 +227,32 @@ class Model:
         return x
 
     @staticmethod
-    def __conv_block(filters, kernel_size, x, max_pool=False):
-        x = tf.keras.layers.Conv2D(
-            filters=filters,
-            kernel_size=kernel_size,
-            kernel_initializer='he_uniform',
-            padding='same',
-            use_bias=False)(x)
-        x = tf.keras.layers.BatchNormalization()(x)
-        x = tf.keras.layers.ReLU()(x)
+    def __max_pool(x):
+        return tf.keras.layers.MaxPool2D()(x)
+
+    @staticmethod
+    def __dropout(x, rate):
+        return tf.keras.layers.Dropout(x)(rate)
+
+    @staticmethod
+    def __conv_block(filters, kernel_size, x, max_pool=False, activation_first=False):
+        if activation_first:
+            x = tf.keras.layers.Conv2D(
+                filters=filters,
+                kernel_size=kernel_size,
+                kernel_initializer='he_uniform',
+                padding='same',
+                activation='relu')(x)
+            x = tf.keras.layers.BatchNormalization()(x)
+        else:
+            x = tf.keras.layers.Conv2D(
+                filters=filters,
+                kernel_size=kernel_size,
+                kernel_initializer='he_uniform',
+                padding='same',
+                use_bias=False)(x)
+            x = tf.keras.layers.BatchNormalization()(x)
+            x = tf.keras.layers.ReLU()(x)
         if max_pool:
             x = tf.keras.layers.MaxPool2D()(x)
         return x
