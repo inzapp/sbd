@@ -17,13 +17,13 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-import math
 import os
 import shutil as sh
 from time import time
 
 import numpy as np
 import tensorflow as tf
+import tensorflow_addons as tfa
 from cv2 import cv2
 from tensorflow.keras.mixed_precision import experimental as mixed_precision
 
@@ -38,13 +38,61 @@ class LearningRateScheduler(tf.keras.callbacks.Callback):
     def __init__(self, lr, epochs):
         self.lr = lr
         self.epochs = epochs
-        self.decay_step = epochs / 3
+        self.decay_step = epochs / 5
         super().__init__()
 
     def on_epoch_end(self, epoch, logs=None):
         if epoch != 1 and (epoch - 1) % self.decay_step == 0:
             self.lr *= 0.5
             tf.keras.backend.set_value(self.model.optimizer.lr, self.lr)
+
+
+class LinearLRDecayWithWarmUp(tf.keras.callbacks.Callback):
+    def __init__(self, initial_lr=0.1, decay_step=1000, min_lr=1e-5):
+        self.initial_warm_up_done = False
+        self.batch_count = 0
+        self.batch_sum = 0
+        self.lr = min_lr
+        self.min_lr = min_lr
+        self.initial_lr = initial_lr
+        self.decay_step = decay_step
+        self.lr_offset = (initial_lr - min_lr) / float(decay_step)
+        super().__init__()
+
+    def on_batch_end(self, epoch, logs=None):
+        self.batch_count += 1
+        self.batch_sum += 1
+        if self.batch_count == self.decay_step:
+            if self.initial_warm_up_done:
+                self.save_model()
+                self.reset()
+            else:
+                self.batch_count = 0
+                self.initial_warm_up_done = True
+        else:
+            if self.initial_warm_up_done:
+                self.reduce_lr()
+            else:
+                self.raise_lr()
+
+    def reset(self):
+        self.batch_count = 0
+        self.initial_lr *= 0.9
+        self.decay_step = int(self.decay_step * 1.1)
+        self.lr_offset = (self.initial_lr - self.min_lr) / float(self.decay_step)
+        self.lr = self.initial_lr
+        tf.keras.backend.set_value(self.model.optimizer.lr, self.lr)
+
+    def reduce_lr(self):
+        self.lr -= self.lr_offset
+        tf.keras.backend.set_value(self.model.optimizer.lr, self.lr)
+
+    def raise_lr(self):
+        self.lr += self.lr_offset
+        tf.keras.backend.set_value(self.model.optimizer.lr, self.lr)
+
+    def save_model(self):
+        self.model.save(f'checkpoints/model_{self.batch_sum}_batch.h5')
 
 
 class Yolo:
@@ -108,15 +156,8 @@ class Yolo:
         lr scheduler callback
         """
         if use_lr_scheduler:
-            self.__callbacks += [LearningRateScheduler(lr, epochs)]
-
-            # tmp reduce lr on plateau callback
-            #self.__callbacks += [tf.keras.callbacks.ReduceLROnPlateau(
-            #    monitor='val_loss',
-            #    mode='min',
-            #    factor=0.5,
-            #    patience=10,
-            #    verbose=1)]
+            # self.__callbacks += [LearningRateScheduler(lr, epochs)]
+            self.__callbacks += [LinearLRDecayWithWarmUp(initial_lr=lr, decay_step=1000, min_lr=1e-5)]
 
         self.__model.summary()
         self.__train_data_generator = YoloDataGenerator(
@@ -134,52 +175,48 @@ class Yolo:
             """
             Confidence curriculum training
             """
-            #optimizer = tf.keras.optimizers.Adam(lr=lr)
-            optimizer = tf.keras.optimizers.SGD(lr=lr, momentum=0.9, nesterov=True)
+            # optimizer = tf.keras.optimizers.Adam(lr=lr)
+            # optimizer = tf.keras.optimizers.SGD(lr=lr, momentum=0.9, nesterov=True)
+            optimizer = tfa.optimizers.SGDW(learning_rate=lr, momentum=0.9, nesterov=True, weight_decay=0.001)
+
             if mixed_float16_training:
                 optimizer = mixed_precision.LossScaleOptimizer(optimizer=optimizer, loss_scale='dynamic')
             self.__model.compile(
                 optimizer=optimizer,
                 loss=ConfidenceLoss())
-            # self.__model.fit(
-            #     x=self.__train_data_generator.flow(),
-            #     batch_size=batch_size,
-            #     epochs=curriculum_epochs)
-            self.__model.fit_generator(
-                generator=self.__train_data_generator.flow(),
+            self.__model.fit(
+                x=self.__train_data_generator.flow(),
+                batch_size=batch_size,
                 epochs=curriculum_epochs)
-            self.__model.save(tmp_model_name)
             self.__model = tf.keras.models.load_model(tmp_model_name, compile=False)
             os.remove(tmp_model_name)
 
             """
             Confidence and bbox curriculum training
             """
-            #optimizer = tf.keras.optimizers.Adam(lr=lr)
-            optimizer = tf.keras.optimizers.SGD(lr=lr, momentum=0.9, nesterov=True)
+            # optimizer = tf.keras.optimizers.Adam(lr=lr)
+            # optimizer = tf.keras.optimizers.SGD(lr=lr, momentum=0.9, nesterov=True)
+            optimizer = tfa.optimizers.SGDW(learning_rate=lr, momentum=0.9, nesterov=True, weight_decay=0.001)
+
             if mixed_float16_training:
                 optimizer = mixed_precision.LossScaleOptimizer(optimizer=optimizer, loss_scale='dynamic')
             self.__model.compile(
                 optimizer=optimizer,
                 loss=ConfidenceWithBoundingBoxLoss())
-            # self.__model.fit(
-            #     x=self.__train_data_generator.flow(),
-            #     batch_size=batch_size,
-            #     epochs=curriculum_epochs)
-            self.__model.fit_generator(
-                generator=self.__train_data_generator.flow(),
+            self.__model.fit(
+                x=self.__train_data_generator.flow(),
+                batch_size=batch_size,
                 epochs=curriculum_epochs)
-            self.__model.save(tmp_model_name)
             self.__model = tf.keras.models.load_model(tmp_model_name, compile=False)
             os.remove(tmp_model_name)
 
-        #optimizer = tf.keras.optimizers.Adam(lr=lr)
-        optimizer = tf.keras.optimizers.SGD(lr=lr, momentum=0.9, nesterov=True)
+        # optimizer = tf.keras.optimizers.Adam(lr=lr)
+        # optimizer = tf.keras.optimizers.SGD(lr=lr, momentum=0.9, nesterov=True)
+        optimizer = tfa.optimizers.SGDW(learning_rate=lr, momentum=0.9, nesterov=True, weight_decay=0.001)
+
         if mixed_float16_training:
             optimizer = mixed_precision.LossScaleOptimizer(optimizer=optimizer, loss_scale='dynamic')
-        self.__model.compile(
-            optimizer=optimizer,
-            loss=YoloLoss(num_classes=num_classes))
+        self.__model.compile(optimizer=optimizer, loss=YoloLoss())
         print(f'\ntrain on {len(self.__train_data_generator.train_image_paths)} samples.')
         if os.path.exists(validation_image_path) and os.path.isdir(validation_image_path):
             """
@@ -191,15 +228,10 @@ class Yolo:
                 output_shape=self.__model.output_shape,
                 batch_size=batch_size)
             print(f'validate on {len(self.__validation_data_generator.train_image_paths)} samples.')
-            # self.__model.fit(
-            #     x=self.__train_data_generator.flow(),
-            #     validation_data=self.__validation_data_generator.flow(),
-            #     batch_size=batch_size,
-            #     epochs=epochs,
-            #     callbacks=self.__callbacks)
-            self.__model.fit_generator(
-                generator=self.__train_data_generator.flow(),
+            self.__model.fit(
+                x=self.__train_data_generator.flow(),
                 validation_data=self.__validation_data_generator.flow(),
+                batch_size=batch_size,
                 epochs=epochs,
                 callbacks=self.__callbacks)
         elif len(self.__train_data_generator.validation_image_paths) > 0:
@@ -207,28 +239,19 @@ class Yolo:
             Training case 2 : split validation data using validation ratio
             """
             print(f'validate on {len(self.__train_data_generator.validation_image_paths)} samples.')
-            # self.__model.fit(
-            #     x=self.__train_data_generator.flow('training'),
-            #     validation_data=self.__train_data_generator.flow('validation'),
-            #     batch_size=batch_size,
-            #     epochs=epochs,
-            #     callbacks=self.__callbacks)
-            self.__model.fit_generator(
-                generator=self.__train_data_generator.flow('training'),
+            self.__model.fit(
+                x=self.__train_data_generator.flow('training'),
                 validation_data=self.__train_data_generator.flow('validation'),
+                batch_size=batch_size,
                 epochs=epochs,
                 callbacks=self.__callbacks)
         else:
             """
             Training case 3 : no validation image path or validation ratio. just training set
             """
-            # self.__model.fit(
-            #     x=self.__train_data_generator.flow(),
-            #     batch_size=batch_size,
-            #     epochs=epochs,
-            #     callbacks=self.__callbacks)
-            self.__model.fit_generator(
-                generator=self.__train_data_generator.flow(),
+            self.__model.fit(
+                x=self.__train_data_generator.flow(),
+                batch_size=batch_size,
                 epochs=epochs,
                 callbacks=self.__callbacks)
 
