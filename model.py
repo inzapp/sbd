@@ -77,19 +77,19 @@ class Model:
         x = self.__conv_block(32, 3, x, max_pool=True)
         x = self.__conv_block(64, 3, x, max_pool=True)
 
-        # x = tf.keras.layers.Dropout(0.1)(x)
+        x = self.__dropout(x, 0.1)
         x = self.__conv_block(128, 3, x)
         x = self.__conv_block(128, 3, x)
         y1 = self.__point_wise_conv(self.__output_channel, x, 'output_1')
-        x = tf.keras.layers.MaxPool2D()(x)
+        x = self.__max_pool(x)
 
-        # x = tf.keras.layers.Dropout(0.2)(x)
+        x = self.__dropout(x, 0.2)
         x = self.__conv_block(256, 3, x)
         x = self.__conv_block(256, 3, x)
         y2 = self.__point_wise_conv(self.__output_channel, x, 'output_2')
-        x = tf.keras.layers.MaxPool2D()(x)
+        x = self.__max_pool(x)
 
-        # x = tf.keras.layers.Dropout(0.2)(x)
+        x = self.__dropout(x, 0.2)
         x = self.__conv_block(256, 3, x)
         x = self.__conv_block(256, 3, x)
         y3 = self.__point_wise_conv(self.__output_channel, x, 'output_3')
@@ -232,7 +232,7 @@ class Model:
 
     @staticmethod
     def __dropout(x, rate):
-        return tf.keras.layers.Dropout(x)(rate)
+        return tf.keras.layers.Dropout(rate)(x)
 
     @staticmethod
     def __conv_block(filters, kernel_size, x, max_pool=False, activation_first=False):
