@@ -47,7 +47,7 @@ class ConfidenceLoss(tf.keras.losses.Loss):
 
         obj_true = y_true[:, :, :, 0]
         obj_pred = y_pred[:, :, :, 0]
-        obj_false = (tf.ones(shape=tf.shape(obj_true), dtype=tf.dtypes.float32)) - obj_true
+        obj_false = tf.ones(shape=tf.shape(obj_true), dtype=tf.dtypes.float32) - obj_true
         obj_confidence_loss = tf.reduce_sum(tf.square(smooth(obj_true, true_only=True) - (obj_pred * obj_true)))
         no_obj_confidence_loss = tf.reduce_sum(tf.square((obj_pred * obj_false) - tf.zeros(shape=tf.shape(obj_true), dtype=tf.dtypes.float32)))
         return obj_confidence_loss + (no_obj_confidence_loss * self.no_obj)
