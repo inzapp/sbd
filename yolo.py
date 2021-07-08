@@ -143,7 +143,7 @@ class Yolo:
                 self.__model = tf.keras.models.load_model(tmp_model_name, compile=False)
                 os.remove(tmp_model_name)
 
-        optimizer = tf.keras.optimizers.SGD(lr=lr, momentum=0.9, nesterov=True)
+        optimizer = tf.keras.optimizers.Adam(lr=1e-5 if lr_scheduler else lr)
         if mixed_float16_training:
             optimizer = mixed_precision.LossScaleOptimizer(optimizer=optimizer, loss_scale='dynamic')
 
