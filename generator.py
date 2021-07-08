@@ -18,7 +18,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 from concurrent.futures.thread import ThreadPoolExecutor
-from glob import glob
 
 import cv2
 import numpy as np
@@ -26,12 +25,8 @@ import tensorflow as tf
 
 
 class YoloDataGenerator:
-    def __init__(self, train_image_path, input_shape, output_shape, batch_size, validation_split=0.0):
+    def __init__(self, image_paths, input_shape, output_shape, batch_size):
         """
-        :param train_image_path:
-            Path where training data is stored.
-            The file name of the image and the label should be the same.
-
         :param input_shape:
             (height, width, channel) format of model input size
             If the channel is 1, train with a gray image, otherwise train with a color image.
@@ -41,14 +36,8 @@ class YoloDataGenerator:
 
         :param batch_size:
             Batch size of training.
-
-        :param validation_split:
-            The percentage of data that will be used as validation data.
         """
-        image_paths = self.__init_image_paths(train_image_path)
-        self.train_image_paths, self.validation_image_paths = self.__split_paths(image_paths, validation_split)
-        self.__train_generator_flow = GeneratorFlow(self.train_image_paths, input_shape, output_shape, batch_size)
-        self.__validation_generator_flow = GeneratorFlow(self.validation_image_paths, input_shape, output_shape, batch_size)
+        self.generator_flow = GeneratorFlow(image_paths, input_shape, output_shape, batch_size)
 
     @classmethod
     def empty(cls):
@@ -57,47 +46,11 @@ class YoloDataGenerator:
         """
         return cls.__new__(cls)
 
-    def flow(self, subset='training'):
+    def flow(self):
         """
         Flow function to load and return the batch.
         """
-        if subset == 'training':
-            return self.__train_generator_flow
-        elif subset == 'validation':
-            return self.__validation_generator_flow
-
-    @staticmethod
-    def __init_image_paths(train_image_path):
-        """
-        The path of the training data is extracted from the sub-path of train_image_path.
-        The backslash of all paths is replaced by a slash because in case of running on the unix system.
-        """
-        image_paths = []
-        image_paths += glob(f'{train_image_path}/*.jpg')
-        image_paths += glob(f'{train_image_path}/*.png')
-        image_paths += glob(f'{train_image_path}/*/*.jpg')
-        image_paths += glob(f'{train_image_path}/*/*.png')
-        image_paths = np.asarray(image_paths)
-        for i in range(len(image_paths)):
-            image_paths[i] = image_paths[i].replace('\\', '/')
-        return sorted(image_paths)
-
-    @staticmethod
-    def __split_paths(image_paths, validation_split):
-        """
-        After mixing the paths of all training data, ths paths are divided according to the validation split ratio.
-        """
-        assert 0.0 <= validation_split <= 1.0
-        image_paths = np.asarray(image_paths)
-        if validation_split == 0.0:
-            return image_paths, np.asarray([])
-        r = np.arange(len(image_paths))
-        np.random.shuffle(r)
-        image_paths = image_paths[r]
-        num_train_image_paths = int(len(image_paths) * (1.0 - validation_split))
-        train_image_paths = image_paths[:num_train_image_paths]
-        validation_image_paths = image_paths[num_train_image_paths:]
-        return train_image_paths, validation_image_paths
+        return self.generator_flow
 
 
 class GeneratorFlow(tf.keras.utils.Sequence):

@@ -18,12 +18,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 import os
+import random
 import shutil as sh
+from glob import glob
 from time import time
 
 import numpy as np
 import tensorflow as tf
-import tensorflow_addons as tfa
 from cv2 import cv2
 from tensorflow.keras.mixed_precision import experimental as mixed_precision
 
@@ -32,82 +33,18 @@ from generator import YoloDataGenerator
 from loss import YoloLoss, ConfidenceLoss, ConfidenceWithBoundingBoxLoss
 from mAP_calculator import calc_mean_average_precision
 from model import Model
-
-
-class LearningRateScheduler(tf.keras.callbacks.Callback):
-    def __init__(self, lr, epochs):
-        self.lr = lr
-        self.epochs = epochs
-        self.decay_step = epochs / 5
-        super().__init__()
-
-    def on_epoch_end(self, epoch, logs=None):
-        if epoch != 1 and (epoch - 1) % self.decay_step == 0:
-            self.lr *= 0.5
-            tf.keras.backend.set_value(self.model.optimizer.lr, self.lr)
-
-
-class LinearLRDecayWithWarmUp(tf.keras.callbacks.Callback):
-    def __init__(self, initial_lr=0.1, decay_step=1000, min_lr=1e-5):
-        self.initial_warm_up_done = False
-        self.batch_count = 0
-        self.batch_sum = 0
-        self.lr = min_lr
-        self.min_lr = min_lr
-        self.initial_lr = initial_lr
-        self.decay_step = decay_step
-        self.lr_offset = (initial_lr - min_lr) / float(decay_step)
-        super().__init__()
-
-    def on_batch_end(self, epoch, logs=None):
-        self.batch_count += 1
-        self.batch_sum += 1
-        if self.batch_count == self.decay_step:
-            if self.initial_warm_up_done:
-                self.save_model()
-                self.reset()
-            else:
-                self.batch_count = 0
-                self.initial_warm_up_done = True
-        else:
-            if self.initial_warm_up_done:
-                self.reduce_lr()
-            else:
-                self.raise_lr()
-
-    def reset(self):
-        self.batch_count = 0
-        self.initial_lr *= 0.9
-        self.decay_step = int(self.decay_step * 1.1)
-        self.lr_offset = (self.initial_lr - self.min_lr) / float(self.decay_step)
-        self.lr = self.initial_lr
-        tf.keras.backend.set_value(self.model.optimizer.lr, self.lr)
-
-    def reduce_lr(self):
-        self.lr -= self.lr_offset
-        tf.keras.backend.set_value(self.model.optimizer.lr, self.lr)
-
-    def raise_lr(self):
-        self.lr += self.lr_offset
-        tf.keras.backend.set_value(self.model.optimizer.lr, self.lr)
-
-    def save_model(self):
-        self.model.save(f'checkpoints/model_{self.batch_sum}_batch.h5')
+from triangular_cycle_lr import TriangularCycleLR
 
 
 class Yolo:
     def __init__(self, pretrained_model_path='', class_names_file_path=''):
         self.__class_names = []
-        self.__input_shape = ()
+        self.__train_image_paths = []
+        self.__validation_image_paths = []
         self.__model = tf.keras.models.Model()
-        self.__train_data_generator = YoloDataGenerator.empty()
-        self.__validation_data_generator = YoloDataGenerator.empty()
         self.__live_view_previous_time = time()
-        self.__callbacks = []
         self.__max_mean_ap = 0.0
         self.__model_name = 'model'
-        if not (os.path.exists('checkpoints') and os.path.isdir('checkpoints')):
-            os.makedirs('checkpoints', exist_ok=True)
         if os.path.exists(pretrained_model_path) and os.path.isfile(pretrained_model_path):
             self.__class_names, _ = self.__init_class_names(class_names_file_path)
             self.__model = tf.keras.models.load_model(pretrained_model_path, compile=False)
@@ -119,141 +56,124 @@ class Yolo:
             lr,
             epochs,
             model_name='model',
-            curriculum_epochs=10,
-            validation_split=0.0,
+            curriculum_epochs=0,
+            validation_split=0.2,
             validation_image_path='',
+            lr_scheduler=False,
             training_view=False,
-            mixed_float16_training=False,
-            use_map_callback=False,
-            use_lr_scheduler=False):
+            map_checkpoint=False,
+            mixed_float16_training=False):
         num_classes = 0
-        self.__input_shape = input_shape
         if len(self.__class_names) == 0:
             self.__class_names, num_classes = self.__init_class_names(f'{train_image_path}/classes.txt')
         if len(self.__model.layers) == 0:
             self.__model = Model(input_shape, num_classes + 5).build()
-        if training_view:
-            self.__callbacks += [tf.keras.callbacks.LambdaCallback(on_batch_end=self.__training_view)]
-
-        """
-        model checkpoint callbacks
-        """
-        self.__model_name = model_name
-        self.__callbacks += [
-            tf.keras.callbacks.ModelCheckpoint(filepath='model.h5')]
-        if use_map_callback:
-            if validation_split > 0.0 or (os.path.exists(validation_image_path) and os.path.isdir(validation_image_path)):
-                self.__callbacks += [tf.keras.callbacks.LambdaCallback(on_epoch_end=self.__map_callback)]
-            else:
-                print('[mAP callback] no validation path provided')
-                use_map_callback = False
-        if not use_map_callback:
-            self.__callbacks += [
-                tf.keras.callbacks.ModelCheckpoint(
-                    filepath='checkpoints/' + model_name + '_epoch_{epoch}_loss_{loss:.4f}_val_loss_{val_loss:.4f}.h5')]
-
-        """
-        lr scheduler callback
-        """
-        if use_lr_scheduler:
-            # self.__callbacks += [LearningRateScheduler(lr, epochs)]
-            self.__callbacks += [LinearLRDecayWithWarmUp(initial_lr=lr, decay_step=1000, min_lr=1e-5)]
-
         self.__model.summary()
-        self.__train_data_generator = YoloDataGenerator(
-            train_image_path=train_image_path,
+
+        if validation_image_path != '':
+            self.__train_image_paths, _ = self.__init_image_paths(train_image_path)
+            self.__validation_image_paths, _ = self.__init_image_paths(validation_image_path)
+        elif validation_split > 0.0:
+            self.__train_image_paths, self.__validation_image_paths = self.__init_image_paths(train_image_path, validation_split=validation_split)
+
+        train_data_generator = YoloDataGenerator(
+            image_paths=self.__train_image_paths,
             input_shape=input_shape,
             output_shape=self.__model.output_shape,
-            batch_size=batch_size,
-            validation_split=validation_split)
+            batch_size=batch_size)
+        validation_data_generator = YoloDataGenerator(
+            image_paths=self.__validation_image_paths,
+            input_shape=input_shape,
+            output_shape=self.__model.output_shape,
+            batch_size=batch_size)
+
+        callbacks = []
+
+        # lr scheduler callback
+        if lr_scheduler:
+            callbacks += [TriangularCycleLR(
+                max_lr=lr,
+                min_lr=1e-5,
+                cycle_step=2000,
+                batch_size=batch_size,
+                train_data_generator=train_data_generator,
+                validation_data_generator=validation_data_generator)]
+
+        # training view callback
+        if training_view:
+            callbacks += [tf.keras.callbacks.LambdaCallback(on_batch_end=self.__training_view)]
+
+        # checkpoint callback
+        self.__model_name = model_name
+        callbacks += [tf.keras.callbacks.ModelCheckpoint(filepath='model.h5')]
+
+        if not (os.path.exists('checkpoints') and os.path.isdir('checkpoints')):
+            os.makedirs('checkpoints', exist_ok=True)
+
+        use_map_checkpoint = True
+        if map_checkpoint:
+            if validation_split > 0.0 or (os.path.exists(validation_image_path) and os.path.isdir(validation_image_path)):
+                callbacks += [tf.keras.callbacks.LambdaCallback(on_epoch_end=self.__map_checkpoint)]
+            else:
+                print('[mAP callback] no validation path provided')
+                use_map_checkpoint = False
+
+        if not use_map_checkpoint:
+            callbacks += [tf.keras.callbacks.ModelCheckpoint(
+                filepath='checkpoints/' + model_name + '_epoch_{epoch}_loss_{loss:.4f}_val_loss_{val_loss:.4f}.h5')]
 
         if mixed_float16_training:
             mixed_precision.set_policy(mixed_precision.Policy('mixed_float16'))
+
+        # curriculum training
         if curriculum_epochs > 0:
             print('\nstart curriculum train')
-            tmp_model_name = '.__tmp_model.h5'
-            """
-            Confidence curriculum training
-            """
-            # optimizer = tf.keras.optimizers.Adam(lr=lr)
-            # optimizer = tf.keras.optimizers.SGD(lr=lr, momentum=0.9, nesterov=True)
-            optimizer = tfa.optimizers.SGDW(learning_rate=lr, momentum=0.9, nesterov=True, weight_decay=0.001)
+            tmp_model_name = f'{time()}.h5'
+            for loss in [ConfidenceLoss(), ConfidenceWithBoundingBoxLoss()]:
+                optimizer = tf.keras.optimizers.Adam(lr=lr)
+                if mixed_float16_training:
+                    optimizer = mixed_precision.LossScaleOptimizer(optimizer=optimizer, loss_scale='dynamic')
 
-            if mixed_float16_training:
-                optimizer = mixed_precision.LossScaleOptimizer(optimizer=optimizer, loss_scale='dynamic')
-            self.__model.compile(
-                optimizer=optimizer,
-                loss=ConfidenceLoss())
-            self.__model.fit(
-                x=self.__train_data_generator.flow(),
-                batch_size=batch_size,
-                epochs=curriculum_epochs)
-            self.__model = tf.keras.models.load_model(tmp_model_name, compile=False)
-            os.remove(tmp_model_name)
+                self.__model.compile(optimizer=optimizer, loss=loss)
+                self.__model.fit(
+                    x=train_data_generator.flow(),
+                    batch_size=batch_size,
+                    epochs=curriculum_epochs)
+                self.__model.save(tmp_model_name)
+                self.__model = tf.keras.models.load_model(tmp_model_name, compile=False)
+                os.remove(tmp_model_name)
 
-            """
-            Confidence and bbox curriculum training
-            """
-            # optimizer = tf.keras.optimizers.Adam(lr=lr)
-            # optimizer = tf.keras.optimizers.SGD(lr=lr, momentum=0.9, nesterov=True)
-            optimizer = tfa.optimizers.SGDW(learning_rate=lr, momentum=0.9, nesterov=True, weight_decay=0.001)
-
-            if mixed_float16_training:
-                optimizer = mixed_precision.LossScaleOptimizer(optimizer=optimizer, loss_scale='dynamic')
-            self.__model.compile(
-                optimizer=optimizer,
-                loss=ConfidenceWithBoundingBoxLoss())
-            self.__model.fit(
-                x=self.__train_data_generator.flow(),
-                batch_size=batch_size,
-                epochs=curriculum_epochs)
-            self.__model = tf.keras.models.load_model(tmp_model_name, compile=False)
-            os.remove(tmp_model_name)
-
-        # optimizer = tf.keras.optimizers.Adam(lr=lr)
-        # optimizer = tf.keras.optimizers.SGD(lr=lr, momentum=0.9, nesterov=True)
-        optimizer = tfa.optimizers.SGDW(learning_rate=lr, momentum=0.9, nesterov=True, weight_decay=0.001)
-
+        optimizer = tf.keras.optimizers.SGD(lr=lr, momentum=0.9, nesterov=True)
         if mixed_float16_training:
             optimizer = mixed_precision.LossScaleOptimizer(optimizer=optimizer, loss_scale='dynamic')
+
+        print(f'\ntrain on {len(self.__train_image_paths)} samples.')
+        print(f'validate on {len(self.__validation_image_paths)} samples.')
         self.__model.compile(optimizer=optimizer, loss=YoloLoss())
-        print(f'\ntrain on {len(self.__train_data_generator.train_image_paths)} samples.')
-        if os.path.exists(validation_image_path) and os.path.isdir(validation_image_path):
-            """
-            Training case 1 : train with train image path and validation image path
-            """
-            self.__validation_data_generator = YoloDataGenerator(
-                train_image_path=validation_image_path,
-                input_shape=input_shape,
-                output_shape=self.__model.output_shape,
-                batch_size=batch_size)
-            print(f'validate on {len(self.__validation_data_generator.train_image_paths)} samples.')
+
+        if lr_scheduler:
             self.__model.fit(
-                x=self.__train_data_generator.flow(),
-                validation_data=self.__validation_data_generator.flow(),
+                x=train_data_generator.flow(),
                 batch_size=batch_size,
                 epochs=epochs,
-                callbacks=self.__callbacks)
-        elif len(self.__train_data_generator.validation_image_paths) > 0:
-            """
-            Training case 2 : split validation data using validation ratio
-            """
-            print(f'validate on {len(self.__train_data_generator.validation_image_paths)} samples.')
-            self.__model.fit(
-                x=self.__train_data_generator.flow('training'),
-                validation_data=self.__train_data_generator.flow('validation'),
-                batch_size=batch_size,
-                epochs=epochs,
-                callbacks=self.__callbacks)
+                callbacks=callbacks)
         else:
-            """
-            Training case 3 : no validation image path or validation ratio. just training set
-            """
             self.__model.fit(
-                x=self.__train_data_generator.flow(),
+                x=train_data_generator.flow(),
+                validation_data=validation_data_generator.flow(),
                 batch_size=batch_size,
                 epochs=epochs,
-                callbacks=self.__callbacks)
+                callbacks=callbacks)
+
+    @staticmethod
+    def __init_image_paths(image_path, validation_split=0.0):
+        all_image_paths = sorted(glob(f'{image_path}/*.jpg'))
+        all_image_paths += sorted(glob(f'{image_path}/*.png'))
+        random.shuffle(all_image_paths)
+        num_cur_class_train_images = int(len(all_image_paths) * (1.0 - validation_split))
+        image_paths = all_image_paths[:num_cur_class_train_images]
+        validation_image_paths = all_image_paths[num_cur_class_train_images:]
+        return image_paths, validation_image_paths
 
     def predict(self, img, confidence_threshold=0.25, nms_iou_threshold=0.5):
         """
@@ -278,8 +198,10 @@ class Yolo:
 
         res = []
         for layer_index in range(len(output_shape)):
-            for i in range(output_shape[layer_index][1]):
-                for j in range(output_shape[layer_index][2]):
+            rows = output_shape[layer_index][1]
+            cols = output_shape[layer_index][2]
+            for i in range(rows):
+                for j in range(cols):
                     confidence = y[layer_index][0][i][j][0]
                     if confidence < confidence_threshold:
                         continue
@@ -353,25 +275,6 @@ class Yolo:
             cv2.putText(img, label_text, (x1 + padding - 1, y1 - baseline - padding), cv2.FONT_HERSHEY_DUPLEX, fontScale=font_scale, color=label_font_color, thickness=1, lineType=cv2.LINE_AA)
         return img
 
-    def evaluate(self):
-        """
-        Each validation data is predicted and image of the bounding box is displayed.
-        In no validation data, it is replaced by training data.
-        """
-        if len(self.__train_data_generator.validation_image_paths) > 0:
-            evaluate_image_paths = self.__train_data_generator.validation_image_paths
-        elif len(self.__validation_data_generator.train_image_paths) > 0:
-            evaluate_image_paths = self.__validation_data_generator.train_image_paths
-        else:
-            print('no validation set specified. evaluate on training set.')
-            evaluate_image_paths = self.__train_data_generator.train_image_paths
-        for path in evaluate_image_paths:
-            img = cv2.imread(path, cv2.IMREAD_GRAYSCALE if self.__model.input.shape[-1] == 1 else cv2.IMREAD_COLOR)
-            res = self.predict(img)
-            boxed_image = self.bounding_box(img, res)
-            cv2.imshow('res', boxed_image)
-            cv2.waitKey(0)
-
     def predict_video(self, video_path):
         """
         Equal to the evaluate function. video path is required.
@@ -402,12 +305,6 @@ class Yolo:
             cv2.imshow('res', boxed_image)
             cv2.waitKey(0)
 
-    def get_input_shape(self):
-        return self.__model.input_shape
-
-    def get_output_shape(self):
-        return self.__model.output_shape
-
     def __training_view(self, batch, logs):
         """
         Training callback function.
@@ -416,33 +313,22 @@ class Yolo:
         cur_time = time()
         if cur_time - self.__live_view_previous_time > 0.5:
             self.__live_view_previous_time = cur_time
-            index = np.random.randint(0, len(self.__train_data_generator.train_image_paths))
-            img_path = self.__train_data_generator.train_image_paths[index]
-            if len(self.__train_data_generator.validation_image_paths) > 0:
-                if np.random.choice([0, 1]) == 1:
-                    index = np.random.randint(0, len(self.__train_data_generator.validation_image_paths))
-                    img_path = self.__train_data_generator.validation_image_paths[index]
-            elif len(self.__validation_data_generator.train_image_paths) > 0:
-                if np.random.choice([0, 1]) == 1:
-                    index = np.random.randint(0, len(self.__validation_data_generator.train_image_paths))
-                    img_path = self.__validation_data_generator.train_image_paths[index]
+            if np.random.uniform() > 0.5:
+                img_path = random.choice(self.__train_image_paths)
+            else:
+                img_path = random.choice(self.__validation_image_paths)
             img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE if self.__model.input.shape[-1] == 1 else cv2.IMREAD_COLOR)
             res = self.predict(img)
             boxed_image = self.bounding_box(img, res)
             cv2.imshow('training view', boxed_image)
             cv2.waitKey(1)
 
-    def __map_callback(self, epoch, logs):
+    def __map_checkpoint(self, epoch, logs):
         """
         Mean average precision callback function.
         Save better mAP model.
         """
-        validation_image_paths = list()
-        if len(self.__train_data_generator.validation_image_paths) > 0:
-            validation_image_paths = self.__train_data_generator.validation_image_paths
-        elif len(self.__validation_data_generator.train_image_paths) > 0:
-            validation_image_paths = self.__validation_data_generator.train_image_paths
-        mean_ap = calc_mean_average_precision('model.h5', validation_image_paths)
+        mean_ap = calc_mean_average_precision('model.h5', self.__validation_image_paths)
         if mean_ap > self.__max_mean_ap:
             self.__max_mean_ap = mean_ap
             sh.copy('model.h5', f'checkpoints/{self.__model_name}_epoch_{epoch + 1}_val_mAP_{mean_ap:.4f}.h5')

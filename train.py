@@ -56,27 +56,37 @@ if __name__ == '__main__':
         False if training is on a server system without IO equipment.
     """
 
+    # model = Yolo(pretrained_model_path=r'C:\inz\git\yolo-lab-3-layer-refactoring\checkpoints\person_3c_all_sgd_epoch_6_loss_50.0479_val_loss_79.8327.h5')
     model = Yolo()
     model.fit(
-        # train_image_path=r'X:\tmp_200m_detection+coco_person\train',
-        # validation_image_path=r'X:\tmp_200m_detection+coco_person\validation',
-        train_image_path=r'C:\inz\train_data\loon_detection',
-        model_name='200m',
-        input_shape=(608, 608, 1),
-        batch_size=2,
-        lr=0.01,
-        epochs=200,
-        curriculum_epochs=5,
-        validation_split=0.2,
-        training_view=True,
-        mixed_float16_training=False,
-        use_map_callback=True,
-        use_lr_scheduler=True)
+        # train_image_path=r'X:\200m_detection\origin_small\train',
+        # validation_image_path=r'X:\200m_detection\origin_small\validation',
+        # model_name='200m_small',
+        # input_shape=(512, 512, 1),
 
+        train_image_path=r'X:\person\3_class_merged\train',
+        validation_image_path=r'X:\person\3_class_merged\validation',
+        model_name='person_3c_all_sgd',
+        input_shape=(128, 128, 1),
+
+        # train_image_path=r'C:\inz\train_data\loon_detection',
+        # model_name='loon',
+        # input_shape=(128, 512, 3),
+
+        batch_size=32,
+        lr=0.1,
+        epochs=500,
+        curriculum_epochs=0,
+        lr_scheduler=True,
+        training_view=True,
+        map_checkpoint=False,
+        mixed_float16_training=False)
+
+    # model_path = r'model.h5'
     # from glob import glob
     # from random import shuffle
-    # model = Yolo(pretrained_model_path=r'C:\inz\git\yolo-lab\checkpoints\200m_epoch_4_val_mAP_0.5851.h5', class_names_file_path=r'X:\200m_detection\train\classes.txt')
-    # paths = glob(r'C:\inz\videos\200m_detection_2\*.mp4')
+    # model = Yolo(pretrained_model_path=model_path, class_names_file_path=r'X:\200m_detection\origin\train\classes.txt')
+    # paths = glob(r'Z:\07. SW 개발팀\08. 개인 폴더\24. 표성백\22.돌발상황감지\2021-05-17\*.mp4')
     # shuffle(paths)
     # for video_path in paths:
-    #     model.predict_video(video_path=video_path)
+    #    model.predict_video(video_path)
