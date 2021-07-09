@@ -45,7 +45,6 @@ class TriangularCycleLR(tf.keras.callbacks.Callback):
             self.increase_lr()
         else:
             self.decrease_lr()
-        print(f'lr : {self.lr:.5f}')
 
     def increase_lr(self):
         self.lr += self.lr_offset
