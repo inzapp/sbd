@@ -24,9 +24,12 @@ class TriangularCycleLR(tf.keras.callbacks.Callback):
         self.increasing = True
         super().__init__()
 
-    def on_batch_end(self, epoch, logs=None):
-        self.batch_count += 1
+    def on_train_begin(self, logs=None):
+        tf.keras.backend.set_value(self.model.optimizer.lr, self.min_lr)
+
+    def on_train_batch_end(self, batch, logs=None):
         self.batch_sum += 1
+        self.batch_count += 1
         if self.batch_count == self.cycle_step:
             self.save_model(with_loss=True)
 
@@ -35,20 +38,21 @@ class TriangularCycleLR(tf.keras.callbacks.Callback):
         elif self.batch_count == self.cycle_step + 1:
             self.increasing = True
             self.batch_count = 1
-            self.max_lr *= 0.9
-            self.lr_offset = (self.max_lr - self.min_lr) / float((self.cycle_step - 2) / 2.0)
+            # self.max_lr *= 0.9
+            # self.lr_offset = (self.max_lr - self.min_lr) / float((self.cycle_step - 2) / 2.0)
 
         if self.increasing:
             self.increase_lr()
         else:
             self.decrease_lr()
-
-    def decrease_lr(self):
-        self.lr -= self.lr_offset
-        tf.keras.backend.set_value(self.model.optimizer.lr, self.lr)
+        print(f'lr : {self.lr:.5f}')
 
     def increase_lr(self):
         self.lr += self.lr_offset
+        tf.keras.backend.set_value(self.model.optimizer.lr, self.lr)
+
+    def decrease_lr(self):
+        self.lr -= self.lr_offset
         tf.keras.backend.set_value(self.model.optimizer.lr, self.lr)
 
     def save_model(self, with_loss=False):
