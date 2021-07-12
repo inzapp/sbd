@@ -36,25 +36,33 @@ class Model:
     def build(self):
         # return self.__vgg_19()
         # return self.__darknet_53()
-        # return self.__build_loon_detector()
         return self.__person_detail()
-        # return self.__build_loon_detector()
-        # return self.__build_lcd()
-        # return self.__build_lcd_cv2()
-        # return self.__build_sbd()
-        # return self.__build_200m_detector()
+        # return self.__200m()
+        # return self.__loon()
 
-    # input_shape=(128, 64, 1) or input_shape=(192, 96, 1)
+    # input_shape=(512, 512, 1)
     def __200m(self):
         input_layer = tf.keras.layers.Input(shape=self.__input_shape)
-        x = self.__conv_block(16, 3, input_layer, max_pool=True)
+        x = self.__conv_block(8, 3, input_layer, max_pool=True)
+        x = self.__conv_block(16, 3, x, max_pool=True)
         x = self.__conv_block(32, 3, x, max_pool=True)
         x = self.__conv_block(64, 3, x, max_pool=True)
-        x = self.__conv_block(128, 3, x, max_pool=True)
+
+        x = self.__dropout(x, 0.1)
+        x = self.__conv_block(128, 3, x, activation_first=True)
+        x = self.__conv_block(128, 3, x, activation_first=True)
         y1 = self.__point_wise_conv(self.__output_channel, x, 'output_1')
-        x = self.__conv_block(256, 3, x, max_pool=True)
+        x = self.__max_pool(x)
+
+        x = self.__dropout(x, 0.2)
+        x = self.__conv_block(256, 3, x, activation_first=True)
+        x = self.__conv_block(256, 3, x, activation_first=True)
         y2 = self.__point_wise_conv(self.__output_channel, x, 'output_2')
-        x = self.__conv_block(512, 3, x, max_pool=True)
+        x = self.__max_pool(x)
+
+        x = self.__dropout(x, 0.3)
+        x = self.__conv_block(512, 3, x, activation_first=True)
+        x = self.__conv_block(512, 3, x, activation_first=True)
         y3 = self.__point_wise_conv(self.__output_channel, x, 'output_3')
         return tf.keras.models.Model(input_layer, [y1, y2, y3])
 
@@ -77,19 +85,16 @@ class Model:
         x = self.__conv_block(32, 3, x, max_pool=True)
         x = self.__conv_block(64, 3, x, max_pool=True)
 
-        x = self.__dropout(x, 0.1)
         x = self.__conv_block(128, 3, x)
         x = self.__conv_block(128, 3, x)
         y1 = self.__point_wise_conv(self.__output_channel, x, 'output_1')
         x = self.__max_pool(x)
 
-        x = self.__dropout(x, 0.2)
         x = self.__conv_block(256, 3, x)
         x = self.__conv_block(256, 3, x)
         y2 = self.__point_wise_conv(self.__output_channel, x, 'output_2')
         x = self.__max_pool(x)
 
-        x = self.__dropout(x, 0.2)
         x = self.__conv_block(256, 3, x)
         x = self.__conv_block(256, 3, x)
         y3 = self.__point_wise_conv(self.__output_channel, x, 'output_3')
@@ -139,7 +144,7 @@ class Model:
         x = self.__conv_block(128, 1, x)
         x = self.__conv_block(256, 3, x)
         y1 = self.__point_wise_conv(self.__output_channel, x, 'output_1')
-        x = tf.keras.layers.MaxPool2D()(x)
+        x = self.__max_pool(x)
 
         x = self.__conv_block(512, 3, x)
         x = self.__conv_block(256, 1, x)
@@ -147,7 +152,7 @@ class Model:
         x = self.__conv_block(256, 1, x)
         x = self.__conv_block(512, 3, x)
         y2 = self.__point_wise_conv(self.__output_channel, x, 'output_2')
-        x = tf.keras.layers.MaxPool2D()(x)
+        x = self.__max_pool(x)
 
         x = self.__conv_block(1024, 3, x)
         x = self.__conv_block(512, 1, x)
@@ -179,7 +184,7 @@ class Model:
             x = tf.keras.layers.Add()([skip_connection, x])
             skip_connection = x
         x = self.__conv_blocks(1, 256, 3, x, max_pool=True)
-        y1 = self.__point_wise_conv(self.__output_channel, x, name='detection_layer_1')
+        y1 = self.__point_wise_conv(self.__output_channel, x, name='output_1')
         skip_connection = x
 
         for _ in range(8):
@@ -188,7 +193,7 @@ class Model:
             x = tf.keras.layers.Add()([skip_connection, x])
             skip_connection = x
         x = self.__conv_blocks(1, 512, 3, x, max_pool=True)
-        y2 = self.__point_wise_conv(self.__output_channel, x, name='detection_layer_2')
+        y2 = self.__point_wise_conv(self.__output_channel, x, name='output_2')
         skip_connection = x
 
         for _ in range(4):
@@ -204,19 +209,24 @@ class Model:
             x = self.__conv_blocks(1, 1024, 3, x)
             x = tf.keras.layers.Add()([skip_connection, x])
             skip_connection = x
-        y3 = self.__point_wise_conv(self.__output_channel, x, name='detection_layer_3')
+        y3 = self.__point_wise_conv(self.__output_channel, x, name='output_3')
         return tf.keras.models.Model(input_layer, [y1, y2, y3])
 
     def __vgg_19(self):
         input_layer = tf.keras.layers.Input(shape=self.__input_shape)
         x = self.__conv_blocks(2, 64, 3, input_layer, max_pool=True)
         x = self.__conv_blocks(3, 128, 3, x, max_pool=True)
-        x = self.__conv_blocks(4, 256, 3, x, max_pool=True)
-        y1 = self.__point_wise_conv(self.__output_channel, x, name='detection_layer_1')
-        x = self.__conv_blocks(4, 512, 3, x, max_pool=True)
-        y2 = self.__point_wise_conv(self.__output_channel, x, name='detection_layer_2')
-        x = self.__conv_blocks(4, 512, 3, x, max_pool=True)
-        y3 = self.__point_wise_conv(self.__output_channel, x, name='detection_layer_3')
+
+        x = self.__conv_blocks(4, 256, 3, x)
+        y1 = self.__point_wise_conv(self.__output_channel, x, name='output_1')
+        x = self.__max_pool(x)
+
+        x = self.__conv_blocks(4, 512, 3, x)
+        y2 = self.__point_wise_conv(self.__output_channel, x, name='output_2')
+        x = self.__max_pool(x)
+
+        x = self.__conv_blocks(4, 512, 3, x)
+        y3 = self.__point_wise_conv(self.__output_channel, x, name='output_3')
         return tf.keras.models.Model(input_layer, [y1, y2, y3])
 
     def __conv_blocks(self, n_convolutions, filters, kernel_size, x, max_pool=False):
