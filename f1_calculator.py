@@ -198,7 +198,7 @@ def calc_f1_score(model_path, image_paths):
         x, label_lines = f.result()
         if x is None:
             continue
-        
+
         y = model.predict(x=x, batch_size=1)
         for iou_index, iou_threshold in enumerate(iou_thresholds):
             for class_index in range(num_classes):
@@ -231,9 +231,14 @@ def calc_f1_score(model_path, image_paths):
     return f1_sum / len(iou_thresholds)
 
 
-if __name__ == '__main__':
-    paths = glob(r'X:\person\3_class_merged_small\validation\*.jpg')
-    #paths = glob(r'X:\200m_detection\origin\validation\*.jpg')
-    avg_f1 = calc_f1_score(
-        r'C:\inz\git\yolo-lab-3-layer-refactoring\checkpoints\person_3c_small_epoch_764_loss_2.4189_val_loss_2.7322.h5', paths)
+def main():
+    model_path = r'C:\inz\git\yolo-lab-3-layer-refactoring\checkpoints\loon\model_epoch_92_loss_2.1282_val_loss_4.8404_f1_0.9896_val_f1_0.8348.h5'
+    # img_paths = glob(r'X:\200m_detection\origin\validation\*.jpg')
+    img_paths = glob(r'C:\inz\train_data\loon_detection\*.jpg')
+    avg_f1 = calc_f1_score(model_path, img_paths)
     print(f'avg f1 : {avg_f1:.4f}')
+
+
+if __name__ == '__main__':
+    with tf.device('/cpu:0'):
+        main()
