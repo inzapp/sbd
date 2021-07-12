@@ -56,17 +56,16 @@ if __name__ == '__main__':
         False if training is on a server system without IO equipment.
     """
 
-    # model = Yolo(pretrained_model_path=r'C:\inz\git\yolo-lab-3-layer-refactoring\checkpoints\person_3c_all_sgd_epoch_6_loss_50.0479_val_loss_79.8327.h5')
     model = Yolo()
     model.fit(
-        # train_image_path=r'X:\200m_detection\origin_small\train',
-        # validation_image_path=r'X:\200m_detection\origin_small\validation',
-        # model_name='200m_small',
+        # train_image_path=r'X:\200m_detection\origin\train',
+        # validation_image_path=r'X:\200m_detection\origin\validation',
+        # model_name='200m',
         # input_shape=(512, 512, 1),
 
         train_image_path=r'X:\person\3_class_merged\train',
         validation_image_path=r'X:\person\3_class_merged\validation',
-        model_name='person_3c_all_sgd',
+        model_name='person',
         input_shape=(128, 128, 1),
 
         # train_image_path=r'C:\inz\train_data\loon_detection',
@@ -75,18 +74,18 @@ if __name__ == '__main__':
 
         batch_size=32,
         lr=0.1,
-        epochs=500,
+        epochs=300,
         curriculum_epochs=0,
         lr_scheduler=True,
-        training_view=True,
+        training_view=False,
         map_checkpoint=False,
         mixed_float16_training=False)
 
-    # model_path = r'model.h5'
     # from glob import glob
     # from random import shuffle
+    # model_path = r'checkpoints/model_4000_batch_loss_219.2148_val_loss_297.3756.h5'
     # model = Yolo(pretrained_model_path=model_path, class_names_file_path=r'X:\200m_detection\origin\train\classes.txt')
     # paths = glob(r'Z:\07. SW 개발팀\08. 개인 폴더\24. 표성백\22.돌발상황감지\2021-05-17\*.mp4')
     # shuffle(paths)
     # for video_path in paths:
-    #    model.predict_video(video_path)
+    #     model.predict_video(video_path)
