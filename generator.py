@@ -60,10 +60,10 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         generator_flow = GeneratorFlow(image_paths=image_paths)
     """
 
-    def __init__(self, image_paths, input_shape, output_shape, batch_size):
+    def __init__(self, image_paths, input_shape, output_shapes, batch_size):
         self.image_paths = image_paths
         self.input_shape = input_shape
-        self.output_shape = output_shape
+        self.output_shapes = output_shapes
         self.batch_size = batch_size
         self.random_indexes = np.arange(len(self.image_paths))
         self.pool = ThreadPoolExecutor(8)
@@ -91,8 +91,8 @@ class GeneratorFlow(tf.keras.utils.Sequence):
                 label_lines = file.readlines()
 
             y = []
-            for i in range(3):
-                y.append(np.zeros((self.output_shape[i][1], self.output_shape[i][2], self.output_shape[i][3]), dtype=np.float32))
+            for i in range(len(self.output_shapes)):
+                y.append(np.zeros((self.output_shapes[i][1], self.output_shapes[i][2], self.output_shapes[i][3]), dtype=np.float32))
             for label_line in label_lines:
                 class_index, cx, cy, w, h = list(map(float, label_line.split(' ')))
                 if w > 0.3 or h > 0.3:
@@ -102,10 +102,10 @@ class GeneratorFlow(tf.keras.utils.Sequence):
                 else:
                     output_layer_index = 0
 
-                grid_width_ratio = 1 / float(self.output_shape[output_layer_index][2])
-                grid_height_ratio = 1 / float(self.output_shape[output_layer_index][1])
-                center_row = int(cy * self.output_shape[output_layer_index][1])
-                center_col = int(cx * self.output_shape[output_layer_index][2])
+                grid_width_ratio = 1 / float(self.output_shapes[output_layer_index][2])
+                grid_height_ratio = 1 / float(self.output_shapes[output_layer_index][1])
+                center_row = int(cy * self.output_shapes[output_layer_index][1])
+                center_col = int(cx * self.output_shapes[output_layer_index][2])
                 y[output_layer_index][center_row][center_col][0] = 1.0
                 y[output_layer_index][center_row][center_col][1] = (cx - (center_col * grid_width_ratio)) / grid_width_ratio
                 y[output_layer_index][center_row][center_col][2] = (cy - (center_row * grid_height_ratio)) / grid_height_ratio
