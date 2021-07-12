@@ -371,8 +371,8 @@ def all_check():
 
 
 def main():
-    model_path = r'C:\inz\git\yolo-lab-3-layer-refactoring\checkpoints\model_2000_batch_loss_257.9889_val_loss_305.9214.h5'
-    img_paths = glob(r'X:\200m_detection\origin\validation\*.jpg')
+    model_path = r'C:\inz\git\yolo-lab-3-layer-refactoring\checkpoints\model_5000_batch_loss_22.6876_val_loss_66.7000.h5'
+    img_paths = glob(r'X:\person\3_class_merged\validation\*.jpg')
     avg_map = calc_mean_average_precision(model_path, img_paths)
     print(f'avg mAP : {avg_map:.4f}')
 
