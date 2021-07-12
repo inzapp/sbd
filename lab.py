@@ -482,7 +482,7 @@ def save_test():
     input_height, input_width, input_channels = input_shape[1], input_shape[2], input_shape[3]
     color_mode = cv2.IMREAD_GRAYSCALE if model.input_shape[3] == 1 else cv2.IMREAD_COLOR
 
-    output_shape = model.output_shape
+    output_shape = model.output_shapes
     output_rows, output_cols, num_classes = output_shape[1], output_shape[2], output_shape[3] - 5
 
     class_names = []
