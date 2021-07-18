@@ -56,30 +56,30 @@ if __name__ == '__main__':
         False if training is on a server system without IO equipment.
     """
 
-    model = Yolo()
-    model.fit(
+    Yolo(
         # train_image_path=r'X:\200m_detection\origin\train',
         # validation_image_path=r'X:\200m_detection\origin\validation',
         # model_name='200m',
         # input_shape=(512, 512, 1),
 
-        train_image_path=r'X:\person\3_class_merged\train',
-        validation_image_path=r'X:\person\3_class_merged\validation',
-        model_name='person',
-        input_shape=(128, 128, 1),
+        # train_image_path=r'X:\person\3_class_merged\train',
+        # validation_image_path=r'X:\person\3_class_merged\validation',
+        # model_name='person',
+        # input_shape=(128, 128, 1),
 
-        # train_image_path=r'C:\inz\train_data\loon_detection',
-        # model_name='loon',
-        # input_shape=(128, 512, 3),
+        train_image_path=r'C:\inz\train_data\loon\train',
+        model_name='loon',
+        input_shape=(128, 512, 3),
 
-        batch_size=32,
-        lr=0.1,
-        epochs=300,
-        curriculum_epochs=0,
+        lr=0.001,
+        batch_size=2,
+        epochs=60,
+        curriculum_epochs=10,
         lr_scheduler=True,
-        training_view=False,
-        map_checkpoint=False,
-        mixed_float16_training=False)
+        training_view=True,
+        map_checkpoint=True,
+        mixed_float16_training=False
+    ).fit()
 
     # from glob import glob
     # from random import shuffle

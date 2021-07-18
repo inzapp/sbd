@@ -36,9 +36,9 @@ class Model:
     def build(self):
         # return self.__vgg_19()
         # return self.__darknet_53()
-        return self.__person_detail()
+        # return self.__person_detail()
         # return self.__200m()
-        # return self.__loon()
+        return self.__loon()
 
     # input_shape=(512, 512, 1)
     def __200m(self):
@@ -229,16 +229,24 @@ class Model:
         y3 = self.__point_wise_conv(self.__output_channel, x, name='output_3')
         return tf.keras.models.Model(input_layer, [y1, y2, y3])
 
-    def __conv_blocks(self, n_convolutions, filters, kernel_size, x, max_pool=False):
+    def __conv_blocks(self, n_convolutions, filters, kernel_size, x, max_pool=False, avg_max_pool=False):
         for _ in range(n_convolutions):
             x = self.__conv_block(filters, kernel_size, x, False)
         if max_pool:
-            x = tf.keras.layers.MaxPool2D()(x)
+            x = self.__max_pool(x)
+        elif avg_max_pool:
+            x = self.__avg_max_pool(x)
         return x
 
     @staticmethod
     def __max_pool(x):
         return tf.keras.layers.MaxPool2D()(x)
+
+    @staticmethod
+    def __avg_max_pool(x):
+        ap = tf.keras.layers.AvgPool2D()(x)
+        mp = tf.keras.layers.MaxPool2D()(x)
+        return tf.keras.layers.Add()([ap, mp])
 
     @staticmethod
     def __dropout(x, rate):

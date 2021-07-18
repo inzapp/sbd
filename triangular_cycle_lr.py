@@ -25,7 +25,7 @@ class TriangularCycleLR(tf.keras.callbacks.Callback):
         super().__init__()
 
     def on_train_begin(self, logs=None):
-        tf.keras.backend.set_value(self.model.optimizer.lr, self.min_lr)
+        tf.keras.backend.set_value(self.model.optimizer.__lr, self.min_lr)
 
     def on_train_batch_end(self, batch, logs=None):
         self.batch_sum += 1
@@ -48,11 +48,11 @@ class TriangularCycleLR(tf.keras.callbacks.Callback):
 
     def increase_lr(self):
         self.lr += self.lr_offset
-        tf.keras.backend.set_value(self.model.optimizer.lr, self.lr)
+        tf.keras.backend.set_value(self.model.optimizer.__lr, self.lr)
 
     def decrease_lr(self):
         self.lr -= self.lr_offset
-        tf.keras.backend.set_value(self.model.optimizer.lr, self.lr)
+        tf.keras.backend.set_value(self.model.optimizer.__lr, self.lr)
 
     def save_model(self, with_loss=False):
         if with_loss:
