@@ -71,10 +71,16 @@ if __name__ == '__main__':
         model_name='loon',
         input_shape=(128, 512, 3),
 
+        # train_image_path=r'C:\inz\train_data\kaggle\covid-detection\jpg\train',
+        # validation_image_path=r'C:\inz\train_data\kaggle\covid-detection\jpg\test',
+        # model_name='covid',
+        # input_shape=(416, 416, 1),
+
+
         lr=0.001,
         batch_size=2,
-        epochs=60,
-        curriculum_epochs=10,
+        epochs=50,
+        curriculum_epochs=50,
         lr_scheduler=True,
         training_view=True,
         map_checkpoint=True,

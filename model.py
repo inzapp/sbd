@@ -38,6 +38,7 @@ class Model:
         # return self.__darknet_53()
         # return self.__person_detail()
         # return self.__200m()
+        # return self.__covid()
         return self.__loon()
 
     # input_shape=(512, 512, 1)
@@ -68,13 +69,13 @@ class Model:
 
     def __loon(self):
         input_layer = tf.keras.layers.Input(shape=self.__input_shape)
-        x = self.__conv_block(8, 3, input_layer, max_pool=True)
-        x = self.__conv_block(16, 3, x, max_pool=True)
-        x = self.__conv_block(32, 3, x, max_pool=True)
+        x = self.__conv_block(8, 3, input_layer, )
+        x = self.__conv_block(16, 3, x, avg_max_pool=True)
+        x = self.__conv_block(32, 3, x, avg_max_pool=True)
         y1 = self.__point_wise_conv(self.__output_channel, x, 'output_1')
-        x = self.__conv_block(64, 3, x, max_pool=True)
+        x = self.__conv_block(64, 3, x, avg_max_pool=True)
         y2 = self.__point_wise_conv(self.__output_channel, x, 'output_2')
-        x = self.__conv_block(128, 3, x, max_pool=True)
+        x = self.__conv_block(128, 3, x, avg_max_pool=True)
         y3 = self.__point_wise_conv(self.__output_channel, x, 'output_3')
         return tf.keras.models.Model(input_layer, [y1, y2, y3])
 
@@ -98,6 +99,24 @@ class Model:
         x = self.__conv_block(256, 3, x)
         x = self.__conv_block(256, 3, x)
         y3 = self.__point_wise_conv(self.__output_channel, x, 'output_3')
+        return tf.keras.models.Model(input_layer, [y1, y2, y3])
+
+    def __covid(self):
+        input_layer = tf.keras.layers.Input(shape=self.__input_shape)
+        x = self.__conv_blocks(2, 4, 3, input_layer, max_pool=True)
+        x = self.__conv_blocks(3, 8, 3, x, max_pool=True)
+
+        x = self.__conv_blocks(3, 16, 3, x, max_pool=True)
+        x = self.__conv_blocks(3, 32, 3, x)
+        y1 = self.__point_wise_conv(self.__output_channel, x, name='output_1')
+        x = self.__max_pool(x)
+
+        x = self.__conv_blocks(3, 32, 3, x)
+        y2 = self.__point_wise_conv(self.__output_channel, x, name='output_2')
+        x = self.__max_pool(x)
+
+        x = self.__conv_blocks(3, 32, 3, x)
+        y3 = self.__point_wise_conv(self.__output_channel, x, name='output_3')
         return tf.keras.models.Model(input_layer, [y1, y2, y3])
 
     # input_shape=(96, 192, 1) or input_shape=(144, 288, 1)
@@ -238,22 +257,7 @@ class Model:
             x = self.__avg_max_pool(x)
         return x
 
-    @staticmethod
-    def __max_pool(x):
-        return tf.keras.layers.MaxPool2D()(x)
-
-    @staticmethod
-    def __avg_max_pool(x):
-        ap = tf.keras.layers.AvgPool2D()(x)
-        mp = tf.keras.layers.MaxPool2D()(x)
-        return tf.keras.layers.Add()([ap, mp])
-
-    @staticmethod
-    def __dropout(x, rate):
-        return tf.keras.layers.Dropout(rate)(x)
-
-    @staticmethod
-    def __conv_block(filters, kernel_size, x, max_pool=False, activation_first=False):
+    def __conv_block(self, filters, kernel_size, x, max_pool=False, avg_max_pool=False, activation_first=False):
         if activation_first:
             x = tf.keras.layers.Conv2D(
                 filters=filters,
@@ -272,8 +276,24 @@ class Model:
             x = tf.keras.layers.BatchNormalization()(x)
             x = tf.keras.layers.ReLU()(x)
         if max_pool:
-            x = tf.keras.layers.MaxPool2D()(x)
+            x = self.__max_pool(x)
+        elif avg_max_pool:
+            x = self.__avg_max_pool(x)
         return x
+
+    @staticmethod
+    def __max_pool(x):
+        return tf.keras.layers.MaxPool2D()(x)
+
+    @staticmethod
+    def __avg_max_pool(x):
+        ap = tf.keras.layers.AvgPool2D()(x)
+        mp = tf.keras.layers.MaxPool2D()(x)
+        return tf.keras.layers.Add()([ap, mp])
+
+    @staticmethod
+    def __dropout(x, rate):
+        return tf.keras.layers.Dropout(rate)(x)
 
     @staticmethod
     def __point_wise_conv(filters, x, name='output'):
