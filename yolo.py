@@ -322,10 +322,10 @@ class Yolo:
         Mean average precision callback function.
         Save better mAP model.
         """
-        mean_ap = calc_mean_average_precision('model.h5', self.__validation_image_paths)
+        mean_ap, f1_score = calc_mean_average_precision('model.h5', self.__validation_image_paths)
         if mean_ap > self.__max_mean_ap:
             self.__max_mean_ap = mean_ap
-            sh.copy('model.h5', f'checkpoints/{self.__model_name}_epoch_{epoch + 1}_val_mAP_{mean_ap:.4f}.h5')
+            sh.copy('model.h5', f'checkpoints/{self.__model_name}_epoch_{epoch + 1}_val_mAP_{mean_ap:.4f}_val_f1_{f1_score:.4f}.h5')
 
     @staticmethod
     def __init_class_names(class_names_file_path):
