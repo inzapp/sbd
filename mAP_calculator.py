@@ -352,7 +352,7 @@ def calc_mean_average_precision(model_path, image_paths):
         f1_sum += avg_f1_score
         print(f'F1@{int(iou_threshold * 100)} : {avg_f1_score:.4f}')
         print(f'mAP@{int(iou_threshold * 100)} : {mean_ap:.4f}\n')
-    return mean_ap_sum / len(iou_thresholds)
+    return mean_ap_sum / len(iou_thresholds), f1_sum / len(iou_thresholds)
 
 
 def all_check():
@@ -360,12 +360,13 @@ def all_check():
     img_paths = glob(r'X:\person\3_class_merged\validation\*.jpg')
     for model_path in glob('checkpoints/person/adam_cycle/*.h5'):
         print(model_path)
-        score = calc_mean_average_precision(model_path, img_paths)
-        results.append({'model_path': model_path, 'score': score})
-    results = sorted(results, key=lambda x: x['score'], reverse=True)
+        mean_ap, f1_score = calc_mean_average_precision(model_path, img_paths)
+        results.append({'model_path': model_path, 'mAP': mean_ap, 'f1': f1_score})
+    results = sorted(results, key=lambda x: x['f1'], reverse=True)
+    results = sorted(results, key=lambda x: x['mAP'], reverse=True)
     s = ''
-    for r in results:
-        s += f'score : {r["score"]:.4f}, model_path : {r["model_path"]}\n'
+    for result in results:
+        s += f'mAP : {result["mAP"]:.4f}, f1: {result["f1"]}model_path : {result["model_path"]}\n'
     with open('results.txt', 'wt') as f:
         f.writelines(s)
 
@@ -373,7 +374,7 @@ def all_check():
 def main():
     model_path = r'C:\inz\git\yolo-lab-3-layer-refactoring\checkpoints\model_5000_batch_loss_22.6876_val_loss_66.7000.h5'
     img_paths = glob(r'X:\person\3_class_merged\validation\*.jpg')
-    avg_map = calc_mean_average_precision(model_path, img_paths)
+    avg_map, avg_f1 = calc_mean_average_precision(model_path, img_paths)
     print(f'avg mAP : {avg_map:.4f}')
 
 
