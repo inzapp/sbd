@@ -37,33 +37,31 @@ class Model:
         # return self.__vgg_19()
         # return self.__darknet_53()
         # return self.__person_detail()
-        # return self.__200m()
+        return self.__200m()
         # return self.__covid()
-        return self.__loon()
+        # return self.__loon()
 
     # input_shape=(512, 512, 1)
     def __200m(self):
         input_layer = tf.keras.layers.Input(shape=self.__input_shape)
-        x = self.__conv_block(8, 3, input_layer, max_pool=True)
-        x = self.__conv_block(16, 3, x, max_pool=True)
-        x = self.__conv_block(32, 3, x, max_pool=True)
-        x = self.__conv_block(64, 3, x, max_pool=True)
+        x = self.__conv_blocks(1, 8, 3, input_layer, avg_max_pool=True)
+        x = self.__conv_blocks(2, 16, 3, x, avg_max_pool=True)
+        x = self.__conv_blocks(2, 32, 3, x, avg_max_pool=True)
+        x = self.__conv_blocks(2, 64, 3, x, avg_max_pool=True)
 
-        x = self.__dropout(x, 0.1)
-        x = self.__conv_block(128, 3, x, activation_first=True)
-        x = self.__conv_block(128, 3, x, activation_first=True)
+        # x = self.__dropout(x, 0.1)
+        x = self.__conv_blocks(2, 128, 3, x)
         y1 = self.__point_wise_conv(self.__output_channel, x, 'output_1')
-        x = self.__max_pool(x)
+        x = self.__avg_max_pool(x)
 
-        x = self.__dropout(x, 0.2)
-        x = self.__conv_block(256, 3, x, activation_first=True)
-        x = self.__conv_block(256, 3, x, activation_first=True)
+        # x = self.__dropout(x, 0.2)
+        x = self.__conv_block(2, 256, 3, x)
         y2 = self.__point_wise_conv(self.__output_channel, x, 'output_2')
-        x = self.__max_pool(x)
+        x = self.__avg_max_pool(x)
 
-        x = self.__dropout(x, 0.3)
-        x = self.__conv_block(512, 3, x, activation_first=True)
-        x = self.__conv_block(512, 3, x, activation_first=True)
+        # x = self.__dropout(x, 0.3)
+        x = self.__conv_block(256, 3, x, activation_first=True)
+        x = self.__conv_block(256, 3, x, activation_first=True)
         y3 = self.__point_wise_conv(self.__output_channel, x, 'output_3')
         return tf.keras.models.Model(input_layer, [y1, y2, y3])
 
@@ -248,9 +246,9 @@ class Model:
         y3 = self.__point_wise_conv(self.__output_channel, x, name='output_3')
         return tf.keras.models.Model(input_layer, [y1, y2, y3])
 
-    def __conv_blocks(self, n_convolutions, filters, kernel_size, x, max_pool=False, avg_max_pool=False):
+    def __conv_blocks(self, n_convolutions, filters, kernel_size, x, max_pool=False, avg_max_pool=False, activation_first=False):
         for _ in range(n_convolutions):
-            x = self.__conv_block(filters, kernel_size, x, False)
+            x = self.__conv_block(filters, kernel_size, x, activation_first=activation_first)
         if max_pool:
             x = self.__max_pool(x)
         elif avg_max_pool:
