@@ -275,9 +275,11 @@ class Yolo:
             x = cv2.cvtColor(raw, cv2.COLOR_BGR2GRAY) if self.__model.input.shape[-1] == 1 else raw.copy()
             res = self.predict(x)
             boxed_image = self.bounding_box(raw, res)
-            cv2.imshow('res', boxed_image)
-            if ord('q') == cv2.waitKey(1):
+            cv2.imshow('video', boxed_image)
+            if cv2.waitKey(1) == ord('q'):
                 break
+            elif cv2.waitKey(1) == 27:
+                exit(0)
         cap.release()
         cv2.destroyAllWindows()
 
