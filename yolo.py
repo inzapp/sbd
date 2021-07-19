@@ -39,11 +39,11 @@ from triangular_cycle_lr import TriangularCycleLR
 
 class Yolo:
     def __init__(self,
-                 train_image_path,
-                 input_shape,
-                 batch_size,
-                 lr,
-                 epochs,
+                 train_image_path=None,
+                 input_shape=None,
+                 batch_size=None,
+                 lr=None,
+                 epochs=None,
                  model_name='model',
                  curriculum_epochs=0,
                  validation_split=0.2,
@@ -52,6 +52,7 @@ class Yolo:
                  training_view=False,
                  map_checkpoint=False,
                  mixed_float16_training=False,
+                 test_only=False,
                  pretrained_model_path='',
                  class_names_file_path=''):
         self.__lr = lr
@@ -69,6 +70,8 @@ class Yolo:
 
         if os.path.exists(pretrained_model_path) and os.path.isfile(pretrained_model_path):
             self.__model = tf.keras.models.load_model(pretrained_model_path, compile=False)
+            if test_only:
+                return
         else:
             self.__model = Model(input_shape, self.__num_classes + 5).build()
 
@@ -276,9 +279,10 @@ class Yolo:
             res = self.predict(x)
             boxed_image = self.bounding_box(raw, res)
             cv2.imshow('video', boxed_image)
-            if cv2.waitKey(1) == ord('q'):
+            key = cv2.waitKey(1)
+            if key == ord('q'):
                 break
-            elif cv2.waitKey(1) == 27:
+            elif key == 27:
                 exit(0)
         cap.release()
         cv2.destroyAllWindows()
