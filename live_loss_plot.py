@@ -30,4 +30,7 @@ class LiveLossPlot(tf.keras.callbacks.Callback):
         if len(self.recent_values) > 20:
             self.recent_values.pop(0)
         self.recent_values.append(logs['loss'])
-        return np.mean(self.recent_values)
+        return np.sqrt(np.mean(self.recent_values))
+
+    def close(self):
+        plt.close(self.fig)
