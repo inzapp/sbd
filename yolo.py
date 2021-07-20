@@ -21,7 +21,7 @@ import os
 import random
 import shutil as sh
 from glob import glob
-from time import time
+from time import time, sleep
 
 import numpy as np
 import tensorflow as tf
@@ -29,40 +29,44 @@ from cv2 import cv2
 from tensorflow.keras.mixed_precision import experimental as mixed_precision
 
 from box_colors import colors
+from cosine_lr_decay import CosineLRDecay
 from generator import YoloDataGenerator
+from live_loss_plot import LiveLossPlot
 from loss import YoloLoss, ConfidenceLoss, ConfidenceWithBoundingBoxLoss
 from mAP_calculator import calc_mean_average_precision
 from model import Model
-from step_lr_decay import StepLRDecay
-from triangular_cycle_lr import TriangularCycleLR
 
 
 class Yolo:
     def __init__(self,
                  train_image_path=None,
-                 input_shape=None,
-                 batch_size=None,
-                 lr=None,
-                 epochs=None,
+                 input_shape=(256, 256, 1),
+                 max_lr=0.1,
+                 min_lr=0.001,
+                 curriculum_lr=0.001,
+                 batch_size=32,
+                 cycle_length=1000,
+                 iterations=100010,
+                 curriculum_iterations=5000,
                  model_name='model',
-                 curriculum_epochs=0,
                  validation_split=0.2,
                  validation_image_path='',
-                 lr_scheduler=False,
-                 training_view=False,
-                 map_checkpoint=False,
-                 mixed_float16_training=False,
                  test_only=False,
+                 training_view=False,
+                 mixed_float16_training=False,
                  pretrained_model_path='',
                  class_names_file_path=''):
-        self.__lr = lr
-        self.__epochs = epochs
-        self.__max_mean_ap = 0.0
+        self.__max_lr = max_lr
+        self.__min_lr = min_lr
+        self.__curriculum_lr = curriculum_lr
         self.__batch_size = batch_size
+        self.__cycle_length = cycle_length
+        self.__iterations = iterations
+        self.__curriculum_iterations = curriculum_iterations
         self.__model_name = model_name
-        self.__live_view_previous_time = time()
-        self.__curriculum_epochs = curriculum_epochs
         self.__mixed_float16_training = mixed_float16_training
+        self.__live_view_previous_time = time()
+        self.__max_mean_ap = 0.0
 
         if class_names_file_path == '':
             class_names_file_path = f'{train_image_path}/classes.txt'
@@ -92,31 +96,22 @@ class Yolo:
             output_shape=self.__model.output_shape,
             batch_size=batch_size)
 
+        self.__live_loss_plot = None
+        self.__cosine_lr_decay = CosineLRDecay(
+            max_lr=self.__max_lr,
+            min_lr=self.__min_lr,
+            cycle_length=self.__cycle_length,
+            batch_size=batch_size,
+            train_data_generator_flow=self.__train_data_generator.flow(),
+            validation_data_generator_flow=self.__validation_data_generator.flow())
+
         self.__callbacks = [tf.keras.callbacks.ModelCheckpoint(filepath='model.h5')]
 
-        # lr scheduler callback
-        if lr_scheduler:
-            self.__callbacks += [StepLRDecay(lr=self.__lr, epochs=self.__epochs)]
-            # self.__callbacks += [TriangularCycleLR(
-            #     max_lr=lr,
-            #     min_lr=1e-5,
-            #     cycle_step=2000,
-            #     batch_size=batch_size,
-            #     train_data_generator=self.__train_data_generator,
-            #     validation_data_generator=self.__validation_data_generator)]
-
-        # training view callback
         if training_view:
             self.__callbacks += [tf.keras.callbacks.LambdaCallback(on_batch_end=self.__training_view)]
 
         if not (os.path.exists('checkpoints') and os.path.isdir('checkpoints')):
             os.makedirs('checkpoints', exist_ok=True)
-
-        if map_checkpoint:
-            self.__callbacks += [tf.keras.callbacks.LambdaCallback(on_epoch_end=self.__map_checkpoint)]
-        else:
-            self.__callbacks += [tf.keras.callbacks.ModelCheckpoint(
-                filepath='checkpoints/' + model_name + '_epoch_{epoch}_loss_{loss:.4f}_val_loss_{val_loss:.4f}.h5')]
 
         if self.__mixed_float16_training:
             mixed_precision.set_policy(mixed_precision.Policy('mixed_float16'))
@@ -126,35 +121,55 @@ class Yolo:
         print(f'\ntrain on {len(self.__train_image_paths)} samples.')
         print(f'validate on {len(self.__validation_image_paths)} samples.')
 
-        # curriculum training
-        if self.__curriculum_epochs > 0:
-            print('\nstart curriculum train')
+        if self.__curriculum_iterations > 0:
+            print('\nstart curriculum training')
             for loss in [ConfidenceLoss(), ConfidenceWithBoundingBoxLoss()]:
+                self.__live_loss_plot = LiveLossPlot(batch_range=self.__curriculum_iterations)
                 tmp_model_name = f'{time()}.h5'
-                optimizer = tf.keras.optimizers.Adam(lr=self.__lr)
+                optimizer = tf.keras.optimizers.Adam(lr=self.__min_lr)
                 if self.__mixed_float16_training:
                     optimizer = mixed_precision.LossScaleOptimizer(optimizer=optimizer, loss_scale='dynamic')
 
                 self.__model.compile(optimizer=optimizer, loss=loss)
-                self.__model.fit(
-                    x=self.__train_data_generator.flow(),
-                    batch_size=self.__batch_size,
-                    epochs=self.__curriculum_epochs)
+                iteration_count = 0
+                break_flag = False
+                while True:
+                    for batch_x, batch_y in self.__train_data_generator.flow():
+                        iteration_count += 1
+                        logs = self.__model.train_on_batch(batch_x, batch_y, return_dict=True)
+                        self.__live_loss_plot.update(logs)
+                        if iteration_count == self.__curriculum_iterations:
+                            break_flag = True
+                            break
+                    if break_flag:
+                        break
+                self.__live_loss_plot.close()
                 self.__model.save(tmp_model_name)
                 self.__model = tf.keras.models.load_model(tmp_model_name, compile=False)
+                sleep(0.5)
                 os.remove(tmp_model_name)
 
-        optimizer = tf.keras.optimizers.Adam(self.__lr)
+        # optimizer = tf.keras.optimizers.SGD(self.__min_lr, momentum=0.9, nesterov=True)
+        optimizer = tf.keras.optimizers.Adam(self.__min_lr)
         if self.__mixed_float16_training:
             optimizer = mixed_precision.LossScaleOptimizer(optimizer=optimizer, loss_scale='dynamic')
 
+        self.__live_loss_plot = LiveLossPlot()
         self.__model.compile(optimizer=optimizer, loss=YoloLoss())
-        self.__model.fit(
-            x=self.__train_data_generator.flow(),
-            validation_data=self.__validation_data_generator.flow(),
-            batch_size=self.__batch_size,
-            epochs=self.__epochs,
-            callbacks=self.__callbacks)
+        print('start training')
+        iteration_count = 0
+        break_flag = False
+        while True:
+            for batch_x, batch_y in self.__train_data_generator.flow():
+                iteration_count += 1
+                logs = self.__model.train_on_batch(batch_x, batch_y, return_dict=True)
+                self.__cosine_lr_decay.update(self.__model)
+                self.__live_loss_plot.update(logs)
+                if iteration_count == self.__iterations:
+                    break_flag = True
+                    break
+            if break_flag:
+                break
 
     @staticmethod
     def __init_image_paths(image_path, validation_split=0.0):

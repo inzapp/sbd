@@ -62,35 +62,35 @@ if __name__ == '__main__':
         # model_name='200m',
         # input_shape=(512, 512, 1),
 
-        # train_image_path=r'X:\person\3_class_merged\train',
-        # validation_image_path=r'X:\person\3_class_merged\validation',
-        # model_name='person',
-        # input_shape=(128, 128, 1),
+        train_image_path=r'X:\person\3_class_merged\train',
+        validation_image_path=r'X:\person\3_class_merged\validation',
+        model_name='person',
+        input_shape=(128, 128, 1),
 
-        train_image_path=r'C:\inz\train_data\loon\train',
-        model_name='loon',
-        input_shape=(128, 512, 3),
+        # train_image_path=r'C:\inz\train_data\loon',
+        # model_name='loon',
+        # input_shape=(128, 512, 3),
 
         # train_image_path=r'C:\inz\train_data\kaggle\covid-detection\jpg\train',
         # validation_image_path=r'C:\inz\train_data\kaggle\covid-detection\jpg\test',
         # model_name='covid',
         # input_shape=(416, 416, 1),
 
-
-        lr=0.001,
-        batch_size=2,
-        epochs=50,
-        curriculum_epochs=50,
-        lr_scheduler=True,
-        training_view=True,
-        map_checkpoint=True,
+        max_lr=0.1,
+        min_lr=1e-3,
+        curriculum_lr=1e-4,
+        batch_size=32,
+        cycle_length=1000,
+        iterations=100010,
+        curriculum_iterations=100,
+        training_view=False,
         mixed_float16_training=False
     ).fit()
 
     # from glob import glob
     # from random import shuffle
-    # model_path = r'checkpoints/model_4000_batch_loss_219.2148_val_loss_297.3756.h5'
-    # model = Yolo(pretrained_model_path=model_path, class_names_file_path=r'X:\200m_detection\origin\train\classes.txt')
+    # model_path = r'checkpoints/200m_epoch_47_val_mAP_0.0711.h5'
+    # model = Yolo(pretrained_model_path=model_path, class_names_file_path=r'X:\200m_detection\origin\train\classes.txt', test_only=True)
     # paths = glob(r'Z:\07. SW 개발팀\08. 개인 폴더\24. 표성백\22.돌발상황감지\2021-05-17\*.mp4')
     # shuffle(paths)
     # for video_path in paths:
