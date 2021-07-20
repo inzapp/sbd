@@ -47,9 +47,9 @@ class ConfidenceLoss(tf.keras.losses.Loss):
 
         obj_true = y_true[:, :, :, 0]
         obj_pred = y_pred[:, :, :, 0]
-        obj_false = tf.ones(shape=tf.shape(obj_true), dtype=tf.dtypes.float32) - obj_true
-        obj_confidence_loss = tf.reduce_mean(tf.square(smooth(obj_true, true_only=True) - (obj_pred * obj_true)))
-        no_obj_confidence_loss = tf.reduce_mean(tf.square((obj_pred * obj_false) - tf.zeros(shape=tf.shape(obj_true), dtype=tf.dtypes.float32)))
+        obj_false = (tf.ones(shape=tf.shape(obj_true), dtype=tf.dtypes.float32)) - obj_true
+        obj_confidence_loss = tf.reduce_sum(tf.square(smooth(obj_true, true_only=True) - (obj_pred * obj_true)))
+        no_obj_confidence_loss = tf.reduce_sum(tf.square((obj_pred * obj_false) - tf.zeros(shape=tf.shape(obj_true), dtype=tf.dtypes.float32)))
         return obj_confidence_loss + (no_obj_confidence_loss * self.no_obj)
 
 
@@ -74,8 +74,8 @@ class ConfidenceWithBoundingBoxLoss(tf.keras.losses.Loss):
         """
         confidence_true = y_true[:, :, :, 0]
 
-        x_loss = tf.reduce_mean(tf.square(y_true[:, :, :, 1] - (y_pred[:, :, :, 1] * confidence_true)))
-        y_loss = tf.reduce_mean(tf.square(y_true[:, :, :, 2] - (y_pred[:, :, :, 2] * confidence_true)))
+        x_loss = tf.reduce_sum(tf.square(y_true[:, :, :, 1] - (y_pred[:, :, :, 1] * confidence_true)))
+        y_loss = tf.reduce_sum(tf.square(y_true[:, :, :, 2] - (y_pred[:, :, :, 2] * confidence_true)))
 
         """
         SSE (sqrt(obj(x))) at width and height regression loss
@@ -88,10 +88,10 @@ class ConfidenceWithBoundingBoxLoss(tf.keras.losses.Loss):
         """
         w_true = tf.sqrt(y_true[:, :, :, 3] + 1e-4)
         w_pred = tf.sqrt(y_pred[:, :, :, 3] + 1e-4)
-        w_loss = tf.reduce_mean(tf.square(w_true - (w_pred * confidence_true)))
+        w_loss = tf.reduce_sum(tf.square(w_true - (w_pred * confidence_true)))
         h_true = tf.sqrt(y_true[:, :, :, 4] + 1e-4)
         h_pred = tf.sqrt(y_pred[:, :, :, 4] + 1e-4)
-        h_loss = tf.reduce_mean(tf.square(h_true - (h_pred * confidence_true)))
+        h_loss = tf.reduce_sum(tf.square(h_true - (h_pred * confidence_true)))
         bbox_loss = x_loss + y_loss + w_loss + h_loss
         return confidence_loss + (bbox_loss * self.coord)
 
@@ -109,5 +109,5 @@ class YoloLoss(tf.keras.losses.Loss):
         SSE at all classification
         """
         confidence_true = y_true[:, :, :, 0]
-        classification_loss = tf.reduce_mean(tf.reduce_mean(tf.square(smooth(y_true[:, :, :, 5:]) - y_pred[:, :, :, 5:]), axis=-1) * confidence_true)
+        classification_loss = tf.reduce_sum(tf.reduce_sum(tf.square(smooth(y_true[:, :, :, 5:]) - y_pred[:, :, :, 5:]), axis=-1) * confidence_true)
         return confidence_bbox_loss + classification_loss
