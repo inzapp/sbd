@@ -16,6 +16,7 @@ class CosineLRDecay(tf.keras.callbacks.Callback):
             train_data_generator_flow=None,
             validation_data_generator_flow=None):
         self.iteration_sum = 0
+        self.iteration_count = 0
         self.max_lr = max_lr
         self.min_lr = min_lr
         self.batch_size = batch_size
@@ -25,6 +26,7 @@ class CosineLRDecay(tf.keras.callbacks.Callback):
         super().__init__()
 
     def on_train_begin(self, logs=None):
+        tf.keras.backend.set_value(self.model.optimizer.lr, self.min_lr)
         if not (os.path.exists('checkpoints') and os.path.exists('checkpoints')):
             os.makedirs('checkpoints', exist_ok=True)
 
@@ -33,8 +35,16 @@ class CosineLRDecay(tf.keras.callbacks.Callback):
 
     def update(self, model):
         self.model = model
-        lr = self.min_lr + 0.5 * (self.max_lr - self.min_lr) * (1.0 + np.cos(((1.0 / (0.5 * self.cycle_length)) * np.pi * self.iteration_sum) + np.pi))
+        if self.iteration_sum < self.cycle_length:
+            lr = self.min_lr + 0.5 * (self.max_lr - self.min_lr) * (1.0 + np.cos(np.pi * self.iteration_count / self.cycle_length + np.pi))  # warm up
+        else:
+            lr = self.min_lr + 0.5 * (self.max_lr - self.min_lr) * (1.0 + np.cos(np.pi * self.iteration_count / self.cycle_length))  # decay
+        print(f'{self.iteration_count} => {lr:.4f}')
         tf.keras.backend.set_value(self.model.optimizer.lr, lr)
+        self.iteration_count += 1
+        if self.iteration_count == self.cycle_length:
+            self.iteration_count = 0
+
         self.iteration_sum += 1
         if self.iteration_sum % self.cycle_length == 0:
             self.save_model()
@@ -47,4 +57,3 @@ class CosineLRDecay(tf.keras.callbacks.Callback):
             print(f'[{self.iteration_sum} iterations]')
             mean_ap, f1_score = calc_mean_average_precision('model.h5', self.validation_data_generator_flow.image_paths)
             self.model.save(f'checkpoints/model_{self.iteration_sum}_iter_mAP_{mean_ap:.4f}_f1_{f1_score:.4f}.h5')
-
