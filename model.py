@@ -25,9 +25,10 @@ os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
 
 class Model:
-    def __init__(self, input_shape, output_channel):
+    def __init__(self, input_shape, output_channel, decay):
         self.__input_shape = input_shape
         self.__output_channel = output_channel
+        self.__decay = decay
 
     @classmethod
     def empty(cls):
@@ -37,9 +38,9 @@ class Model:
         # return self.__vgg_19()
         # return self.__darknet_53()
         # return self.__person_detail()
-        return self.__200m()
+        # return self.__200m()
         # return self.__covid()
-        # return self.__loon()
+        return self.__loon()
 
     # input_shape=(512, 512, 1)
     def __200m(self):
@@ -262,7 +263,8 @@ class Model:
                 kernel_size=kernel_size,
                 kernel_initializer='he_uniform',
                 padding='same',
-                activation='relu')(x)
+                activation='relu',
+                kernel_regularizer=tf.keras.regularizers.l2(l2=self.__decay))(x)
             x = tf.keras.layers.BatchNormalization()(x)
         else:
             x = tf.keras.layers.Conv2D(
@@ -270,7 +272,8 @@ class Model:
                 kernel_size=kernel_size,
                 kernel_initializer='he_uniform',
                 padding='same',
-                use_bias=False)(x)
+                use_bias=False,
+                kernel_regularizer=tf.keras.regularizers.l2(l2=self.__decay))(x)
             x = tf.keras.layers.BatchNormalization()(x)
             x = tf.keras.layers.ReLU()(x)
         if max_pool:

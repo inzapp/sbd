@@ -33,6 +33,7 @@ from cosine_lr_decay import CosineLRDecay
 from generator import YoloDataGenerator
 from live_loss_plot import LiveLossPlot
 from loss import YoloLoss, ConfidenceLoss, ConfidenceWithBoundingBoxLoss
+from lr_scheduler import LearningRateScheduler
 from mAP_calculator import calc_mean_average_precision
 from model import Model
 
@@ -41,13 +42,13 @@ class Yolo:
     def __init__(self,
                  train_image_path=None,
                  input_shape=(256, 256, 1),
-                 max_lr=0.1,
-                 min_lr=0.001,
-                 curriculum_lr=0.001,
+                 lr=0.001,
+                 decay=0.0005,
+                 momentum=0.9,
+                 burn_in=1000,
                  batch_size=32,
-                 cycle_length=1000,
                  iterations=100010,
-                 curriculum_iterations=5000,
+                 curriculum_iterations=0,
                  model_name='model',
                  validation_split=0.2,
                  validation_image_path='',
@@ -56,11 +57,11 @@ class Yolo:
                  mixed_float16_training=False,
                  pretrained_model_path='',
                  class_names_file_path=''):
-        self.__max_lr = max_lr
-        self.__min_lr = min_lr
-        self.__curriculum_lr = curriculum_lr
+        self.__lr = lr
+        self.__decay = decay
+        self.__momentum = momentum
+        self.__burn_in = burn_in
         self.__batch_size = batch_size
-        self.__cycle_length = cycle_length
         self.__iterations = iterations
         self.__curriculum_iterations = curriculum_iterations
         self.__model_name = model_name
@@ -77,7 +78,7 @@ class Yolo:
             if test_only:
                 return
         else:
-            self.__model = Model(input_shape, self.__num_classes + 5).build()
+            self.__model = Model(input_shape=input_shape, output_channel=self.__num_classes + 5, decay=self.__decay).build()
 
         if validation_image_path != '':
             self.__train_image_paths, _ = self.__init_image_paths(train_image_path)
@@ -97,11 +98,10 @@ class Yolo:
             batch_size=batch_size)
 
         self.__live_loss_plot = None
-        self.__cosine_lr_decay = CosineLRDecay(
-            max_lr=self.__max_lr,
-            min_lr=self.__min_lr,
-            cycle_length=self.__cycle_length,
-            batch_size=batch_size,
+        self.__lr_scheduler = LearningRateScheduler(
+            lr=self.__lr,
+            burn_in=self.__burn_in,
+            batch_size=self.__batch_size,
             train_data_generator_flow=self.__train_data_generator.flow(),
             validation_data_generator_flow=self.__validation_data_generator.flow())
 
@@ -123,10 +123,10 @@ class Yolo:
 
         if self.__curriculum_iterations > 0:
             print('\nstart curriculum training')
+            tmp_model_name = f'{time()}.h5'
             for loss in [ConfidenceLoss(), ConfidenceWithBoundingBoxLoss()]:
                 self.__live_loss_plot = LiveLossPlot(batch_range=self.__curriculum_iterations)
-                tmp_model_name = f'{time()}.h5'
-                optimizer = tf.keras.optimizers.Adam(lr=self.__min_lr)
+                optimizer = tf.keras.optimizers.Adam(lr=self.__lr, beta_1=self.__momentum)
                 if self.__mixed_float16_training:
                     optimizer = mixed_precision.LossScaleOptimizer(optimizer=optimizer, loss_scale='dynamic')
 
@@ -136,8 +136,8 @@ class Yolo:
                 while True:
                     for batch_x, batch_y in self.__train_data_generator.flow():
                         iteration_count += 1
-                        logs = self.__model.train_on_batch(batch_x, batch_y, return_dict=True)
-                        self.__live_loss_plot.update(logs)
+                        self.__model.train_on_batch(batch_x, batch_y, return_dict=True)
+                        self.__lr_scheduler.update(self.__model)
                         if iteration_count == self.__curriculum_iterations:
                             break_flag = True
                             break
@@ -149,8 +149,7 @@ class Yolo:
                 sleep(0.5)
                 os.remove(tmp_model_name)
 
-        # optimizer = tf.keras.optimizers.SGD(self.__min_lr, momentum=0.9, nesterov=True)
-        optimizer = tf.keras.optimizers.Adam(self.__min_lr)
+        optimizer = tf.keras.optimizers.Adam(self.__lr, beta_1=self.__momentum)
         if self.__mixed_float16_training:
             optimizer = mixed_precision.LossScaleOptimizer(optimizer=optimizer, loss_scale='dynamic')
 
@@ -159,12 +158,14 @@ class Yolo:
         print('start training')
         iteration_count = 0
         break_flag = False
+        self.__lr_scheduler.reset()
         while True:
             for batch_x, batch_y in self.__train_data_generator.flow():
                 iteration_count += 1
                 logs = self.__model.train_on_batch(batch_x, batch_y, return_dict=True)
-                self.__cosine_lr_decay.update(self.__model)
-                self.__live_loss_plot.update(logs)
+                print(f'[iteration count : {iteration_count:6d}] loss => {logs["loss"]:.4f}')
+                self.__lr_scheduler.update(self.__model)
+                # self.__live_loss_plot.update(logs)
                 if iteration_count == self.__iterations:
                     break_flag = True
                     break
