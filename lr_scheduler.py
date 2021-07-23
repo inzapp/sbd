@@ -46,7 +46,7 @@ class LearningRateScheduler(tf.keras.callbacks.Callback):
         if self.train_data_generator_flow is None or self.validation_data_generator_flow is None:
             self.model.save(f'checkpoints/model_{self.iteration_sum}_batch.h5')
         else:
-            self.model.save('model.h5')
+            self.model.save('model.h5', include_optimizer=False)
             print(f'[{self.iteration_sum} iterations]')
             mean_ap, f1_score = calc_mean_average_precision('model.h5', self.validation_data_generator_flow.image_paths)
             self.model.save(f'checkpoints/model_{self.iteration_sum}_iter_mAP_{mean_ap:.4f}_f1_{f1_score:.4f}.h5')
