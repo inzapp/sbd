@@ -201,7 +201,7 @@ class Yolo:
             img = cv2.resize(img, (input_shape[1], input_shape[0]), interpolation=cv2.INTER_LINEAR)
 
         x = np.asarray(img).reshape((1,) + input_shape).astype('float32') / 255.0
-        y = self.__model.predict(x=x, batch_size=1)
+        y = self.__model.predict_on_batch(x=x)
 
         res = []
         for layer_index in range(len(output_shape)):
