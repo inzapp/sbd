@@ -51,18 +51,17 @@ class Model:
         x = self.__conv_blocks(2, 64, 3, x, avg_max_pool=True)
 
         # x = self.__dropout(x, 0.1)
-        x = self.__conv_blocks(2, 128, 3, x)
+        x = self.__conv_blocks(2, 128, 3, x, activation_first=True)
         y1 = self.__point_wise_conv(self.__output_channel, x, 'output_1')
         x = self.__avg_max_pool(x)
 
         # x = self.__dropout(x, 0.2)
-        x = self.__conv_block(2, 256, 3, x)
+        x = self.__conv_blocks(2, 256, 3, x, activation_first=True)
         y2 = self.__point_wise_conv(self.__output_channel, x, 'output_2')
         x = self.__avg_max_pool(x)
 
         # x = self.__dropout(x, 0.3)
-        x = self.__conv_block(256, 3, x, activation_first=True)
-        x = self.__conv_block(256, 3, x, activation_first=True)
+        x = self.__conv_blocks(2, 256, 3, x, activation_first=True)
         y3 = self.__point_wise_conv(self.__output_channel, x, 'output_3')
         return tf.keras.models.Model(input_layer, [y1, y2, y3])
 
