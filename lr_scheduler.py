@@ -29,7 +29,7 @@ class LearningRateScheduler(tf.keras.callbacks.Callback):
     def on_train_batch_begin(self, batch, logs=None):
         self.update(self.model)
 
-    def update(self, model):
+    def update(self, model, curriculum_training=False):
         self.model = model
         if self.iteration_sum < self.burn_in:
             lr = self.lr * self.batch_size / self.burn_in
@@ -40,7 +40,7 @@ class LearningRateScheduler(tf.keras.callbacks.Callback):
             lr = self.lr
         tf.keras.backend.set_value(self.model.optimizer.lr, lr)
         self.iteration_sum += 1
-        if self.iteration_sum % 2000 == 0:
+        if not curriculum_training and self.iteration_sum % 2000 == 0:
             self.save_model()
 
     def save_model(self):
