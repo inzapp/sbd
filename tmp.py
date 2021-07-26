@@ -94,7 +94,7 @@ roi_of = {
 
     # lattepyo
     '106': [[0.22, 0.22, 0.75, 0.75], [0.56, 0.33, 0.81, 0.54]],
-    '108': [[0.16, 0.16, 0.69, 0.69], [0.34, 0.34, 0.85, 0, 85]],
+    '108': [[0.16, 0.16, 0.69, 0.69], [0.34, 0.34, 0.85, 0.85]],
     '109': [[0.34, 0.17, 0.82, 0.60], [0.45, 0.0, 0.65, 0.19]],
     '110': [[0.34, 0.19, 0.74, 0.53], [0.34, 0.0, 0.62, 0.21]],
     '111': [[0.37, 0.17, 0.77, 0.55], [0.42, 0.0, 0.65, 0.19]],
@@ -180,6 +180,8 @@ def roi_crop_with_label_convert(path, roi, index):
     roi_y2_s32 = int(roi_y2 * raw_height)
 
     img = img[roi_y1_s32:roi_y2_s32, roi_x1_s32:roi_x2_s32]
+    if img.shape[0] == 0 or img.shape[1] == 0:
+        return
 
     with open(label_path, 'rt') as f:
         lines = f.readlines()
@@ -216,7 +218,11 @@ def main():
     for cur_dir_path in glob(r'C:\inz\tmp\roi_crop\*'):
         dir_name = cur_dir_path.replace('\\', '/').split('/')[-1]
         for img_path in glob(rf'{cur_dir_path}/*.jpg'):
-            for i, cur_roi in enumerate(roi_of[dir_name]):
+            try:
+                roi_of_dir_name = roi_of[dir_name]
+            except KeyError:
+                continue
+            for i, cur_roi in enumerate(roi_of_dir_name):
                 roi_crop_with_label_convert(img_path, cur_roi, i)
 
 
