@@ -67,7 +67,7 @@ if __name__ == '__main__':
         # model_name='person',
         # input_shape=(128, 128, 1),
 
-        train_image_path=r'C:\inz\train_data\loon\train',
+        train_image_path=r'C:\inz\train_data\loon',
         model_name='loon',
         input_shape=(128, 512, 3),
 
@@ -77,19 +77,18 @@ if __name__ == '__main__':
         # input_shape=(416, 416, 1),
 
         lr=0.001,
-        decay=0.0005,
+        decay=1e-9,
         momentum=0.9,
         burn_in=1000,
         batch_size=2,
-        iterations=100010,
-        curriculum_iterations=0,
+        iterations=100000,
+        curriculum_iterations=1000,
         training_view=False,
-        mixed_float16_training=False
-    ).fit()
+        mixed_float16_training=False).fit()
 
     # from glob import glob
     # from random import shuffle
-    # model_path = r'checkpoints/200m_epoch_47_val_mAP_0.0711.h5'
+    # model_path = r'C:\inz\git\yolo-lab-3-layer-refactoring\checkpoints\200m\yolo_style\model_84000_iter_mAP_0.1575_f1_0.2982.h5'
     # model = Yolo(pretrained_model_path=model_path, class_names_file_path=r'X:\200m_detection\origin\train\classes.txt', test_only=True)
     # paths = glob(r'Z:\07. SW 개발팀\08. 개인 폴더\24. 표성백\22.돌발상황감지\2021-05-17\*.mp4')
     # shuffle(paths)
