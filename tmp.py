@@ -1,4 +1,5 @@
 import os
+import shutil as sh
 from glob import glob
 
 import cv2
@@ -92,15 +93,24 @@ roi_of = {
 }
 
 
-def roi_crop_with_label_convert(path, roi):
+def roi_crop_with_label_convert(path, roi, index):
     roi_x1, roi_y1, roi_x2, roi_y2 = roi
 
     roi_w = roi_x2 - roi_x1
     roi_h = roi_y2 - roi_y1
-    # label_path = f'{path[:-4]}.txt'
-    # if not os.path.exists(label_path):
-    #     print(f'label not exist : {label_path}')
-    #     return
+    label_path = f'{path[:-4]}.txt'
+    if not os.path.exists(label_path):
+        print(f'label not exist : {label_path}')
+        return
+
+    new_path = f'{path[:-4]}_roi_cropped_{index}.jpg'
+    new_label_path = f'{label_path[:-4]}_roi_cropped_{index}.txt'
+
+    sh.copy(path, new_path)
+    sh.copy(label_path, new_label_path)
+
+    path = new_path
+    label_path = new_label_path
 
     img = cv2.imread(path, cv2.IMREAD_COLOR)
     raw_height, raw_width = img.shape[0], img.shape[1]
@@ -111,9 +121,6 @@ def roi_crop_with_label_convert(path, roi):
     roi_y2_s32 = int(roi_y2 * raw_height)
 
     img = img[roi_y1_s32:roi_y2_s32, roi_x1_s32:roi_x2_s32]
-    cv2.imshow('img', img)
-    cv2.waitKey(0)
-    return
 
     with open(label_path, 'rt') as f:
         lines = f.readlines()
@@ -141,17 +148,17 @@ def roi_crop_with_label_convert(path, roi):
         cy = y1 + h / 2.0
 
         new_label_content += f'{class_index} {cx:.6f} {cy:.6f} {w:.6f} {h:.6f}\n'
-    # cv2.imwrite(path, img)
-    # with open(label_path, 'wt') as f:
-    #     f.writelines(new_label_content)
+    cv2.imwrite(path, img)
+    with open(label_path, 'wt') as f:
+        f.writelines(new_label_content)
 
 
 def main():
     for cur_dir_path in glob(r'C:\inz\tmp\roi_crop\*'):
         dir_name = cur_dir_path.replace('\\', '/').split('/')[-1]
         for img_path in glob(rf'{cur_dir_path}/*.jpg'):
-            for cur_roi in roi_of[dir_name]:
-                roi_crop_with_label_convert(img_path, cur_roi)
+            for i, cur_roi in enumerate(roi_of[dir_name]):
+                roi_crop_with_label_convert(img_path, cur_roi, i)
 
 
 if __name__ == '__main__':
