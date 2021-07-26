@@ -37,10 +37,10 @@ class Model:
     def build(self):
         # return self.__vgg_19()
         # return self.__darknet_53()
-        return self.__person_detail()
+        # return self.__person_detail()
         # return self.__200m()
         # return self.__covid()
-        # return self.__loon()
+        return self.__loon()
 
     # input_shape=(512, 512, 1)
     def __200m(self):
