@@ -19,7 +19,6 @@ limitations under the License.
 """
 import os
 import random
-import shutil as sh
 from glob import glob
 from time import time, sleep
 
@@ -29,12 +28,10 @@ from cv2 import cv2
 from tensorflow.keras.mixed_precision import experimental as mixed_precision
 
 from box_colors import colors
-from cosine_lr_decay import CosineLRDecay
 from generator import YoloDataGenerator
 from live_loss_plot import LiveLossPlot
 from loss import YoloLoss, ConfidenceLoss, ConfidenceWithBoundingBoxLoss
 from lr_scheduler import LearningRateScheduler
-from mAP_calculator import calc_mean_average_precision
 from model import Model
 
 
@@ -49,7 +46,6 @@ class Yolo:
                  batch_size=32,
                  iterations=100000,
                  curriculum_iterations=0,
-                 model_name='model',
                  validation_split=0.2,
                  validation_image_path='',
                  test_only=False,
@@ -64,7 +60,6 @@ class Yolo:
         self.__batch_size = batch_size
         self.__iterations = iterations
         self.__curriculum_iterations = curriculum_iterations
-        self.__model_name = model_name
         self.__mixed_float16_training = mixed_float16_training
         self.__live_view_previous_time = time()
         self.__max_mean_ap = 0.0
@@ -335,16 +330,6 @@ class Yolo:
             boxed_image = self.bounding_box(img, res)
             cv2.imshow('training view', boxed_image)
             cv2.waitKey(1)
-
-    def __map_checkpoint(self, epoch, logs):
-        """
-        Mean average precision callback function.
-        Save better mAP model.
-        """
-        mean_ap, f1_score = calc_mean_average_precision('model.h5', self.__validation_image_paths)
-        if mean_ap > self.__max_mean_ap:
-            self.__max_mean_ap = mean_ap
-            sh.copy('model.h5', f'checkpoints/{self.__model_name}_epoch_{epoch + 1}_val_mAP_{mean_ap:.4f}_val_f1_{f1_score:.4f}.h5')
 
     @staticmethod
     def __init_class_names(class_names_file_path):

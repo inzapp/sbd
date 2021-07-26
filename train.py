@@ -29,51 +29,60 @@ if __name__ == '__main__':
         There must be images and labels in this directory.
         The image and label must have the same file name and not be in different directories.
         
+    validation_image_path:
+        Use this parameter if the validation data is in a different path from the training data.
+        When this parameter is used, validation split is ignored.
+        
     input_shape:
-        (height, width, channel) format of model input size
+        (height, width, channels) format of model input size
         If the channel is 1, train with a gray image, otherwise train with a color image.
         
     batch_size:
-        2 batch is recommended.
+        batch size of training.
         
     lr:
-        Learning rate value while training. 1e-3 ~ 1e-4 is recommended.
+        Learning rate value while training. 1e-3 is good for most cases.
         
-    epochs:
-        Epochs value.
+    decay:
+        L2 weight decay regularizing parameter.
         
-    curriculum_epochs:
-        Epochs to pre-reduce the loss to the confidence and bounding box channel before starting the training.
+    momentum:
+        The exponential decay rate for the 1st moment estimates.
+        beta_1 parameter value for Adam optimizer.
+        
+    burn_in:
+        Warming up iteration count before train using lr parameter. 1000 is good for most cases.
+        
+    iterations:
+        Total training iteration count.
+        
+    curriculum_iterations:
+        Iterations to pre-reduce the loss to the confidence and bounding box channel before starting the training.
         
     validation_split:
-        The percentage of data that will be used as validation data.
-        
-    validation_image_path:
-        Use this parameter if the validation data is in a different path from the training data.
+        The percentage of data that will be randomly used as validation data. default value is 0.2
         
     training_view:
         During training, the image is forwarded in real time, showing the results are shown.
-        False if training is on a server system without IO equipment.
+        
+    mixed_float16_training:
+        Use of both 16-bit and 32-bit floating point types in the model during training to run faster and use less memory.
     """
 
     Yolo(
         # train_image_path=r'X:\200m_detection\origin\train',
         # validation_image_path=r'X:\200m_detection\origin\validation',
-        # model_name='200m',
         # input_shape=(512, 512, 1),
 
         # train_image_path=r'X:\person\3_class_merged\train',
         # validation_image_path=r'X:\person\3_class_merged\validation',
-        # model_name='person',
         # input_shape=(128, 128, 1),
 
         train_image_path=r'C:\inz\train_data\loon',
-        model_name='loon',
         input_shape=(128, 512, 3),
 
         # train_image_path=r'C:\inz\train_data\kaggle\covid-detection\jpg\train',
         # validation_image_path=r'C:\inz\train_data\kaggle\covid-detection\jpg\test',
-        # model_name='covid',
         # input_shape=(416, 416, 1),
 
         lr=0.001,
