@@ -59,6 +59,7 @@ class Yolo:
         self.__burn_in = burn_in
         self.__batch_size = batch_size
         self.__iterations = iterations
+        self.__training_view = training_view
         self.__curriculum_iterations = curriculum_iterations
         self.__mixed_float16_training = mixed_float16_training
         self.__live_view_previous_time = time()
@@ -99,14 +100,6 @@ class Yolo:
             batch_size=self.__batch_size,
             iterations=self.__iterations,
             validation_data_generator_flow=self.__validation_data_generator.flow())
-
-        self.__callbacks = [tf.keras.callbacks.ModelCheckpoint(filepath='model.h5')]
-
-        if training_view:
-            self.__callbacks += [tf.keras.callbacks.LambdaCallback(on_batch_end=self.__training_view)]
-
-        if not (os.path.exists('checkpoints') and os.path.isdir('checkpoints')):
-            os.makedirs('checkpoints', exist_ok=True)
 
         if self.__mixed_float16_training:
             mixed_precision.set_policy(mixed_precision.Policy('mixed_float16'))
@@ -164,6 +157,8 @@ class Yolo:
                 logs = self.__model.train_on_batch(batch_x, batch_y, return_dict=True)
                 print(f'\r[iteration count : {iteration_count:6d}] loss => {logs["loss"]:.4f}', end='')
                 self.__lr_scheduler.update(self.__model)
+                if self.__training_view:
+                    self.__training_view_function()
                 if iteration_count == self.__iterations:
                     break_flag = True
                     break
@@ -313,9 +308,8 @@ class Yolo:
             cv2.imshow('res', boxed_image)
             cv2.waitKey(0)
 
-    def __training_view(self, batch, logs):
+    def __training_view_function(self):
         """
-        Training callback function.
         During training, the image is forwarded in real time, showing the results are shown.
         """
         cur_time = time()

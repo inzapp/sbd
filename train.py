@@ -58,6 +58,7 @@ if __name__ == '__main__':
         
     curriculum_iterations:
         Iterations to pre-reduce the loss to the confidence and bounding box channel before starting the training.
+        curriculum_iterations = burn_in * 2 + given value
         
     validation_split:
         The percentage of data that will be randomly used as validation data. default value is 0.2
@@ -91,8 +92,8 @@ if __name__ == '__main__':
         burn_in=1000,
         batch_size=2,
         iterations=100000,
-        curriculum_iterations=1000,
-        training_view=False,
+        curriculum_iterations=5000,
+        training_view=True,
         mixed_float16_training=False).fit()
 
     # from glob import glob
