@@ -308,6 +308,9 @@ class Yolo:
             cv2.imshow('res', boxed_image)
             cv2.waitKey(0)
 
+    def predict_validation_images(self):
+        self.predict_images(self.__validation_image_paths)
+
     def __training_view_function(self):
         """
         During training, the image is forwarded in real time, showing the results are shown.

@@ -37,10 +37,10 @@ class Model:
     def build(self):
         # return self.__vgg_19()
         # return self.__darknet_53()
-        # return self.__person_detail()
+        return self.__person_detail()
         # return self.__200m()
         # return self.__covid()
-        return self.__loon()
+        # return self.__loon()
 
     # input_shape=(512, 512, 1)
     def __200m(self):
@@ -80,22 +80,19 @@ class Model:
     # input_shape=(128, 64, 1) or input_shape=(192, 96, 1)
     def __person_detail(self):
         input_layer = tf.keras.layers.Input(shape=self.__input_shape)
-        x = self.__conv_block(16, 3, input_layer, max_pool=True)
-        x = self.__conv_block(32, 3, x, max_pool=True)
-        x = self.__conv_block(64, 3, x, max_pool=True)
+        x = self.__conv_block(16, 3, input_layer, avg_max_pool=True)
+        x = self.__conv_block(32, 3, x, avg_max_pool=True)
+        x = self.__conv_block(64, 3, x, avg_max_pool=True)
 
-        x = self.__conv_block(128, 3, x)
-        x = self.__conv_block(128, 3, x)
+        x = self.__conv_blocks(2, 128, 3, x)
         y1 = self.__point_wise_conv(self.__output_channel, x, 'output_1')
-        x = self.__max_pool(x)
+        x = self.__avg_max_pool(x)
 
-        x = self.__conv_block(256, 3, x)
-        x = self.__conv_block(256, 3, x)
+        x = self.__conv_blocks(2, 256, 3, x)
         y2 = self.__point_wise_conv(self.__output_channel, x, 'output_2')
-        x = self.__max_pool(x)
+        x = self.__avg_max_pool(x)
 
-        x = self.__conv_block(256, 3, x)
-        x = self.__conv_block(256, 3, x)
+        x = self.__conv_blocks(2, 256, 3, x)
         y3 = self.__point_wise_conv(self.__output_channel, x, 'output_3')
         return tf.keras.models.Model(input_layer, [y1, y2, y3])
 

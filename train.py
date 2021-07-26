@@ -71,6 +71,7 @@ if __name__ == '__main__':
     """
 
     Yolo(
+        pretrained_model_path=r'C:\inz\git\yolo-lab\checkpoints\model_18000_iter_mAP_0.3284_f1_0.4511.h5',
         # train_image_path=r'X:\200m_detection\origin\train',
         # validation_image_path=r'X:\200m_detection\origin\validation',
         # input_shape=(512, 512, 1),
@@ -79,8 +80,12 @@ if __name__ == '__main__':
         # validation_image_path=r'X:\person\3_class_merged\validation',
         # input_shape=(128, 128, 1),
 
-        train_image_path=r'C:\inz\train_data\loon',
-        input_shape=(128, 512, 3),
+        # train_image_path=r'C:\inz\train_data\loon',
+        # input_shape=(128, 512, 3),
+
+        train_image_path=r'C:\inz\tmp\person_6_class\train',
+        validation_image_path=r'C:\inz\tmp\person_6_class\validation',
+        input_shape=(192, 96, 3),
 
         # train_image_path=r'C:\inz\train_data\kaggle\covid-detection\jpg\train',
         # validation_image_path=r'C:\inz\train_data\kaggle\covid-detection\jpg\test',
@@ -90,10 +95,10 @@ if __name__ == '__main__':
         decay=1e-9,
         momentum=0.9,
         burn_in=1000,
-        batch_size=2,
+        batch_size=32,
         iterations=100000,
         curriculum_iterations=5000,
-        training_view=True,
+        training_view=False,
         mixed_float16_training=False).fit()
 
     # from glob import glob
