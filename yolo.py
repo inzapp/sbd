@@ -47,7 +47,7 @@ class Yolo:
                  momentum=0.9,
                  burn_in=1000,
                  batch_size=32,
-                 iterations=100010,
+                 iterations=100000,
                  curriculum_iterations=0,
                  model_name='model',
                  validation_split=0.2,
@@ -102,7 +102,7 @@ class Yolo:
             lr=self.__lr,
             burn_in=self.__burn_in,
             batch_size=self.__batch_size,
-            train_data_generator_flow=self.__train_data_generator.flow(),
+            iterations=self.__iterations,
             validation_data_generator_flow=self.__validation_data_generator.flow())
 
         self.__callbacks = [tf.keras.callbacks.ModelCheckpoint(filepath='model.h5')]
@@ -136,15 +136,19 @@ class Yolo:
                 while True:
                     for batch_x, batch_y in self.__train_data_generator.flow():
                         iteration_count += 1
-                        self.__model.train_on_batch(batch_x, batch_y, return_dict=True)
-                        self.__lr_scheduler.update(self.__model)
-                        if iteration_count == self.__curriculum_iterations:
+                        logs = self.__model.train_on_batch(batch_x, batch_y, return_dict=True)
+                        print(f'\r[curriculum iteration count : {iteration_count:6d}] loss => {logs["loss"]:.4f}', end='')
+                        self.__lr_scheduler.update(self.__model, curriculum_training=True)
+                        if iteration_count == self.__curriculum_iterations + (self.__burn_in * 2):
                             break_flag = True
                             break
                     if break_flag:
                         break
+                print()
+                self.__lr_scheduler.reset()
                 self.__live_loss_plot.close()
-                self.__model.save(tmp_model_name)
+                self.__model.save(tmp_model_name, include_optimizer=False)
+                sleep(0.5)
                 self.__model = tf.keras.models.load_model(tmp_model_name, compile=False)
                 sleep(0.5)
                 os.remove(tmp_model_name)
@@ -163,9 +167,8 @@ class Yolo:
             for batch_x, batch_y in self.__train_data_generator.flow():
                 iteration_count += 1
                 logs = self.__model.train_on_batch(batch_x, batch_y, return_dict=True)
-                print(f'[iteration count : {iteration_count:6d}] loss => {logs["loss"]:.4f}')
+                print(f'\r[iteration count : {iteration_count:6d}] loss => {logs["loss"]:.4f}', end='')
                 self.__lr_scheduler.update(self.__model)
-                # self.__live_loss_plot.update(logs)
                 if iteration_count == self.__iterations:
                     break_flag = True
                     break
