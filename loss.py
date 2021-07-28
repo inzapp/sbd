@@ -17,7 +17,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-import numpy as np
 import tensorflow as tf
 from tensorflow.python.framework.ops import convert_to_tensor_v2
 
@@ -50,8 +49,8 @@ class ConfidenceLoss(tf.keras.losses.Loss):
         obj_pred = y_pred[:, :, :, 0]
         obj_false = (tf.ones(shape=tf.shape(obj_true), dtype=tf.dtypes.float32)) - obj_true
 
-        # obj_confidence_loss = tf.reduce_sum(tf.square(smooth(obj_true, true_only=True) - (obj_pred * obj_true)))
-        obj_confidence_loss = tf.reduce_sum(tf.square((obj_pred * obj_true) - (self.iou(y_true, y_pred) * obj_true)))  # TODO : iou loss
+        # obj_confidence_loss = tf.reduce_sum(tf.square(smooth(obj_true, true_only=True) - (obj_pred * obj_true)))  #  conf sse
+        obj_confidence_loss = tf.reduce_sum(tf.square((obj_pred * obj_true) - (self.iou(y_true, y_pred) * obj_true)))  # iou loss
 
         no_obj_confidence_loss = tf.reduce_sum(tf.square((obj_pred * obj_false) - tf.zeros(shape=tf.shape(obj_false), dtype=tf.dtypes.float32)))
         return obj_confidence_loss + (no_obj_confidence_loss * self.no_obj)
