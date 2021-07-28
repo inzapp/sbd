@@ -105,7 +105,7 @@ class ConfidenceLoss(tf.keras.losses.Loss):
         y_true_area = w_true * h_true
         y_pred_area = w_pred * h_pred
         union = y_true_area + y_pred_area - intersection
-        return tf.truediv(intersection, union)
+        return intersection / (union + 1e-4)
 
 
 class ConfidenceWithBoundingBoxLoss(tf.keras.losses.Loss):
