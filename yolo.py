@@ -158,7 +158,7 @@ class Yolo:
                 logs = self.__model.train_on_batch(batch_x, batch_y, return_dict=True)
                 print(f'\r[iteration count : {iteration_count:6d}] loss => {logs["loss"]:.4f}', end='')
                 self.__lr_scheduler.update(self.__model)
-                if self.__training_view:
+                if self.__training_view and iteration_count > self.__burn_in * 2:
                     self.__training_view_function()
                 if iteration_count == self.__iterations:
                     break_flag = True
