@@ -106,6 +106,7 @@ if __name__ == '__main__':
         iterations=100000,
         curriculum_iterations=0,
         training_view=True,
+        map_checkpoint=False,
         mixed_float16_training=False).fit()
 
     # from glob import glob

@@ -50,6 +50,7 @@ class Yolo:
                  validation_image_path='',
                  test_only=False,
                  training_view=False,
+                 map_checkpoint=False,
                  mixed_float16_training=False,
                  pretrained_model_path='',
                  class_names_file_path=''):
@@ -60,6 +61,7 @@ class Yolo:
         self.__batch_size = batch_size
         self.__iterations = iterations
         self.__training_view = training_view
+        self.__map_checkpoint = map_checkpoint
         self.__curriculum_iterations = curriculum_iterations
         self.__mixed_float16_training = mixed_float16_training
         self.__live_view_previous_time = time()
@@ -99,7 +101,7 @@ class Yolo:
             burn_in=self.__burn_in,
             batch_size=self.__batch_size,
             iterations=self.__iterations,
-            validation_data_generator_flow=self.__validation_data_generator.flow())
+            validation_data_generator_flow=self.__validation_data_generator.flow() if self.__map_checkpoint else None)
 
         if self.__mixed_float16_training:
             mixed_precision.set_policy(mixed_precision.Policy('mixed_float16'))
