@@ -112,7 +112,8 @@ class Yolo:
         if self.__curriculum_iterations > 0:
             print('\nstart curriculum training')
             tmp_model_name = f'{time()}.h5'
-            for loss in [ConfidenceLoss(), ConfidenceWithBoundingBoxLoss()]:
+            # for loss in [ConfidenceLoss(), ConfidenceWithBoundingBoxLoss()]:
+            for loss in [ConfidenceWithBoundingBoxLoss()]:
                 self.__live_loss_plot = LiveLossPlot(batch_range=self.__curriculum_iterations)
                 optimizer = tf.keras.optimizers.Adam(lr=self.__lr, beta_1=self.__momentum)
                 if self.__mixed_float16_training:

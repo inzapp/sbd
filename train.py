@@ -75,6 +75,10 @@ if __name__ == '__main__':
         # validation_image_path=r'X:\200m_detection\origin\validation',
         # input_shape=(512, 512, 1),
 
+        # train_image_path=r'X:\200m_detection\roi_cropped\train',
+        # validation_image_path=r'X:\200m_detection\roi_cropped\validation',
+        # input_shape=(128, 224, 1),
+
         # train_image_path=r'X:\person\3_class_merged\train',
         # validation_image_path=r'X:\person\3_class_merged\validation',
         # input_shape=(128, 128, 1),
@@ -96,8 +100,8 @@ if __name__ == '__main__':
         burn_in=1000,
         batch_size=2,
         iterations=100000,
-        curriculum_iterations=0,
-        training_view=False,
+        curriculum_iterations=1,
+        training_view=True,
         mixed_float16_training=False).fit()
 
     # from glob import glob
