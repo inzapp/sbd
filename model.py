@@ -37,11 +37,12 @@ class Model:
     def build(self):
         # return self.__vgg_19()
         # return self.__darknet_53()
+        return self.__lp_detection_sbd()
         # return self.__person_detail()
         # return self.__200m()
         # return self.__200m_crop()
         # return self.__covid()
-        return self.__loon()
+        # return self.__loon()
 
     def __200m_crop(self):
         input_layer = tf.keras.layers.Input(shape=self.__input_shape)
@@ -106,11 +107,11 @@ class Model:
         y1 = self.__point_wise_conv(self.__output_channel, x, 'output_1')
         x = self.__avg_max_pool(x)
 
-        x = self.__conv_blocks(2, 256, 3, x)
+        x = self.__conv_blocks(2, 128, 3, x)
         y2 = self.__point_wise_conv(self.__output_channel, x, 'output_2')
         x = self.__avg_max_pool(x)
 
-        x = self.__conv_blocks(2, 256, 3, x)
+        x = self.__conv_blocks(2, 128, 3, x)
         y3 = self.__point_wise_conv(self.__output_channel, x, 'output_3')
         return tf.keras.models.Model(input_layer, [y1, y2, y3])
 
@@ -152,12 +153,16 @@ class Model:
         x = self.__conv_block(8, 3, input_layer, activation_first=True, max_pool=True)
         x = self.__conv_block(16, 3, x, activation_first=True, max_pool=True)
         x = self.__conv_block(32, 3, x, activation_first=True, max_pool=True)
+        x = self.__conv_block(64, 3, x, activation_first=True, max_pool=True)
         x = self.__conv_block(64, 3, x, activation_first=True)
-        x = self.__conv_block(64, 3, x, activation_first=True)
+        y1 = self.__point_wise_conv(self.__output_channel, x, 'output_1')
+        x = self.__max_pool(x)
         x = self.__conv_block(128, 3, x, activation_first=True)
+        y2 = self.__point_wise_conv(self.__output_channel, x, 'output_2')
+        x = self.__max_pool(x)
         x = self.__conv_block(128, 3, x, activation_first=True)
-        x = self.__point_wise_conv(self.__output_channel, x)
-        return tf.keras.models.Model(input_layer, x)
+        y3 = self.__point_wise_conv(self.__output_channel, x, 'output_3')
+        return tf.keras.models.Model(input_layer, [y1, y2, y3])
 
     def __darknet_19(self):
         if self.__input_shape[0] < 224 and self.__input_shape[1] < 224:

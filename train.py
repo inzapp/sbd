@@ -71,7 +71,7 @@ if __name__ == '__main__':
     """
 
     Yolo(
-        train_image_path=r'X:\lp_detection\train',
+        train_image_path=r'X:\lp_detection\validation',
         validation_image_path=r'X:\lp_detection\validation',
         input_shape=(368, 640, 1),
 
@@ -105,7 +105,7 @@ if __name__ == '__main__':
         batch_size=2,
         iterations=100000,
         curriculum_iterations=0,
-        training_view=True,
+        training_view=False,
         map_checkpoint=False,
         mixed_float16_training=False).fit()
 
