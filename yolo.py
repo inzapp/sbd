@@ -30,7 +30,7 @@ from tensorflow.keras.mixed_precision import experimental as mixed_precision
 from box_colors import colors
 from generator import YoloDataGenerator
 from live_loss_plot import LiveLossPlot
-from loss import YoloLoss, ConfidenceLoss, ConfidenceWithBoundingBoxLoss
+from loss import YoloLoss, ConfidenceWithBoundingBoxLoss
 from lr_scheduler import LearningRateScheduler
 from model import Model
 
@@ -100,7 +100,6 @@ class Yolo:
             lr=self.__lr,
             burn_in=self.__burn_in,
             batch_size=self.__batch_size,
-            iterations=self.__iterations,
             validation_data_generator_flow=self.__validation_data_generator.flow() if self.__map_checkpoint else None)
 
         if self.__mixed_float16_training:
@@ -114,7 +113,6 @@ class Yolo:
         if self.__curriculum_iterations > 0:
             print('\nstart curriculum training')
             tmp_model_name = f'{time()}.h5'
-            # for loss in [ConfidenceLoss(), ConfidenceWithBoundingBoxLoss()]:
             for loss in [ConfidenceWithBoundingBoxLoss()]:
                 self.__live_loss_plot = LiveLossPlot(batch_range=self.__curriculum_iterations)
                 optimizer = tf.keras.optimizers.Adam(lr=self.__lr, beta_1=self.__momentum)
