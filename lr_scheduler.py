@@ -33,20 +33,19 @@ class LearningRateScheduler(tf.keras.callbacks.Callback):
 
     def update(self, model, curriculum_training=False):
         self.model = model
+        lr = self.lr
         if self.iteration_sum < self.burn_in:
             lr = self.lr * self.batch_size / self.burn_in
         elif self.iteration_sum < self.burn_in * 2:
             warmup_lr = self.lr * self.batch_size / self.burn_in
             lr = warmup_lr + 0.5 * (self.lr - warmup_lr) * (1.0 + np.cos(np.pi * (self.iteration_sum - self.burn_in) / self.burn_in + np.pi))
-        elif self.patience_count >= 5:
-            self.patience_count = 0
-            self.lr *= 0.5
-            if self.lr < 1e-4:
-                self.lr = 1e-4
-            print(f'[Learning rate reduce] lr : {self.lr:.6f}')
-            lr = self.lr
-        else:
-            lr = self.lr
+        # elif self.patience_count >= 5:
+        #     self.patience_count = 0
+        #     self.lr *= 0.5
+        #     if self.lr < 1e-3:
+        #         self.lr = 1e-3
+        #     print(f'[Learning rate reduce] lr : {self.lr:.6f}')
+        #     lr = self.lr
         tf.keras.backend.set_value(self.model.optimizer.lr, lr)
         self.iteration_sum += 1
         if not curriculum_training and self.iteration_sum % 2000 == 0:

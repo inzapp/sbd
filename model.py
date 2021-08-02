@@ -38,11 +38,11 @@ class Model:
         # return self.__vgg_19()
         # return self.__darknet_53()
         # return self.__lp_detection_sbd()
-        # return self.__person_detail()
+        return self.__person_detail()
         # return self.__200m()
         # return self.__200m_crop()
         # return self.__covid()
-        return self.__loon()
+        # return self.__loon()
 
     def __200m_crop(self):
         input_layer = tf.keras.layers.Input(shape=self.__input_shape)

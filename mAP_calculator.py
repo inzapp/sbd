@@ -78,8 +78,6 @@ def get_y_pred(y, target_class_index):
                 if class_index != target_class_index:
                     continue
 
-                confidence *= class_score
-
                 cx_f = j / float(cols) + 1.0 / float(cols) * y[layer_index][0][i][j][1]
                 cy_f = i / float(rows) + 1.0 / float(rows) * y[layer_index][0][i][j][2]
                 w = y[layer_index][0][i][j][3]
