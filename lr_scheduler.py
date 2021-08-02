@@ -21,6 +21,7 @@ class LearningRateScheduler(tf.keras.callbacks.Callback):
         self.max_map = 0.0
         self.max_f1 = 0.0
         self.max_hm = 0.0
+        self.patience_count = 0
         super().__init__()
 
     def on_train_begin(self, logs=None):
@@ -37,6 +38,13 @@ class LearningRateScheduler(tf.keras.callbacks.Callback):
         elif self.iteration_sum < self.burn_in * 2:
             warmup_lr = self.lr * self.batch_size / self.burn_in
             lr = warmup_lr + 0.5 * (self.lr - warmup_lr) * (1.0 + np.cos(np.pi * (self.iteration_sum - self.burn_in) / self.burn_in + np.pi))
+        elif self.patience_count >= 5:
+            self.patience_count = 0
+            self.lr *= 0.5
+            if self.lr < 1e-4:
+                self.lr = 1e-4
+            print(f'[Learning rate reduce] lr : {self.lr:.6f}')
+            lr = self.lr
         else:
             lr = self.lr
         tf.keras.backend.set_value(self.model.optimizer.lr, lr)
@@ -71,6 +79,10 @@ class LearningRateScheduler(tf.keras.callbacks.Callback):
             mean_ap, f1_score = calc_mean_average_precision('model.h5', self.validation_data_generator_flow.image_paths)
             if self.is_better_than_before(mean_ap, f1_score):
                 self.model.save(f'checkpoints/model_{self.iteration_sum}_iter_mAP_{mean_ap:.4f}_f1_{f1_score:.4f}.h5')
+                self.patience_count = 0
+            else:
+                self.patience_count += 1
 
     def reset(self):
         self.iteration_sum = 0
+        self.patience_count = 0
