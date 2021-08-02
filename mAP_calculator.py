@@ -69,14 +69,16 @@ def get_y_pred(y, target_class_index):
                     continue
 
                 class_index = -1
-                max_percentage = 0.0
+                class_score = 0.0
                 for cur_channel_index in range(5, channels):
-                    if max_percentage < y[layer_index][0][i][j][cur_channel_index]:
+                    if class_score < y[layer_index][0][i][j][cur_channel_index]:
                         class_index = cur_channel_index - 5
-                        max_percentage = y[layer_index][0][i][j][cur_channel_index]
+                        class_score = y[layer_index][0][i][j][cur_channel_index]
 
                 if class_index != target_class_index:
                     continue
+
+                confidence *= class_score
 
                 cx_f = j / float(cols) + 1.0 / float(cols) * y[layer_index][0][i][j][1]
                 cy_f = i / float(rows) + 1.0 / float(rows) * y[layer_index][0][i][j][2]
@@ -372,11 +374,12 @@ def all_check():
 
 
 def main():
-    model_path = r'C:\inz\git\yolo-lab-3-layer-refactoring\checkpoints\model_5000_batch_loss_22.6876_val_loss_66.7000.h5'
-    img_paths = glob(r'X:\person\3_class_merged\validation\*.jpg')
+    model_path = r'C:\inz\git\yolo-lab\checkpoints\model_28000_iter_mAP_0.3158_f1_0.4334.h5'
+    img_paths = glob(r'C:\inz\tmp\person_6_class\validation\*.jpg')
     avg_map, avg_f1 = calc_mean_average_precision(model_path, img_paths)
     print(f'avg mAP : {avg_map:.4f}')
 
 
 if __name__ == '__main__':
-    main()
+    with tf.device('/cpu:0'):
+        main()
