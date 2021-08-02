@@ -66,7 +66,7 @@ class LearningRateScheduler(tf.keras.callbacks.Callback):
         print('\n')
         if self.validation_data_generator_flow is None:
             self.model.save(f'checkpoints/model_{self.iteration_sum}_iter.h5')
-        elif self.iteration_sum > 10000:
+        elif self.iteration_sum >= 10000:
             self.model.save('model.h5', include_optimizer=False)
             mean_ap, f1_score = calc_mean_average_precision('model.h5', self.validation_data_generator_flow.image_paths)
             if self.is_better_than_before(mean_ap, f1_score):
