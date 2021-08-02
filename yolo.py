@@ -115,7 +115,7 @@ class Yolo:
             tmp_model_name = f'{time()}.h5'
             for loss in [ConfidenceWithBoundingBoxLoss()]:
                 self.__live_loss_plot = LiveLossPlot(batch_range=self.__curriculum_iterations)
-                optimizer = tf.keras.optimizers.Adam(lr=self.__lr, beta_1=self.__momentum)
+                optimizer = tf.keras.optimizers.Adam(lr=self.__lr * self.__batch_size / self.__burn_in, beta_1=self.__momentum)
                 if self.__mixed_float16_training:
                     optimizer = mixed_precision.LossScaleOptimizer(optimizer=optimizer, loss_scale='dynamic')
 
@@ -142,7 +142,7 @@ class Yolo:
                 sleep(0.5)
                 os.remove(tmp_model_name)
 
-        optimizer = tf.keras.optimizers.Adam(self.__lr, beta_1=self.__momentum)
+        optimizer = tf.keras.optimizers.Adam(lr=self.__lr * self.__batch_size / self.__burn_in, beta_1=self.__momentum)
         if self.__mixed_float16_training:
             optimizer = mixed_precision.LossScaleOptimizer(optimizer=optimizer, loss_scale='dynamic')
 
@@ -156,8 +156,8 @@ class Yolo:
             for batch_x, batch_y in self.__train_data_generator.flow():
                 iteration_count += 1
                 logs = self.__model.train_on_batch(batch_x, batch_y, return_dict=True)
-                print(f'\r[iteration count : {iteration_count:6d}] loss => {logs["loss"]:.4f}', end='')
                 self.__lr_scheduler.update(self.__model)
+                print(f'\r[iteration count : {iteration_count:6d}] loss => {logs["loss"]:.4f}', end='')
                 if self.__training_view and iteration_count > self.__burn_in * 2:
                     self.__training_view_function()
                 if iteration_count == self.__iterations:
