@@ -156,10 +156,10 @@ class Yolo:
         self.__lr_scheduler.reset()
         while True:
             for batch_x, batch_y in self.__train_data_generator.flow():
-                logs = self.__model.train_on_batch(batch_x, batch_y, return_dict=True)
-                self.__lr_scheduler.update(self.__model)
                 iteration_count += 1
+                logs = self.__model.train_on_batch(batch_x, batch_y, return_dict=True)
                 print(f'\r[iteration count : {iteration_count:6d}] loss => {logs["loss"]:.4f}', end='')
+                self.__lr_scheduler.update(self.__model)
                 if self.__training_view and iteration_count > self.__burn_in * 2:
                     self.__training_view_function()
                 if iteration_count == self.__iterations:
@@ -309,7 +309,9 @@ class Yolo:
             res = self.predict(x)
             boxed_image = self.bounding_box(raw, res)
             cv2.imshow('res', boxed_image)
-            cv2.waitKey(0)
+            key = cv2.waitKey(0)
+            if key == 27:
+                break
 
     def predict_validation_images(self):
         self.predict_images(self.__validation_image_paths)
