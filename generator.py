@@ -52,6 +52,9 @@ class YoloDataGenerator:
         """
         return self.generator_flow
 
+    def shuffle_paths(self):
+        self.generator_flow.shuffle_paths()
+
 
 class GeneratorFlow(tf.keras.utils.Sequence):
     """
@@ -68,6 +71,12 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         self.random_indexes = np.arange(len(self.image_paths))
         self.pool = ThreadPoolExecutor(8)
         np.random.shuffle(self.random_indexes)
+
+    def __len__(self):
+        """
+        Number of total iteration.
+        """
+        return int(np.floor(len(self.image_paths) / self.batch_size))
 
     def __getitem__(self, index):
         batch_x = []
@@ -122,16 +131,50 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         return batch_x, [batch_y1, batch_y2, batch_y3]
 
     def __load_img(self, path):
-        return path, cv2.imread(path, cv2.IMREAD_GRAYSCALE if self.input_shape[2] == 1 else cv2.IMREAD_COLOR)
+        img = cv2.imread(path, cv2.IMREAD_GRAYSCALE if self.input_shape[2] == 1 else cv2.IMREAD_COLOR)
+        img = self.__random_adjust(img)
+        return path, img
 
-    def __len__(self):
-        """
-        Number of total iteration.
-        """
-        return int(np.floor(len(self.image_paths) / self.batch_size))
+    def __random_adjust(self, img):
+        vs = [['hue', 0.1], ['saturation', 0.5], ['value', 0.5]]
+        np.random.shuffle(vs)
+        for v in vs:
+            img = self.__adjust(img, v[1], v[0])
+        return img
+
+    @staticmethod
+    def __adjust(img, adjust_val, adjust_type):
+        range_min, range_max = 1.0 - adjust_val, 1.0 + adjust_val
+        weight = np.random.uniform(range_min, range_max, 1)
+
+        is_gray_img = False
+        if len(img.shape) == 2:
+            is_gray_img = True
+            img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+        h, s, v = cv2.split(img)
+
+        if adjust_type == 'hue':
+            h = np.asarray(h).astype('float32') * weight
+            h = np.clip(h, 0.0, 255.0).astype('uint8')
+        elif adjust_type == 'saturation':
+            s = np.asarray(s).astype('float32') * weight
+            s = np.clip(s, 0.0, 255.0).astype('uint8')
+        elif adjust_type == 'value':
+            v = np.asarray(v).astype('float32') * weight
+            v = np.clip(v, 0.0, 255.0).astype('uint8')
+
+        img = cv2.merge([h, s, v])
+        img = cv2.cvtColor(img, cv2.COLOR_HSV2BGR)
+        if is_gray_img:
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        return img
+
+    def shuffle_paths(self):
+        np.random.shuffle(self.random_indexes)
 
     def on_epoch_end(self):
         """
         Mix the image paths at the end of each epoch.
         """
-        np.random.shuffle(self.random_indexes)
+        self.shuffle_paths()
