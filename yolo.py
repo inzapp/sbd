@@ -24,6 +24,7 @@ from time import time, sleep
 
 import numpy as np
 import tensorflow as tf
+import tensorflow_addons as tfa
 from cv2 import cv2
 from tensorflow.keras.mixed_precision import experimental as mixed_precision
 
@@ -106,6 +107,10 @@ class Yolo:
         if self.__mixed_float16_training:
             mixed_precision.set_policy(mixed_precision.Policy('mixed_float16'))
 
+    def __get_optimizer(self):
+        # return tfa.optimizers.weight_decay_optimizers.SGDW(learning_rate=self.__lr, momentum=self.__momentum, weight_decay=self.__decay, nesterov=True)
+        return tf.keras.optimizers.Adam(lr=self.__lr, beta_1=self.__momentum)
+
     def fit(self):
         self.__model.summary()
         self.__model.save('model.h5')
@@ -117,8 +122,7 @@ class Yolo:
             tmp_model_name = f'{time()}.h5'
             for loss in [ConfidenceLoss(), ConfidenceWithBoundingBoxLoss()]:
                 self.__live_loss_plot = LiveLossPlot(batch_range=self.__curriculum_iterations)
-                # optimizer = tf.keras.optimizers.Adam(lr=1e-9, beta_1=self.__momentum)
-                optimizer = tf.keras.optimizers.SGD(lr=1e-9, momentum=self.__momentum, nesterov=True)
+                optimizer = self.__get_optimizer()
                 if self.__mixed_float16_training:
                     optimizer = mixed_precision.LossScaleOptimizer(optimizer=optimizer, loss_scale='dynamic')
 
@@ -126,6 +130,7 @@ class Yolo:
                 iteration_count = 0
                 break_flag = False
                 while True:
+                    self.__train_data_generator.shuffle_paths()
                     for batch_x, batch_y in self.__train_data_generator.flow():
                         iteration_count += 1
                         logs = self.__model.train_on_batch(batch_x, batch_y, return_dict=True)
@@ -145,8 +150,7 @@ class Yolo:
                 sleep(0.5)
                 os.remove(tmp_model_name)
 
-        # optimizer = tf.keras.optimizers.Adam(lr=1e-9, beta_1=self.__momentum)
-        optimizer = tf.keras.optimizers.SGD(lr=1e-9, momentum=self.__momentum, nesterov=True)
+        optimizer = self.__get_optimizer()
         if self.__mixed_float16_training:
             optimizer = mixed_precision.LossScaleOptimizer(optimizer=optimizer, loss_scale='dynamic')
 
@@ -157,6 +161,7 @@ class Yolo:
         break_flag = False
         self.__lr_scheduler.reset()
         while True:
+            self.__train_data_generator.shuffle_paths()
             for batch_x, batch_y in self.__train_data_generator.flow():
                 iteration_count += 1
                 logs = self.__model.train_on_batch(batch_x, batch_y, return_dict=True)
