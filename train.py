@@ -71,6 +71,7 @@ if __name__ == '__main__':
     """
 
     Yolo(
+        pretrained_model_path=r'C:\inz\git\yolo-lab\checkpoints\model_36000_iter_mAP_0.3611_f1_0.5676.h5',
         # train_image_path=r'X:\lp_detection\train',
         # validation_image_path=r'X:\lp_detection\validation',
         # input_shape=(368, 640, 1),
@@ -80,12 +81,12 @@ if __name__ == '__main__':
         input_shape=(352, 576, 1),
 
         lr=0.001,
-        decay=0.0005,
+        decay=0.0,
         momentum=0.9,
         burn_in=1000,
         batch_size=32,
         iterations=5000000,
-        curriculum_iterations=10000,
+        curriculum_iterations=0,
         training_view=False,
         map_checkpoint=True,
         mixed_float16_training=False).fit()
