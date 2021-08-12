@@ -30,7 +30,7 @@ from tensorflow.keras.mixed_precision import experimental as mixed_precision
 from box_colors import colors
 from generator import YoloDataGenerator
 from live_loss_plot import LiveLossPlot
-from loss import YoloLoss, ConfidenceWithBoundingBoxLoss
+from loss import YoloLoss, ConfidenceWithBoundingBoxLoss, ConfidenceLoss
 from lr_scheduler import LearningRateScheduler
 from model import Model
 
@@ -73,8 +73,6 @@ class Yolo:
 
         if os.path.exists(pretrained_model_path) and os.path.isfile(pretrained_model_path):
             self.__model = tf.keras.models.load_model(pretrained_model_path, compile=False)
-            if test_only:
-                return
         else:
             self.__model = Model(input_shape=input_shape, output_channel=self.__num_classes + 5, decay=self.__decay).build()
 
@@ -83,6 +81,9 @@ class Yolo:
             self.__validation_image_paths, _ = self.__init_image_paths(validation_image_path)
         elif validation_split > 0.0:
             self.__train_image_paths, self.__validation_image_paths = self.__init_image_paths(train_image_path, validation_split=validation_split)
+
+        if test_only:
+            return
 
         self.__train_data_generator = YoloDataGenerator(
             image_paths=self.__train_image_paths,
@@ -107,13 +108,14 @@ class Yolo:
 
     def fit(self):
         self.__model.summary()
+        self.__model.save('model.h5')
         print(f'\ntrain on {len(self.__train_image_paths)} samples.')
         print(f'validate on {len(self.__validation_image_paths)} samples.')
 
         if self.__curriculum_iterations > 0:
             print('\nstart curriculum training')
             tmp_model_name = f'{time()}.h5'
-            for loss in [ConfidenceWithBoundingBoxLoss()]:
+            for loss in [ConfidenceLoss(), ConfidenceWithBoundingBoxLoss()]:
                 self.__live_loss_plot = LiveLossPlot(batch_range=self.__curriculum_iterations)
                 # optimizer = tf.keras.optimizers.Adam(lr=1e-9, beta_1=self.__momentum)
                 optimizer = tf.keras.optimizers.SGD(lr=1e-9, momentum=self.__momentum, nesterov=True)
@@ -208,8 +210,8 @@ class Yolo:
                     confidence = y[layer_index][0][i][j][0]
                     if confidence < confidence_threshold:
                         continue
-                    cx_f = j / float(output_shape[layer_index][2]) + 1 / float(output_shape[layer_index][2]) * y[layer_index][0][i][j][1]
-                    cy_f = i / float(output_shape[layer_index][1]) + 1 / float(output_shape[layer_index][1]) * y[layer_index][0][i][j][2]
+                    cx_f = (j / float(cols)) + (1 / float(cols) * y[layer_index][0][i][j][1])
+                    cy_f = (i / float(rows)) + (1 / float(rows) * y[layer_index][0][i][j][2])
                     w = y[layer_index][0][i][j][3]
                     h = y[layer_index][0][i][j][4]
 
@@ -303,15 +305,16 @@ class Yolo:
         """
         Equal to the evaluate function. image paths are required.
         """
-        for path in image_paths:
-            raw = cv2.imread(path, cv2.IMREAD_COLOR)
-            x = cv2.cvtColor(raw, cv2.COLOR_BGR2GRAY) if self.__model.input.shape[-1] == 1 else raw.copy()
-            res = self.predict(x)
-            boxed_image = self.bounding_box(raw, res)
-            cv2.imshow('res', boxed_image)
-            key = cv2.waitKey(0)
-            if key == 27:
-                break
+        with tf.device('/cpu:0'):
+            for path in image_paths:
+                raw = cv2.imread(path, cv2.IMREAD_COLOR)
+                x = cv2.cvtColor(raw, cv2.COLOR_BGR2GRAY) if self.__model.input.shape[-1] == 1 else raw.copy()
+                res = self.predict(x)
+                boxed_image = self.bounding_box(raw, res)
+                cv2.imshow('res', boxed_image)
+                key = cv2.waitKey(0)
+                if key == 27:
+                    break
 
     def predict_validation_images(self):
         self.predict_images(self.__validation_image_paths)
