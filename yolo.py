@@ -66,7 +66,6 @@ class Yolo:
         self.__curriculum_iterations = curriculum_iterations
         self.__mixed_float16_training = mixed_float16_training
         self.__live_view_previous_time = time()
-        self.__max_mean_ap = 0.0
 
         if class_names_file_path == '':
             class_names_file_path = f'{train_image_path}/classes.txt'
@@ -108,8 +107,11 @@ class Yolo:
             mixed_precision.set_policy(mixed_precision.Policy('mixed_float16'))
 
     def __get_optimizer(self):
-        # return tfa.optimizers.weight_decay_optimizers.SGDW(learning_rate=self.__lr, momentum=self.__momentum, weight_decay=self.__decay, nesterov=True)
-        return tf.keras.optimizers.Adam(lr=self.__lr, beta_1=self.__momentum)
+        # optimizer tf.keras.optimizers.Adam(lr=self.__lr, beta_1=self.__momentum)
+        optimizer = tf.keras.optimizers.SGD(lr=1e-9, momentum=self.__momentum, nesterov=True)
+        if self.__mixed_float16_training:
+            optimizer = mixed_precision.LossScaleOptimizer(optimizer=optimizer, loss_scale='dynamic')
+        return optimizer
 
     def fit(self):
         self.__model.summary()
@@ -117,14 +119,13 @@ class Yolo:
         print(f'\ntrain on {len(self.__train_image_paths)} samples.')
         print(f'validate on {len(self.__validation_image_paths)} samples.')
 
+        # self.__train_data_generator.flow().start()
         if self.__curriculum_iterations > 0:
             print('\nstart curriculum training')
             tmp_model_name = f'{time()}.h5'
             for loss in [ConfidenceLoss(), ConfidenceWithBoundingBoxLoss()]:
                 self.__live_loss_plot = LiveLossPlot(batch_range=self.__curriculum_iterations)
                 optimizer = self.__get_optimizer()
-                if self.__mixed_float16_training:
-                    optimizer = mixed_precision.LossScaleOptimizer(optimizer=optimizer, loss_scale='dynamic')
 
                 self.__model.compile(optimizer=optimizer, loss=loss)
                 iteration_count = 0
@@ -151,9 +152,6 @@ class Yolo:
                 os.remove(tmp_model_name)
 
         optimizer = self.__get_optimizer()
-        if self.__mixed_float16_training:
-            optimizer = mixed_precision.LossScaleOptimizer(optimizer=optimizer, loss_scale='dynamic')
-
         self.__live_loss_plot = LiveLossPlot()
         self.__model.compile(optimizer=optimizer, loss=YoloLoss())
         print('start training')
@@ -167,8 +165,8 @@ class Yolo:
                 logs = self.__model.train_on_batch(batch_x, batch_y, return_dict=True)
                 print(f'\r[iteration count : {iteration_count:6d}] loss => {logs["loss"]:.4f}', end='')
                 self.__lr_scheduler.update(self.__model)
-                if self.__training_view and iteration_count > self.__burn_in * 2:
-                    self.__training_view_function()
+                # if self.__training_view and iteration_count > self.__burn_in * 2:
+                self.__training_view_function()
                 if iteration_count == self.__iterations:
                     break_flag = True
                     break
@@ -177,15 +175,17 @@ class Yolo:
 
     @staticmethod
     def __init_image_paths(image_path, validation_split=0.0):
-        all_image_paths = sorted(glob(f'{image_path}/*.jpg'))
-        all_image_paths += sorted(glob(f'{image_path}/*.png'))
+        all_image_paths = glob(f'{image_path}/*.jpg')
+        all_image_paths += glob(f'{image_path}/*/*.jpg')
         random.shuffle(all_image_paths)
-        num_cur_class_train_images = int(len(all_image_paths) * (1.0 - validation_split))
-        image_paths = all_image_paths[:num_cur_class_train_images]
-        validation_image_paths = all_image_paths[num_cur_class_train_images:]
+        num_train_images = int(len(all_image_paths) * (1.0 - validation_split))
+        image_paths = all_image_paths[:num_train_images]
+        validation_image_paths = all_image_paths[num_train_images:]
         return image_paths, validation_image_paths
 
     def predict(self, img, confidence_threshold=0.25, nms_iou_threshold=0.5):
+        def sigmoid(__x):
+            return 1.0 / (1.0 + np.exp(-__x))
         """
         Detect object in image using trained YOLO model.
         :param img: (width, height, channel) formatted image to be predicted.
@@ -213,12 +213,18 @@ class Yolo:
             for i in range(rows):
                 for j in range(cols):
                     confidence = y[layer_index][0][i][j][0]
+                    # confidence = sigmoid(confidence)
                     if confidence < confidence_threshold:
                         continue
+
                     cx_f = (j / float(cols)) + (1 / float(cols) * y[layer_index][0][i][j][1])
                     cy_f = (i / float(rows)) + (1 / float(rows) * y[layer_index][0][i][j][2])
                     w = y[layer_index][0][i][j][3]
                     h = y[layer_index][0][i][j][4]
+                    # cx_f = (j / float(cols)) + (1 / float(cols) * sigmoid(y[layer_index][0][i][j][1]))
+                    # cy_f = (i / float(rows)) + (1 / float(rows) * sigmoid(y[layer_index][0][i][j][2]))
+                    # w = sigmoid(y[layer_index][0][i][j][3])
+                    # h = sigmoid(y[layer_index][0][i][j][4])
 
                     x_min_f = cx_f - w / 2.0
                     y_min_f = cy_f - h / 2.0
@@ -229,11 +235,16 @@ class Yolo:
                     x_max = int(x_max_f * raw_width)
                     y_max = int(y_max_f * raw_height)
                     class_index = -1
-                    max_percentage = -1
+                    max_class_score = -1
                     for cur_channel_index in range(5, output_shape[layer_index][3]):
-                        if max_percentage < y[layer_index][0][i][j][cur_channel_index]:
+                        cur_class_score = y[layer_index][0][i][j][cur_channel_index]
+                        if max_class_score < cur_class_score:
                             class_index = cur_channel_index
-                            max_percentage = y[layer_index][0][i][j][cur_channel_index]
+                            max_class_score = cur_class_score
+                        # cur_class_score = sigmoid(y[layer_index][0][i][j][cur_channel_index])
+                        # if max_class_score < cur_class_score:
+                        #     class_index = cur_channel_index
+                        #     max_class_score = cur_class_score
                     res.append({
                         'confidence': confidence,
                         'bbox': [x_min, y_min, x_max, y_max],
