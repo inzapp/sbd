@@ -19,6 +19,8 @@ limitations under the License.
 """
 from concurrent.futures.thread import ThreadPoolExecutor
 from queue import Queue
+from threading import Thread
+from time import sleep
 
 import cv2
 import numpy as np
@@ -71,6 +73,11 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         self.batch_size = batch_size
         self.random_indexes = np.arange(len(self.image_paths))
         self.pool = ThreadPoolExecutor(8)
+
+        queue_size = 64
+        self.batch_index = 0
+        self.batch_q = Queue(maxsize=queue_size)
+        self.insert_thread_running = False
         np.random.shuffle(self.random_indexes)
 
     def __len__(self):
@@ -80,56 +87,80 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         return int(np.floor(len(self.image_paths) / self.batch_size))
 
     def __getitem__(self, index):
-        batch_x = []
-        batch_y1 = []
-        batch_y2 = []
-        batch_y3 = []
-        start_index = index * self.batch_size
-        fs = []
-        for i in range(start_index, start_index + self.batch_size):
-            fs.append(self.pool.submit(self.__load_img, self.image_paths[self.random_indexes[i]]))
-        for f in fs:
-            cur_img_path, x = f.result()
-            if x.shape[1] > self.input_shape[1] or x.shape[0] > self.input_shape[0]:
-                x = cv2.resize(x, (self.input_shape[1], self.input_shape[0]), interpolation=cv2.INTER_AREA)
-            else:
-                x = cv2.resize(x, (self.input_shape[1], self.input_shape[0]), interpolation=cv2.INTER_LINEAR)
-            x = np.asarray(x).reshape(self.input_shape).astype('float32') / 255.0
-            batch_x.append(x)
+        # print()
+        # print(self.batch_q.qsize())
+        # print()
+        return self.batch_q.get(block=True)
 
-            with open(f'{cur_img_path[:-4]}.txt', mode='rt') as file:
-                label_lines = file.readlines()
+    def start(self):
+        if self.insert_thread_running:
+            print('insert thread is already running !!!')
+            return
 
-            y = []
-            for i in range(len(self.output_shapes)):
-                y.append(np.zeros((self.output_shapes[i][1], self.output_shapes[i][2], self.output_shapes[i][3]), dtype=np.float32))
-            for label_line in label_lines:
-                class_index, cx, cy, w, h = list(map(float, label_line.split(' ')))
-                if w > 0.3 or h > 0.3:
-                    output_layer_index = 2
-                elif w > 0.1 or h > 0.1:
-                    output_layer_index = 1
+        self.insert_thread_running = True
+        for _ in range(3):
+            insert_thread = Thread(target=self.__insert_batch_into_q)
+            insert_thread.setDaemon(True)
+            insert_thread.start()
+
+    def __insert_batch_into_q(self):
+        while True:
+            fs, batch_x, batch_y1, batch_y2, batch_y3 = [], [], [], [], []
+            for path in self.__get_next_batch_image_paths():
+                fs.append(self.pool.submit(self.__load_img, path))
+            for f in fs:
+                cur_img_path, x = f.result()
+                if x.shape[1] > self.input_shape[1] or x.shape[0] > self.input_shape[0]:
+                    x = cv2.resize(x, (self.input_shape[1], self.input_shape[0]), interpolation=cv2.INTER_AREA)
                 else:
-                    output_layer_index = 0
+                    x = cv2.resize(x, (self.input_shape[1], self.input_shape[0]), interpolation=cv2.INTER_LINEAR)
+                x = np.asarray(x).reshape(self.input_shape).astype('float32') / 255.0
+                batch_x.append(x)
 
-                grid_width_ratio = 1 / float(self.output_shapes[output_layer_index][2])
-                grid_height_ratio = 1 / float(self.output_shapes[output_layer_index][1])
-                center_row = int(cy * self.output_shapes[output_layer_index][1])
-                center_col = int(cx * self.output_shapes[output_layer_index][2])
-                y[output_layer_index][center_row][center_col][0] = 1.0
-                y[output_layer_index][center_row][center_col][1] = (cx - (center_col * grid_width_ratio)) / grid_width_ratio
-                y[output_layer_index][center_row][center_col][2] = (cy - (center_row * grid_height_ratio)) / grid_height_ratio
-                y[output_layer_index][center_row][center_col][3] = w
-                y[output_layer_index][center_row][center_col][4] = h
-                y[output_layer_index][center_row][center_col][int(class_index + 5)] = 1.0
-            batch_y1.append(y[0])
-            batch_y2.append(y[1])
-            batch_y3.append(y[2])
-        batch_x = np.asarray(batch_x).astype('float32')
-        batch_y1 = np.asarray(batch_y1).astype('float32')
-        batch_y2 = np.asarray(batch_y2).astype('float32')
-        batch_y3 = np.asarray(batch_y3).astype('float32')
-        return batch_x, [batch_y1, batch_y2, batch_y3]
+                with open(f'{cur_img_path[:-4]}.txt', mode='rt') as file:
+                    label_lines = file.readlines()
+
+                y = []
+                for i in range(len(self.output_shapes)):
+                    y.append(np.zeros((self.output_shapes[i][1], self.output_shapes[i][2], self.output_shapes[i][3]), dtype=np.float32))
+                for label_line in label_lines:
+                    class_index, cx, cy, w, h = list(map(float, label_line.split(' ')))
+                    if w > 0.3 or h > 0.3:
+                        output_layer_index = 2
+                    elif w > 0.1 or h > 0.1:
+                        output_layer_index = 1
+                    else:
+                        output_layer_index = 0
+
+                    grid_width_ratio = 1 / float(self.output_shapes[output_layer_index][2])
+                    grid_height_ratio = 1 / float(self.output_shapes[output_layer_index][1])
+                    center_row = int(cy * self.output_shapes[output_layer_index][1])
+                    center_col = int(cx * self.output_shapes[output_layer_index][2])
+                    y[output_layer_index][center_row][center_col][0] = 1.0
+                    y[output_layer_index][center_row][center_col][1] = (cx - (center_col * grid_width_ratio)) / grid_width_ratio
+                    y[output_layer_index][center_row][center_col][2] = (cy - (center_row * grid_height_ratio)) / grid_height_ratio
+                    y[output_layer_index][center_row][center_col][3] = w
+                    y[output_layer_index][center_row][center_col][4] = h
+                    y[output_layer_index][center_row][center_col][int(class_index + 5)] = 1.0
+                batch_y1.append(y[0])
+                batch_y2.append(y[1])
+                batch_y3.append(y[2])
+            batch_x = np.asarray(batch_x).astype('float32')
+            batch_y1 = np.asarray(batch_y1).astype('float32')
+            batch_y2 = np.asarray(batch_y2).astype('float32')
+            batch_y3 = np.asarray(batch_y3).astype('float32')
+            sleep(0)
+            self.batch_q.put((batch_x, [batch_y1, batch_y2, batch_y3]), block=True)
+
+    def __get_next_batch_image_paths(self):
+        start_index = self.batch_size * self.batch_index
+        end_index = start_index + self.batch_size
+        batch_image_paths = self.image_paths[start_index:end_index]
+        self.batch_index += 1
+        if self.batch_index == self.__len__():
+            self.batch_index = 0
+            np.random.shuffle(self.image_paths)
+        return batch_image_paths
 
     def __load_img(self, path):
         img = cv2.imread(path, cv2.IMREAD_GRAYSCALE if self.input_shape[2] == 1 else cv2.IMREAD_COLOR)
@@ -172,7 +203,8 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         return img
 
     def shuffle_paths(self):
-        np.random.shuffle(self.random_indexes)
+        pass
+        # np.random.shuffle(self.random_indexes)
 
     def on_epoch_end(self):
         """
