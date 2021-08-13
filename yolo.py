@@ -119,7 +119,7 @@ class Yolo:
         print(f'\ntrain on {len(self.__train_image_paths)} samples.')
         print(f'validate on {len(self.__validation_image_paths)} samples.')
 
-        # self.__train_data_generator.flow().start()
+        self.__train_data_generator.flow().start()
         if self.__curriculum_iterations > 0:
             print('\nstart curriculum training')
             tmp_model_name = f'{time()}.h5'
