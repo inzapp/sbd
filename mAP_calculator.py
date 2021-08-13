@@ -14,6 +14,10 @@ confidence_threshold = 0.25  # only for tp, fp, fn
 nms_iou_threshold = 0.45  # darknet yolo nms threshold value
 
 
+def sigmoid(x):
+    return 1.0 / (1.0 + np.exp(-x))
+
+
 def iou(a, b):
     """
     Intersection of union function.
@@ -65,15 +69,18 @@ def get_y_pred(y, target_class_index):
         for i in range(rows):
             for j in range(cols):
                 confidence = y[layer_index][0][i][j][0]
+                # confidence = sigmoid(confidence)
                 if confidence < 0.005:  # darknet yolo mAP confidence threshold value
                     continue
 
                 class_index = -1
                 class_score = 0.0
                 for cur_channel_index in range(5, channels):
-                    if class_score < y[layer_index][0][i][j][cur_channel_index]:
+                    cur_class_score = y[layer_index][0][i][j][cur_channel_index]
+                    # cur_class_score = sigmoid(cur_class_score)
+                    if class_score < cur_class_score:
                         class_index = cur_channel_index - 5
-                        class_score = y[layer_index][0][i][j][cur_channel_index]
+                        class_score = cur_class_score
 
                 if class_index != target_class_index:
                     continue
@@ -82,6 +89,10 @@ def get_y_pred(y, target_class_index):
                 cy_f = i / float(rows) + 1.0 / float(rows) * y[layer_index][0][i][j][2]
                 w = y[layer_index][0][i][j][3]
                 h = y[layer_index][0][i][j][4]
+                # cx_f = j / float(cols) + 1.0 / float(cols) * sigmoid(y[layer_index][0][i][j][1])
+                # cy_f = i / float(rows) + 1.0 / float(rows) * sigmoid(y[layer_index][0][i][j][2])
+                # w = sigmoid(y[layer_index][0][i][j][3])
+                # h = sigmoid(y[layer_index][0][i][j][4])
 
                 x_min_f = cx_f - w / 2.0
                 y_min_f = cy_f - h / 2.0
