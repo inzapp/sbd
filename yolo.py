@@ -165,8 +165,8 @@ class Yolo:
                 logs = self.__model.train_on_batch(batch_x, batch_y, return_dict=True)
                 print(f'\r[iteration count : {iteration_count:6d}] loss => {logs["loss"]:.4f}', end='')
                 self.__lr_scheduler.update(self.__model)
-                # if self.__training_view and iteration_count > self.__burn_in * 2:
-                self.__training_view_function()
+                if self.__training_view and iteration_count > self.__burn_in * 2:
+                    self.__training_view_function()
                 if iteration_count == self.__iterations:
                     break_flag = True
                     break
@@ -213,18 +213,18 @@ class Yolo:
             for i in range(rows):
                 for j in range(cols):
                     confidence = y[layer_index][0][i][j][0]
-                    # confidence = sigmoid(confidence)
+                    confidence = sigmoid(confidence)
                     if confidence < confidence_threshold:
                         continue
 
-                    cx_f = (j / float(cols)) + (1 / float(cols) * y[layer_index][0][i][j][1])
-                    cy_f = (i / float(rows)) + (1 / float(rows) * y[layer_index][0][i][j][2])
-                    w = y[layer_index][0][i][j][3]
-                    h = y[layer_index][0][i][j][4]
-                    # cx_f = (j / float(cols)) + (1 / float(cols) * sigmoid(y[layer_index][0][i][j][1]))
-                    # cy_f = (i / float(rows)) + (1 / float(rows) * sigmoid(y[layer_index][0][i][j][2]))
-                    # w = sigmoid(y[layer_index][0][i][j][3])
-                    # h = sigmoid(y[layer_index][0][i][j][4])
+                    # cx_f = (j / float(cols)) + (1 / float(cols) * y[layer_index][0][i][j][1])
+                    # cy_f = (i / float(rows)) + (1 / float(rows) * y[layer_index][0][i][j][2])
+                    # w = y[layer_index][0][i][j][3]
+                    # h = y[layer_index][0][i][j][4]
+                    cx_f = (j / float(cols)) + (1 / float(cols) * sigmoid(y[layer_index][0][i][j][1]))
+                    cy_f = (i / float(rows)) + (1 / float(rows) * sigmoid(y[layer_index][0][i][j][2]))
+                    w = sigmoid(y[layer_index][0][i][j][3])
+                    h = sigmoid(y[layer_index][0][i][j][4])
 
                     x_min_f = cx_f - w / 2.0
                     y_min_f = cy_f - h / 2.0
@@ -237,14 +237,14 @@ class Yolo:
                     class_index = -1
                     max_class_score = -1
                     for cur_channel_index in range(5, output_shape[layer_index][3]):
-                        cur_class_score = y[layer_index][0][i][j][cur_channel_index]
-                        if max_class_score < cur_class_score:
-                            class_index = cur_channel_index
-                            max_class_score = cur_class_score
-                        # cur_class_score = sigmoid(y[layer_index][0][i][j][cur_channel_index])
+                        # cur_class_score = y[layer_index][0][i][j][cur_channel_index]
                         # if max_class_score < cur_class_score:
                         #     class_index = cur_channel_index
                         #     max_class_score = cur_class_score
+                        cur_class_score = sigmoid(y[layer_index][0][i][j][cur_channel_index])
+                        if max_class_score < cur_class_score:
+                            class_index = cur_channel_index
+                            max_class_score = cur_class_score
                     res.append({
                         'confidence': confidence,
                         'bbox': [x_min, y_min, x_max, y_max],

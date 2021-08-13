@@ -103,6 +103,9 @@ class YoloLoss(tf.keras.losses.Loss):
     def call(self, y_true, y_pred):
         y_pred = convert_to_tensor_v2(y_pred)
         y_true = tf.cast(y_true, y_pred.dtype)
+
+        y_pred = tf.sigmoid(y_pred)
+
         confidence_bbox_loss = ConfidenceWithBoundingBoxLoss()(y_true, y_pred)
 
         """

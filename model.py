@@ -39,10 +39,10 @@ class Model:
         # return self.__darknet_53()
         # return self.__lp_detection_sbd()
         # return self.__person_detail()
-        # return self.__200m_big()
+        return self.__200m_big()
         # return self.__200m_crop()
         # return self.__covid()
-        return self.__loon()
+        # return self.__loon()
 
     def __200m_crop(self):
         input_layer = tf.keras.layers.Input(shape=self.__input_shape)
@@ -306,7 +306,7 @@ class Model:
         return tf.keras.layers.Conv2D(
             filters=self.__output_channel,
             kernel_size=1,
-            activation='sigmoid',
+            activation='linear',
             name=name)(x)
 
     @staticmethod
