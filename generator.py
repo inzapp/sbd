@@ -18,6 +18,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 from concurrent.futures.thread import ThreadPoolExecutor
+from queue import Queue
 
 import cv2
 import numpy as np
@@ -132,7 +133,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
 
     def __load_img(self, path):
         img = cv2.imread(path, cv2.IMREAD_GRAYSCALE if self.input_shape[2] == 1 else cv2.IMREAD_COLOR)
-        img = self.__random_adjust(img)
+        # img = self.__random_adjust(img)  # so slow
         return path, img
 
     def __random_adjust(self, img):
