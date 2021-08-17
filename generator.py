@@ -55,9 +55,6 @@ class YoloDataGenerator:
         """
         return self.generator_flow
 
-    def shuffle_paths(self):
-        self.generator_flow.shuffle_paths()
-
 
 class GeneratorFlow(tf.keras.utils.Sequence):
     """
@@ -98,10 +95,36 @@ class GeneratorFlow(tf.keras.utils.Sequence):
             return
 
         self.insert_thread_running = True
-        for _ in range(3):
+        for _ in range(4):
             insert_thread = Thread(target=self.__insert_batch_into_q)
             insert_thread.setDaemon(True)
             insert_thread.start()
+
+    @staticmethod
+    def __convert_to_boxes(label_lines):
+        boxes = []
+        for line in label_lines:
+            class_index, cx, cy, w, h = list(map(float, line.split(' ')))
+            class_index = int(class_index)
+            boxes.append({
+                'class_index': class_index,
+                'cx': cx,
+                'cy': cy,
+                'w': w,
+                'h': h,
+                'area': w * h})
+        return boxes
+
+    @staticmethod
+    def __sort_middle_last(big_last_boxes, small_last_boxes):
+        middle_index = int(len(big_last_boxes) / 2)
+        middle_last_boxes = []
+        for i in range(middle_index):
+            middle_last_boxes.append(big_last_boxes[i])
+            middle_last_boxes.append(small_last_boxes[i])
+        if len(big_last_boxes) % 2 == 1:
+            middle_last_boxes.append(small_last_boxes[middle_index])
+        return middle_last_boxes
 
     def __insert_batch_into_q(self):
         while True:
@@ -120,28 +143,31 @@ class GeneratorFlow(tf.keras.utils.Sequence):
                 with open(f'{cur_img_path[:-4]}.txt', mode='rt') as file:
                     label_lines = file.readlines()
 
+                boxes = self.__convert_to_boxes(label_lines)
+                big_last_boxes = sorted(boxes, key=lambda __x: __x['area'], reverse=False)
+                small_last_boxes = sorted(boxes, key=lambda __x: __x['area'], reverse=True)
+                middle_last_boxes = self.__sort_middle_last(big_last_boxes, small_last_boxes)
+                layer_mapping_boxes = [small_last_boxes, middle_last_boxes, big_last_boxes]
+
                 y = []
                 for i in range(len(self.output_shapes)):
                     y.append(np.zeros((self.output_shapes[i][1], self.output_shapes[i][2], self.output_shapes[i][3]), dtype=np.float32))
-                for label_line in label_lines:
-                    class_index, cx, cy, w, h = list(map(float, label_line.split(' ')))
-                    if w > 0.3 or h > 0.3:
-                        output_layer_index = 2
-                    elif w > 0.1 or h > 0.1:
-                        output_layer_index = 1
-                    else:
-                        output_layer_index = 0
 
-                    grid_width_ratio = 1 / float(self.output_shapes[output_layer_index][2])
-                    grid_height_ratio = 1 / float(self.output_shapes[output_layer_index][1])
-                    center_row = int(cy * self.output_shapes[output_layer_index][1])
-                    center_col = int(cx * self.output_shapes[output_layer_index][2])
-                    y[output_layer_index][center_row][center_col][0] = 1.0
-                    y[output_layer_index][center_row][center_col][1] = (cx - (center_col * grid_width_ratio)) / grid_width_ratio
-                    y[output_layer_index][center_row][center_col][2] = (cy - (center_row * grid_height_ratio)) / grid_height_ratio
-                    y[output_layer_index][center_row][center_col][3] = w
-                    y[output_layer_index][center_row][center_col][4] = h
-                    y[output_layer_index][center_row][center_col][int(class_index + 5)] = 1.0
+                for output_layer_index in range(len(self.output_shapes)):
+                    output_rows = float(self.output_shapes[output_layer_index][1])
+                    output_cols = float(self.output_shapes[output_layer_index][2])
+                    for b in layer_mapping_boxes[output_layer_index]:
+                        class_index, cx, cy, w, h = b['class_index'], b['cx'], b['cy'], b['w'], b['h']
+                        grid_width_ratio = 1 / output_cols
+                        grid_height_ratio = 1 / output_rows
+                        center_row = int(cy * output_rows)
+                        center_col = int(cx * output_cols)
+                        y[output_layer_index][center_row][center_col][0] = 1.0
+                        y[output_layer_index][center_row][center_col][1] = (cx - (center_col * grid_width_ratio)) / grid_width_ratio
+                        y[output_layer_index][center_row][center_col][2] = (cy - (center_row * grid_height_ratio)) / grid_height_ratio
+                        y[output_layer_index][center_row][center_col][3] = w
+                        y[output_layer_index][center_row][center_col][4] = h
+                        y[output_layer_index][center_row][center_col][int(class_index + 5)] = 1.0
                 batch_y1.append(y[0])
                 batch_y2.append(y[1])
                 batch_y3.append(y[2])
@@ -150,6 +176,10 @@ class GeneratorFlow(tf.keras.utils.Sequence):
             batch_y2 = np.asarray(batch_y2).astype('float32')
             batch_y3 = np.asarray(batch_y3).astype('float32')
             sleep(0)
+            # print(np.shape(batch_y1))
+            # print(np.shape(batch_y2))
+            # print(np.shape(batch_y3))
+            # exit(1)
             self.batch_q.put((batch_x, [batch_y1, batch_y2, batch_y3]), block=True)
 
     def __get_next_batch_image_paths(self):
@@ -164,7 +194,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
 
     def __load_img(self, path):
         img = cv2.imread(path, cv2.IMREAD_GRAYSCALE if self.input_shape[2] == 1 else cv2.IMREAD_COLOR)
-        # img = self.__random_adjust(img)  # so slow
+        img = self.__random_adjust(img)  # so slow
         return path, img
 
     def __random_adjust(self, img):
@@ -201,13 +231,3 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         if is_gray_img:
             img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         return img
-
-    def shuffle_paths(self):
-        pass
-        # np.random.shuffle(self.random_indexes)
-
-    def on_epoch_end(self):
-        """
-        Mix the image paths at the end of each epoch.
-        """
-        self.shuffle_paths()
