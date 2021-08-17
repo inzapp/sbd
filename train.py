@@ -71,28 +71,30 @@ if __name__ == '__main__':
     """
 
     Yolo(
+        # pretrained_model_path=r'C:\inz\git\yolo-lab\checkpoints\model_348000_iter_mAP_0.4273_f1_0.5888.h5',
         # train_image_path=r'X:\lp_detection\train',
         # validation_image_path=r'X:\lp_detection\validation',
         # input_shape=(368, 640, 1),
 
-        train_image_path=r'X:\200m_big_small_detection\big\train',
-        validation_image_path=r'X:\200m_big_small_detection\big\validation',
-        input_shape=(320, 576, 1),
+        # train_image_path=r'X:\200m_big_small_detection\big\train',
+        # validation_image_path=r'X:\200m_big_small_detection\big\validation',
+        # input_shape=(320, 576, 1),
         # input_shape=(352, 576, 1),
 
-        # train_image_path=r'C:\inz\train_data\loon\train',
-        # validation_image_path=r'C:\inz\train_data\loon\validation',
-        # input_shape=(128, 512, 3),
+        train_image_path=r'C:\inz\train_data\loon\train',
+        validation_image_path=r'C:\inz\train_data\loon\validation',
+        input_shape=(128, 512, 3),
 
         lr=0.001,
         decay=0.0005,
         momentum=0.9,
         burn_in=1000,
-        batch_size=8,
+        batch_size=2,
         iterations=5000000,
         curriculum_iterations=0,
+        optimizer='sgd',
         training_view=True,
-        map_checkpoint=True,
+        map_checkpoint=False,
         mixed_float16_training=False).fit()
 
     # from glob import glob

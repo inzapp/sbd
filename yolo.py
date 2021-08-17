@@ -24,15 +24,14 @@ from time import time, sleep
 
 import numpy as np
 import tensorflow as tf
-import tensorflow_addons as tfa
 from cv2 import cv2
 from tensorflow.keras.mixed_precision import experimental as mixed_precision
 
 from box_colors import colors
 from generator import YoloDataGenerator
-from live_loss_plot import LiveLossPlot
-from loss import YoloLoss, ConfidenceWithBoundingBoxLoss, ConfidenceLoss
+from loss import confidence_loss, confidence_with_bbox_loss, yolo_loss
 from lr_scheduler import LearningRateScheduler
+from mAP_calculator import calc_mean_average_precision
 from model import Model
 
 
@@ -49,6 +48,7 @@ class Yolo:
                  curriculum_iterations=0,
                  validation_split=0.2,
                  validation_image_path='',
+                 optimizer='sgd',
                  test_only=False,
                  training_view=False,
                  map_checkpoint=False,
@@ -61,11 +61,13 @@ class Yolo:
         self.__burn_in = burn_in
         self.__batch_size = batch_size
         self.__iterations = iterations
+        self.__optimizer = optimizer
         self.__training_view = training_view
         self.__map_checkpoint = map_checkpoint
         self.__curriculum_iterations = curriculum_iterations
         self.__mixed_float16_training = mixed_float16_training
         self.__live_view_previous_time = time()
+        self.max_map, self.max_f1, self.max_hm = 0.0, 0.0, 0.0
 
         if class_names_file_path == '':
             class_names_file_path = f'{train_image_path}/classes.txt'
@@ -74,6 +76,8 @@ class Yolo:
         if os.path.exists(pretrained_model_path) and os.path.isfile(pretrained_model_path):
             self.__model = tf.keras.models.load_model(pretrained_model_path, compile=False)
         else:
+            if self.__optimizer == 'adam':
+                self.__decay = 0.0
             self.__model = Model(input_shape=input_shape, output_channel=self.__num_classes + 5, decay=self.__decay).build()
 
         if validation_image_path != '':
@@ -106,9 +110,14 @@ class Yolo:
         if self.__mixed_float16_training:
             mixed_precision.set_policy(mixed_precision.Policy('mixed_float16'))
 
-    def __get_optimizer(self):
-        # optimizer tf.keras.optimizers.Adam(lr=self.__lr, beta_1=self.__momentum)
-        optimizer = tf.keras.optimizers.SGD(lr=1e-9, momentum=self.__momentum, nesterov=True)
+    def __get_optimizer(self, optimizer_str):
+        if optimizer_str == 'sgd':
+            optimizer = tf.keras.optimizers.SGD(lr=self.__lr, momentum=self.__momentum, nesterov=True)
+        elif optimizer_str == 'adam':
+            optimizer = tf.keras.optimizers.Adam(lr=self.__lr, beta_1=self.__momentum)
+        else:
+            print(f'\n\nunknown optimizer : {optimizer_str}')
+            return None
         if self.__mixed_float16_training:
             optimizer = mixed_precision.LossScaleOptimizer(optimizer=optimizer, loss_scale='dynamic')
         return optimizer
@@ -119,59 +128,107 @@ class Yolo:
         print(f'\ntrain on {len(self.__train_image_paths)} samples.')
         print(f'validate on {len(self.__validation_image_paths)} samples.')
 
-        self.__train_data_generator.flow().start()
-        if self.__curriculum_iterations > 0:
-            print('\nstart curriculum training')
-            tmp_model_name = f'{time()}.h5'
-            for loss in [ConfidenceLoss(), ConfidenceWithBoundingBoxLoss()]:
-                self.__live_loss_plot = LiveLossPlot(batch_range=self.__curriculum_iterations)
-                optimizer = self.__get_optimizer()
-
-                self.__model.compile(optimizer=optimizer, loss=loss)
-                iteration_count = 0
-                break_flag = False
-                while True:
-                    self.__train_data_generator.shuffle_paths()
-                    for batch_x, batch_y in self.__train_data_generator.flow():
-                        iteration_count += 1
-                        logs = self.__model.train_on_batch(batch_x, batch_y, return_dict=True)
-                        print(f'\r[curriculum iteration count : {iteration_count:6d}] loss => {logs["loss"]:.4f}', end='')
-                        self.__lr_scheduler.update(self.__model, curriculum_training=True)
-                        if iteration_count == self.__curriculum_iterations + (self.__burn_in * 2):
-                            break_flag = True
-                            break
-                    if break_flag:
-                        break
-                print()
-                self.__lr_scheduler.reset()
-                self.__live_loss_plot.close()
-                self.__model.save(tmp_model_name, include_optimizer=False)
-                sleep(0.5)
-                self.__model = tf.keras.models.load_model(tmp_model_name, compile=False)
-                sleep(0.5)
-                os.remove(tmp_model_name)
-
-        optimizer = self.__get_optimizer()
-        self.__live_loss_plot = LiveLossPlot()
-        self.__model.compile(optimizer=optimizer, loss=YoloLoss())
         print('start training')
+        self.__train_data_generator.flow().start()
+        if self.__burn_in > 0:
+            self.__burn_in_train()
+        if self.__curriculum_iterations > 0:
+            self.__curriculum_train()
+        self.__train()
+
+    def __burn_in_train(self):
+        optimizer = self.__get_optimizer('sgd')
+        self.__model.compile(optimizer=optimizer, loss=yolo_loss)
         iteration_count = 0
-        break_flag = False
-        self.__lr_scheduler.reset()
         while True:
-            self.__train_data_generator.shuffle_paths()
+            for batch_x, batch_y in self.__train_data_generator.flow():
+                iteration_count += 1
+                self.__update_burn_in_lr(iteration_count=iteration_count)
+                logs = self.__model.train_on_batch(batch_x, batch_y, return_dict=True)
+                print(f'\r[iteration count : {iteration_count:6d}] loss => {logs["loss"]:.4f}', end='')
+                if iteration_count == self.__burn_in:
+                    self.__model.save('model.h5', include_optimizer=False)
+                    return
+
+    def __curriculum_train(self):
+        sleep(0.5)
+        self.__model = tf.keras.models.load_model('model.h5', compile=False)
+        tmp_model_name = f'{time()}.h5'
+        for loss in [confidence_loss, confidence_with_bbox_loss]:
+            optimizer = self.__get_optimizer(self.__optimizer)
+            self.__model.compile(optimizer=optimizer, loss=loss)
+            iteration_count = 0
+            break_flag = False
+            while True:
+                for batch_x, batch_y in self.__train_data_generator.flow():
+                    iteration_count += 1
+                    logs = self.__model.train_on_batch(batch_x, batch_y, return_dict=True)
+                    print(f'\r[curriculum iteration count : {iteration_count:6d}] loss => {logs["loss"]:.4f}', end='')
+                    if iteration_count == self.__curriculum_iterations + (self.__burn_in * 2):
+                        break_flag = True
+                        break
+                if break_flag:
+                    break
+            print()
+            self.__model.save(tmp_model_name, include_optimizer=False)
+            sleep(0.5)
+            self.__model = tf.keras.models.load_model(tmp_model_name, compile=False)
+            sleep(0.5)
+            os.remove(tmp_model_name)
+
+    def __train(self):
+        sleep(0.5)
+        self.__model = tf.keras.models.load_model('model.h5', compile=False)
+        optimizer = self.__get_optimizer(self.__optimizer)
+        self.__model.compile(optimizer=optimizer, loss=yolo_loss)
+        iteration_count = 0
+        while True:
             for batch_x, batch_y in self.__train_data_generator.flow():
                 iteration_count += 1
                 logs = self.__model.train_on_batch(batch_x, batch_y, return_dict=True)
                 print(f'\r[iteration count : {iteration_count:6d}] loss => {logs["loss"]:.4f}', end='')
-                self.__lr_scheduler.update(self.__model)
-                if self.__training_view and iteration_count > self.__burn_in * 2:
+                self.__save_model(iteration_count=iteration_count)
+                if self.__training_view:
                     self.__training_view_function()
                 if iteration_count == self.__iterations:
-                    break_flag = True
-                    break
-            if break_flag:
-                break
+                    print('\n\ntrain end successfully')
+                    return
+
+    def __update_burn_in_lr(self, iteration_count):
+        lr = self.__lr * pow(float(iteration_count) / self.__burn_in, 4)
+        tf.keras.backend.set_value(self.__model.optimizer.lr, lr)
+
+    @staticmethod
+    def __harmonic_mean(mean_ap, f1_score):
+        return (2.0 * mean_ap * f1_score) / (mean_ap + f1_score + 1e-5)
+
+    def __is_better_than_before(self, mean_ap, f1_score):
+        better_than_before = False
+        if mean_ap > self.max_map:
+            self.max_map = mean_ap
+            better_than_before = True
+        if f1_score > self.max_f1:
+            self.max_f1 = f1_score
+            better_than_before = True
+        harmonic_mean = self.__harmonic_mean(mean_ap, f1_score)
+        if harmonic_mean > self.max_hm:
+            self.max_hm = harmonic_mean
+            better_than_before = True
+        return better_than_before
+
+    def __save_model(self, iteration_count):
+        if iteration_count % 2000 != 0:
+            return
+
+        print('\n')
+        if self.__map_checkpoint and iteration_count >= 2000:
+            self.__model.save('model.h5', include_optimizer=False)
+            mean_ap, f1_score = calc_mean_average_precision('model.h5', self.__validation_data_generator.flow().image_paths)
+            if self.__is_better_than_before(mean_ap, f1_score):
+                self.__model.save(f'checkpoints/model_{iteration_count}_iter_mAP_{mean_ap:.4f}_f1_{f1_score:.4f}.h5')
+                self.__model.save('model_last.h5')
+        else:
+            self.__model.save(f'checkpoints/model_{iteration_count}_iter.h5')
 
     @staticmethod
     def __init_image_paths(image_path, validation_split=0.0):
@@ -185,7 +242,9 @@ class Yolo:
 
     def predict(self, img, confidence_threshold=0.25, nms_iou_threshold=0.5):
         def sigmoid(__x):
+            # __x = np.clip(__x, -10.0, 10.0)  # slow
             return 1.0 / (1.0 + np.exp(-__x))
+
         """
         Detect object in image using trained YOLO model.
         :param img: (width, height, channel) formatted image to be predicted.
