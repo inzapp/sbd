@@ -15,6 +15,7 @@ nms_iou_threshold = 0.45  # darknet yolo nms threshold value
 
 
 def sigmoid(x):
+    # x = np.clip(x, -20.0, 20.0)  # slow
     return 1.0 / (1.0 + np.exp(-x))
 
 
@@ -383,10 +384,9 @@ def all_check():
 
 
 def main():
-    model_path = r'C:\inz\git\yolo-lab\checkpoints\model_28000_iter_mAP_0.3158_f1_0.4334.h5'
-    img_paths = glob(r'C:\inz\tmp\person_6_class\validation\*.jpg')
+    model_path = r'C:\inz\git\yolo-lab\checkpoints\model_340000_iter_mAP_0.2375_f1_0.4987.h5'
+    img_paths = glob(r'T:\200m_big_small_detection\big\new\validation\*.jpg')
     avg_map, avg_f1 = calc_mean_average_precision(model_path, img_paths)
-    print(f'avg mAP : {avg_map:.4f}')
 
 
 if __name__ == '__main__':
