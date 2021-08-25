@@ -101,12 +101,6 @@ class Yolo:
             batch_size=batch_size)
 
         self.__live_loss_plot = None
-        self.__lr_scheduler = LearningRateScheduler(
-            lr=self.__lr,
-            burn_in=self.__burn_in,
-            batch_size=self.__batch_size,
-            validation_data_generator_flow=self.__validation_data_generator.flow() if self.__map_checkpoint else None)
-
         if self.__mixed_float16_training:
             mixed_precision.set_policy(mixed_precision.Policy('mixed_float16'))
 
@@ -164,7 +158,7 @@ class Yolo:
                     iteration_count += 1
                     logs = self.__model.train_on_batch(batch_x, batch_y, return_dict=True)
                     print(f'\r[curriculum iteration count : {iteration_count:6d}] loss => {logs["loss"]:.4f}', end='')
-                    if iteration_count == self.__curriculum_iterations + (self.__burn_in * 2):
+                    if iteration_count == self.__curriculum_iterations:
                         break_flag = True
                         break
                 if break_flag:
@@ -217,18 +211,16 @@ class Yolo:
         return better_than_before
 
     def __save_model(self, iteration_count):
-        if iteration_count % 2000 != 0:
-            return
-
-        print('\n')
-        if self.__map_checkpoint and iteration_count >= 2000:
-            self.__model.save('model.h5', include_optimizer=False)
-            mean_ap, f1_score = calc_mean_average_precision('model.h5', self.__validation_data_generator.flow().image_paths)
-            if self.__is_better_than_before(mean_ap, f1_score):
-                self.__model.save(f'checkpoints/model_{iteration_count}_iter_mAP_{mean_ap:.4f}_f1_{f1_score:.4f}.h5')
-                self.__model.save('model_last.h5')
-        else:
-            self.__model.save(f'checkpoints/model_{iteration_count}_iter.h5')
+        if iteration_count >= 10000 and iteration_count % 5000 == 0:
+            print('\n')
+            if self.__map_checkpoint:
+                self.__model.save('model.h5', include_optimizer=False)
+                mean_ap, f1_score = calc_mean_average_precision('model.h5', self.__validation_data_generator.flow().image_paths)
+                if self.__is_better_than_before(mean_ap, f1_score):
+                    self.__model.save(f'checkpoints/model_{iteration_count}_iter_mAP_{mean_ap:.4f}_f1_{f1_score:.4f}.h5')
+                    self.__model.save('model_last.h5')
+            else:
+                self.__model.save(f'checkpoints/model_{iteration_count}_iter.h5')
 
     @staticmethod
     def __init_image_paths(image_path, validation_split=0.0):

@@ -11,7 +11,7 @@ class LearningRateScheduler(tf.keras.callbacks.Callback):
             self,
             lr=0.001,
             burn_in=1000,
-            batch_size=32,
+            batch_size=8,
             validation_data_generator_flow=None):
         self.lr = lr
         self.burn_in = burn_in
@@ -34,10 +34,7 @@ class LearningRateScheduler(tf.keras.callbacks.Callback):
         self.model = model
         lr = self.lr
         if self.iteration_sum < self.burn_in:
-            lr = self.lr * self.batch_size / self.burn_in
-        elif self.iteration_sum < self.burn_in * 2:
-            warmup_lr = self.lr * self.batch_size / self.burn_in
-            lr = warmup_lr + 0.5 * (self.lr - warmup_lr) * (1.0 + np.cos(np.pi * (self.iteration_sum - self.burn_in) / self.burn_in + np.pi))
+            lr = self.lr * pow(float(self.iteration_sum) / self.burn_in, 4)
         tf.keras.backend.set_value(self.model.optimizer.lr, lr)
         self.iteration_sum += 1
         if not curriculum_training and self.iteration_sum % 2000 == 0:
