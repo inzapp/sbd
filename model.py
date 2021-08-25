@@ -42,6 +42,8 @@ class Model:
         return self.__200m_big()
         # return self.__200m_crop()
         # return self.__covid()
+        # return self.__tiny_yolo_v3()
+        # return self.__fast()
         # return self.__loon()
 
     def __200m_crop(self):
@@ -65,23 +67,101 @@ class Model:
     # (352, 576, 1)
     def __200m_big(self):
         input_layer = tf.keras.layers.Input(shape=self.__input_shape)
-        x = self.__conv_blocks(1, 8, 3, input_layer, avg_max_pool=True)
-        x = self.__conv_blocks(1, 16, 3, x, avg_max_pool=True)
-        x = self.__conv_blocks(2, 32, 3, x, avg_max_pool=True)
-        x = self.__conv_blocks(3, 64, 3, x)  # no pool here
+        x = self.__conv(input_layer, 16, 3)
+        x = self.__bn(x)
+        x = self.__relu(x)
+        x = self.__avg_max_pool(x)
 
-        # x = self.__dropout(x, 0.1)
-        x = self.__conv_blocks(3, 128, 3, x, activation_first=True)
+        x = self.__conv(x, 32, 3)
+        x = self.__relu(x)
+        x = self.__conv(x, 32, 3)
+        x = self.__relu(x)
+        x = self.__avg_max_pool(x)
+
+        x = self.__conv(x, 32, 3)
+        x = self.__relu(x)
+        x = self.__conv(x, 32, 3)
+        x = self.__relu(x)
+        x = self.__avg_max_pool(x)
+
+        x = self.__conv(x, 64, 3)
+        x = self.__relu(x)
+        x = self.__conv(x, 64, 3)
+        x = self.__relu(x)
+        x = self.__conv(x, 64, 3)
+        x = self.__bn(x)
+        x = self.__relu(x)
+        x = self.__avg_max_pool(x)
+
+        x = self.__conv(x, 128, 3)
+        x = self.__relu(x)
+        x = self.__conv(x, 128, 3)
+        x = self.__relu(x)
+        x = self.__conv(x, 128, 3)
+        x = self.__bn(x)
+        x = self.__relu(x)
         y1 = self.__detection_layer(x, 'output_1')
         x = self.__avg_max_pool(x)
 
-        # x = self.__dropout(x, 0.2)
-        x = self.__conv_blocks(3, 256, 3, x, activation_first=True)
+        x = self.__conv(x, 256, 3)
+        x = self.__relu(x)
+        x = self.__conv(x, 256, 3)
+        x = self.__relu(x)
+        x = self.__conv(x, 256, 3)
+        x = self.__bn(x)
+        x = self.__relu(x)
         y2 = self.__detection_layer(x, 'output_2')
         x = self.__avg_max_pool(x)
 
-        # x = self.__dropout(x, 0.3)
-        x = self.__conv_blocks(3, 512, 3, x, activation_first=True)
+        x = self.__conv(x, 512, 3)
+        x = self.__relu(x)
+        x = self.__conv(x, 512, 3)
+        x = self.__relu(x)
+        x = self.__conv(x, 512, 3)
+        x = self.__bn(x)
+        x = self.__relu(x)
+        y3 = self.__detection_layer(x, 'output_3')
+        return tf.keras.models.Model(input_layer, [y1, y2, y3])
+
+    def __fast(self):
+        input_layer = tf.keras.layers.Input(shape=self.__input_shape)
+        x = self.__conv_blocks(1, 32, 3, input_layer, bn=False, max_pool=True)
+        x = self.__conv_blocks(2, 64, 3, x, bn=False, max_pool=True)
+        x = self.__conv_blocks(2, 128, 3, x, bn=False, max_pool=True)
+        x = self.__conv_blocks(1, 192, 3, x, bn=False, max_pool=True)
+        x = self.__conv_blocks(1, 256, 3, x, bn=False)
+        y1 = self.__detection_layer(x, 'output_1')
+        x = self.__max_pool(x)
+
+        x = self.__conv_blocks(1, 512, 3, x, bn=False)
+        x = self.__conv_blocks(1, 1024, 3, x, bn=False)
+        y2 = self.__detection_layer(x, 'output_2')
+        x = self.__max_pool(x)
+
+        x = self.__conv_blocks(1, 512, 1, x, bn=False)
+        x = self.__conv_blocks(1, 1024, 3, x, bn=False)
+        y3 = self.__detection_layer(x, 'output_3')
+        return tf.keras.models.Model(input_layer, [y1, y2, y3])
+
+    def __tiny_yolo_v3(self):
+        input_layer = tf.keras.layers.Input(shape=self.__input_shape)
+        x = self.__conv_block(16, 3, input_layer, bn=False, max_pool=True)
+        x = self.__conv_block(32, 3, x, bn=False, max_pool=True)
+        x = self.__conv_block(64, 3, x, bn=False, max_pool=True)
+        x = self.__conv_block(128, 3, x, bn=False, max_pool=True)
+        x = self.__conv_block(256, 3, x, bn=False)
+        x = self.__conv_block(256, 1, x, bn=False)
+        y1 = self.__detection_layer(x, 'output_1')
+        x = self.__max_pool(x)
+
+        x = self.__conv_block(512, 3, x, bn=False)
+        x = self.__conv_block(1024, 3, x, bn=False)
+        x = self.__conv_block(256, 1, x, bn=False)
+        y2 = self.__detection_layer(x, 'output_2')
+        x = self.__max_pool(x)
+
+        x = self.__conv_block(512, 3, x, bn=False)
+        x = self.__conv_block(256, 1, x, bn=False)
         y3 = self.__detection_layer(x, 'output_3')
         return tf.keras.models.Model(input_layer, [y1, y2, y3])
 
@@ -267,40 +347,40 @@ class Model:
         y3 = self.__detection_layer(x, name='output_3')
         return tf.keras.models.Model(input_layer, [y1, y2, y3])
 
-    def __conv_blocks(self, n_convolutions, filters, kernel_size, x, max_pool=False, avg_max_pool=False, activation_first=False):
+    def __conv_blocks(self, n_convolutions, filters, kernel_size, x, max_pool=False, avg_max_pool=False, activation_first=False, bn=True):
         for _ in range(n_convolutions):
-            x = self.__conv_block(filters, kernel_size, x, activation_first=activation_first)
+            x = self.__conv_block(filters, kernel_size, x, activation_first=activation_first, bn=bn)
         if max_pool:
             x = self.__max_pool(x)
         elif avg_max_pool:
             x = self.__avg_max_pool(x)
         return x
 
-    def __conv_block(self, filters, kernel_size, x, max_pool=False, avg_max_pool=False, activation_first=False):
+    def __conv_block(self, filters, kernel_size, x, max_pool=False, avg_max_pool=False, activation_first=False, bn=True):
+        x = self.__conv(x, filters, kernel_size)
         if activation_first:
-            x = tf.keras.layers.Conv2D(
-                filters=filters,
-                kernel_size=kernel_size,
-                kernel_initializer='he_uniform',
-                padding='same',
-                activation='relu',
-                kernel_regularizer=tf.keras.regularizers.l2(l2=self.__decay) if self.__decay > 0.0 else None)(x)
-            x = tf.keras.layers.BatchNormalization()(x)
+            x = self.__relu(x)
+            if bn:
+                x = self.__bn(x)
         else:
-            x = tf.keras.layers.Conv2D(
-                filters=filters,
-                kernel_size=kernel_size,
-                kernel_initializer='he_uniform',
-                padding='same',
-                use_bias=False,
-                kernel_regularizer=tf.keras.regularizers.l2(l2=self.__decay) if self.__decay > 0.0 else None)(x)
-            x = tf.keras.layers.BatchNormalization()(x)
-            x = tf.keras.layers.ReLU()(x)
+            if bn:
+                x = self.__bn(x)
+            x = self.__relu(x)
+
         if max_pool:
             x = self.__max_pool(x)
         elif avg_max_pool:
             x = self.__avg_max_pool(x)
         return x
+
+    def __conv(self, x, filters, kernel_size):
+        return tf.keras.layers.Conv2D(
+            filters=filters,
+            kernel_size=kernel_size,
+            kernel_initializer='he_uniform',
+            padding='same',
+            use_bias=False,
+            kernel_regularizer=tf.keras.regularizers.l2(l2=self.__decay) if self.__decay > 0.0 else None)(x)
 
     def __detection_layer(self, x, name='output'):
         return tf.keras.layers.Conv2D(
@@ -323,3 +403,10 @@ class Model:
     def __dropout(x, rate):
         return tf.keras.layers.Dropout(rate)(x)
 
+    @staticmethod
+    def __bn(x):
+        return tf.keras.layers.BatchNormalization(beta_initializer='ones')(x)
+
+    @staticmethod
+    def __relu(x):
+        return tf.keras.layers.ReLU()(x)
