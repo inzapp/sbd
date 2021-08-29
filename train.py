@@ -75,16 +75,20 @@ if __name__ == '__main__':
         validation_image_path=r'T:\200m_big_small_detection\train_data\under_big\big_all\validation',
         input_shape=(384, 640, 1),
 
+        # train_image_path=r'T:\200m_big_small_detection\train_data\under_big\big_all\validation_yeojoo',
+        # validation_image_path=r'T:\200m_big_small_detection\train_data\under_big\big_all\validation_yeojoo',
+        # input_shape=(384, 640, 1),
+
         # train_image_path=r'C:\inz\train_data\loon\train',
         # validation_image_path=r'C:\inz\train_data\loon\validation',
         # input_shape=(128, 512, 3),
 
         optimizer='adam',
-        lr=1e-3,
-        decay=5e-4,
+        lr=0.001,
+        decay=0.0005,
         momentum=0.9,
         burn_in=1000,
-        batch_size=2,
+        batch_size=4,
         iterations=5000000,
         curriculum_iterations=0,
         training_view=False,

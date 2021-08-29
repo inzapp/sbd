@@ -123,6 +123,7 @@ class Yolo:
         print(f'validate on {len(self.__validation_image_paths)} samples.')
 
         print('start training')
+        self.__train_data_generator.flow().cluster_wh()
         self.__train_data_generator.flow().start()
         if self.__burn_in > 0:
             self.__burn_in_train()
@@ -211,14 +212,15 @@ class Yolo:
         return better_than_before
 
     def __save_model(self, iteration_count):
+        # if iteration_count % 1000 == 0:
         if iteration_count >= 10000 and iteration_count % 5000 == 0:
             print('\n')
             if self.__map_checkpoint:
                 self.__model.save('model.h5', include_optimizer=False)
                 mean_ap, f1_score = calc_mean_average_precision('model.h5', self.__validation_data_generator.flow().image_paths)
                 if self.__is_better_than_before(mean_ap, f1_score):
-                    self.__model.save(f'checkpoints/model_{iteration_count}_iter_mAP_{mean_ap:.4f}_f1_{f1_score:.4f}.h5')
-                    self.__model.save('model_last.h5')
+                    self.__model.save(f'checkpoints/model_{iteration_count}_iter_mAP_{mean_ap:.4f}_f1_{f1_score:.4f}.h5', include_optimizer=False)
+                    self.__model.save('model_last.h5', include_optimizer=False)
             else:
                 self.__model.save(f'checkpoints/model_{iteration_count}_iter.h5')
 
