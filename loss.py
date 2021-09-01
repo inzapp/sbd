@@ -46,11 +46,13 @@ def __confidence_loss(y_true, y_pred):
 
     smooth_obj_true = smooth(obj_true, alpha=0.025, true_only=True)
     obj_confidence_loss = tf.keras.backend.binary_crossentropy(smooth_obj_true, obj_pred, from_logits=False) * obj_true
+    # obj_confidence_loss = tf.square(smooth_obj_true - obj_pred) * obj_true
     obj_confidence_loss = tf.reduce_mean(obj_confidence_loss, axis=0)
     obj_confidence_loss = tf.reduce_sum(obj_confidence_loss)
 
     zeros = tf.zeros(shape=tf.shape(obj_true), dtype=tf.dtypes.float32)
     no_obj_confidence_loss = tf.keras.backend.binary_crossentropy(zeros, obj_pred, from_logits=False) * obj_false
+    # no_obj_confidence_loss = tf.square(zeros - obj_pred) * obj_false
     no_obj_confidence_loss = tf.reduce_mean(no_obj_confidence_loss, axis=0)
     no_obj_confidence_loss = tf.reduce_sum(no_obj_confidence_loss)
     return obj_confidence_loss + (no_obj_confidence_loss * no_obj)
@@ -123,6 +125,7 @@ def __bbox_loss(y_true, y_pred):
     xy_true = y_true[:, :, :, 1:3]
     xy_pred = y_pred[:, :, :, 1:3]
     xy_loss = tf.keras.backend.binary_crossentropy(xy_true, xy_pred, from_logits=False)
+    # xy_loss = tf.square(xy_true - xy_pred)
     xy_loss = tf.reduce_sum(xy_loss, axis=-1) * obj_true
     xy_loss = tf.reduce_mean(xy_loss, axis=0)
     xy_loss = tf.reduce_sum(xy_loss)
@@ -131,6 +134,7 @@ def __bbox_loss(y_true, y_pred):
     wh_true = tf.sqrt(y_true[:, :, :, 3:5] + eps)
     wh_pred = tf.sqrt(y_pred[:, :, :, 3:5] + eps)
     wh_loss = tf.keras.backend.binary_crossentropy(wh_true, wh_pred, from_logits=False)
+    # wh_loss = tf.square(wh_true - wh_pred)
     wh_loss = tf.reduce_sum(wh_loss, axis=-1) * obj_true
     wh_loss = tf.reduce_mean(wh_loss, axis=0)
     wh_loss = tf.reduce_sum(wh_loss)
@@ -142,6 +146,7 @@ def __classification_loss(y_true, y_pred):
     obj_true = y_true[:, :, :, 0]
     smooth_class_true = smooth(y_true[:, :, :, 5:], alpha=0.1)
     classification_loss = tf.keras.backend.binary_crossentropy(smooth_class_true, y_pred[:, :, :, 5:], from_logits=False)
+    # classification_loss = tf.square(smooth_class_true - y_pred[:, :, :, 5:])
     classification_loss = tf.reduce_sum(classification_loss, axis=-1) * obj_true
     classification_loss = tf.reduce_mean(classification_loss, axis=0)
     classification_loss = tf.reduce_sum(classification_loss)

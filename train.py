@@ -84,7 +84,7 @@ if __name__ == '__main__':
         # input_shape=(128, 512, 3),
 
         optimizer='adam',
-        lr=0.001,
+        lr=0.0075,
         decay=0.0005,
         momentum=0.9,
         burn_in=1000,
