@@ -153,29 +153,19 @@ def __classification_loss(y_true, y_pred):
     return classification_loss
 
 
-def __convert(y_true, y_pred):
-    # y_true = __reverse_sigmoid(y_true)
-    # y_pred = tf.sigmoid(y_pred)
-    # y_pred = __reverse_sigmoid(y_pred)
-    return y_true, y_pred
-
-
 def confidence_loss(y_true, y_pred):
     y_pred = convert_to_tensor_v2(y_pred)
     y_true = tf.cast(y_true, y_pred.dtype)
-    y_true, y_pred = __convert(y_true, y_pred)
     return __confidence_loss(y_true, y_pred)
 
 
 def confidence_with_bbox_loss(y_true, y_pred):
     y_pred = convert_to_tensor_v2(y_pred)
     y_true = tf.cast(y_true, y_pred.dtype)
-    y_true, y_pred = __convert(y_true, y_pred)
     return __confidence_loss(y_true, y_pred) + __bbox_loss(y_true, y_pred)
 
 
 def yolo_loss(y_true, y_pred):
     y_pred = convert_to_tensor_v2(y_pred)
     y_true = tf.cast(y_true, y_pred.dtype)
-    y_true, y_pred = __convert(y_true, y_pred)
     return __confidence_loss(y_true, y_pred) + __bbox_loss(y_true, y_pred) + __classification_loss(y_true, y_pred)
