@@ -71,23 +71,23 @@ if __name__ == '__main__':
     """
 
     Yolo(
-        train_image_path=r'T:\200m_big_small_detection\train_data\under_big\big_all\train',
-        validation_image_path=r'T:\200m_big_small_detection\train_data\under_big\big_all\validation',
-        input_shape=(384, 640, 1),
-
-        # train_image_path=r'T:\200m_big_small_detection\train_data\under_big\big_all\validation_yeojoo',
-        # validation_image_path=r'T:\200m_big_small_detection\train_data\under_big\big_all\validation_yeojoo',
+        pretrained_model_path=r'C:\inz\git\yolo-lab\checkpoints\200m\small\model_1255000_iter_mAP_0.4479_f1_0.7400.h5',
+        # train_image_path=r'T:\200m_big_small_detection\train_data\under_big\big_all\train',
+        # validation_image_path=r'T:\200m_big_small_detection\train_data\under_big\big_all\validation',
         # input_shape=(384, 640, 1),
+
+        train_image_path=r'T:\200m_big_small_detection\train_data\small\small_all\train',
+        validation_image_path=r'T:\200m_big_small_detection\train_data\small\small_all\validation',
+        input_shape=(192, 576, 1),
 
         # train_image_path=r'C:\inz\train_data\loon\train',
         # validation_image_path=r'C:\inz\train_data\loon\validation',
         # input_shape=(128, 512, 3),
 
-        optimizer='adam',
-        lr=0.0075,
+        lr=0.001,
         decay=0.0005,
         momentum=0.9,
-        burn_in=1000,
+        burn_in=0,
         batch_size=4,
         iterations=5000000,
         curriculum_iterations=0,
