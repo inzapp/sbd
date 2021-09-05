@@ -30,7 +30,6 @@ from tensorflow.keras.mixed_precision import experimental as mixed_precision
 from box_colors import colors
 from generator import YoloDataGenerator
 from loss import confidence_loss, confidence_with_bbox_loss, yolo_loss
-from lr_scheduler import LearningRateScheduler
 from mAP_calculator import calc_mean_average_precision
 from model import Model
 
