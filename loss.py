@@ -145,7 +145,7 @@ def __bbox_loss(y_true, y_pred):
 
 def __classification_loss(y_true, y_pred):
     obj_true = y_true[:, :, :, 0]
-    smooth_class_true = __smooth(y_true[:, :, :, 5:], alpha=0.1)
+    smooth_class_true = __smooth(y_true[:, :, :, 5:], alpha=0.01)
     classification_loss = __loss(smooth_class_true, y_pred[:, :, :, 5:])
     classification_loss = tf.reduce_sum(classification_loss, axis=-1) * obj_true
     classification_loss = tf.reduce_mean(classification_loss, axis=0)
