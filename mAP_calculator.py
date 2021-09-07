@@ -120,72 +120,28 @@ def get_y_pred(y, target_class_index):
     return y_pred
 
 
-def calc_ap(precisions, recalls):
-    # recall_check = np.asarray(list(range(100))).astype('float32') / 100.0
-    # head_recall = list()
-    # head_precision = list()
-    # if recalls[0] > recall_check[0]:
-    #     head_precision.append(1.0)
-    #     head_recall.append(recall_check[0])
-    # precisions = head_precision + list(precisions)
-    # recalls = head_recall + list(recalls)
+def get_interpolated_precision(y_pred, recall):
+    max_precision = 0.0
+    for i in range(len(y_pred)):
+        if y_pred[i]['recall'] >= recall and y_pred[i]['precision'] > max_precision:
+            max_precision = y_pred[i]['precision']
+    return max_precision
 
-    precisions = [1.0] + precisions
-    recalls = [0.0] + recalls
 
-    # print('\n\n')
-    # print(precisions)
-    # print(recalls)
-    # from matplotlib import pyplot as plt
-    # plt.figure()
-    # plt.step(recalls, precisions)
-    # plt.xlabel('Recall')
-    # plt.ylabel('Precision')
-    # plt.ylim([0.0, 1.1])
-    # plt.xlim([0.0, 1.1])
-    # plt.show()
-
-    """
-    interpolate precisions
-    """
-    sorted_pure_precisions = sorted(list(set(precisions)), reverse=True)
-    indexed_pure_precisions = list()
-    prev_max_index = -1
-    for i in range(len(sorted_pure_precisions)):
-        max_index = -1
-        for j in range(len(precisions)):
-            if sorted_pure_precisions[i] == precisions[j]:
-                max_index = j
-        if max_index > prev_max_index:
-            indexed_pure_precisions.append({'max_index': max_index, 'val': sorted_pure_precisions[i]})
-            prev_max_index = max_index
-    if len(indexed_pure_precisions) > 1:
-        for i in range(1, len(indexed_pure_precisions)):
-            start_index = indexed_pure_precisions[i - 1]['max_index'] + 1
-            end_index = indexed_pure_precisions[i]['max_index']
-            for interpolation_index in range(start_index, end_index + 1):
-                precisions[interpolation_index] = indexed_pure_precisions[i]['val']
-
-    if recalls[-1] < 1.0:
-        precisions[-1] = 0.0
-
-    ap = 0.0
-    for i in range(len(precisions) - 1):
-        ap += precisions[i] * (recalls[i + 1] - recalls[i])
-
-    # print('\n\n')
-    # print(precisions)
-    # print(recalls)
-    # print(ap)
-    # from matplotlib import pyplot as plt
-    # plt.figure()
-    # plt.step(recalls, precisions)
-    # plt.xlabel('Recall')
-    # plt.ylabel('Precision')
-    # plt.ylim([0.0, 1.1])
-    # plt.xlim([0.0, 1.1])
-    # plt.show()
-
+def calc_ap(y_pred):
+    interpolated_precision_sum = 0.0
+    interpolated_precision_sum += get_interpolated_precision(y_pred, 0.0)
+    interpolated_precision_sum += get_interpolated_precision(y_pred, 0.1)
+    interpolated_precision_sum += get_interpolated_precision(y_pred, 0.2)
+    interpolated_precision_sum += get_interpolated_precision(y_pred, 0.3)
+    interpolated_precision_sum += get_interpolated_precision(y_pred, 0.4)
+    interpolated_precision_sum += get_interpolated_precision(y_pred, 0.5)
+    interpolated_precision_sum += get_interpolated_precision(y_pred, 0.6)
+    interpolated_precision_sum += get_interpolated_precision(y_pred, 0.7)
+    interpolated_precision_sum += get_interpolated_precision(y_pred, 0.8)
+    interpolated_precision_sum += get_interpolated_precision(y_pred, 0.9)
+    interpolated_precision_sum += get_interpolated_precision(y_pred, 1.0)
+    ap = interpolated_precision_sum / 11.0
     return ap
 
 
@@ -252,20 +208,13 @@ def calc_ap_tp_fp_fn(y, label_lines, iou_threshold, target_class_index):
         elif y_pred[i]['result'] == 'FP':
             fp_sum += 1
 
-        total_sum = tp_sum + fp_sum
-        y_pred[i]['precision'] = 0 if total_sum == 0 else tp_sum / float(total_sum)
+        tp_fp_sum = tp_sum + fp_sum
+        y_pred[i]['precision'] = 0 if tp_fp_sum == 0 else tp_sum / float(tp_fp_sum)
         y_pred[i]['recall'] = tp_sum / float(len(y_pred))
 
-    y_pred = sorted(y_pred, key=lambda x: x['recall'])
-    precisions = []
-    recalls = []
     ap = 0.0
-    for i in range(len(y_pred)):
-        precisions.append(y_pred[i]['precision'])
-        recalls.append(y_pred[i]['recall'])
-
-    if len(y_pred) > 0:
-        ap = calc_ap(precisions, recalls)
+    if len(y_true) > 0:
+        ap = calc_ap(y_pred)
 
     # remove under confidence threshold before calculating tp, fp, fn
     y_pred_over_conf_threshold = []
@@ -373,9 +322,9 @@ def all_check():
 
 
 def main():
-    model_path = r'C:\inz\git\yolo-lab\checkpoints\model_340000_iter_mAP_0.2375_f1_0.4987.h5'
-    img_paths = glob(r'T:\200m_big_small_detection\big\new\validation\*.jpg')
-    avg_map, avg_f1 = calc_mean_average_precision(model_path, img_paths)
+    model_path = r'C:\inz\git\yolo-lab\checkpoints\200m\small\model_590000_iter_mAP_0.5018_f1_0.7216.h5'
+    img_paths = glob(r'T:\200m_big_small_detection\train_data\small\small_all\validation_yeojoo\*.jpg')
+    calc_mean_average_precision(model_path, img_paths)
 
 
 if __name__ == '__main__':
