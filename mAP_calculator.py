@@ -181,8 +181,8 @@ def calc_tp_fp_fn_for_f1_score(y_true, y_pred, iou_threshold):
 def calc_ap_tp_fp_fn(y, label_lines, iou_threshold, target_class_index):
     y_true = get_y_true(label_lines, target_class_index)
     num_class_obj = len(y_true)
-    if num_class_obj == 0:
-        return None, None, None, None, None
+    # if num_class_obj == 0:
+    #     return None, None, None, None, None
 
     y_pred = get_y_pred(y, target_class_index)
     for i in range(len(y_true)):
@@ -267,13 +267,14 @@ def calc_mean_average_precision(model_path, image_paths):
         for iou_index, iou_threshold in enumerate(iou_thresholds):
             for class_index in range(num_classes):
                 ap, tp, fp, fn, num_class_obj = calc_ap_tp_fp_fn(y, label_lines, iou_threshold, class_index)
-                if ap is not None:
+                if num_class_obj > 0:
                     valid_count[iou_index][class_index] += 1
                     obj_count[iou_index][class_index] += num_class_obj
-                    aps[iou_index][class_index] += ap
-                    tps[iou_index][class_index] += tp
-                    fps[iou_index][class_index] += fp
-                    fns[iou_index][class_index] += fn
+
+                aps[iou_index][class_index] += ap
+                tps[iou_index][class_index] += tp
+                fps[iou_index][class_index] += fp
+                fns[iou_index][class_index] += fn
 
     f1_sum = 0.0
     mean_ap_sum = 0.0
@@ -321,7 +322,7 @@ def all_check():
 
 def main():
     model_path = r'C:\inz\git\yolo-lab\checkpoints\200m\small\model_590000_iter_mAP_0.5018_f1_0.7216.h5'
-    img_paths = glob(r'T:\200m_big_small_detection\train_data\small\small_all\validation_yeojoo\*.jpg')
+    img_paths = glob(r'T:\200m_big_small_detection\train_data\small\small_all\validation\*.jpg')
     calc_mean_average_precision(model_path, img_paths)
 
 
