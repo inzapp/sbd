@@ -145,7 +145,7 @@ def calc_ap(y_pred):
     return ap
 
 
-def calc_tp_fp_fn(y_true, y_pred, iou_threshold):
+def calc_tp_fp_fn_for_f1_score(y_true, y_pred, iou_threshold):
     global confidence_threshold
     for i in range(len(y_true)):
         y_true[i]['discard'] = False
@@ -212,16 +212,14 @@ def calc_ap_tp_fp_fn(y, label_lines, iou_threshold, target_class_index):
         y_pred[i]['precision'] = 0 if tp_fp_sum == 0 else tp_sum / float(tp_fp_sum)
         y_pred[i]['recall'] = tp_sum / float(len(y_pred))
 
-    ap = 0.0
-    if len(y_true) > 0:
-        ap = calc_ap(y_pred)
+    ap = calc_ap(y_pred)
 
     # remove under confidence threshold before calculating tp, fp, fn
     y_pred_over_conf_threshold = []
     for i in range(len(y_pred)):
         if y_pred[i]['confidence'] >= confidence_threshold:
             y_pred_over_conf_threshold.append(y_pred[i])
-    tp, fp, fn = calc_tp_fp_fn(y_true, y_pred_over_conf_threshold, iou_threshold)
+    tp, fp, fn = calc_tp_fp_fn_for_f1_score(y_true, y_pred_over_conf_threshold, iou_threshold)
     return ap, tp, fp, fn, num_class_obj
 
 
