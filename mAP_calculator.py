@@ -114,11 +114,12 @@ def get_y_pred(y, target_class_index):
                         class_index = cur_channel_index - 5
                         class_score = cur_class_score
 
+                confidence *= class_score
                 if class_index != target_class_index:
                     continue
 
-                cx_f = j / float(cols) + 1.0 / float(cols) * y[layer_index][0][i][j][1]
-                cy_f = i / float(rows) + 1.0 / float(rows) * y[layer_index][0][i][j][2]
+                cx_f = (j + y[layer_index][0][i][j][1]) / float(cols)
+                cy_f = (i + y[layer_index][0][i][j][2]) / float(rows)
                 w = y[layer_index][0][i][j][3]
                 h = y[layer_index][0][i][j][4]
 
@@ -140,7 +141,7 @@ def get_y_pred(y, target_class_index):
                     'recall': 0.0,
                     'discard': False})
 
-    #y_pred = nms(y_pred)
+    # y_pred = nms(y_pred)
     y_pred = nms_origin(y_pred)
     return y_pred
 
@@ -265,9 +266,8 @@ def load_x_label_lines(image_path, color_mode, input_size, input_shape):
     return x, label_lines
 
 
-def calc_mean_average_precision(model_path, image_paths):
+def calc_mean_average_precision(model, image_paths):
     global iou_thresholds
-    model = tf.keras.models.load_model(model_path, compile=False)
     input_shape = model.input_shape[1:]
     input_size = (input_shape[1], input_shape[0])
     color_mode = cv2.IMREAD_GRAYSCALE if input_shape[-1] == 1 else cv2.IMREAD_COLOR
@@ -334,10 +334,11 @@ def calc_mean_average_precision(model_path, image_paths):
 
 def all_check():
     results = []
-    img_paths = glob(r'X:\person\3_class_merged\validation\*.jpg')
-    for model_path in glob('checkpoints/person/adam_cycle/*.h5'):
+    img_paths = glob(r'T:\200m_big_small_detection\train_data\small\small_all\validation_200\*.jpg')
+    for model_path in glob('*.h5'):
         print(model_path)
-        mean_ap, f1_score = calc_mean_average_precision(model_path, img_paths)
+        model = tf.keras.models.load_model(model_path, compile=False)
+        mean_ap, f1_score = calc_mean_average_precision(model, img_paths)
         results.append({'model_path': model_path, 'mAP': mean_ap, 'f1': f1_score})
     results = sorted(results, key=lambda x: x['f1'], reverse=True)
     results = sorted(results, key=lambda x: x['mAP'], reverse=True)
@@ -349,9 +350,10 @@ def all_check():
 
 
 def main():
-    model_path = r'C:\inz\git\yolo-lab\checkpoints\200m\big\model_705000_iter_mAP_0.6279_f1_0.6993.h5'
-    img_paths = glob(r'T:\200m_big_small_detection\train_data\under_big\big_all\validation\*.jpg')
-    calc_mean_average_precision(model_path, img_paths)
+    model_path = r'C:\inz\git\yolo-lab\checkpoints\200m\small\model_590000_iter_mAP_0.5018_f1_0.7216.h5'
+    img_paths = glob(r'T:\200m_big_small_detection\train_data\small\small_all\validation_200\*.jpg')
+    model = tf.keras.models.load_model(model_path, compile=False)
+    calc_mean_average_precision(model, img_paths)
 
 
 if __name__ == '__main__':
