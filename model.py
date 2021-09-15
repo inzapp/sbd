@@ -52,9 +52,9 @@ class Model:
         # return self.__darknet_53()
         # return self.__lp_detection_sbd()
         # return self.__person_detail()
-        # return self.__200m_big()
+        return self.__200m_big()
         # return self.__tiny_yolo_v3_no_upscale()
-        return self.__tiny_yolo_v4_no_upscale()
+        # return self.__tiny_yolo_v4_no_upscale()
         # return self.__loon()
 
     def __200m_big(self):
