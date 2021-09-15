@@ -237,52 +237,52 @@ class GeneratorFlow(tf.keras.utils.Sequence):
                     label_lines = file.readlines()
 
                 boxes = self.__convert_to_boxes(label_lines)
-                big_last_boxes = sorted(boxes, key=lambda __x: __x['area'], reverse=False)
-                small_last_boxes = sorted(boxes, key=lambda __x: __x['area'], reverse=True)
-                middle_last_boxes = self.__sort_middle_last(big_last_boxes, small_last_boxes)
-
-                layer_mapping_boxes = [small_last_boxes, middle_last_boxes, big_last_boxes]
-                # layer_mapping_boxes = [small_last_boxes, [], []]
-                # layer_mapping_boxes = [[], middle_last_boxes, []]
 
                 y = []
                 for i in range(self.num_output_layers):
                     y.append(np.zeros((self.output_shapes[i][1], self.output_shapes[i][2], self.output_shapes[i][3]), dtype=np.float32))
 
-                for b in boxes:
-                    class_index, cx, cy, w, h = b['class_index'], b['cx'], b['cy'], b['w'], b['h']
-                    true_box = [cx, cy, w, h]
-                    # _, output_layer_index = self.__get_best_iou_with_index(true_box, self.clustered_ws, self.clustered_hs)
-                    output_layer_index = 1
+                train_type = 'one_layer'
 
-                    output_rows = float(self.output_shapes[output_layer_index][1])
-                    output_cols = float(self.output_shapes[output_layer_index][2])
-                    grid_width_ratio = 1 / output_cols
-                    grid_height_ratio = 1 / output_rows
-                    center_row = int(cy * output_rows)
-                    center_col = int(cx * output_cols)
-                    y[output_layer_index][center_row][center_col][0] = 1.0
-                    y[output_layer_index][center_row][center_col][1] = (cx - (center_col * grid_width_ratio)) / grid_width_ratio
-                    y[output_layer_index][center_row][center_col][2] = (cy - (center_row * grid_height_ratio)) / grid_height_ratio
-                    y[output_layer_index][center_row][center_col][3] = w
-                    y[output_layer_index][center_row][center_col][4] = h
-                    y[output_layer_index][center_row][center_col][int(class_index + 5)] = 1.0
+                if train_type == 'all_layer':
+                    big_last_boxes = sorted(boxes, key=lambda __x: __x['area'], reverse=False)
+                    small_last_boxes = sorted(boxes, key=lambda __x: __x['area'], reverse=True)
+                    middle_last_boxes = self.__sort_middle_last(big_last_boxes, small_last_boxes)
+                    layer_mapping_boxes = [small_last_boxes, middle_last_boxes, big_last_boxes]
+                    for output_layer_index in range(self.num_output_layers):
+                        output_rows = float(self.output_shapes[output_layer_index][1])
+                        output_cols = float(self.output_shapes[output_layer_index][2])
+                        for b in layer_mapping_boxes[output_layer_index]:
+                            class_index, cx, cy, w, h = b['class_index'], b['cx'], b['cy'], b['w'], b['h']
+                            grid_width_ratio = 1 / output_cols
+                            grid_height_ratio = 1 / output_rows
+                            center_row = int(cy * output_rows)
+                            center_col = int(cx * output_cols)
+                            y[output_layer_index][center_row][center_col][0] = 1.0
+                            y[output_layer_index][center_row][center_col][1] = (cx - (center_col * grid_width_ratio)) / grid_width_ratio
+                            y[output_layer_index][center_row][center_col][2] = (cy - (center_row * grid_height_ratio)) / grid_height_ratio
+                            y[output_layer_index][center_row][center_col][3] = w
+                            y[output_layer_index][center_row][center_col][4] = h
+                            y[output_layer_index][center_row][center_col][int(class_index + 5)] = 1.0
+                elif train_type == 'one_layer':
+                    for b in boxes:
+                        class_index, cx, cy, w, h = b['class_index'], b['cx'], b['cy'], b['w'], b['h']
+                        # true_box = [cx, cy, w, h]
+                        # _, output_layer_index = self.__get_best_iou_with_index(true_box, self.clustered_ws, self.clustered_hs)
+                        output_layer_index = 1
 
-                # for output_layer_index in range(self.num_output_layers):
-                #     output_rows = float(self.output_shapes[output_layer_index][1])
-                #     output_cols = float(self.output_shapes[output_layer_index][2])
-                #     for b in layer_mapping_boxes[output_layer_index]:
-                #         class_index, cx, cy, w, h = b['class_index'], b['cx'], b['cy'], b['w'], b['h']
-                #         grid_width_ratio = 1 / output_cols
-                #         grid_height_ratio = 1 / output_rows
-                #         center_row = int(cy * output_rows)
-                #         center_col = int(cx * output_cols)
-                #         y[output_layer_index][center_row][center_col][0] = 1.0
-                #         y[output_layer_index][center_row][center_col][1] = (cx - (center_col * grid_width_ratio)) / grid_width_ratio
-                #         y[output_layer_index][center_row][center_col][2] = (cy - (center_row * grid_height_ratio)) / grid_height_ratio
-                #         y[output_layer_index][center_row][center_col][3] = w
-                #         y[output_layer_index][center_row][center_col][4] = h
-                #         y[output_layer_index][center_row][center_col][int(class_index + 5)] = 1.0
+                        output_rows = float(self.output_shapes[output_layer_index][1])
+                        output_cols = float(self.output_shapes[output_layer_index][2])
+                        grid_width_ratio = 1 / output_cols
+                        grid_height_ratio = 1 / output_rows
+                        center_row = int(cy * output_rows)
+                        center_col = int(cx * output_cols)
+                        y[output_layer_index][center_row][center_col][0] = 1.0
+                        y[output_layer_index][center_row][center_col][1] = (cx - (center_col * grid_width_ratio)) / grid_width_ratio
+                        y[output_layer_index][center_row][center_col][2] = (cy - (center_row * grid_height_ratio)) / grid_height_ratio
+                        y[output_layer_index][center_row][center_col][3] = w
+                        y[output_layer_index][center_row][center_col][4] = h
+                        y[output_layer_index][center_row][center_col][int(class_index + 5)] = 1.0
 
                 batch_y1.append(y[0])
                 batch_y2.append(y[1])
