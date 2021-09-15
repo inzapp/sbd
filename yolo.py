@@ -29,6 +29,7 @@ from tensorflow.keras.mixed_precision import experimental as mixed_precision
 
 from box_colors import colors
 from generator import YoloDataGenerator
+# from generator_3ch_sequence import YoloDataGenerator
 from loss import confidence_loss, confidence_with_bbox_loss, yolo_loss
 from mAP_calculator import calc_mean_average_precision
 from model import Model
@@ -211,8 +212,8 @@ class Yolo:
         return better_than_before
 
     def __save_model(self, iteration_count):
-        # if iteration_count % 1000 == 0:
-        if iteration_count >= 10000 and iteration_count % 5000 == 0:
+        if iteration_count % 1000 == 0:
+            # if iteration_count >= 10000 and iteration_count % 5000 == 0:
             print('\n')
             if self.__map_checkpoint:
                 self.__model.save('model.h5', include_optimizer=False)
@@ -233,8 +234,25 @@ class Yolo:
         validation_image_paths = all_image_paths[num_train_images:]
         return image_paths, validation_image_paths
 
-    def predict(self, img, confidence_threshold=0.25, nms_iou_threshold=0.5):
+    def __nms(self, y_pred, nms_iou_threshold):
+        y_pred = sorted(y_pred, key=lambda x: x['confidence'], reverse=True)
+        for i in range(len(y_pred) - 1):
+            if y_pred[i]['discard']:
+                continue
+            for j in range(i + 1, len(y_pred)):
+                if y_pred[j]['discard'] or y_pred[i]['class'] != y_pred[j]['class']:
+                    continue
+                if self.__iou(y_pred[i]['bbox'], y_pred[j]['bbox']) > nms_iou_threshold:
+                    y_pred[j]['discard'] = True
 
+        y_pred_copy = np.asarray(y_pred.copy())
+        y_pred = []
+        for i in range(len(y_pred_copy)):
+            if not y_pred_copy[i]['discard']:
+                y_pred.append(y_pred_copy[i])
+        return y_pred
+
+    def predict(self, img, confidence_threshold=0.25, nms_iou_threshold=0.5):
         """
         Detect object in image using trained YOLO model.
         :param img: (width, height, channel) formatted image to be predicted.
@@ -255,7 +273,7 @@ class Yolo:
         x = np.asarray(img).reshape((1,) + input_shape).astype('float32') / 255.0
         y = self.__model.predict_on_batch(x=x)
 
-        res = []
+        y_pred = []
         for layer_index in range(len(output_shape)):
             rows = output_shape[layer_index][1]
             cols = output_shape[layer_index][2]
@@ -285,28 +303,14 @@ class Yolo:
                         if max_class_score < cur_class_score:
                             class_index = cur_channel_index
                             max_class_score = cur_class_score
-                    res.append({
+                    y_pred.append({
                         'confidence': confidence,
                         'bbox': [x_min, y_min, x_max, y_max],
                         'class': class_index - 5,
                         'discard': False})
 
-        for i in range(len(res)):
-            if res[i]['discard']:
-                continue
-            for j in range(len(res)):
-                if i == j or res[j]['discard'] or res[i]['class'] != res[j]['class']:
-                    continue
-                if self.__iou(res[i]['bbox'], res[j]['bbox']) > nms_iou_threshold:
-                    if res[i]['confidence'] >= res[j]['confidence']:
-                        res[j]['discard'] = True
-
-        res_copy = np.asarray(res.copy())
-        res = []
-        for i in range(len(res_copy)):
-            if not res_copy[i]['discard']:
-                res.append(res_copy[i])
-        return sorted(res, key=lambda __x: __x['bbox'][0])
+        y_pred = self.__nms(y_pred, nms_iou_threshold)
+        return y_pred
 
     def bounding_box(self, img, yolo_res, font_scale=0.4):
         """
@@ -340,22 +344,60 @@ class Yolo:
         """
         Equal to the evaluate function. video path is required.
         """
-        cap = cv2.VideoCapture(video_path)
-        while True:
-            frame_exist, raw = cap.read()
-            if not frame_exist:
-                break
-            x = cv2.cvtColor(raw, cv2.COLOR_BGR2GRAY) if self.__model.input.shape[-1] == 1 else raw.copy()
-            res = self.predict(x)
-            boxed_image = self.bounding_box(raw, res)
-            cv2.imshow('video', boxed_image)
-            key = cv2.waitKey(1)
-            if key == ord('q'):
-                break
-            elif key == 27:
-                exit(0)
-        cap.release()
-        cv2.destroyAllWindows()
+        with tf.device('/cpu:0'):
+            cap = cv2.VideoCapture(video_path)
+            while True:
+                frame_exist, raw = cap.read()
+                if not frame_exist:
+                    break
+                x = cv2.cvtColor(raw, cv2.COLOR_BGR2GRAY) if self.__model.input.shape[-1] == 1 else raw.copy()
+                res = self.predict(x)
+                boxed_image = self.bounding_box(raw, res)
+                cv2.imshow('video', boxed_image)
+                key = cv2.waitKey(1)
+                if key == ord('q'):
+                    break
+                elif key == 27:
+                    exit(0)
+            cap.release()
+            cv2.destroyAllWindows()
+
+    @staticmethod
+    def __concat(img_0, img_1, img_2):
+        img_0 = np.asarray(img_0).reshape(img_0.shape + (1,))
+        img_1 = np.asarray(img_1).reshape(img_1.shape + (1,))
+        img_2 = np.asarray(img_2).reshape(img_2.shape + (1,))
+        img = np.concatenate((img_0, img_1, img_2), axis=-1)
+        return img
+
+    def predict_video_3ch_sequence(self, video_path):
+        """
+        Equal to the evaluate function. video path is required.
+        """
+        with tf.device('/cpu:0'):
+            img_stack = []
+            cap = cv2.VideoCapture(video_path)
+            while True:
+                frame_exist, raw = cap.read()
+                if not frame_exist:
+                    break
+                x = cv2.cvtColor(raw, cv2.COLOR_BGR2GRAY)
+                img_stack.append(x)
+                if len(img_stack) < 3:
+                    continue
+                elif len(img_stack) > 3:
+                    img_stack.pop(0)
+                x = self.__concat(img_stack[0], img_stack[1], img_stack[2])
+                res = self.predict(x)
+                boxed_image = self.bounding_box(raw, res)
+                cv2.imshow('video', boxed_image)
+                key = cv2.waitKey(1)
+                if key == ord('q'):
+                    break
+                elif key == 27:
+                    exit(0)
+            cap.release()
+            cv2.destroyAllWindows()
 
     def predict_images(self, image_paths):
         """
