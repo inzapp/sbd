@@ -71,27 +71,36 @@ if __name__ == '__main__':
     """
 
     Yolo(
-        pretrained_model_path=r'C:\inz\git\yolo-lab\checkpoints\200m\small\model_1255000_iter_mAP_0.4479_f1_0.7400.h5',
+        # pretrained_model_path=r'C:\inz\git\yolo-lab\checkpoints\model_55000_iter_mAP_0.6371_f1_0.8053.h5',
         # train_image_path=r'T:\200m_big_small_detection\train_data\under_big\big_all\train',
         # validation_image_path=r'T:\200m_big_small_detection\train_data\under_big\big_all\validation',
         # input_shape=(384, 640, 1),
 
-        train_image_path=r'T:\200m_big_small_detection\train_data\small\small_all\train',
-        validation_image_path=r'T:\200m_big_small_detection\train_data\small\small_all\validation',
-        input_shape=(192, 576, 1),
+        # train_image_path=r'T:\200m_big_small_detection\train_data\small\tmp_small_train_+_gen2',
+        # validation_image_path=r'T:\200m_big_small_detection\train_data\small\small_all\validation',
+        # input_shape=(192, 576, 3),
 
-        # train_image_path=r'C:\inz\train_data\loon\train',
-        # validation_image_path=r'C:\inz\train_data\loon\validation',
-        # input_shape=(128, 512, 3),
+        # train_image_path=r'T:\200m_big_small_detection\train_data\small\small_all\train',
+        # validation_image_path=r'T:\200m_big_small_detection\train_data\small\small_all\validation_200',
+        # input_shape=(192, 576, 1),
+
+        train_image_path=r'C:\inz\train_data\loon\train',
+        validation_image_path=r'C:\inz\train_data\loon\validation',
+        input_shape=(128, 512, 3),
+
+        # pretrained_model_path=r'C:\inz\git\yolo-lab\checkpoints\model_47000_iter_mAP_0.7679_f1_0.7857.h5',
+        # train_image_path=r'C:\inz\train_data\small\yeojoo_sequence_copy\scene_2\sequence',
+        # validation_split=0.2,
+        # input_shape=(192, 576, 3),
 
         lr=0.001,
         decay=0.0005,
         momentum=0.9,
-        burn_in=0,
+        burn_in=1000,
         batch_size=4,
         iterations=5000000,
         curriculum_iterations=0,
-        training_view=False,
+        training_view=True,
         map_checkpoint=True).fit()
 
     # from glob import glob
