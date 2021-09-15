@@ -213,11 +213,11 @@ class Yolo:
 
     def __save_model(self, iteration_count):
         if iteration_count % 1000 == 0:
-            # if iteration_count >= 10000 and iteration_count % 5000 == 0:
+        # if iteration_count >= 10000 and iteration_count % 10000 == 0:
             print('\n')
             if self.__map_checkpoint:
                 self.__model.save('model.h5', include_optimizer=False)
-                mean_ap, f1_score = calc_mean_average_precision('model.h5', self.__validation_data_generator.flow().image_paths)
+                mean_ap, f1_score = calc_mean_average_precision(self.__model, self.__validation_data_generator.flow().image_paths)
                 if self.__is_better_than_before(mean_ap, f1_score):
                     self.__model.save(f'checkpoints/model_{iteration_count}_iter_mAP_{mean_ap:.4f}_f1_{f1_score:.4f}.h5', include_optimizer=False)
                     self.__model.save('model_last.h5', include_optimizer=False)
@@ -283,8 +283,20 @@ class Yolo:
                     if confidence < confidence_threshold:
                         continue
 
-                    cx_f = (j / float(cols)) + (1 / float(cols) * y[layer_index][0][i][j][1])
-                    cy_f = (i / float(rows)) + (1 / float(rows) * y[layer_index][0][i][j][2])
+                    class_index = -1
+                    class_score = 0.0
+                    for cur_channel_index in range(5, output_shape[layer_index][3]):
+                        cur_class_score = y[layer_index][0][i][j][cur_channel_index]
+                        if class_score < cur_class_score:
+                            class_index = cur_channel_index
+                            class_score = cur_class_score
+
+                    confidence = confidence * class_score
+                    if confidence < confidence_threshold:
+                        continue
+
+                    cx_f = (j + y[layer_index][0][i][j][1]) / float(cols)
+                    cy_f = (i + y[layer_index][0][i][j][2]) / float(rows)
                     w = y[layer_index][0][i][j][3]
                     h = y[layer_index][0][i][j][4]
 
@@ -296,13 +308,6 @@ class Yolo:
                     y_min = int(y_min_f * raw_height)
                     x_max = int(x_max_f * raw_width)
                     y_max = int(y_max_f * raw_height)
-                    class_index = -1
-                    max_class_score = -1
-                    for cur_channel_index in range(5, output_shape[layer_index][3]):
-                        cur_class_score = y[layer_index][0][i][j][cur_channel_index]
-                        if max_class_score < cur_class_score:
-                            class_index = cur_channel_index
-                            max_class_score = cur_class_score
                     y_pred.append({
                         'confidence': confidence,
                         'bbox': [x_min, y_min, x_max, y_max],
