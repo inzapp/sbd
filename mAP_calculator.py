@@ -51,6 +51,44 @@ def get_y_true(label_lines, target_class_index):
     return y_true
 
 
+def nms(y_pred):
+    y_pred = sorted(y_pred, key=lambda x: x['confidence'], reverse=True)
+    for i in range(len(y_pred) - 1):
+        if y_pred[i]['discard']:
+            continue
+        for j in range(i + 1, len(y_pred)):
+            if y_pred[j]['discard'] or y_pred[i]['class'] != y_pred[j]['class']:
+                continue
+            if iou(y_pred[i]['bbox'], y_pred[j]['bbox']) > nms_iou_threshold:
+                y_pred[j]['discard'] = True
+
+    y_pred_copy = np.asarray(y_pred.copy())
+    y_pred = []
+    for i in range(len(y_pred_copy)):
+        if not y_pred_copy[i]['discard']:
+            y_pred.append(y_pred_copy[i])
+    return y_pred
+
+
+def nms_origin(y_pred):
+    for i in range(len(y_pred)):
+        if y_pred[i]['discard']:
+            continue
+        for j in range(len(y_pred)):
+            if i == j or y_pred[j]['discard']:
+                continue
+            if iou(y_pred[i]['bbox'], y_pred[j]['bbox']) > nms_iou_threshold:
+                if y_pred[i]['confidence'] >= y_pred[j]['confidence']:
+                    y_pred[j]['discard'] = True
+
+    y_pred_copy = np.asarray(y_pred.copy())
+    y_pred = []
+    for i in range(len(y_pred_copy)):
+        if not y_pred_copy[i]['discard']:
+            y_pred.append(y_pred_copy[i])
+    return y_pred
+
+
 def get_y_pred(y, target_class_index):
     global nms_iou_threshold, confidence_threshold
     raw_width = 1000
@@ -102,21 +140,8 @@ def get_y_pred(y, target_class_index):
                     'recall': 0.0,
                     'discard': False})
 
-    for i in range(len(y_pred)):
-        if y_pred[i]['discard']:
-            continue
-        for j in range(len(y_pred)):
-            if i == j or y_pred[j]['discard']:
-                continue
-            if iou(y_pred[i]['bbox'], y_pred[j]['bbox']) > nms_iou_threshold:
-                if y_pred[i]['confidence'] >= y_pred[j]['confidence']:
-                    y_pred[j]['discard'] = True
-
-    y_pred_copy = np.asarray(y_pred.copy())
-    y_pred = []
-    for i in range(len(y_pred_copy)):
-        if not y_pred_copy[i]['discard']:
-            y_pred.append(y_pred_copy[i])
+    #y_pred = nms(y_pred)
+    y_pred = nms_origin(y_pred)
     return y_pred
 
 
@@ -232,6 +257,9 @@ def load_x_label_lines(image_path, color_mode, input_size, input_shape):
     if len(label_lines) == 0:
         return None, None
     x = cv2.imread(image_path, color_mode)
+    if x is None:
+        print(f'img is None : {image_path}')
+        return None, None
     x = cv2.resize(x, input_size)
     x = np.asarray(x).astype('float32').reshape((1,) + input_shape) / 255.0
     return x, label_lines
@@ -321,8 +349,8 @@ def all_check():
 
 
 def main():
-    model_path = r'C:\inz\git\yolo-lab\checkpoints\200m\small\model_590000_iter_mAP_0.5018_f1_0.7216.h5'
-    img_paths = glob(r'T:\200m_big_small_detection\train_data\small\small_all\validation\*.jpg')
+    model_path = r'C:\inz\git\yolo-lab\checkpoints\200m\big\model_705000_iter_mAP_0.6279_f1_0.6993.h5'
+    img_paths = glob(r'T:\200m_big_small_detection\train_data\under_big\big_all\validation\*.jpg')
     calc_mean_average_precision(model_path, img_paths)
 
 
