@@ -50,7 +50,8 @@ def __confidence_loss(y_true, y_pred):
     obj_false = tf.ones(shape=tf.shape(obj_true), dtype=tf.dtypes.float32) - obj_true
 
     smooth_obj_true = __smooth(obj_true, alpha=0.025, true_only=True)
-    obj_confidence_loss = __loss(smooth_obj_true, obj_pred) * obj_true
+    # obj_confidence_loss = __loss(smooth_obj_true, obj_pred) * obj_true  # bce conf loss
+    obj_confidence_loss = __loss(__iou(y_true, y_pred), obj_pred) * obj_true  # iou conf loss
     obj_confidence_loss = tf.reduce_mean(obj_confidence_loss, axis=0)
     obj_confidence_loss = tf.reduce_sum(obj_confidence_loss)
 
