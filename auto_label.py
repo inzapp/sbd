@@ -130,8 +130,8 @@ def auto_label(model_path, image_path, origin_classes_txt_path):
         label_content = ''
         for i in range(len(y_pred)):
             class_index = y_pred[i]['class']
-            if class_index != 1:
-                continue
+            # if class_index != 1:
+            #     continue
             cx, cy, w, h = y_pred[i]['bbox_norm']
             label_content += f'{class_index} {cx:.6f} {cy:.6f} {w:.6f} {h:.6f}\n'
 
@@ -143,7 +143,7 @@ def main():
     model_path = r'C:\inz\git\yolo-lab\checkpoints\model_55000_iter_mAP_0.6371_f1_0.8053.h5'
     origin_classes_txt_path = r'C:\inz\tmp\classes.txt'
     img_path = r'J:\200M_2021_09_ADD\small_only_monitor'
-    auto_label(model_path, img_path, origin_classes_txt_path)
+    # auto_label(model_path, img_path, origin_classes_txt_path)
 
 
 if __name__ == '__main__':
