@@ -21,7 +21,7 @@ import tensorflow as tf
 from tensorflow.python.framework.ops import convert_to_tensor_v2
 
 
-def __smooth(y_true, alpha=0.1, true_only=False):
+def __smooth(y_true, alpha, true_only=False):
     smooth_true = tf.clip_by_value(y_true - alpha, 0.0, 1.0)
     if true_only:
         return smooth_true
@@ -49,9 +49,12 @@ def __confidence_loss(y_true, y_pred):
     obj_pred = y_pred[:, :, :, 0]
     obj_false = tf.ones(shape=tf.shape(obj_true), dtype=tf.dtypes.float32) - obj_true
 
-    smooth_obj_true = __smooth(obj_true, alpha=0.025, true_only=True)
+    # smooth_obj_true = __smooth(obj_true, alpha=0.025, true_only=True)
     # obj_confidence_loss = __loss(smooth_obj_true, obj_pred) * obj_true  # bce conf loss
-    obj_confidence_loss = __loss(__iou(y_true, y_pred), obj_pred) * obj_true  # iou conf loss
+
+    smooth_iou = tf.clip_by_value(__iou(y_true, y_pred), 0.0, 0.98)
+    obj_confidence_loss = __loss(smooth_iou, obj_pred) * obj_true  # iou conf loss
+
     obj_confidence_loss = tf.reduce_mean(obj_confidence_loss, axis=0)
     obj_confidence_loss = tf.reduce_sum(obj_confidence_loss)
 
@@ -65,11 +68,12 @@ def __confidence_loss(y_true, y_pred):
 def __iou(y_true, y_pred):
     y_true_shape = tf.cast(tf.shape(y_true), dtype=tf.dtypes.float32)
     grid_height, grid_width = y_true_shape[1], y_true_shape[2]
+    eps = tf.keras.backend.epsilon()
 
     cx_true = y_true[:, :, :, 1]
     cy_true = y_true[:, :, :, 2]
-    w_true = y_true[:, :, :, 3]
-    h_true = y_true[:, :, :, 4]
+    w_true = tf.sqrt(y_true[:, :, :, 3] + eps)
+    h_true = tf.sqrt(y_true[:, :, :, 4] + eps)
 
     x_range = tf.range(grid_width, dtype=tf.dtypes.float32)
     x_offset = tf.broadcast_to(x_range, shape=tf.shape(cx_true))
@@ -88,8 +92,8 @@ def __iou(y_true, y_pred):
 
     cx_pred = y_pred[:, :, :, 1]
     cy_pred = y_pred[:, :, :, 2]
-    w_pred = y_pred[:, :, :, 3]
-    h_pred = y_pred[:, :, :, 4]
+    w_pred = tf.sqrt(y_pred[:, :, :, 3] + eps)
+    h_pred = tf.sqrt(y_pred[:, :, :, 4] + eps)
 
     cx_pred = x_offset + (cx_pred * 1.0 / grid_width)
     cy_pred = y_offset + (cy_pred * 1.0 / grid_height)
