@@ -111,7 +111,7 @@ def __iou(y_true, y_pred):
     y_true_area = w_true * h_true
     y_pred_area = w_pred * h_pred
     union = y_true_area + y_pred_area - intersection
-    return intersection / (union + 1e-4)
+    return intersection / (union + 1e-5)
 
 
 def __bbox_loss(y_true, y_pred):
