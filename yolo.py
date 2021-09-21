@@ -115,15 +115,47 @@ class Yolo:
             optimizer = mixed_precision.LossScaleOptimizer(optimizer=optimizer, loss_scale='dynamic')
         return optimizer
 
+    @staticmethod
+    def __load_label(__label_path):
+        with open(__label_path, 'rt') as __f:
+            __lines = __f.readlines()
+        return __lines
+
+    # def __print_not_trained_box_count(self):
+    #     ground_truth_obj_count = 0  # obj count in real label txt
+    #     fs = []
+    #     for path in self.__train_image_paths:
+    #         fs.append(self.pool.submit(self.__load_label, f'{path[:-4]}.txt'))
+    #
+    #     for f in tqdm(fs):
+    #         lines = f.result()
+    #         ground_truth_obj_count += len(lines)
+    #
+    #     y_true_obj_count = 0  # obj count in train tensor(y_true)
+    #     # print(self.__getitem__(0).shape)
+    #     # exit(0)
+    #     for batch_x, batch_y in self.__train_data_generator.flow():
+    #         y_true_obj_count += np.sum(batch_y)
+    #
+    #     not_trained_obj_count = ground_truth_obj_count - y_true_obj_count
+    #     not_trained_obj_rate = not_trained_obj_count / ground_truth_obj_count
+    #
+    #     print(f'ground truth obj counr : {ground_truth_obj_count}')
+    #     print(f'train tensor obj count : {y_true_obj_count}')
+    #     print(f'not trained  obj count : {not_trained_obj_count} ({not_trained_obj_rate:.4f})')
+
     def fit(self):
         self.__model.summary()
-        self.__model.save('model.h5')
+        self.__model.save('model.h5', include_optimizer=False)
         print(f'\ntrain on {len(self.__train_image_paths)} samples.')
         print(f'validate on {len(self.__validation_image_paths)} samples.')
 
         print('start training')
         self.__train_data_generator.flow().cluster_wh()
         self.__train_data_generator.flow().start()
+        self.__train_data_generator.flow().print_not_trained_box_count()
+        optimizer = self.__get_optimizer(self.__optimizer)
+        self.__model.compile(optimizer=optimizer, loss=yolo_loss)
         if self.__burn_in > 0:
             self.__burn_in_train()
         if self.__curriculum_iterations > 0:
@@ -139,8 +171,9 @@ class Yolo:
                 iteration_count += 1
                 self.__update_burn_in_lr(iteration_count=iteration_count)
                 logs = self.__model.train_on_batch(batch_x, batch_y, return_dict=True)
-                print(f'\r[iteration count : {iteration_count:6d}] loss => {logs["loss"]:.4f}', end='')
+                print(f'\r[burn in iteration count : {iteration_count:6d}] loss => {logs["loss"]:.4f}', end='')
                 if iteration_count == self.__burn_in:
+                    print()
                     self.__model.save('model.h5', include_optimizer=False)
                     return
 
@@ -152,23 +185,19 @@ class Yolo:
             optimizer = self.__get_optimizer(self.__optimizer)
             self.__model.compile(optimizer=optimizer, loss=loss)
             iteration_count = 0
-            break_flag = False
             while True:
                 for batch_x, batch_y in self.__train_data_generator.flow():
                     iteration_count += 1
                     logs = self.__model.train_on_batch(batch_x, batch_y, return_dict=True)
                     print(f'\r[curriculum iteration count : {iteration_count:6d}] loss => {logs["loss"]:.4f}', end='')
                     if iteration_count == self.__curriculum_iterations:
-                        break_flag = True
-                        break
-                if break_flag:
-                    break
-            print()
-            self.__model.save(tmp_model_name, include_optimizer=False)
-            sleep(0.5)
-            self.__model = tf.keras.models.load_model(tmp_model_name, compile=False)
-            sleep(0.5)
-            os.remove(tmp_model_name)
+                        print()
+                        self.__model.save(tmp_model_name, include_optimizer=False)
+                        sleep(0.5)
+                        self.__model = tf.keras.models.load_model(tmp_model_name, compile=False)
+                        sleep(0.5)
+                        os.remove(tmp_model_name)
+                        return
 
     def __train(self):
         sleep(0.5)
@@ -211,12 +240,12 @@ class Yolo:
         return better_than_before
 
     def __save_model(self, iteration_count):
-        # if iteration_count % 1000 == 0:
-        if iteration_count >= 10000 and iteration_count % 5000 == 0:
+        if iteration_count % 1000 == 0:
+        # if iteration_count >= 10000 and iteration_count % 5000 == 0:
             print('\n')
             if self.__map_checkpoint:
                 self.__model.save('model.h5', include_optimizer=False)
-                mean_ap, f1_score = calc_mean_average_precision(self.__model, self.__validation_data_generator.flow().image_paths)
+                mean_ap, f1_score = calc_mean_average_precision(self.__model, self.__validation_image_paths)
                 if self.__is_better_than_before(mean_ap, f1_score):
                     self.__model.save(f'checkpoints/model_{iteration_count}_iter_mAP_{mean_ap:.4f}_f1_{f1_score:.4f}.h5', include_optimizer=False)
                     self.__model.save('model_last.h5', include_optimizer=False)
@@ -339,9 +368,9 @@ class Yolo:
             x1, y1, x2, y2 = cur_res['bbox']
             l_size, baseline = cv2.getTextSize(label_text, cv2.FONT_HERSHEY_DUPLEX, font_scale, 1)
             bw, bh = l_size[0] + (padding * 2), l_size[1] + (padding * 2) + baseline
-            cv2.rectangle(img, (x1, y1), (x2, y2), label_background_color, 2)
-            cv2.rectangle(img, (x1 - 1, y1 - bh), (x1 - 1 + bw, y1), label_background_color, -1)
-            cv2.putText(img, label_text, (x1 + padding - 1, y1 - baseline - padding), cv2.FONT_HERSHEY_DUPLEX, fontScale=font_scale, color=label_font_color, thickness=1, lineType=cv2.LINE_AA)
+            cv2.rectangle(img, (x1, y1), (x2, y2), label_background_color, 1)
+            # cv2.rectangle(img, (x1 - 1, y1 - bh), (x1 - 1 + bw, y1), label_background_color, -1)
+            # cv2.putText(img, label_text, (x1 + padding - 1, y1 - baseline - padding), cv2.FONT_HERSHEY_DUPLEX, fontScale=font_scale, color=label_font_color, thickness=1, lineType=cv2.LINE_AA)
         return img
 
     def predict_video(self, video_path):
@@ -374,34 +403,34 @@ class Yolo:
         img = np.concatenate((img_0, img_1, img_2), axis=-1)
         return img
 
-    def predict_video_3ch_sequence(self, video_path):
-        """
-        Equal to the evaluate function. video path is required.
-        """
-        with tf.device('/cpu:0'):
-            img_stack = []
-            cap = cv2.VideoCapture(video_path)
-            while True:
-                frame_exist, raw = cap.read()
-                if not frame_exist:
-                    break
-                x = cv2.cvtColor(raw, cv2.COLOR_BGR2GRAY)
-                img_stack.append(x)
-                if len(img_stack) < 3:
-                    continue
-                elif len(img_stack) > 3:
-                    img_stack.pop(0)
-                x = self.__concat(img_stack[0], img_stack[1], img_stack[2])
-                res = self.predict(x)
-                boxed_image = self.bounding_box(raw, res)
-                cv2.imshow('video', boxed_image)
-                key = cv2.waitKey(1)
-                if key == ord('q'):
-                    break
-                elif key == 27:
-                    exit(0)
-            cap.release()
-            cv2.destroyAllWindows()
+    # def predict_video_3ch_sequence(self, video_path):
+    #     """
+    #     Equal to the evaluate function. video path is required.
+    #     """
+    #     with tf.device('/cpu:0'):
+    #         img_stack = []
+    #         cap = cv2.VideoCapture(video_path)
+    #         while True:
+    #             frame_exist, raw = cap.read()
+    #             if not frame_exist:
+    #                 break
+    #             x = cv2.cvtColor(raw, cv2.COLOR_BGR2GRAY)
+    #             img_stack.append(x)
+    #             if len(img_stack) < 3:
+    #                 continue
+    #             elif len(img_stack) > 3:
+    #                 img_stack.pop(0)
+    #             x = self.__concat(img_stack[0], img_stack[1], img_stack[2])
+    #             res = self.predict(x)
+    #             boxed_image = self.bounding_box(raw, res)
+    #             cv2.imshow('video', boxed_image)
+    #             key = cv2.waitKey(1)
+    #             if key == ord('q'):
+    #                 break
+    #             elif key == 27:
+    #                 exit(0)
+    #         cap.release()
+    #         cv2.destroyAllWindows()
 
     def predict_images(self, image_paths):
         """
@@ -418,8 +447,17 @@ class Yolo:
                 if key == 27:
                     break
 
+    def predict_train_images(self):
+        self.predict_images(self.__train_image_paths)
+
     def predict_validation_images(self):
         self.predict_images(self.__validation_image_paths)
+
+    def map_train_images(self):
+        mean_ap, f1_score = calc_mean_average_precision(self.__model, self.__train_image_paths)
+
+    def map_validation_images(self):
+        mean_ap, f1_score = calc_mean_average_precision(self.__model, self.__validation_image_paths)
 
     def __training_view_function(self):
         """

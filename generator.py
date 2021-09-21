@@ -72,6 +72,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         self.num_output_layers = len(output_shapes)
         self.clustered_ws = []
         self.clustered_hs = []
+        self.label_obj_count = 0  # obj count in real label txt
         self.pool = ThreadPoolExecutor(8)
 
         queue_size = 64
@@ -150,15 +151,16 @@ class GeneratorFlow(tf.keras.utils.Sequence):
             iou_sum += best_iou
         return iou_sum / float(len(boxes))
 
-    def cluster_wh(self):
-        def __load_label(__label_path):
-            with open(__label_path, 'rt') as __f:
-                __lines = __f.readlines()
-            return __lines
+    @staticmethod
+    def __load_label(__label_path):
+        with open(__label_path, 'rt') as __f:
+            __lines = __f.readlines()
+        return __lines
 
+    def cluster_wh(self):
         fs = []
         for path in self.image_paths:
-            fs.append(self.pool.submit(__load_label, f'{path[:-4]}.txt'))
+            fs.append(self.pool.submit(self.__load_label, f'{path[:-4]}.txt'))
 
         boxes, ws, hs = [], [], []
         for f in tqdm(fs):
@@ -168,6 +170,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
                 boxes.append([cx, cy, w, h])
                 ws.append(w)
                 hs.append(h)
+                self.label_obj_count += 1
 
         ws = np.asarray(ws).reshape((1, len(ws))).astype('float32')
         hs = np.asarray(hs).reshape((1, len(hs))).astype('float32')
@@ -192,6 +195,23 @@ class GeneratorFlow(tf.keras.utils.Sequence):
             print(f'{self.clustered_hs[i]:.4f} ', end='')
         print()
         print(f'avg IoU : {self.__iou_with_clustered_wh(boxes, self.clustered_ws, self.clustered_hs):.4f}')
+
+    def print_not_trained_box_count(self):
+        y_true_obj_count = 0  # obj count in train tensor(y_true)
+        origin_batch_size = self.batch_size
+        self.batch_size = 64
+        for batch_x, batch_y in tqdm(self):
+            for i in range(self.num_output_layers):
+                y_true_obj_count += np.sum(batch_y[i][:, :, :, 0])
+        self.batch_size = origin_batch_size
+
+        y_true_obj_count = int(y_true_obj_count)
+        not_trained_obj_count = self.label_obj_count - y_true_obj_count
+        not_trained_obj_rate = int(not_trained_obj_count / self.label_obj_count * 100.0)
+
+        print(f'ground truth obj count : {self.label_obj_count}')
+        print(f'train tensor obj count : {y_true_obj_count}')
+        print(f'not trained  obj count : {not_trained_obj_count} ({not_trained_obj_rate}%)')
 
     @staticmethod
     def __convert_to_boxes(label_lines):
