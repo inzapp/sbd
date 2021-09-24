@@ -12,6 +12,7 @@ os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 iou_thresholds = [0.5]
 confidence_threshold = 0.25  # only for tp, fp, fn
 nms_iou_threshold = 0.45  # darknet yolo nms threshold value
+label_smoothing = 0.02
 
 
 def iou(a, b):
@@ -90,7 +91,7 @@ def nms_origin(y_pred):
 
 
 def get_y_pred(y, target_class_index):
-    global nms_iou_threshold, confidence_threshold
+    global label_smoothing, nms_iou_threshold, confidence_threshold
     raw_width = 1000
     raw_height = 1000
 
@@ -103,7 +104,8 @@ def get_y_pred(y, target_class_index):
         for i in range(rows):
             for j in range(cols):
                 confidence = y[layer_index][0][i][j][0]
-                if confidence < 0.005:  # darknet yolo mAP confidence threshold value
+                # if confidence < label_smoothing + 0.005:  # darknet yolo mAP confidence threshold value
+                if confidence < confidence_threshold:  # darknet yolo mAP confidence threshold value
                     continue
 
                 class_index = -1
@@ -115,6 +117,10 @@ def get_y_pred(y, target_class_index):
                         class_score = cur_class_score
 
                 confidence *= class_score
+                # if confidence < label_smoothing + 0.005:  # darknet yolo mAP confidence threshold value
+                if confidence < confidence_threshold:  # darknet yolo mAP confidence threshold value
+                    continue
+
                 if class_index != target_class_index:
                     continue
 
