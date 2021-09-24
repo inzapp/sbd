@@ -18,6 +18,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 from yolo import Yolo
+from glob import glob
 
 if __name__ == '__main__':
     """
@@ -71,17 +72,20 @@ if __name__ == '__main__':
     """
 
     Yolo(
-        # pretrained_model_path=r'C:\inz\git\yolo-lab\checkpoints\model_55000_iter_mAP_0.6371_f1_0.8053.h5',
-        # train_image_path=r'T:\200m_big_small_detection\train_data\under_big\big_all\train',
-        # validation_image_path=r'T:\200m_big_small_detection\train_data\under_big\big_all\validation',
+        # pretrained_model_path=r'C:\inz\git\yolo-lab\checkpoints\model_970000_iter_mAP_0.1524_f1_0.5001.h5',
+        # pretrained_model_path=r'C:\inz\git\yolo-lab\checkpoints\auto_label_200m\model_1100000_iter_mAP_0.2325_f1_0.4951.h5',
+
+        # train_image_path=r'T:\200m_detection\origin_4_class\train',
+        # validation_image_path=r'T:\200m_detection\origin_4_class\validation',
         # input_shape=(384, 640, 1),
 
-        # train_image_path=r'T:\200m_big_small_detection\train_data\small\tmp_small_train_+_gen2',
-        # validation_image_path=r'T:\200m_big_small_detection\train_data\small\small_all\validation',
-        # input_shape=(192, 576, 3),
+        # train_image_path=r'T:\200m_detection\origin_small\train',
+        # validation_image_path=r'T:\200m_detection\origin_small\validation',
+        # input_shape=(384, 640, 1),
 
-        # train_image_path=r'T:\200m_big_small_detection\train_data\small\small_all\train',
-        # validation_image_path=r'T:\200m_big_small_detection\train_data\small\small_all\validation_200',
+        # pretrained_model_path=r'C:\inz\git\yolo-lab\checkpoints\model_430000_iter_mAP_0.2555_f1_0.6412.h5',
+        # train_image_path=r'T:\200m_big_small_detection\train_data\small\small_all\tmp_train_new_generator_for_sbd',
+        # validation_image_path=r'T:\200m_big_small_detection\train_data\small\small_all\validation',
         # input_shape=(192, 576, 1),
 
         train_image_path=r'C:\inz\train_data\loon\train',
@@ -98,7 +102,7 @@ if __name__ == '__main__':
         momentum=0.9,
         burn_in=1000,
         batch_size=4,
-        iterations=5000000,
+        iterations=2000000,
         curriculum_iterations=0,
         training_view=True,
         map_checkpoint=True).fit()
