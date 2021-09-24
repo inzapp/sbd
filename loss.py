@@ -22,11 +22,10 @@ from tensorflow.python.framework.ops import convert_to_tensor_v2
 
 
 def __smooth(y_true, alpha, true_only=False):
-    smooth_true = tf.clip_by_value(y_true - alpha, 0.0, 1.0)
     if true_only:
-        return smooth_true
-    smooth_false = tf.clip_by_value(((y_true + alpha) * -1.0 + alpha * 2.0), 0.0, 1.0)
-    return smooth_true + smooth_false
+        return tf.clip_by_value(y_true, 0.0, 1.0 - alpha)
+    else:
+        return tf.clip_by_value(y_true, 0.0 + alpha, 1.0 - alpha)
 
 
 def __reverse_sigmoid(x):
@@ -43,16 +42,38 @@ def __loss(y_true, y_pred):
     return tf.keras.backend.binary_crossentropy(y_true, y_pred, from_logits=False)
 
 
+def __confidence_loss_obj_only(y_true, y_pred):
+    obj_true = y_true[:, :, :, 0]
+    obj_pred = y_pred[:, :, :, 0]
+
+    # smooth_obj_true = __smooth(obj_true, alpha=0.02, true_only=True)  # bce conf loss
+    smooth_obj_true = __smooth(__iou(y_true, y_pred), alpha=0.02, true_only=True)  # iou conf loss
+    obj_confidence_loss = __loss(smooth_obj_true, obj_pred) * obj_true
+    obj_confidence_loss = tf.reduce_mean(obj_confidence_loss, axis=0)
+    obj_confidence_loss = tf.reduce_sum(obj_confidence_loss)
+    return obj_confidence_loss
+
+
+def __zero_confidence_loss(y_true, y_pred):
+    obj_pred = y_pred[:, :, :, 0]
+    zeros = __smooth(tf.zeros(shape=tf.shape(obj_pred), dtype=tf.dtypes.float32), alpha=0.02)
+    zero_loss = __loss(obj_pred, zeros)
+    zero_loss = tf.reduce_mean(zero_loss, axis=0)
+    zero_loss = tf.reduce_sum(zero_loss)
+    return zero_loss
+
+
+# origin confidence loss
 def __confidence_loss(y_true, y_pred):
     no_obj = 0.5
     obj_true = y_true[:, :, :, 0]
     obj_pred = y_pred[:, :, :, 0]
     obj_false = tf.ones(shape=tf.shape(obj_true), dtype=tf.dtypes.float32) - obj_true
 
-    # smooth_obj_true = __smooth(obj_true, alpha=0.025, true_only=True)
+    # smooth_obj_true = __smooth(obj_true, alpha=0.02, true_only=True)
     # obj_confidence_loss = __loss(smooth_obj_true, obj_pred) * obj_true  # bce conf loss
 
-    smooth_iou = tf.clip_by_value(__iou(y_true, y_pred), 0.0, 0.98)
+    smooth_iou = __smooth(__iou(y_true, y_pred), alpha=0.02, true_only=True)
     obj_confidence_loss = __loss(smooth_iou, obj_pred) * obj_true  # iou conf loss
 
     obj_confidence_loss = tf.reduce_mean(obj_confidence_loss, axis=0)
@@ -150,12 +171,18 @@ def __bbox_loss(y_true, y_pred):
 
 def __classification_loss(y_true, y_pred):
     obj_true = y_true[:, :, :, 0]
-    smooth_class_true = __smooth(y_true[:, :, :, 5:], alpha=0.01)
+    smooth_class_true = __smooth(y_true[:, :, :, 5:], alpha=0.02)
     classification_loss = __loss(smooth_class_true, y_pred[:, :, :, 5:])
-    classification_loss = tf.reduce_sum(classification_loss, axis=-1) * obj_true
-    classification_loss = tf.reduce_mean(classification_loss, axis=0)
-    classification_loss = tf.reduce_sum(classification_loss)
-    return classification_loss
+
+    obj_classification_loss = tf.reduce_sum(classification_loss, axis=-1) * obj_true
+    obj_classification_loss = tf.reduce_mean(obj_classification_loss, axis=0)
+    obj_classification_loss = tf.reduce_sum(obj_classification_loss)
+
+    obj_false = tf.ones(shape=tf.shape(obj_true), dtype=tf.dtypes.float32) - obj_true
+    no_obj_classification_loss = tf.reduce_sum(classification_loss, axis=-1) * obj_false
+    no_obj_classification_loss = tf.reduce_mean(no_obj_classification_loss, axis=0)
+    no_obj_classification_loss = tf.reduce_sum(no_obj_classification_loss)
+    return obj_classification_loss + (no_obj_classification_loss * 0.25)
 
 
 def confidence_loss(y_true, y_pred):
@@ -170,7 +197,13 @@ def confidence_with_bbox_loss(y_true, y_pred):
     return __confidence_loss(y_true, y_pred) + __bbox_loss(y_true, y_pred)
 
 
+def burn_in_loss(y_true, y_pred):
+    y_pred = convert_to_tensor_v2(y_pred)
+    y_true = tf.cast(y_true, y_pred.dtype)
+    return __zero_confidence_loss(y_true, y_pred) + __bbox_loss(y_true, y_pred) + __classification_loss(y_true, y_pred)
+
+
 def yolo_loss(y_true, y_pred):
     y_pred = convert_to_tensor_v2(y_pred)
     y_true = tf.cast(y_true, y_pred.dtype)
-    return __confidence_loss(y_true, y_pred) + __bbox_loss(y_true, y_pred) + __classification_loss(y_true, y_pred)
+    return __confidence_loss_obj_only(y_true, y_pred) + __bbox_loss(y_true, y_pred) + __classification_loss(y_true, y_pred)
