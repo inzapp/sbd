@@ -184,8 +184,11 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         height_compactness /= float(len(self.image_paths))
         print(f'height compactness : {height_compactness:.7f}')
 
-        self.clustered_ws = sorted(np.asarray(ws).reshape(-1))
-        self.clustered_hs = sorted(np.asarray(hs).reshape(-1))
+        # self.clustered_ws = sorted(np.asarray(ws).reshape(-1))
+        # self.clustered_hs = sorted(np.asarray(hs).reshape(-1))
+        self.clustered_ws = [0.05, 0.125, 0.35]
+        self.clustered_hs = [0.05, 0.125, 0.35]
+
         print(f'clustered  widths : ', end='')
         for i in range(num_cluster):
             print(f'{self.clustered_ws[i]:.4f} ', end='')
@@ -198,12 +201,9 @@ class GeneratorFlow(tf.keras.utils.Sequence):
 
     def print_not_trained_box_count(self):
         y_true_obj_count = 0  # obj count in train tensor(y_true)
-        origin_batch_size = self.batch_size
-        self.batch_size = 64
         for batch_x, batch_y in tqdm(self):
             for i in range(self.num_output_layers):
                 y_true_obj_count += np.sum(batch_y[i][:, :, :, 0])
-        self.batch_size = origin_batch_size
 
         y_true_obj_count = int(y_true_obj_count)
         not_trained_obj_count = self.label_obj_count - y_true_obj_count
@@ -262,7 +262,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
                 for i in range(self.num_output_layers):
                     y.append(np.zeros((self.output_shapes[i][1], self.output_shapes[i][2], self.output_shapes[i][3]), dtype=np.float32))
 
-                train_type = 'one_layer'
+                train_type = 'all_layer_cluster'
 
                 if train_type == 'all_layer':
                     big_last_boxes = sorted(boxes, key=lambda __x: __x['area'], reverse=False)
@@ -284,12 +284,14 @@ class GeneratorFlow(tf.keras.utils.Sequence):
                             y[output_layer_index][center_row][center_col][3] = w
                             y[output_layer_index][center_row][center_col][4] = h
                             y[output_layer_index][center_row][center_col][int(class_index + 5)] = 1.0
-                elif train_type == 'one_layer':
+                else:
                     for b in boxes:
+                        output_layer_index = 0
                         class_index, cx, cy, w, h = b['class_index'], b['cx'], b['cy'], b['w'], b['h']
-                        # true_box = [cx, cy, w, h]
-                        # _, output_layer_index = self.__get_best_iou_with_index(true_box, self.clustered_ws, self.clustered_hs)
-                        output_layer_index = 1
+                        if train_type == 'one_layer':
+                            pass
+                        elif train_type == 'all_layer_cluster':
+                            _, output_layer_index = self.__get_best_iou_with_index([cx, cy, w, h], self.clustered_ws, self.clustered_hs)
 
                         output_rows = float(self.output_shapes[output_layer_index][1])
                         output_cols = float(self.output_shapes[output_layer_index][2])
