@@ -22,6 +22,7 @@ import random
 from glob import glob
 from time import time, sleep
 
+import natsort
 import numpy as np
 import tensorflow as tf
 from cv2 import cv2
@@ -29,7 +30,7 @@ from tensorflow.keras.mixed_precision import experimental as mixed_precision
 
 from box_colors import colors
 from generator import YoloDataGenerator
-from loss import confidence_loss, confidence_with_bbox_loss, yolo_loss
+from loss import confidence_loss, confidence_with_bbox_loss, yolo_loss, burn_in_loss
 from mAP_calculator import calc_mean_average_precision
 from model import Model
 
@@ -115,35 +116,6 @@ class Yolo:
             optimizer = mixed_precision.LossScaleOptimizer(optimizer=optimizer, loss_scale='dynamic')
         return optimizer
 
-    @staticmethod
-    def __load_label(__label_path):
-        with open(__label_path, 'rt') as __f:
-            __lines = __f.readlines()
-        return __lines
-
-    # def __print_not_trained_box_count(self):
-    #     ground_truth_obj_count = 0  # obj count in real label txt
-    #     fs = []
-    #     for path in self.__train_image_paths:
-    #         fs.append(self.pool.submit(self.__load_label, f'{path[:-4]}.txt'))
-    #
-    #     for f in tqdm(fs):
-    #         lines = f.result()
-    #         ground_truth_obj_count += len(lines)
-    #
-    #     y_true_obj_count = 0  # obj count in train tensor(y_true)
-    #     # print(self.__getitem__(0).shape)
-    #     # exit(0)
-    #     for batch_x, batch_y in self.__train_data_generator.flow():
-    #         y_true_obj_count += np.sum(batch_y)
-    #
-    #     not_trained_obj_count = ground_truth_obj_count - y_true_obj_count
-    #     not_trained_obj_rate = not_trained_obj_count / ground_truth_obj_count
-    #
-    #     print(f'ground truth obj counr : {ground_truth_obj_count}')
-    #     print(f'train tensor obj count : {y_true_obj_count}')
-    #     print(f'not trained  obj count : {not_trained_obj_count} ({not_trained_obj_rate:.4f})')
-
     def fit(self):
         self.__model.summary()
         self.__model.save('model.h5', include_optimizer=False)
@@ -164,7 +136,7 @@ class Yolo:
 
     def __burn_in_train(self):
         optimizer = self.__get_optimizer('sgd')
-        self.__model.compile(optimizer=optimizer, loss=yolo_loss)
+        self.__model.compile(optimizer=optimizer, loss=burn_in_loss)
         iteration_count = 0
         while True:
             for batch_x, batch_y in self.__train_data_generator.flow():
@@ -213,6 +185,8 @@ class Yolo:
                 self.__save_model(iteration_count=iteration_count)
                 if self.__training_view:
                     self.__training_view_function()
+                if iteration_count == int(self.__iterations * 0.8):
+                    tf.keras.backend.set_value(self.__model.optimizer.lr, self.__model.optimizer.lr * 0.1)
                 if iteration_count == self.__iterations:
                     print('\n\ntrain end successfully')
                     return
@@ -280,7 +254,7 @@ class Yolo:
                 y_pred.append(y_pred_copy[i])
         return y_pred
 
-    def predict(self, img, confidence_threshold=0.25, nms_iou_threshold=0.5):
+    def predict(self, img, confidence_threshold=0.25, nms_iou_threshold=0.45):
         """
         Detect object in image using trained YOLO model.
         :param img: (width, height, channel) formatted image to be predicted.
@@ -436,6 +410,9 @@ class Yolo:
         """
         Equal to the evaluate function. image paths are required.
         """
+        if type(image_paths) is str:
+            image_paths = glob(image_paths)
+        image_paths = natsort.natsorted(image_paths)
         with tf.device('/cpu:0'):
             for path in image_paths:
                 raw = cv2.imread(path, cv2.IMREAD_COLOR)
@@ -454,10 +431,10 @@ class Yolo:
         self.predict_images(self.__validation_image_paths)
 
     def map_train_images(self):
-        mean_ap, f1_score = calc_mean_average_precision(self.__model, self.__train_image_paths)
+        calc_mean_average_precision(self.__model, self.__train_image_paths)
 
     def map_validation_images(self):
-        mean_ap, f1_score = calc_mean_average_precision(self.__model, self.__validation_image_paths)
+        calc_mean_average_precision(self.__model, self.__validation_image_paths)
 
     def __training_view_function(self):
         """
