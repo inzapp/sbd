@@ -38,8 +38,13 @@ def __reverse_sigmoid(x):
 
 
 def __loss(y_true, y_pred):
+    bigger_eps = tf.keras.backend.epsilon() * 10.0
+    ones_like = 1.0 + bigger_eps
+    loss = tf.abs(y_true - y_pred)
+    loss = -tf.math.log(ones_like - loss + bigger_eps)
+    return loss
     # return tf.square(y_true - y_pred)
-    return -tf.math.log(-tf.abs(y_true - y_pred) + 1.0)
+    # return -tf.math.log(-tf.abs(y_true - y_pred) + 1.0 + (tf.keras.backend.epsilon() * 10.0))
     # return tf.keras.backend.binary_crossentropy(y_true, y_pred, from_logits=False)
 
 
