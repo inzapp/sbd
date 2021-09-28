@@ -420,7 +420,7 @@ class Yolo:
                 res = self.predict(x)
                 boxed_image = self.bounding_box(raw, res)
                 cv2.imshow('res', boxed_image)
-                key = cv2.waitKey(0)
+                key = cv2.waitKey(1)
                 if key == 27:
                     break
 
