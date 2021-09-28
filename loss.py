@@ -39,25 +39,56 @@ def __reverse_sigmoid(x):
 
 def __loss(y_true, y_pred):
     # return tf.square(y_true - y_pred)
-    return tf.keras.backend.binary_crossentropy(y_true, y_pred, from_logits=False)
+    return -tf.math.log(-tf.abs(y_true - y_pred) + 1.0)
+    # return tf.keras.backend.binary_crossentropy(y_true, y_pred, from_logits=False)
 
 
-def __confidence_loss_obj_only(y_true, y_pred):
-    obj_true = y_true[:, :, :, 0]
-    obj_pred = y_pred[:, :, :, 0]
+def binary_focal_loss_fixed(y_true, y_pred):
+    """
+    Binary form of focal loss.
+      FL(p_t) = -alpha * (1 - p_t)**gamma * log(p_t)
+      where p = sigmoid(x), p_t = p or 1 - p depending on if the label is 1 or 0, respectively.
+    References:
+        https://arxiv.org/pdf/1708.02002.pdf
+    Usage:
+     model.compile(loss=[binary_focal_loss(alpha=.25, gamma=2)], metrics=["accuracy"], optimizer=adam)
 
-    # smooth_obj_true = __smooth(obj_true, alpha=0.02, true_only=True)  # bce conf loss
-    smooth_obj_true = __smooth(__iou(y_true, y_pred), alpha=0.02, true_only=True)  # iou conf loss
-    obj_confidence_loss = __loss(smooth_obj_true, obj_pred) * obj_true
-    obj_confidence_loss = tf.reduce_mean(obj_confidence_loss, axis=0)
-    obj_confidence_loss = tf.reduce_sum(obj_confidence_loss)
-    return obj_confidence_loss
+    :param y_true: A tensor of the same shape as `y_pred`
+    :param y_pred:  A tensor resulting from a sigmoid
+    :return: Output tensor.
+    """
+    gamma = 2.0
+    alpha = 0.25
+    eps = tf.keras.backend.epsilon()
+
+    y_true = tf.cast(y_true, tf.float32)
+    y_pred = tf.keras.backend.clip(y_pred, eps, 1.0 - eps)
+    p_t = tf.where(tf.keras.backend.equal(y_true, 1), y_pred, 1 - y_pred)
+    alpha_factor = tf.keras.backend.ones_like(y_true) * alpha
+    alpha_t = tf.where(tf.keras.backend.equal(y_true, 1), alpha_factor, 1 - alpha_factor)
+    cross_entropy = -tf.keras.backend.log(p_t)
+    weight = alpha_t * tf.keras.backend.pow((1 - p_t), gamma)
+    loss = weight * cross_entropy
+    # loss = tf.keras.backend.mean(tf.keras.backend.sum(loss, axis=1))
+    return loss
+
+
+# def __confidence_loss_obj_only(y_true, y_pred):
+#     obj_true = y_true[:, :, :, 0]
+#     obj_pred = y_pred[:, :, :, 0]
+#
+#     # smooth_obj_true = __smooth(obj_true, alpha=0.02, true_only=True)  # bce conf loss
+#     smooth_obj_true = __smooth(__iou(y_true, y_pred), alpha=0.02, true_only=True)  # iou conf loss
+#     obj_confidence_loss = __loss(smooth_obj_true, obj_pred) * obj_true
+#     obj_confidence_loss = tf.reduce_mean(obj_confidence_loss, axis=0)
+#     obj_confidence_loss = tf.reduce_sum(obj_confidence_loss)
+#     return obj_confidence_loss
 
 
 def __zero_confidence_loss(y_true, y_pred):
     obj_pred = y_pred[:, :, :, 0]
     zeros = __smooth(tf.zeros(shape=tf.shape(obj_pred), dtype=tf.dtypes.float32), alpha=0.02)
-    zero_loss = __loss(obj_pred, zeros)
+    zero_loss = __loss(zeros, obj_pred)
     zero_loss = tf.reduce_mean(zero_loss, axis=0)
     zero_loss = tf.reduce_sum(zero_loss)
     return zero_loss
@@ -70,11 +101,11 @@ def __confidence_loss(y_true, y_pred):
     obj_pred = y_pred[:, :, :, 0]
     obj_false = tf.ones(shape=tf.shape(obj_true), dtype=tf.dtypes.float32) - obj_true
 
-    # smooth_obj_true = __smooth(obj_true, alpha=0.02, true_only=True)
-    # obj_confidence_loss = __loss(smooth_obj_true, obj_pred) * obj_true  # bce conf loss
+    smooth_obj_true = __smooth(obj_true, alpha=0.02, true_only=True)
+    obj_confidence_loss = __loss(smooth_obj_true, obj_pred) * obj_true  # bce conf loss
 
-    smooth_iou = __smooth(__iou(y_true, y_pred), alpha=0.02, true_only=True)
-    obj_confidence_loss = __loss(smooth_iou, obj_pred) * obj_true  # iou conf loss
+    # smooth_iou = __smooth(__iou(y_true, y_pred), alpha=0.02, true_only=True)
+    # obj_confidence_loss = __loss(smooth_iou, obj_pred) * obj_true  # iou conf loss
 
     obj_confidence_loss = tf.reduce_mean(obj_confidence_loss, axis=0)
     obj_confidence_loss = tf.reduce_sum(obj_confidence_loss)
@@ -169,20 +200,34 @@ def __bbox_loss(y_true, y_pred):
     return bbox_loss * 5.0
 
 
+def __constant_wh_loss(y_true, y_pred):
+    from generator import g_w_mean, g_h_mean
+    w_loss = __loss(tf.constant(g_w_mean), y_pred[:, :, :, 3])
+    w_loss = tf.reduce_mean(w_loss, axis=0)
+    w_loss = tf.reduce_sum(w_loss)
+
+    h_loss = __loss(tf.constant(g_h_mean), y_pred[:, :, :, 4])
+    h_loss = tf.reduce_mean(h_loss, axis=0)
+    h_loss = tf.reduce_sum(h_loss)
+    return w_loss + h_loss
+
+
+def __zero_classification_loss(y_true, y_pred):
+    classification_loss = __loss(tf.constant(0.02), y_pred[:, :, :, 5:])
+    classification_loss = tf.reduce_sum(classification_loss, axis=-1)
+    classification_loss = tf.reduce_mean(classification_loss, axis=0)
+    classification_loss = tf.reduce_sum(classification_loss)
+    return classification_loss
+
+
 def __classification_loss(y_true, y_pred):
     obj_true = y_true[:, :, :, 0]
     smooth_class_true = __smooth(y_true[:, :, :, 5:], alpha=0.02)
     classification_loss = __loss(smooth_class_true, y_pred[:, :, :, 5:])
-
-    obj_classification_loss = tf.reduce_sum(classification_loss, axis=-1) * obj_true
-    obj_classification_loss = tf.reduce_mean(obj_classification_loss, axis=0)
-    obj_classification_loss = tf.reduce_sum(obj_classification_loss)
-
-    obj_false = tf.ones(shape=tf.shape(obj_true), dtype=tf.dtypes.float32) - obj_true
-    no_obj_classification_loss = tf.reduce_sum(classification_loss, axis=-1) * obj_false
-    no_obj_classification_loss = tf.reduce_mean(no_obj_classification_loss, axis=0)
-    no_obj_classification_loss = tf.reduce_sum(no_obj_classification_loss)
-    return obj_classification_loss + (no_obj_classification_loss * 0.25)
+    classification_loss = tf.reduce_sum(classification_loss, axis=-1) * obj_true
+    classification_loss = tf.reduce_mean(classification_loss, axis=0)
+    classification_loss = tf.reduce_sum(classification_loss)
+    return classification_loss
 
 
 def confidence_loss(y_true, y_pred):
@@ -200,10 +245,11 @@ def confidence_with_bbox_loss(y_true, y_pred):
 def burn_in_loss(y_true, y_pred):
     y_pred = convert_to_tensor_v2(y_pred)
     y_true = tf.cast(y_true, y_pred.dtype)
-    return __zero_confidence_loss(y_true, y_pred) + __bbox_loss(y_true, y_pred) + __classification_loss(y_true, y_pred)
+    # return __zero_confidence_loss(y_true, y_pred) + __constant_wh_loss(y_true, y_pred) + __zero_classification_loss(y_true, y_pred)
+    return __confidence_loss(y_true, y_pred) + __bbox_loss(y_true, y_pred) + __classification_loss(y_true, y_pred)
 
 
 def yolo_loss(y_true, y_pred):
     y_pred = convert_to_tensor_v2(y_pred)
     y_true = tf.cast(y_true, y_pred.dtype)
-    return __confidence_loss_obj_only(y_true, y_pred) + __bbox_loss(y_true, y_pred) + __classification_loss(y_true, y_pred)
+    return __confidence_loss(y_true, y_pred) + __bbox_loss(y_true, y_pred) + __classification_loss(y_true, y_pred)
