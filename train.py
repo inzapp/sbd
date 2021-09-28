@@ -72,7 +72,7 @@ if __name__ == '__main__':
     """
 
     Yolo(
-        # pretrained_model_path=r'C:\inz\git\yolo-lab\checkpoints\model_970000_iter_mAP_0.1524_f1_0.5001.h5',
+        # pretrained_model_path=r'model_last.h5',
         # pretrained_model_path=r'C:\inz\git\yolo-lab\checkpoints\auto_label_200m\model_1100000_iter_mAP_0.2325_f1_0.4951.h5',
 
         # train_image_path=r'T:\200m_detection\origin_4_class\train',
