@@ -362,7 +362,7 @@ def calc_mean_average_precision(model, image_paths):
         print(f'TP_IOU@{int(iou_threshold * 100)} : {avg_tp_iou:.4f}')
         print(f'F1@{int(iou_threshold * 100)} : {avg_f1_score:.4f}')
         print(f'mAP@{int(iou_threshold * 100)} : {mean_ap:.4f}\n')
-    return mean_ap_sum / len(iou_thresholds), f1_sum / len(iou_thresholds)
+    return mean_ap_sum / len(iou_thresholds), f1_sum / len(iou_thresholds), tp_iou_sum / len(iou_thresholds)
 
 
 def all_check():

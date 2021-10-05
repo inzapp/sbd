@@ -199,15 +199,20 @@ class Yolo:
     def __harmonic_mean(mean_ap, f1_score):
         return (2.0 * mean_ap * f1_score) / (mean_ap + f1_score + 1e-5)
 
-    def __is_better_than_before(self, mean_ap, f1_score):
+    def __is_better_than_before(self, mean_ap, f1_score, tp_iou):
         better_than_before = False
-        if mean_ap > self.max_map:
-            self.max_map = mean_ap
+
+        mean_ap_iou = self.__harmonic_mean(mean_ap, tp_iou)
+        if mean_ap_iou > self.max_map:
+            self.max_map = mean_ap_iou
             better_than_before = True
-        if f1_score > self.max_f1:
-            self.max_f1 = f1_score
+
+        f1_score_iou = self.__harmonic_mean(f1_score, tp_iou)
+        if f1_score > f1_score_iou:
+            self.max_f1 = f1_score_iou
             better_than_before = True
-        harmonic_mean = self.__harmonic_mean(mean_ap, f1_score)
+
+        harmonic_mean = self.__harmonic_mean(mean_ap_iou, f1_score_iou)
         if harmonic_mean > self.max_hm:
             self.max_hm = harmonic_mean
             better_than_before = True
@@ -215,13 +220,13 @@ class Yolo:
 
     def __save_model(self, iteration_count):
         if iteration_count % 1000 == 0:
-        # if iteration_count >= 10000 and iteration_count % 5000 == 0:
+            # if iteration_count >= 10000 and iteration_count % 5000 == 0:
             print('\n')
             if self.__map_checkpoint:
                 self.__model.save('model.h5', include_optimizer=False)
-                mean_ap, f1_score = calc_mean_average_precision(self.__model, self.__validation_image_paths)
-                if self.__is_better_than_before(mean_ap, f1_score):
-                    self.__model.save(f'checkpoints/model_{iteration_count}_iter_mAP_{mean_ap:.4f}_f1_{f1_score:.4f}.h5', include_optimizer=False)
+                mean_ap, f1_score, tp_iou = calc_mean_average_precision(self.__model, self.__validation_image_paths)
+                if self.__is_better_than_before(mean_ap, f1_score, tp_iou):
+                    self.__model.save(f'checkpoints/model_{iteration_count}_iter_mAP_{mean_ap:.4f}_f1_{f1_score:.4f}_tp_iou_{tp_iou:.4f}.h5', include_optimizer=False)
                     self.__model.save('model_last.h5', include_optimizer=False)
             else:
                 self.__model.save(f'checkpoints/model_{iteration_count}_iter.h5')
@@ -231,6 +236,8 @@ class Yolo:
         all_image_paths = glob(f'{image_path}/*.jpg')
         all_image_paths += glob(f'{image_path}/*/*.jpg')
         all_image_paths += glob(f'{image_path}/*/*/*.jpg')
+        # for i in range(len(all_image_paths)):
+        #     all_image_paths[i] = f"'{all_image_paths[i]}'"
         random.shuffle(all_image_paths)
         num_train_images = int(len(all_image_paths) * (1.0 - validation_split))
         image_paths = all_image_paths[:num_train_images]
