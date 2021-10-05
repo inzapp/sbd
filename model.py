@@ -423,6 +423,10 @@ class Model:
         return tf.keras.layers.Add()([ap, mp])
 
     @staticmethod
+    def __drop_filter(x, rate):
+        return tf.keras.layers.SpatialDropout2D(rate)(x)
+
+    @staticmethod
     def __dropout(x, rate):
         return tf.keras.layers.Dropout(rate)(x)
 
