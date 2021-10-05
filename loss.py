@@ -37,15 +37,25 @@ def __reverse_sigmoid(x):
     return x
 
 
-def __loss(y_true, y_pred):
-    bigger_eps = tf.keras.backend.epsilon() * 10.0
-    ones_like = 1.0 + bigger_eps
-    loss = tf.abs(y_true - y_pred)
-    loss = -tf.math.log(ones_like - loss + bigger_eps)
+def __abs_log_loss(y_true, y_pred):
+    ones = 1.0 + tf.keras.backend.epsilon() * 10.0
+    loss = -tf.math.log(ones - tf.abs(y_true - y_pred))
     return loss
     # return tf.square(y_true - y_pred)
     # return -tf.math.log(-tf.abs(y_true - y_pred) + 1.0 + (tf.keras.backend.epsilon() * 10.0))
     # return tf.keras.backend.binary_crossentropy(y_true, y_pred, from_logits=False)
+
+
+# def __abs_log_loss(y_true, y_pred, gamma=0.5):
+#     # ones_like = 1.0 + tf.keras.backend.epsilon() * 10.0
+#     ones_like = 1.0
+#     x = tf.abs(y_true - y_pred)
+#     loss = -tf.math.log(ones_like - x)
+#     loss *= tf.math.pow(x, gamma)
+#     return loss
+# return tf.square(y_true - y_pred)
+# return -tf.math.log(-tf.abs(y_true - y_pred) + 1.0 + (tf.keras.backend.epsilon() * 10.0))
+# return tf.keras.backend.binary_crossentropy(y_true, y_pred, from_logits=False)
 
 
 def binary_focal_loss_fixed(y_true, y_pred):
@@ -93,7 +103,7 @@ def binary_focal_loss_fixed(y_true, y_pred):
 def __zero_confidence_loss(y_true, y_pred):
     obj_pred = y_pred[:, :, :, 0]
     zeros = __smooth(tf.zeros(shape=tf.shape(obj_pred), dtype=tf.dtypes.float32), alpha=0.02)
-    zero_loss = __loss(zeros, obj_pred)
+    zero_loss = __abs_log_loss(zeros, obj_pred)
     zero_loss = tf.reduce_mean(zero_loss, axis=0)
     zero_loss = tf.reduce_sum(zero_loss)
     return zero_loss
@@ -107,7 +117,7 @@ def __confidence_loss(y_true, y_pred):
     obj_false = tf.ones(shape=tf.shape(obj_true), dtype=tf.dtypes.float32) - obj_true
 
     smooth_obj_true = __smooth(obj_true, alpha=0.02, true_only=True)
-    obj_confidence_loss = __loss(smooth_obj_true, obj_pred) * obj_true  # bce conf loss
+    obj_confidence_loss = __abs_log_loss(smooth_obj_true, obj_pred) * obj_true  # log conf loss
 
     # smooth_iou = __smooth(__iou(y_true, y_pred), alpha=0.02, true_only=True)
     # obj_confidence_loss = __loss(smooth_iou, obj_pred) * obj_true  # iou conf loss
@@ -116,7 +126,7 @@ def __confidence_loss(y_true, y_pred):
     obj_confidence_loss = tf.reduce_sum(obj_confidence_loss)
 
     zeros = tf.zeros(shape=tf.shape(obj_true), dtype=tf.dtypes.float32)
-    no_obj_confidence_loss = __loss(zeros, obj_pred) * obj_false
+    no_obj_confidence_loss = __abs_log_loss(zeros, obj_pred) * obj_false
     no_obj_confidence_loss = tf.reduce_mean(no_obj_confidence_loss, axis=0)
     no_obj_confidence_loss = tf.reduce_sum(no_obj_confidence_loss)
     return obj_confidence_loss + (no_obj_confidence_loss * no_obj)
@@ -175,6 +185,7 @@ def __iou(y_true, y_pred):
     return intersection / (union + 1e-5)
 
 
+# origin bbox loss
 def __bbox_loss(y_true, y_pred):
     """
     BCE (sqrt(obj(x))) at width and height regression loss
@@ -189,7 +200,7 @@ def __bbox_loss(y_true, y_pred):
 
     xy_true = y_true[:, :, :, 1:3]
     xy_pred = y_pred[:, :, :, 1:3]
-    xy_loss = __loss(xy_true, xy_pred)
+    xy_loss = __abs_log_loss(xy_true, xy_pred)
     xy_loss = tf.reduce_sum(xy_loss, axis=-1) * obj_true
     xy_loss = tf.reduce_mean(xy_loss, axis=0)
     xy_loss = tf.reduce_sum(xy_loss)
@@ -197,7 +208,7 @@ def __bbox_loss(y_true, y_pred):
     eps = tf.keras.backend.epsilon()
     wh_true = tf.sqrt(y_true[:, :, :, 3:5] + eps)
     wh_pred = tf.sqrt(y_pred[:, :, :, 3:5] + eps)
-    wh_loss = __loss(wh_true, wh_pred)
+    wh_loss = __abs_log_loss(wh_true, wh_pred)
     wh_loss = tf.reduce_sum(wh_loss, axis=-1) * obj_true
     wh_loss = tf.reduce_mean(wh_loss, axis=0)
     wh_loss = tf.reduce_sum(wh_loss)
@@ -205,30 +216,29 @@ def __bbox_loss(y_true, y_pred):
     return bbox_loss * 5.0
 
 
-def __constant_wh_loss(y_true, y_pred):
-    from generator import g_w_mean, g_h_mean
-    w_loss = __loss(tf.constant(g_w_mean), y_pred[:, :, :, 3])
-    w_loss = tf.reduce_mean(w_loss, axis=0)
-    w_loss = tf.reduce_sum(w_loss)
+# def __constant_wh_loss(y_true, y_pred):
+#     w_loss = __abs_log_loss(tf.constant(g_w_mean), y_pred[:, :, :, 3])
+#     w_loss = tf.reduce_mean(w_loss, axis=0)
+#     w_loss = tf.reduce_sum(w_loss)
+#
+#     h_loss = __abs_log_loss(tf.constant(g_h_mean), y_pred[:, :, :, 4])
+#     h_loss = tf.reduce_mean(h_loss, axis=0)
+#     h_loss = tf.reduce_sum(h_loss)
+#     return w_loss + h_loss
 
-    h_loss = __loss(tf.constant(g_h_mean), y_pred[:, :, :, 4])
-    h_loss = tf.reduce_mean(h_loss, axis=0)
-    h_loss = tf.reduce_sum(h_loss)
-    return w_loss + h_loss
 
-
-def __zero_classification_loss(y_true, y_pred):
-    classification_loss = __loss(tf.constant(0.02), y_pred[:, :, :, 5:])
-    classification_loss = tf.reduce_sum(classification_loss, axis=-1)
-    classification_loss = tf.reduce_mean(classification_loss, axis=0)
-    classification_loss = tf.reduce_sum(classification_loss)
-    return classification_loss
+# def __zero_classification_loss(y_true, y_pred):
+#     classification_loss = __abs_log_loss(tf.constant(0.02), y_pred[:, :, :, 5:])
+#     classification_loss = tf.reduce_sum(classification_loss, axis=-1)
+#     classification_loss = tf.reduce_mean(classification_loss, axis=0)
+#     classification_loss = tf.reduce_sum(classification_loss)
+#     return classification_loss
 
 
 def __classification_loss(y_true, y_pred):
     obj_true = y_true[:, :, :, 0]
     smooth_class_true = __smooth(y_true[:, :, :, 5:], alpha=0.02)
-    classification_loss = __loss(smooth_class_true, y_pred[:, :, :, 5:])
+    classification_loss = __abs_log_loss(smooth_class_true, y_pred[:, :, :, 5:])
     classification_loss = tf.reduce_sum(classification_loss, axis=-1) * obj_true
     classification_loss = tf.reduce_mean(classification_loss, axis=0)
     classification_loss = tf.reduce_sum(classification_loss)
