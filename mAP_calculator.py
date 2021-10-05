@@ -185,15 +185,18 @@ def calc_tp_fp_fn_for_f1_score(y_true, y_pred, iou_threshold):
         y_pred[i]['discard'] = False
 
     tp = 0
+    tp_iou_sum = 0.0
     for i in range(len(y_true)):
         for j in range(len(y_pred)):
             if y_pred[j]['discard'] or y_true[i]['class'] != y_pred[j]['class']:
                 continue
             if y_pred[j]['confidence'] < confidence_threshold:
                 continue
-            if iou(y_true[i]['bbox'], y_pred[j]['bbox']) > iou_threshold:
+            iou_val = iou(y_true[i]['bbox'], y_pred[j]['bbox'])
+            if iou_val > iou_threshold:
                 y_true[i]['discard'] = True
                 y_pred[j]['discard'] = True
+                tp_iou_sum += iou_val
                 tp += 1
                 break
 
@@ -207,7 +210,7 @@ def calc_tp_fp_fn_for_f1_score(y_true, y_pred, iou_threshold):
     for i in range(len(y_true)):
         if not y_true[i]['discard']:
             fn += 1
-    return tp, fp, fn
+    return tp, fp, fn, tp_iou_sum
 
 
 def calc_ap_tp_fp_fn(y, label_lines, iou_threshold, target_class_index):
@@ -221,7 +224,8 @@ def calc_ap_tp_fp_fn(y, label_lines, iou_threshold, target_class_index):
         for j in range(len(y_pred)):
             if y_pred[j]['discard'] or y_true[i]['class'] != y_pred[j]['class']:
                 continue
-            if iou(y_true[i]['bbox'], y_pred[j]['bbox']) > iou_threshold:
+            iou_val = iou(y_true[i]['bbox'], y_pred[j]['bbox'])
+            if iou_val > iou_threshold:
                 y_true[i]['discard'] = True
                 y_pred[j]['discard'] = True
                 y_pred[j]['result'] = 'TP'
@@ -251,8 +255,8 @@ def calc_ap_tp_fp_fn(y, label_lines, iou_threshold, target_class_index):
     for i in range(len(y_pred)):
         if y_pred[i]['confidence'] >= confidence_threshold:
             y_pred_over_conf_threshold.append(y_pred[i])
-    tp, fp, fn = calc_tp_fp_fn_for_f1_score(y_true, y_pred_over_conf_threshold, iou_threshold)
-    return ap, tp, fp, fn, num_class_obj
+    tp, fp, fn, tp_iou_sum = calc_tp_fp_fn_for_f1_score(y_true, y_pred_over_conf_threshold, iou_threshold)
+    return ap, tp, fp, fn, tp_iou_sum, num_class_obj
 
 
 def load_x_label_lines(image_path, color_mode, input_size, input_shape):
@@ -285,6 +289,7 @@ def calc_mean_average_precision(model, image_paths):
     tps = np.zeros((len(iou_thresholds), num_classes), dtype=np.int32)
     fps = np.zeros((len(iou_thresholds), num_classes), dtype=np.int32)
     fns = np.zeros((len(iou_thresholds), num_classes), dtype=np.int32)
+    tp_ious = np.zeros((len(iou_thresholds), num_classes), dtype=np.float32)
 
     pool = ThreadPoolExecutor(8)
 
@@ -300,7 +305,7 @@ def calc_mean_average_precision(model, image_paths):
 
         for iou_index, iou_threshold in enumerate(iou_thresholds):
             for class_index in range(num_classes):
-                ap, tp, fp, fn, num_class_obj = calc_ap_tp_fp_fn(y, label_lines, iou_threshold, class_index)
+                ap, tp, fp, fn, tp_iou_sum, num_class_obj = calc_ap_tp_fp_fn(y, label_lines, iou_threshold, class_index)
                 if num_class_obj > 0:
                     valid_count[iou_index][class_index] += 1
                     obj_count[iou_index][class_index] += num_class_obj
@@ -309,16 +314,22 @@ def calc_mean_average_precision(model, image_paths):
                 tps[iou_index][class_index] += tp
                 fps[iou_index][class_index] += fp
                 fns[iou_index][class_index] += fn
+                tp_ious[iou_index][class_index] += tp_iou_sum
 
-    f1_sum = 0.0
     mean_ap_sum = 0.0
+    f1_sum = 0.0
+    precision_sum = 0.0
+    recall_sum = 0.0
+    tp_iou_sum = 0.0
     for iou_index, iou_threshold in enumerate(iou_thresholds):
         class_ap_sum = 0.0
         class_f1_sum = 0.0
+        class_precision_sum = 0.0
+        class_recall_sum = 0.0
+        class_tp_iou_sum = 0.0
         print(f'confidence threshold for tp, fp, fn calculate : {confidence_threshold:.2f}')
         for class_index in range(num_classes):
             cur_class_ap = aps[iou_index][class_index] / (float(valid_count[iou_index][class_index]) + 1e-5)
-            class_ap_sum += cur_class_ap
             cur_class_obj_count = obj_count[iou_index][class_index]
             cur_class_tp = tps[iou_index][class_index]
             cur_class_fp = fps[iou_index][class_index]
@@ -326,13 +337,29 @@ def calc_mean_average_precision(model, image_paths):
             cur_class_precision = cur_class_tp / (float(cur_class_tp + cur_class_fp) + 1e-5)
             cur_class_recall = cur_class_tp / (float(cur_class_tp + cur_class_fn) + 1e-5)
             cur_class_f1 = 2.0 * (cur_class_precision * cur_class_recall) / (cur_class_precision + cur_class_recall + 1e-5)
+            cur_class_tp_iou = tp_ious[iou_index][class_index] / (float(cur_class_tp) + 1e-5)
+
+            class_ap_sum += cur_class_ap
             class_f1_sum += cur_class_f1
+            class_precision_sum += cur_class_precision
+            class_recall_sum += cur_class_recall
+            class_tp_iou_sum += cur_class_tp_iou
             print(
-                f'class {str(class_index):3s} ap : {cur_class_ap:.4f}, obj_count : {str(cur_class_obj_count):6s}, tp : {str(cur_class_tp):6s}, fp : {str(cur_class_fp):6s}, fn : {str(cur_class_fn):6s}, precision : {cur_class_precision:.4f}, recall : {cur_class_recall:.4f}, f1 score : {cur_class_f1:.4f}')
+                f'class {str(class_index):3s} ap : {cur_class_ap:.4f}, obj_count : {str(cur_class_obj_count):6s}, tp : {str(cur_class_tp):6s}, fp : {str(cur_class_fp):6s}, fn : {str(cur_class_fn):6s}, precision : {cur_class_precision:.4f}, recall : {cur_class_recall:.4f}, f1 score : {cur_class_f1:.4f}, tp iou : {cur_class_tp_iou:.4f}')
+
         mean_ap = class_ap_sum / float(num_classes)
         mean_ap_sum += mean_ap
         avg_f1_score = class_f1_sum / float(num_classes)
         f1_sum += avg_f1_score
+        avg_precision = class_precision_sum / float(num_classes)
+        precision_sum += avg_precision
+        avg_recall = class_recall_sum / float(num_classes)
+        recall_sum += avg_recall
+        avg_tp_iou = class_tp_iou_sum / float(num_classes)
+        tp_iou_sum += avg_tp_iou
+        print(f'Precision@{int(iou_threshold * 100)} : {avg_precision:.4f}')
+        print(f'Recall@{int(iou_threshold * 100)} : {avg_recall:.4f}')
+        print(f'TP_IOU@{int(iou_threshold * 100)} : {avg_tp_iou:.4f}')
         print(f'F1@{int(iou_threshold * 100)} : {avg_f1_score:.4f}')
         print(f'mAP@{int(iou_threshold * 100)} : {mean_ap:.4f}\n')
     return mean_ap_sum / len(iou_thresholds), f1_sum / len(iou_thresholds)
