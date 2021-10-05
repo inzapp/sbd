@@ -230,6 +230,7 @@ class Yolo:
     def __init_image_paths(image_path, validation_split=0.0):
         all_image_paths = glob(f'{image_path}/*.jpg')
         all_image_paths += glob(f'{image_path}/*/*.jpg')
+        all_image_paths += glob(f'{image_path}/*/*/*.jpg')
         random.shuffle(all_image_paths)
         num_train_images = int(len(all_image_paths) * (1.0 - validation_split))
         image_paths = all_image_paths[:num_train_images]
@@ -420,7 +421,7 @@ class Yolo:
                 res = self.predict(x)
                 boxed_image = self.bounding_box(raw, res)
                 cv2.imshow('res', boxed_image)
-                key = cv2.waitKey(1)
+                key = cv2.waitKey(0)
                 if key == 27:
                     break
 
