@@ -197,19 +197,17 @@ def __bbox_loss(y_true, y_pred):
     Derivative of sqrt : 1 / (2 * sqrt(x))
     """
     obj_true = y_true[:, :, :, 0]
+    eps = tf.keras.backend.epsilon()
 
-    xy_true = y_true[:, :, :, 1:3]
-    xy_pred = y_pred[:, :, :, 1:3]
+    xy_true = tf.sqrt(y_true[:, :, :, 1:3] + eps)
+    xy_pred = tf.sqrt(y_pred[:, :, :, 1:3] + eps)
     xy_loss = __abs_log_loss(xy_true, xy_pred)
     xy_loss = tf.reduce_sum(xy_loss, axis=-1) * obj_true
     xy_loss = tf.reduce_mean(xy_loss, axis=0)
     xy_loss = tf.reduce_sum(xy_loss)
 
-    eps = tf.keras.backend.epsilon()
-    # wh_true = tf.sqrt(y_true[:, :, :, 3:5] + eps)
-    # wh_pred = tf.sqrt(y_pred[:, :, :, 3:5] + eps)
-    wh_true = y_true[:, :, :, 3:5]
-    wh_pred = y_pred[:, :, :, 3:5]
+    wh_true = tf.sqrt(y_true[:, :, :, 3:5] + eps)
+    wh_pred = tf.sqrt(y_pred[:, :, :, 3:5] + eps)
     wh_loss = __abs_log_loss(wh_true, wh_pred)
     wh_loss = tf.reduce_sum(wh_loss, axis=-1) * obj_true
     wh_loss = tf.reduce_mean(wh_loss, axis=0)
