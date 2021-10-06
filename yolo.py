@@ -219,8 +219,8 @@ class Yolo:
         return better_than_before
 
     def __save_model(self, iteration_count):
-        if iteration_count % 1000 == 0:
-            # if iteration_count >= 10000 and iteration_count % 5000 == 0:
+        # if iteration_count % 1000 == 0:
+        if iteration_count >= 10000 and iteration_count % 5000 == 0:
             print('\n')
             if self.__map_checkpoint:
                 self.__model.save('model.h5', include_optimizer=False)
@@ -233,11 +233,15 @@ class Yolo:
 
     @staticmethod
     def __init_image_paths(image_path, validation_split=0.0):
-        all_image_paths = glob(f'{image_path}/*.jpg')
-        all_image_paths += glob(f'{image_path}/*/*.jpg')
-        all_image_paths += glob(f'{image_path}/*/*/*.jpg')
-        # for i in range(len(all_image_paths)):
-        #     all_image_paths[i] = f"'{all_image_paths[i]}'"
+        if image_path.endswith('.txt'):
+            with open(image_path, 'rt') as f:
+                all_image_paths = f.readlines()
+            for i in range(len(all_image_paths)):
+                all_image_paths[i] = all_image_paths[i].replace('\n', '')
+        else:
+            all_image_paths = glob(f'{image_path}/*.jpg')
+            all_image_paths += glob(f'{image_path}/*/*.jpg')
+            all_image_paths += glob(f'{image_path}/*/*/*.jpg')
         random.shuffle(all_image_paths)
         num_train_images = int(len(all_image_paths) * (1.0 - validation_split))
         image_paths = all_image_paths[:num_train_images]
