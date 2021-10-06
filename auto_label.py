@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
-confidence_threshold = 0.25
+confidence_threshold = 0.9
 nms_iou_threshold = 0.45
 
 
@@ -115,7 +115,10 @@ def auto_label(model_path, image_path, origin_classes_txt_path):
 
     image_paths = glob(f'{image_path}/*.jpg')
     classes_txt_path = f'{image_path}/classes.txt'
-    sh.copy(origin_classes_txt_path, classes_txt_path)
+    try:
+        sh.copy(origin_classes_txt_path, classes_txt_path)
+    except sh.SameFileError:
+        pass
 
     pool = ThreadPoolExecutor(8)
     fs = []
@@ -130,7 +133,7 @@ def auto_label(model_path, image_path, origin_classes_txt_path):
         label_content = ''
         for i in range(len(y_pred)):
             class_index = y_pred[i]['class']
-            # if class_index != 1:
+            # if class_index != 0:
             #     continue
             cx, cy, w, h = y_pred[i]['bbox_norm']
             label_content += f'{class_index} {cx:.6f} {cy:.6f} {w:.6f} {h:.6f}\n'
@@ -140,10 +143,10 @@ def auto_label(model_path, image_path, origin_classes_txt_path):
 
 
 def main():
-    model_path = r'C:\inz\git\yolo-lab\checkpoints\model_55000_iter_mAP_0.6371_f1_0.8053.h5'
-    origin_classes_txt_path = r'C:\inz\tmp\classes.txt'
-    img_path = r'J:\200M_2021_09_ADD\small_only_monitor'
-    # auto_label(model_path, img_path, origin_classes_txt_path)
+    model_path = r'model_last.h5'
+    origin_classes_txt_path = r'J:\200M_2021_10_ADD\big_yj_1001_04_jjahn_completed_valid_check_ing_lattepyo\yet\classes.txt'
+    img_path = r'J:\200M_2021_10_ADD\big_yj_1001_04_jjahn_completed_valid_check_ing_lattepyo\yet'
+    auto_label(model_path, img_path, origin_classes_txt_path)
 
 
 if __name__ == '__main__':
