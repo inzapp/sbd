@@ -111,7 +111,7 @@ def __zero_confidence_loss(y_true, y_pred):
 
 # origin confidence loss
 def __confidence_loss(y_true, y_pred):
-    no_obj = 0.5
+    no_obj = 1.0
     obj_true = y_true[:, :, :, 0]
     obj_pred = y_pred[:, :, :, 0]
     obj_false = tf.ones(shape=tf.shape(obj_true), dtype=tf.dtypes.float32) - obj_true
@@ -206,8 +206,10 @@ def __bbox_loss(y_true, y_pred):
     xy_loss = tf.reduce_sum(xy_loss)
 
     eps = tf.keras.backend.epsilon()
-    wh_true = tf.sqrt(y_true[:, :, :, 3:5] + eps)
-    wh_pred = tf.sqrt(y_pred[:, :, :, 3:5] + eps)
+    # wh_true = tf.sqrt(y_true[:, :, :, 3:5] + eps)
+    # wh_pred = tf.sqrt(y_pred[:, :, :, 3:5] + eps)
+    wh_true = y_true[:, :, :, 3:5]
+    wh_pred = y_pred[:, :, :, 3:5]
     wh_loss = __abs_log_loss(wh_true, wh_pred)
     wh_loss = tf.reduce_sum(wh_loss, axis=-1) * obj_true
     wh_loss = tf.reduce_mean(wh_loss, axis=0)
