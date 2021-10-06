@@ -286,13 +286,12 @@ class GeneratorFlow(tf.keras.utils.Sequence):
                             y[output_layer_index][center_row][center_col][int(class_index + 5)] = 1.0
                 else:
                     for b in boxes:
-                        output_layer_index = 0
+                        output_layer_index = 1
                         class_index, cx, cy, w, h = b['class_index'], b['cx'], b['cy'], b['w'], b['h']
                         if train_type == 'one_layer':
                             pass
                         elif train_type == 'all_layer_cluster':
                             _, output_layer_index = self.__get_best_iou_with_index([cx, cy, w, h], self.clustered_ws, self.clustered_hs)
-
                         output_rows = float(self.output_shapes[output_layer_index][1])
                         output_cols = float(self.output_shapes[output_layer_index][2])
                         grid_width_ratio = 1 / output_cols

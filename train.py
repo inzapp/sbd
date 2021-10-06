@@ -72,50 +72,47 @@ if __name__ == '__main__':
     """
 
     Yolo(
-        # pretrained_model_path=r'model_last.h5',
-        # pretrained_model_path=r'C:\inz\git\yolo-lab\checkpoints\model_155000_iter_mAP_0.2057_f1_0.5084.h5',
-
         # train_image_path=r'T:\200m_detection\origin_4_class\train',
         # validation_image_path=r'T:\200m_detection\origin_4_class\validation',
+        # class_names_file_path=r'T:\200m_detection\origin_4_class\train\classes.txt',
         # input_shape=(384, 640, 1),
 
         # train_image_path=r'T:\200m_detection\origin_small\train',
         # validation_image_path=r'T:\200m_detection\origin_small\validation',
+        # class_names_file_path=r'T:\200m_detection\origin_small\train\classes.txt',
         # input_shape=(384, 640, 1),
 
         # pretrained_model_path=r'C:\inz\git\yolo-lab\checkpoints\model_430000_iter_mAP_0.2555_f1_0.6412.h5',
-        # train_image_path=r'T:\200m_big_small_detection\train_data\small\small_all\tmp_train_new_generator_for_sbd',
-        # validation_image_path=r'T:\200m_big_small_detection\train_data\small\small_all\validation',
-        # input_shape=(192, 576, 1),
+        train_image_path=r'list\small_train.txt',
+        validation_image_path=r'list\small_validation.txt',
+        class_names_file_path=r'T:\200m_big_small_detection\train_data\small\small_all\train\classes.txt',
+        input_shape=(192, 576, 1),
 
         # train_image_path=r'C:\inz\train_data\loon\train',
         # validation_image_path=r'C:\inz\train_data\loon\validation',
+        # class_names_file_path=r'C:\inz\train_data\loon\train\classes.txt',
         # input_shape=(128, 512, 3),
 
-        train_image_path=r'T:\200m_big_small_detection\train_data\crop_copy_for_sbd\train',
-        validation_image_path=r'T:\200m_big_small_detection\train_data\crop_copy_for_sbd\validation',
-        input_shape=(64, 64, 1),
+        # pretrained_model_path='checkpoints/crop_64_64/model_100000_iter_mAP_0.9163_f1_0.9359.h5',
+        # train_image_path=r'C:\inz\train_data\crop_copy_for_sbd\train',
+        # validation_image_path=r'C:\inz\train_data\crop_copy_for_sbd\validation',
+        # class_names_file_path=r'C:\inz\train_data\crop_copy_for_sbd\train\classes.txt',
+        # input_shape=(64, 64, 1),
 
-        # train_image_path=r'T:\lp_character_detection\lcd_b1',
-        # validation_split=0.2,
-        # input_shape=(96, 192, 1),
-
-        # pretrained_model_path=r'C:\inz\git\yolo-lab\checkpoints\model_47000_iter_mAP_0.7679_f1_0.7857.h5',
-        # train_image_path=r'C:\inz\train_data\small\yeojoo_sequence_copy\scene_2\sequence',
-        # validation_split=0.2,
-        # input_shape=(192, 576, 3),
+        # train_image_path=r'T:\200m_big_small_detection\train_data\under_big\big_yj\train',
+        # validation_image_path=r'T:\200m_big_small_detection\train_data\under_big\big_yj\validation',
+        # class_names_file_path=r'T:\200m_big_small_detection\train_data\under_big\big_yj\train\classes.txt',
+        # input_shape=(192, 576, 1),
 
         lr=0.001,
-        # decay=0.0005,
-        decay=0.0,
+        decay=0.0005,
         momentum=0.9,
         burn_in=1000,
         batch_size=4,
-        iterations=2000000,
+        iterations=100000,
         curriculum_iterations=0,
-        training_view=True,
+        training_view=False,
         map_checkpoint=True).fit()
-        # map_checkpoint=True).predict_images(r'T:\200m_sequence\sequence_image_origin\*\*.jpg')
 
     # from glob import glob
     # from random import shuffle

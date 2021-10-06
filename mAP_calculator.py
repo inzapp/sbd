@@ -371,7 +371,7 @@ def all_check():
     for model_path in glob('*.h5'):
         print(model_path)
         model = tf.keras.models.load_model(model_path, compile=False)
-        mean_ap, f1_score = calc_mean_average_precision(model, img_paths)
+        mean_ap, f1_score, tp_iou = calc_mean_average_precision(model, img_paths)
         results.append({'model_path': model_path, 'mAP': mean_ap, 'f1': f1_score})
     results = sorted(results, key=lambda x: x['f1'], reverse=True)
     results = sorted(results, key=lambda x: x['mAP'], reverse=True)
@@ -383,7 +383,7 @@ def all_check():
 
 
 def main():
-    model_path = r'C:\inz\git\yolo-lab\checkpoints\200m\small\model_590000_iter_mAP_0.5018_f1_0.7216.h5'
+    model_path = r'model_last.h5'
     img_paths = glob(r'T:\200m_big_small_detection\train_data\small\small_all\validation_200\*.jpg')
     model = tf.keras.models.load_model(model_path, compile=False)
     calc_mean_average_precision(model, img_paths)
