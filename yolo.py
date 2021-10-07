@@ -185,9 +185,11 @@ class Yolo:
                 self.__save_model(iteration_count=iteration_count)
                 if self.__training_view:
                     self.__training_view_function()
-                if iteration_count == int(self.__iterations * 0.8):
+                if iteration_count == int(self.__iterations * 0.5):
                     tf.keras.backend.set_value(self.__model.optimizer.lr, self.__model.optimizer.lr * 0.1)
-                if iteration_count == self.__iterations:
+                elif iteration_count == int(self.__iterations * 0.75):
+                    tf.keras.backend.set_value(self.__model.optimizer.lr, self.__model.optimizer.lr * 0.1)
+                elif iteration_count == self.__iterations:
                     print('\n\ntrain end successfully')
                     return
 
