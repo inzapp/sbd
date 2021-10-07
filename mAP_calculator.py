@@ -9,10 +9,10 @@ from tqdm import tqdm
 
 os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
-iou_thresholds = [0.5]
-confidence_threshold = 0.25  # only for tp, fp, fn
-nms_iou_threshold = 0.45  # darknet yolo nms threshold value
-label_smoothing = 0.0
+g_iou_thresholds = [0.5]
+g_confidence_threshold = 0.25  # only for tp, fp, fn
+g_nms_iou_threshold = 0.45  # darknet yolo nms threshold value
+g_label_smoothing = 0.0
 
 
 def iou(a, b):
@@ -60,7 +60,7 @@ def nms(y_pred):
         for j in range(i + 1, len(y_pred)):
             if y_pred[j]['discard'] or y_pred[i]['class'] != y_pred[j]['class']:
                 continue
-            if iou(y_pred[i]['bbox'], y_pred[j]['bbox']) > nms_iou_threshold:
+            if iou(y_pred[i]['bbox'], y_pred[j]['bbox']) > g_nms_iou_threshold:
                 y_pred[j]['discard'] = True
 
     y_pred_copy = np.asarray(y_pred.copy())
@@ -78,7 +78,7 @@ def nms_origin(y_pred):
         for j in range(len(y_pred)):
             if i == j or y_pred[j]['discard']:
                 continue
-            if iou(y_pred[i]['bbox'], y_pred[j]['bbox']) > nms_iou_threshold:
+            if iou(y_pred[i]['bbox'], y_pred[j]['bbox']) > g_nms_iou_threshold:
                 if y_pred[i]['confidence'] >= y_pred[j]['confidence']:
                     y_pred[j]['discard'] = True
 
@@ -90,8 +90,8 @@ def nms_origin(y_pred):
     return y_pred
 
 
-def get_y_pred(y, target_class_index):
-    global label_smoothing, nms_iou_threshold, confidence_threshold
+def get_y_pred(y, target_class_index, confidence_threshold):
+    global g_label_smoothing, g_nms_iou_threshold
     raw_width = 1000
     raw_height = 1000
 
@@ -104,8 +104,8 @@ def get_y_pred(y, target_class_index):
         for i in range(rows):
             for j in range(cols):
                 confidence = y[layer_index][0][i][j][0]
-                # if confidence < confidence_threshold:  # darknet yolo mAP confidence threshold value
-                if confidence < label_smoothing + 0.005:  # darknet yolo mAP confidence threshold value
+                # if confidence < label_smoothing + 0.005:  # darknet yolo mAP confidence threshold value
+                if confidence < confidence_threshold:
                     continue
 
                 class_index = -1
@@ -117,8 +117,8 @@ def get_y_pred(y, target_class_index):
                         class_score = cur_class_score
 
                 confidence *= class_score
-                # if confidence < confidence_threshold:  # darknet yolo mAP confidence threshold value
-                if confidence < label_smoothing + 0.005:  # darknet yolo mAP confidence threshold value
+                # if confidence < label_smoothing + 0.005:  # darknet yolo mAP confidence threshold value
+                if confidence < confidence_threshold:
                     continue
 
                 if class_index != target_class_index:
@@ -160,25 +160,16 @@ def get_interpolated_precision(y_pred, recall):
     return max_precision
 
 
-def calc_ap(y_pred):
+def calc_area_under_curve(y_pred):
     interpolated_precision_sum = 0.0
-    interpolated_precision_sum += get_interpolated_precision(y_pred, 0.0)
-    interpolated_precision_sum += get_interpolated_precision(y_pred, 0.1)
-    interpolated_precision_sum += get_interpolated_precision(y_pred, 0.2)
-    interpolated_precision_sum += get_interpolated_precision(y_pred, 0.3)
-    interpolated_precision_sum += get_interpolated_precision(y_pred, 0.4)
-    interpolated_precision_sum += get_interpolated_precision(y_pred, 0.5)
-    interpolated_precision_sum += get_interpolated_precision(y_pred, 0.6)
-    interpolated_precision_sum += get_interpolated_precision(y_pred, 0.7)
-    interpolated_precision_sum += get_interpolated_precision(y_pred, 0.8)
-    interpolated_precision_sum += get_interpolated_precision(y_pred, 0.9)
-    interpolated_precision_sum += get_interpolated_precision(y_pred, 1.0)
+    for i in range(11):
+        interpolated_precision_sum += get_interpolated_precision(y_pred, i / 10.0)
     ap = interpolated_precision_sum / 11.0
     return ap
 
 
 def calc_tp_fp_fn_for_f1_score(y_true, y_pred, iou_threshold):
-    global confidence_threshold
+    global g_confidence_threshold
     for i in range(len(y_true)):
         y_true[i]['discard'] = False
     for i in range(len(y_pred)):
@@ -190,7 +181,7 @@ def calc_tp_fp_fn_for_f1_score(y_true, y_pred, iou_threshold):
         for j in range(len(y_pred)):
             if y_pred[j]['discard'] or y_true[i]['class'] != y_pred[j]['class']:
                 continue
-            if y_pred[j]['confidence'] < confidence_threshold:
+            if y_pred[j]['confidence'] < g_confidence_threshold:
                 continue
             iou_val = iou(y_true[i]['bbox'], y_pred[j]['bbox'])
             if iou_val > iou_threshold:
@@ -213,13 +204,8 @@ def calc_tp_fp_fn_for_f1_score(y_true, y_pred, iou_threshold):
     return tp, fp, fn, tp_iou_sum
 
 
-def calc_ap_tp_fp_fn(y, label_lines, iou_threshold, target_class_index):
-    y_true = get_y_true(label_lines, target_class_index)
-    num_class_obj = len(y_true)
-    # if num_class_obj == 0:
-    #     return None, None, None, None, None
-
-    y_pred = get_y_pred(y, target_class_index)
+def calc_ap(y_true, y_pred, iou_threshold):
+    global g_label_smoothing
     for i in range(len(y_true)):
         for j in range(len(y_pred)):
             if y_pred[j]['discard'] or y_true[i]['class'] != y_pred[j]['class']:
@@ -246,17 +232,10 @@ def calc_ap_tp_fp_fn(y, label_lines, iou_threshold, target_class_index):
 
         tp_fp_sum = tp_sum + fp_sum
         y_pred[i]['precision'] = 0 if tp_fp_sum == 0 else tp_sum / float(tp_fp_sum)
-        y_pred[i]['recall'] = tp_sum / float(len(y_pred))
+        y_pred[i]['recall'] = tp_sum / float(len(y_true))
 
-    ap = calc_ap(y_pred)
-
-    # remove under confidence threshold before calculating tp, fp, fn
-    y_pred_over_conf_threshold = []
-    for i in range(len(y_pred)):
-        if y_pred[i]['confidence'] >= confidence_threshold:
-            y_pred_over_conf_threshold.append(y_pred[i])
-    tp, fp, fn, tp_iou_sum = calc_tp_fp_fn_for_f1_score(y_true, y_pred_over_conf_threshold, iou_threshold)
-    return ap, tp, fp, fn, tp_iou_sum, num_class_obj
+    ap = calc_area_under_curve(y_pred)
+    return ap
 
 
 def load_x_label_lines(image_path, color_mode, input_size, input_shape):
@@ -277,19 +256,19 @@ def load_x_label_lines(image_path, color_mode, input_size, input_shape):
 
 
 def calc_mean_average_precision(model, image_paths):
-    global iou_thresholds
+    global g_iou_thresholds, g_confidence_threshold
     input_shape = model.input_shape[1:]
     input_size = (input_shape[1], input_shape[0])
     color_mode = cv2.IMREAD_GRAYSCALE if input_shape[-1] == 1 else cv2.IMREAD_COLOR
     num_classes = model.output_shape[0][-1] - 5
 
-    obj_count = np.zeros((len(iou_thresholds), num_classes), dtype=np.int32)
-    valid_count = np.zeros((len(iou_thresholds), num_classes), dtype=np.int32)
-    aps = np.zeros((len(iou_thresholds), num_classes), dtype=np.int32)
-    tps = np.zeros((len(iou_thresholds), num_classes), dtype=np.int32)
-    fps = np.zeros((len(iou_thresholds), num_classes), dtype=np.int32)
-    fns = np.zeros((len(iou_thresholds), num_classes), dtype=np.int32)
-    tp_ious = np.zeros((len(iou_thresholds), num_classes), dtype=np.float32)
+    obj_count = np.zeros((len(g_iou_thresholds), num_classes), dtype=np.int32)
+    ap_valid_count = np.zeros((len(g_iou_thresholds), num_classes), dtype=np.int32)
+    aps = np.zeros((len(g_iou_thresholds), num_classes), dtype=np.int32)
+    tps = np.zeros((len(g_iou_thresholds), num_classes), dtype=np.int32)
+    fps = np.zeros((len(g_iou_thresholds), num_classes), dtype=np.int32)
+    fns = np.zeros((len(g_iou_thresholds), num_classes), dtype=np.int32)
+    tp_ious = np.zeros((len(g_iou_thresholds), num_classes), dtype=np.float32)
 
     pool = ThreadPoolExecutor(8)
 
@@ -303,24 +282,29 @@ def calc_mean_average_precision(model, image_paths):
             continue
         y = model.predict_on_batch(x=x)
 
-        for iou_index, iou_threshold in enumerate(iou_thresholds):
+        for iou_index, iou_threshold in enumerate(g_iou_thresholds):
             for class_index in range(num_classes):
-                ap, tp, fp, fn, tp_iou_sum, num_class_obj = calc_ap_tp_fp_fn(y, label_lines, iou_threshold, class_index)
+                y_true = get_y_true(label_lines, class_index)
+                num_class_obj = len(y_true)
                 if num_class_obj > 0:
-                    valid_count[iou_index][class_index] += 1
-                    obj_count[iou_index][class_index] += num_class_obj
+                    y_pred = get_y_pred(y, class_index, g_label_smoothing + 0.005)
+                    aps[iou_index][class_index] += calc_ap(y_true, y_pred, iou_threshold)
+                    ap_valid_count[iou_index][class_index] += 1
 
-                aps[iou_index][class_index] += ap
+                y_pred = get_y_pred(y, class_index, g_confidence_threshold)
+                tp, fp, fn, tp_iou_sum = calc_tp_fp_fn_for_f1_score(y_true, y_pred, iou_threshold)
+
                 tps[iou_index][class_index] += tp
                 fps[iou_index][class_index] += fp
                 fns[iou_index][class_index] += fn
                 tp_ious[iou_index][class_index] += tp_iou_sum
+                obj_count[iou_index][class_index] += num_class_obj
 
     mean_ap_sum = 0.0
     f1_sum = 0.0
     tp_iou_sum = 0.0
-    print(f'confidence threshold for tp, fp, fn calculate : {confidence_threshold:.2f}')
-    for iou_index, iou_threshold in enumerate(iou_thresholds):
+    print(f'confidence threshold for tp, fp, fn calculate : {g_confidence_threshold:.2f}')
+    for iou_index, iou_threshold in enumerate(g_iou_thresholds):
         class_ap_sum = 0.0
         class_f1_sum = 0.0
         class_precision_sum = 0.0
@@ -328,7 +312,7 @@ def calc_mean_average_precision(model, image_paths):
         class_tp_iou_sum = 0.0
         for class_index in range(num_classes):
             cur_class_obj_count = obj_count[iou_index][class_index]
-            cur_class_ap = aps[iou_index][class_index] / (float(valid_count[iou_index][class_index]) + 1e-5)
+            cur_class_ap = aps[iou_index][class_index] / (float(ap_valid_count[iou_index][class_index]) + 1e-5)
             cur_class_tp = tps[iou_index][class_index]
             cur_class_fp = fps[iou_index][class_index]
             cur_class_fn = fns[iou_index][class_index]
@@ -360,10 +344,10 @@ def calc_mean_average_precision(model, image_paths):
         f1_sum += total_f1
         tp_iou_sum += total_tp_iou
 
+        print(f'mAP@{int(iou_threshold * 100)} : {mean_ap:.4f}')
         print(f'TP_IOU@{int(iou_threshold * 100)} : {total_tp_iou:.4f}')
-        print(f'F1 score@{int(iou_threshold * 100)} : {total_f1:.4f}')
-        print(f'mAP@{int(iou_threshold * 100)} : {mean_ap:.4f}\n')
-    return mean_ap_sum / len(iou_thresholds), f1_sum / len(iou_thresholds), tp_iou_sum / len(iou_thresholds)
+        print(f'F1 score@{int(iou_threshold * 100)} : {total_f1:.4f}\n')
+    return mean_ap_sum / len(g_iou_thresholds), f1_sum / len(g_iou_thresholds), tp_iou_sum / len(g_iou_thresholds)
 
 
 def all_check():
