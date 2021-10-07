@@ -67,7 +67,7 @@ class Yolo:
         self.__curriculum_iterations = curriculum_iterations
         self.__mixed_float16_training = mixed_float16_training
         self.__live_view_previous_time = time()
-        self.max_map, self.max_f1, self.max_hm = 0.0, 0.0, 0.0
+        self.max_map, self.max_f1, self.max_map_iou_hm, self.max_f1_iou_hm = 0.0, 0.0, 0.0, 0.0
 
         if class_names_file_path == '':
             class_names_file_path = f'{train_image_path}/classes.txt'
@@ -198,25 +198,27 @@ class Yolo:
         tf.keras.backend.set_value(self.__model.optimizer.lr, lr)
 
     @staticmethod
-    def __harmonic_mean(mean_ap, f1_score):
-        return (2.0 * mean_ap * f1_score) / (mean_ap + f1_score + 1e-5)
+    def __harmonic_mean(a, b):
+        return (2.0 * a * b) / (a + b + 1e-5)
 
     def __is_better_than_before(self, mean_ap, f1_score, tp_iou):
         better_than_before = False
-
-        mean_ap_iou = self.__harmonic_mean(mean_ap, tp_iou)
-        if mean_ap_iou > self.max_map:
-            self.max_map = mean_ap_iou
+        if mean_ap > self.max_map:
+            self.max_map = mean_ap
             better_than_before = True
 
-        f1_score_iou = self.__harmonic_mean(f1_score, tp_iou)
-        if f1_score > f1_score_iou:
-            self.max_f1 = f1_score_iou
+        if f1_score > self.max_f1:
+            self.max_f1 = f1_score
             better_than_before = True
 
-        harmonic_mean = self.__harmonic_mean(mean_ap_iou, f1_score_iou)
-        if harmonic_mean > self.max_hm:
-            self.max_hm = harmonic_mean
+        map_iou_hm = self.__harmonic_mean(mean_ap, tp_iou)
+        if map_iou_hm > self.max_map_iou_hm:
+            self.max_map_iou_hm = map_iou_hm
+            better_than_before = True
+
+        f1_iou_hm = self.__harmonic_mean(f1_score, tp_iou)
+        if f1_iou_hm > self.max_f1_iou_hm:
+            self.max_f1_iou_hm = f1_iou_hm
             better_than_before = True
         return better_than_before
 
