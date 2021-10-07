@@ -10,8 +10,8 @@ from tqdm import tqdm
 
 os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
-confidence_threshold = 0.9
-nms_iou_threshold = 0.45
+g_confidence_threshold = 0.9
+g_nms_iou_threshold = 0.45
 
 
 def iou(a, b):
@@ -34,7 +34,7 @@ def iou(a, b):
 
 
 def get_y_pred(y):
-    global nms_iou_threshold, confidence_threshold
+    global g_nms_iou_threshold, g_confidence_threshold
     raw_width = 1000
     raw_height = 1000
 
@@ -47,7 +47,7 @@ def get_y_pred(y):
         for i in range(rows):
             for j in range(cols):
                 confidence = y[layer_index][0][i][j][0]
-                if confidence < confidence_threshold:  # darknet yolo mAP confidence threshold value
+                if confidence < g_confidence_threshold:  # darknet yolo mAP confidence threshold value
                     continue
 
                 class_index = -1
@@ -88,7 +88,7 @@ def get_y_pred(y):
         for j in range(len(y_pred)):
             if i == j or y_pred[j]['discard']:
                 continue
-            if iou(y_pred[i]['bbox'], y_pred[j]['bbox']) > nms_iou_threshold:
+            if iou(y_pred[i]['bbox'], y_pred[j]['bbox']) > g_nms_iou_threshold:
                 if y_pred[i]['confidence'] >= y_pred[j]['confidence']:
                     y_pred[j]['discard'] = True
 
