@@ -301,7 +301,7 @@ def calc_mean_average_precision(model, image_paths):
         x, label_lines = f.result()
         if x is None:
             continue
-        y = model.predict(x=x, batch_size=1)
+        y = model.predict_on_batch(x=x)
 
         for iou_index, iou_threshold in enumerate(iou_thresholds):
             for class_index in range(num_classes):
@@ -318,19 +318,17 @@ def calc_mean_average_precision(model, image_paths):
 
     mean_ap_sum = 0.0
     f1_sum = 0.0
-    precision_sum = 0.0
-    recall_sum = 0.0
     tp_iou_sum = 0.0
+    print(f'confidence threshold for tp, fp, fn calculate : {confidence_threshold:.2f}')
     for iou_index, iou_threshold in enumerate(iou_thresholds):
         class_ap_sum = 0.0
         class_f1_sum = 0.0
         class_precision_sum = 0.0
         class_recall_sum = 0.0
         class_tp_iou_sum = 0.0
-        print(f'confidence threshold for tp, fp, fn calculate : {confidence_threshold:.2f}')
         for class_index in range(num_classes):
-            cur_class_ap = aps[iou_index][class_index] / (float(valid_count[iou_index][class_index]) + 1e-5)
             cur_class_obj_count = obj_count[iou_index][class_index]
+            cur_class_ap = aps[iou_index][class_index] / (float(valid_count[iou_index][class_index]) + 1e-5)
             cur_class_tp = tps[iou_index][class_index]
             cur_class_fp = fps[iou_index][class_index]
             cur_class_fn = fns[iou_index][class_index]
@@ -349,18 +347,21 @@ def calc_mean_average_precision(model, image_paths):
 
         mean_ap = class_ap_sum / float(num_classes)
         mean_ap_sum += mean_ap
-        avg_f1_score = class_f1_sum / float(num_classes)
-        f1_sum += avg_f1_score
-        avg_precision = class_precision_sum / float(num_classes)
-        precision_sum += avg_precision
-        avg_recall = class_recall_sum / float(num_classes)
-        recall_sum += avg_recall
-        avg_tp_iou = class_tp_iou_sum / float(num_classes)
-        tp_iou_sum += avg_tp_iou
-        print(f'Precision@{int(iou_threshold * 100)} : {avg_precision:.4f}')
-        print(f'Recall@{int(iou_threshold * 100)} : {avg_recall:.4f}')
-        print(f'TP_IOU@{int(iou_threshold * 100)} : {avg_tp_iou:.4f}')
-        print(f'F1@{int(iou_threshold * 100)} : {avg_f1_score:.4f}')
+
+        tp_sum = np.sum(tps[iou_index])
+        fp_sum = np.sum(fps[iou_index])
+        fn_sum = np.sum(fns[iou_index])
+        total_precision = tp_sum / (float(tp_sum + fp_sum) + 1e-5)
+        total_recall = tp_sum / (float(tp_sum + fn_sum) + 1e-5)
+        total_f1 = (2.0 * total_precision * total_recall) / (total_precision + total_recall + 1e-5)
+        tp_iou_sum = np.sum(tp_ious[iou_index])
+        total_tp_iou = tp_iou_sum / (float(tp_sum) + 1e-5)
+
+        f1_sum += total_f1
+        tp_iou_sum += total_tp_iou
+
+        print(f'TP_IOU@{int(iou_threshold * 100)} : {total_tp_iou:.4f}')
+        print(f'F1 score@{int(iou_threshold * 100)} : {total_f1:.4f}')
         print(f'mAP@{int(iou_threshold * 100)} : {mean_ap:.4f}\n')
     return mean_ap_sum / len(iou_thresholds), f1_sum / len(iou_thresholds), tp_iou_sum / len(iou_thresholds)
 
