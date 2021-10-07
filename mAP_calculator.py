@@ -337,11 +337,11 @@ def calc_mean_average_precision(model, image_paths):
         fn_sum = np.sum(fns[iou_index])
         total_precision = tp_sum / (float(tp_sum + fp_sum) + 1e-5)
         total_recall = tp_sum / (float(tp_sum + fn_sum) + 1e-5)
-        total_f1 = (2.0 * total_precision * total_recall) / (total_precision + total_recall + 1e-5)
-        tp_iou_sum = np.sum(tp_ious[iou_index])
-        total_tp_iou = tp_iou_sum / (float(tp_sum) + 1e-5)
 
+        total_f1 = (2.0 * total_precision * total_recall) / (total_precision + total_recall + 1e-5)
         f1_sum += total_f1
+
+        total_tp_iou = np.sum(tp_ious[iou_index]) / (float(tp_sum) + 1e-5)
         tp_iou_sum += total_tp_iou
 
         print(f'mAP@{int(iou_threshold * 100)} : {mean_ap:.4f}')
