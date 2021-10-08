@@ -79,6 +79,10 @@ class Yolo:
             if self.__optimizer == 'adam':
                 self.__decay = 0.0
             self.__model = Model(input_shape=input_shape, output_channel=self.__num_classes + 5, decay=self.__decay).build()
+            # os.environ['PATH'] += os.pathsep + r'C:\inz\etc\Graphviz\bin'
+            # tf.keras.utils.plot_model(self.__model, show_shapes=True)
+            # print('save model image success')
+            # exit(0)
 
         if validation_image_path != '':
             self.__train_image_paths, _ = self.__init_image_paths(train_image_path)
@@ -221,8 +225,8 @@ class Yolo:
         return better_than_before
 
     def __save_model(self, iteration_count):
-        if iteration_count % 1000 == 0:
-        # if iteration_count >= 10000 and iteration_count % 5000 == 0:
+        # if iteration_count % 1000 == 0:
+        if iteration_count >= 10000 and iteration_count % 5000 == 0:
             print('\n')
             if self.__map_checkpoint:
                 self.__model.save('model.h5', include_optimizer=False)
