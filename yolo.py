@@ -30,7 +30,7 @@ from tensorflow.keras.mixed_precision import experimental as mixed_precision
 
 from box_colors import colors
 from generator import YoloDataGenerator
-from loss import confidence_loss, confidence_with_bbox_loss, yolo_loss, burn_in_loss
+from loss import confidence_loss, confidence_with_bbox_loss, yolo_loss
 from mAP_calculator import calc_mean_average_precision
 from model import Model
 
@@ -136,7 +136,7 @@ class Yolo:
 
     def __burn_in_train(self):
         optimizer = self.__get_optimizer('sgd')
-        self.__model.compile(optimizer=optimizer, loss=burn_in_loss)
+        self.__model.compile(optimizer=optimizer, loss=yolo_loss)
         iteration_count = 0
         while True:
             for batch_x, batch_y in self.__train_data_generator.flow():
@@ -221,8 +221,8 @@ class Yolo:
         return better_than_before
 
     def __save_model(self, iteration_count):
-        # if iteration_count % 1000 == 0:
-        if iteration_count >= 10000 and iteration_count % 5000 == 0:
+        if iteration_count % 1000 == 0:
+        # if iteration_count >= 10000 and iteration_count % 5000 == 0:
             print('\n')
             if self.__map_checkpoint:
                 self.__model.save('model.h5', include_optimizer=False)
