@@ -150,37 +150,6 @@ def __iou(y_true, y_pred):
 
 
 # origin bbox loss
-# def __bbox_loss(y_true, y_pred):
-#     """
-#     Absolute log loss (sqrt(obj(x))) at width and height regression loss
-#     Sqrt was used to weight the width, height loss for small boxes.
-#
-#     To avoid dividing by zero when going through the derivative formula of sqrt,
-#     Adds the eps value to the sqrt parameter.
-#
-#     Derivative of sqrt : 1 / (2 * sqrt(x))
-#     """
-#     obj_true = y_true[:, :, :, 0]
-#     eps = tf.keras.backend.epsilon()
-#
-#     xy_true = tf.sqrt(y_true[:, :, :, 1:3] + eps)
-#     xy_pred = tf.sqrt(y_pred[:, :, :, 1:3] + eps)
-#     xy_loss = __abs_log_loss(xy_true, xy_pred)
-#     xy_loss = tf.reduce_sum(xy_loss, axis=-1) * obj_true
-#     xy_loss = tf.reduce_mean(xy_loss, axis=0)
-#     xy_loss = tf.reduce_sum(xy_loss)
-#
-#     wh_true = tf.sqrt(y_true[:, :, :, 3:5] + eps)
-#     wh_pred = tf.sqrt(y_pred[:, :, :, 3:5] + eps)
-#     wh_loss = __abs_log_loss(wh_true, wh_pred)
-#     wh_loss = tf.reduce_sum(wh_loss, axis=-1) * obj_true
-#     wh_loss = tf.reduce_mean(wh_loss, axis=0)
-#     wh_loss = tf.reduce_sum(wh_loss)
-#     bbox_loss = xy_loss + wh_loss
-#     return bbox_loss * 5.0
-
-
-# iou bbox loss
 def __bbox_loss(y_true, y_pred):
     """
     Absolute log loss (sqrt(obj(x))) at width and height regression loss
@@ -192,20 +161,51 @@ def __bbox_loss(y_true, y_pred):
     Derivative of sqrt : 1 / (2 * sqrt(x))
     """
     obj_true = y_true[:, :, :, 0]
+    eps = tf.keras.backend.epsilon()
 
-    center_true = y_true[:, :, :, 1:3]
-    center_pred = y_pred[:, :, :, 1:3]
-    center_loss = tf.square(center_true - center_pred)
-    center_loss = tf.reduce_sum(center_loss, axis=-1) * obj_true
-    center_loss = tf.reduce_mean(center_loss, axis=0)
-    center_loss = tf.reduce_sum(center_loss)
+    xy_true = y_true[:, :, :, 1:3]
+    xy_pred = y_pred[:, :, :, 1:3]
+    xy_loss = __abs_log_loss(xy_true, xy_pred)
+    xy_loss = tf.reduce_sum(xy_loss, axis=-1) * obj_true
+    xy_loss = tf.reduce_mean(xy_loss, axis=0)
+    xy_loss = tf.reduce_sum(xy_loss)
 
-    iou_loss = obj_true - __iou(y_true, y_pred)
-    iou_loss = tf.reduce_mean(iou_loss, axis=0) * obj_true
-    iou_loss = tf.reduce_sum(iou_loss)
+    wh_true = tf.sqrt(y_true[:, :, :, 3:5] + eps)
+    wh_pred = tf.sqrt(y_pred[:, :, :, 3:5] + eps)
+    wh_loss = __abs_log_loss(wh_true, wh_pred)
+    wh_loss = tf.reduce_sum(wh_loss, axis=-1) * obj_true
+    wh_loss = tf.reduce_mean(wh_loss, axis=0)
+    wh_loss = tf.reduce_sum(wh_loss)
+    bbox_loss = xy_loss + wh_loss
+    return bbox_loss * 5.0
 
-    bbox_loss = center_loss + iou_loss
-    return bbox_loss * 5
+
+# iou bbox loss
+# def __bbox_loss(y_true, y_pred):
+#     """
+#     Absolute log loss (sqrt(obj(x))) at width and height regression loss
+#     Sqrt was used to weight the width, height loss for small boxes.
+#
+#     To avoid dividing by zero when going through the derivative formula of sqrt,
+#     Adds the eps value to the sqrt parameter.
+#
+#     Derivative of sqrt : 1 / (2 * sqrt(x))
+#     """
+#     obj_true = y_true[:, :, :, 0]
+#
+#     center_true = y_true[:, :, :, 1:3]
+#     center_pred = y_pred[:, :, :, 1:3]
+#     center_loss = tf.square(center_true - center_pred)
+#     center_loss = tf.reduce_sum(center_loss, axis=-1) * obj_true
+#     center_loss = tf.reduce_mean(center_loss, axis=0)
+#     center_loss = tf.reduce_sum(center_loss)
+#
+#     iou_loss = obj_true - __iou(y_true, y_pred)
+#     iou_loss = tf.reduce_mean(iou_loss, axis=0) * obj_true
+#     iou_loss = tf.reduce_sum(iou_loss)
+#
+#     bbox_loss = center_loss + iou_loss
+#     return bbox_loss * 5
 
 
 def __classification_loss(y_true, y_pred):

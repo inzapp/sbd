@@ -262,7 +262,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
                 for i in range(self.num_output_layers):
                     y.append(np.zeros((self.output_shapes[i][1], self.output_shapes[i][2], self.output_shapes[i][3]), dtype=np.float32))
 
-                train_type = 'all_layer_cluster'
+                train_type = 'one_layer'
 
                 if train_type == 'all_layer':
                     big_last_boxes = sorted(boxes, key=lambda __x: __x['area'], reverse=False)

@@ -255,8 +255,14 @@ def load_x_label_lines(image_path, color_mode, input_size, input_shape):
     return x, label_lines
 
 
-def calc_mean_average_precision(model, image_paths):
+def calc_mean_average_precision(model, all_image_paths):
     global g_iou_thresholds, g_confidence_threshold
+
+    from random import shuffle
+    shuffle(all_image_paths)
+    image_paths = all_image_paths[:500]
+    # image_paths = all_image_paths
+
     input_shape = model.input_shape[1:]
     input_size = (input_shape[1], input_shape[0])
     color_mode = cv2.IMREAD_GRAYSCALE if input_shape[-1] == 1 else cv2.IMREAD_COLOR

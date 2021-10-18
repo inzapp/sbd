@@ -53,11 +53,13 @@ class Model:
         # return self.__lp_detection_sbd()
         # return self.__person_detail()
         # return self.__200m_big()
+        # return self.__200m_big_csp()
         # return self.__64_64_crop()
+        return self.__64_64_crop_csp()
         # return self.__tiny_yolo_v3_no_upscale()
         # return self.__tiny_yolo_v4_no_upscale()
         # return self.__loon()
-        return self.__loon_csp()
+        # return self.__loon_csp()
 
     def __200m_big(self):
         input_layer = tf.keras.layers.Input(shape=self.__input_shape)
@@ -103,6 +105,50 @@ class Model:
         y3 = self.__detection_layer(x, 'output_3')
         return tf.keras.models.Model(input_layer, [y1, y2, y3])
 
+    def __200m_big_csp(self):
+        input_layer = tf.keras.layers.Input(shape=self.__input_shape)
+        x = self.__conv_block(16, 3, input_layer, bn=True)
+        x = self.__avg_max_pool(x)
+
+        x = self.__drop_filter(x, 0.0625)
+        x = self.__csp_block(32, 3, x, bn=False)
+        x = self.__drop_filter(x, 0.0625)
+        x = self.__csp_block(32, 3, x, bn=False)
+        x = self.__avg_max_pool(x)
+
+        x = self.__drop_filter(x, 0.0625)
+        x = self.__csp_block(64, 3, x, bn=False)
+        x = self.__drop_filter(x, 0.0625)
+        x = self.__csp_block(64, 3, x, bn=False)
+        x = self.__avg_max_pool(x)
+
+        x = self.__drop_filter(x, 0.0625)
+        x = self.__csp_block(128, 3, x, bn=False)
+        x = self.__drop_filter(x, 0.0625)
+        x = self.__csp_block(128, 3, x, bn=False)
+        x = self.__drop_filter(x, 0.0625)
+        x = self.__csp_block(128, 3, x, bn=True)
+        y1 = self.__detection_layer(x, 'output_1')
+        x = self.__avg_max_pool(x)
+
+        x = self.__drop_filter(x, 0.0625)
+        x = self.__csp_block(256, 3, x, bn=False)
+        x = self.__drop_filter(x, 0.0625)
+        x = self.__csp_block(256, 3, x, bn=False)
+        x = self.__drop_filter(x, 0.0625)
+        x = self.__csp_block(256, 3, x, bn=True)
+        y2 = self.__detection_layer(x, 'output_2')
+        x = self.__avg_max_pool(x)
+
+        x = self.__drop_filter(x, 0.0625)
+        x = self.__csp_block(512, 3, x, bn=False)
+        x = self.__drop_filter(x, 0.0625)
+        x = self.__csp_block(512, 3, x, bn=False)
+        x = self.__drop_filter(x, 0.0625)
+        x = self.__csp_block(512, 3, x, bn=True)
+        y3 = self.__detection_layer(x, 'output_3')
+        return tf.keras.models.Model(input_layer, [y1, y2, y3])
+
     def __64_64_crop(self):
         input_layer = tf.keras.layers.Input(shape=self.__input_shape)
         x = self.__conv_block(16, 3, input_layer, bn=True)
@@ -138,6 +184,44 @@ class Model:
         x = self.__conv_block(256, 3, x, bn=False)
         x = self.__drop_filter(x, 0.0625)
         x = self.__conv_block(256, 3, x, bn=True)
+        y3 = self.__detection_layer(x, 'output_3')
+        return tf.keras.models.Model(input_layer, [y1, y2, y3])
+
+    def __64_64_crop_csp(self):
+        input_layer = tf.keras.layers.Input(shape=self.__input_shape)
+        x = self.__conv_block(16, 3, input_layer, bn=True)
+        x = self.__avg_max_pool(x)
+
+        x = self.__drop_filter(x, 0.0625)
+        x = self.__csp_block(32, 3, x, bn=False)
+        x = self.__drop_filter(x, 0.0625)
+        x = self.__csp_block(32, 3, x, bn=False)
+        x = self.__avg_max_pool(x)
+
+        x = self.__drop_filter(x, 0.0625)
+        x = self.__csp_block(64, 3, x, bn=False)
+        x = self.__drop_filter(x, 0.0625)
+        x = self.__csp_block(64, 3, x, bn=False)
+        x = self.__avg_max_pool(x)
+
+        x = self.__drop_filter(x, 0.0625)
+        x = self.__csp_block(128, 3, x, bn=False)
+        x = self.__drop_filter(x, 0.0625)
+        x = self.__csp_block(128, 3, x, bn=True)
+        y1 = self.__detection_layer(x, 'output_1')
+        x = self.__avg_max_pool(x)
+
+        x = self.__drop_filter(x, 0.0625)
+        x = self.__csp_block(256, 3, x, bn=False)
+        x = self.__drop_filter(x, 0.0625)
+        x = self.__csp_block(256, 3, x, bn=True)
+        y2 = self.__detection_layer(x, 'output_2')
+        x = self.__avg_max_pool(x)
+
+        x = self.__drop_filter(x, 0.0625)
+        x = self.__csp_block(256, 3, x, bn=False)
+        x = self.__drop_filter(x, 0.0625)
+        x = self.__csp_block(256, 3, x, bn=True)
         y3 = self.__detection_layer(x, 'output_3')
         return tf.keras.models.Model(input_layer, [y1, y2, y3])
 

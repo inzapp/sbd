@@ -143,10 +143,15 @@ def auto_label(model_path, image_path, origin_classes_txt_path):
 
 
 def main():
-    model_path = r'model_last.h5'
-    origin_classes_txt_path = r'J:\200M_2021_10_ADD\big_yj_1001_04_jjahn_completed_valid_check_ing_lattepyo\yet\classes.txt'
-    img_path = r'J:\200M_2021_10_ADD\big_yj_1001_04_jjahn_completed_valid_check_ing_lattepyo\yet'
-    auto_label(model_path, img_path, origin_classes_txt_path)
+    pass
+    # model_path = r'C:\inz\git\yolo-lab\checkpoints\auto_label_200m\model_400000_iter_mAP_0.2873_f1_0.7198_tp_iou_0.7606.h5'
+    # origin_classes_txt_path = r'J:\200m_sequence\2_1664\0_100\classes.txt'
+    img_path = r'J:\200M_2021_1012_ADD\87_yj1012_5_sbd_ing'
+    # for dir_path in glob(fr'J:\200m_sequence\2_1664\*'):
+    #     if not os.path.isdir(dir_path):
+    #         continue
+    #     img_path = dir_path
+    #     auto_label(model_path, img_path, origin_classes_txt_path)
 
 
 if __name__ == '__main__':
