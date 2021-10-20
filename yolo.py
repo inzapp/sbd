@@ -203,16 +203,11 @@ class Yolo:
         tf.keras.backend.set_value(self.__model.optimizer.lr, lr)
 
     def __update_cosine_lr(self, iteration_count):
-        max_lr = self.__lr * 1.0
-        min_lr = self.__lr * 0.01
         cycle_length = 1000
-
-        # up and down
-        # lr = min_lr + 0.5 * (max_lr - min_lr) * (1.0 + np.cos(((1.0 / (0.5 * cycle_length)) * np.pi * iteration_count) + np.pi))
-
-        # down and down
-        lr = min_lr + 0.5 * (max_lr - min_lr) * (1.0 + np.cos(((1.0 / cycle_length) * np.pi * (iteration_count % cycle_length))))
-        # print(f'\n{lr:.5f}\n')
+        max_lr = self.__lr
+        min_lr = self.__lr * 0.01
+        # lr = min_lr + 0.5 * (max_lr - min_lr) * (1.0 + np.cos(((1.0 / (0.5 * cycle_length)) * np.pi * iteration_count) + np.pi))  # up and down
+        lr = min_lr + 0.5 * (max_lr - min_lr) * (1.0 + np.cos(((1.0 / cycle_length) * np.pi * (iteration_count % cycle_length))))  # down and down
         tf.keras.backend.set_value(self.__model.optimizer.lr, lr)
 
     @staticmethod
