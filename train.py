@@ -89,15 +89,15 @@ if __name__ == '__main__':
         # input_shape=(128, 512, 3),
 
         # pretrained_model_path=r'C:\inz\git\yolo-lab\checkpoints\crop_64_64\model_465000_iter_mAP_0.9574_f1_0.9586_tp_iou_0.7621.h5',
-        # train_image_path=r'C:\inz\train_data\crop_copy_for_sbd\train',
-        # validation_image_path=r'C:\inz\train_data\crop_copy_for_sbd\validation',
-        # class_names_file_path=r'C:\inz\train_data\crop_copy_for_sbd\train\classes.txt',
-        # input_shape=(64, 64, 1),
-
-        train_image_path=r'list/crop_with_unknown_class/train.txt',
-        validation_image_path=r'list/crop_with_unknown_class/validation.txt',
-        class_names_file_path=r'T:/200m_big_small_detection/train_data/crop/classes.txt',
+        train_image_path=r'C:\inz\train_data\crop_copy_for_sbd\train',
+        validation_image_path=r'C:\inz\train_data\crop_copy_for_sbd\validation',
+        class_names_file_path=r'C:\inz\train_data\crop_copy_for_sbd\train\classes.txt',
         input_shape=(64, 64, 1),
+
+        # train_image_path=r'list/crop_with_unknown_class/train.txt',
+        # validation_image_path=r'list/crop_with_unknown_class/validation.txt',
+        # class_names_file_path=r'T:/200m_big_small_detection/train_data/crop/classes.txt',
+        # input_shape=(64, 64, 1),
 
         # pretrained_model_path=r'model_last.h5',
         # train_image_path=r'T:\200m_big_small_detection\train_data\under_big\big_yj\train',
