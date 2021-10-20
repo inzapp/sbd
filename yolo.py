@@ -67,6 +67,8 @@ class Yolo:
         self.__curriculum_iterations = curriculum_iterations
         self.__mixed_float16_training = mixed_float16_training
         self.__live_view_previous_time = time()
+        self.__cycle_step = 0
+        self.__cycle_length = 2500
         self.max_map, self.max_f1, self.max_map_iou_hm, self.max_f1_iou_hm = 0.0, 0.0, 0.0, 0.0
 
         if class_names_file_path == '':
@@ -183,7 +185,7 @@ class Yolo:
         iteration_count = 0
         while True:
             for batch_x, batch_y in self.__train_data_generator.flow():
-                self.__update_cosine_lr(iteration_count)
+                self.__update_cosine_lr()
                 logs = self.__model.train_on_batch(batch_x, batch_y, return_dict=True)
                 iteration_count += 1
                 print(f'\r[iteration count : {iteration_count:6d}] loss => {logs["loss"]:.4f}', end='')
@@ -202,13 +204,17 @@ class Yolo:
         lr = self.__lr * pow(float(iteration_count) / self.__burn_in, 4)
         tf.keras.backend.set_value(self.__model.optimizer.lr, lr)
 
-    def __update_cosine_lr(self, iteration_count):
-        cycle_length = 1000
+    def __update_cosine_lr(self):
+        if self.__cycle_step % self.__cycle_length == 0 and self.__cycle_step != 0:
+            self.__cycle_step = 0
+            self.__cycle_length *= 2
         max_lr = self.__lr
-        min_lr = self.__lr * 0.01
-        # lr = min_lr + 0.5 * (max_lr - min_lr) * (1.0 + np.cos(((1.0 / (0.5 * cycle_length)) * np.pi * iteration_count) + np.pi))  # up and down
-        lr = min_lr + 0.5 * (max_lr - min_lr) * (1.0 + np.cos(((1.0 / cycle_length) * np.pi * (iteration_count % cycle_length))))  # down and down
+        min_lr = 1e-9
+        # min_lr = self.__lr * 0.01
+        # lr = min_lr + 0.5 * (max_lr - min_lr) * (1.0 + np.cos(((1.0 / (0.5 * self.__cycle_length)) * np.pi * self.__cycle_step) + np.pi))  # up and down
+        lr = min_lr + 0.5 * (max_lr - min_lr) * (1.0 + np.cos(((1.0 / self.__cycle_length) * np.pi * (self.__cycle_step % self.__cycle_length))))  # down and down
         tf.keras.backend.set_value(self.__model.optimizer.lr, lr)
+        self.__cycle_step += 1
 
     @staticmethod
     def __harmonic_mean(a, b):
