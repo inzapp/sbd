@@ -183,8 +183,9 @@ class Yolo:
         iteration_count = 0
         while True:
             for batch_x, batch_y in self.__train_data_generator.flow():
-                iteration_count += 1
+                self.__update_cosine_lr(iteration_count)
                 logs = self.__model.train_on_batch(batch_x, batch_y, return_dict=True)
+                iteration_count += 1
                 print(f'\r[iteration count : {iteration_count:6d}] loss => {logs["loss"]:.4f}', end='')
                 self.__save_model(iteration_count=iteration_count)
                 if self.__training_view:
@@ -199,6 +200,19 @@ class Yolo:
 
     def __update_burn_in_lr(self, iteration_count):
         lr = self.__lr * pow(float(iteration_count) / self.__burn_in, 4)
+        tf.keras.backend.set_value(self.__model.optimizer.lr, lr)
+
+    def __update_cosine_lr(self, iteration_count):
+        max_lr = self.__lr * 1.0
+        min_lr = self.__lr * 0.01
+        cycle_length = 1000
+
+        # up and down
+        # lr = min_lr + 0.5 * (max_lr - min_lr) * (1.0 + np.cos(((1.0 / (0.5 * cycle_length)) * np.pi * iteration_count) + np.pi))
+
+        # down and down
+        lr = min_lr + 0.5 * (max_lr - min_lr) * (1.0 + np.cos(((1.0 / cycle_length) * np.pi * (iteration_count % cycle_length))))
+        # print(f'\n{lr:.5f}\n')
         tf.keras.backend.set_value(self.__model.optimizer.lr, lr)
 
     @staticmethod
@@ -227,8 +241,8 @@ class Yolo:
         return better_than_before
 
     def __save_model(self, iteration_count):
-        # if iteration_count % 1000 == 0:
-        if iteration_count >= 10000 and iteration_count % 5000 == 0:
+        if iteration_count % 1000 == 0:
+        # if iteration_count >= 10000 and iteration_count % 5000 == 0:
             print('\n')
             if self.__map_checkpoint:
                 self.__model.save('model.h5', include_optimizer=False)
