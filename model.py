@@ -201,21 +201,21 @@ class Model:
         x = self.__drop_filter(x, 0.0625)
         x = self.__csp_block(128, 3, x, bn=False)
         x = self.__drop_filter(x, 0.0625)
-        x = self.__csp_block(128, 3, x, bn=True)
+        x = self.__conv_block(128, 3, x, bn=True)
         y1 = self.__detection_layer(x, 'output_1')
         x = self.__avg_max_pool(x)
 
         x = self.__drop_filter(x, 0.0625)
         x = self.__csp_block(256, 3, x, bn=False)
         x = self.__drop_filter(x, 0.0625)
-        x = self.__csp_block(256, 3, x, bn=True)
+        x = self.__conv_block(256, 3, x, bn=True)
         y2 = self.__detection_layer(x, 'output_2')
         x = self.__avg_max_pool(x)
 
         x = self.__drop_filter(x, 0.0625)
         x = self.__csp_block(256, 3, x, bn=False)
         x = self.__drop_filter(x, 0.0625)
-        x = self.__csp_block(256, 3, x, bn=True)
+        x = self.__conv_block(256, 3, x, bn=True)
         y3 = self.__detection_layer(x, 'output_3')
         return tf.keras.models.Model(input_layer, [y1, y2, y3])
 
@@ -315,7 +315,7 @@ class Model:
         x = self.__avg_max_pool(x)
 
         x = self.__drop_filter(x, 0.0625)
-        x = self.__csp_block(16, 3, x, bn=True)
+        x = self.__conv_block(16, 3, x, bn=True)
         x = self.__avg_max_pool(x)
 
         x = self.__drop_filter(x, 0.0625)
