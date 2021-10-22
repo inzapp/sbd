@@ -99,10 +99,21 @@ if __name__ == '__main__':
         # class_names_file_path=r'T:/200m_big_small_detection/train_data/crop/classes.txt',
         # input_shape=(64, 64, 1),
 
-        train_image_path=r'C:\inz\train_data\lp_detection\train',
-        validation_image_path=r'C:\inz\train_data\lp_detection\validation',
-        class_names_file_path=r'C:\inz\train_data\lp_detection\train\classes.txt',
-        input_shape=(384, 640, 1),
+        # train_image_path=r'C:\inz\train_data\lp_detection\train',
+        # validation_image_path=r'C:\inz\train_data\lp_detection\validation',
+        # class_names_file_path=r'C:\inz\train_data\lp_detection\train\classes.txt',
+        # input_shape=(384, 640, 1),
+
+        # train_image_path=r'C:\inz\train_data\auto_label_best_shot_13_floor\train',
+        # validation_image_path=r'C:\inz\train_data\auto_label_best_shot_13_floor\validation',
+        # class_names_file_path=r'C:\inz\train_data\auto_label_best_shot_13_floor\train\classes.txt',
+        # input_shape=(192, 96, 1),
+
+        # pretrained_model_path=r'model_last.h5',
+        train_image_path=r'C:\inz\train_data\lcd_white\train',
+        validation_image_path=r'C:\inz\train_data\lcd_white\validation',
+        class_names_file_path=r'C:\inz\train_data\lcd_white\train\classes.txt',
+        input_shape=(96, 192, 1),
 
         lr=0.001,
         decay=0.0005,
