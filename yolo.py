@@ -192,11 +192,11 @@ class Yolo:
                 self.__save_model(iteration_count=iteration_count)
                 if self.__training_view:
                     self.__training_view_function()
-                if iteration_count == int(self.__iterations * 0.8):
-                    tf.keras.backend.set_value(self.__model.optimizer.lr, self.__model.optimizer.lr * 0.1)
-                elif iteration_count == int(self.__iterations * 0.9):
-                    tf.keras.backend.set_value(self.__model.optimizer.lr, self.__model.optimizer.lr * 0.1)
-                elif iteration_count == self.__iterations:
+                # if iteration_count == int(self.__iterations * 0.8):
+                #     tf.keras.backend.set_value(self.__model.optimizer.lr, self.__model.optimizer.lr * 0.1)
+                # elif iteration_count == int(self.__iterations * 0.9):
+                #     tf.keras.backend.set_value(self.__model.optimizer.lr, self.__model.optimizer.lr * 0.1)
+                if iteration_count == self.__iterations:
                     print('\n\ntrain end successfully')
                     return
 
@@ -209,7 +209,7 @@ class Yolo:
             self.__cycle_step = 0
             self.__cycle_length *= 2
         max_lr = self.__lr
-        min_lr = 1e-9
+        min_lr = 0.0
         # min_lr = self.__lr * 0.01
         # lr = min_lr + 0.5 * (max_lr - min_lr) * (1.0 + np.cos(((1.0 / (0.5 * self.__cycle_length)) * np.pi * self.__cycle_step) + np.pi))  # up and down
         lr = min_lr + 0.5 * (max_lr - min_lr) * (1.0 + np.cos(((1.0 / self.__cycle_length) * np.pi * (self.__cycle_step % self.__cycle_length))))  # down and down
