@@ -49,6 +49,7 @@ class Yolo:
                  validation_split=0.2,
                  validation_image_path='',
                  optimizer='sgd',
+                 lr_policy='step',
                  test_only=False,
                  training_view=False,
                  map_checkpoint=False,
@@ -62,6 +63,7 @@ class Yolo:
         self.__batch_size = batch_size
         self.__iterations = iterations
         self.__optimizer = optimizer
+        self.__lr_policy = lr_policy
         self.__training_view = training_view
         self.__map_checkpoint = map_checkpoint
         self.__curriculum_iterations = curriculum_iterations
@@ -185,17 +187,20 @@ class Yolo:
         iteration_count = 0
         while True:
             for batch_x, batch_y in self.__train_data_generator.flow():
-                self.__update_cosine_lr()
+                if self.__lr_policy == 'cosine':
+                    self.__update_cosine_lr()
                 logs = self.__model.train_on_batch(batch_x, batch_y, return_dict=True)
                 iteration_count += 1
                 print(f'\r[iteration count : {iteration_count:6d}] loss => {logs["loss"]:.4f}', end='')
-                self.__save_model(iteration_count=iteration_count)
                 if self.__training_view:
                     self.__training_view_function()
-                # if iteration_count == int(self.__iterations * 0.8):
-                #     tf.keras.backend.set_value(self.__model.optimizer.lr, self.__model.optimizer.lr * 0.1)
-                # elif iteration_count == int(self.__iterations * 0.9):
-                #     tf.keras.backend.set_value(self.__model.optimizer.lr, self.__model.optimizer.lr * 0.1)
+                if iteration_count % 1000 == 0:
+                    self.__save_model(iteration_count=iteration_count)
+                if self.__lr_policy == 'step':
+                    if iteration_count == int(self.__iterations * 0.5):
+                        tf.keras.backend.set_value(self.__model.optimizer.lr, self.__model.optimizer.lr * 0.1)
+                    elif iteration_count == int(self.__iterations * 0.8):
+                        tf.keras.backend.set_value(self.__model.optimizer.lr, self.__model.optimizer.lr * 0.1)
                 if iteration_count == self.__iterations:
                     print('\n\ntrain end successfully')
                     return
@@ -242,17 +247,15 @@ class Yolo:
         return better_than_before
 
     def __save_model(self, iteration_count):
-        if iteration_count % 1000 == 0:
-        # if iteration_count >= 10000 and iteration_count % 5000 == 0:
-            print('\n')
-            if self.__map_checkpoint:
-                self.__model.save('model.h5', include_optimizer=False)
-                mean_ap, f1_score, tp_iou = calc_mean_average_precision(self.__model, self.__validation_image_paths)
-                if self.__is_better_than_before(mean_ap, f1_score, tp_iou):
-                    self.__model.save(f'checkpoints/model_{iteration_count}_iter_mAP_{mean_ap:.4f}_f1_{f1_score:.4f}_tp_iou_{tp_iou:.4f}.h5', include_optimizer=False)
-                    self.__model.save('model_last.h5', include_optimizer=False)
-            else:
-                self.__model.save(f'checkpoints/model_{iteration_count}_iter.h5')
+        print('\n')
+        if self.__map_checkpoint:
+            self.__model.save('model.h5', include_optimizer=False)
+            mean_ap, f1_score, tp_iou = calc_mean_average_precision(self.__model, self.__validation_image_paths)
+            if self.__is_better_than_before(mean_ap, f1_score, tp_iou):
+                self.__model.save(f'checkpoints/model_{iteration_count}_iter_mAP_{mean_ap:.4f}_f1_{f1_score:.4f}_tp_iou_{tp_iou:.4f}.h5', include_optimizer=False)
+                self.__model.save('model_last.h5', include_optimizer=False)
+        else:
+            self.__model.save(f'checkpoints/model_{iteration_count}_iter.h5')
 
     @staticmethod
     def __init_image_paths(image_path, validation_split=0.0):
