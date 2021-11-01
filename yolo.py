@@ -407,13 +407,13 @@ class Yolo:
             cap.release()
             cv2.destroyAllWindows()
 
-    @staticmethod
-    def __concat(img_0, img_1, img_2):
-        img_0 = np.asarray(img_0).reshape(img_0.shape + (1,))
-        img_1 = np.asarray(img_1).reshape(img_1.shape + (1,))
-        img_2 = np.asarray(img_2).reshape(img_2.shape + (1,))
-        img = np.concatenate((img_0, img_1, img_2), axis=-1)
-        return img
+    # @staticmethod
+    # def __concat(img_0, img_1, img_2):
+    #     img_0 = np.asarray(img_0).reshape(img_0.shape + (1,))
+    #     img_1 = np.asarray(img_1).reshape(img_1.shape + (1,))
+    #     img_2 = np.asarray(img_2).reshape(img_2.shape + (1,))
+    #     img = np.concatenate((img_0, img_1, img_2), axis=-1)
+    #     return img
 
     # def predict_video_3ch_sequence(self, video_path):
     #     """
