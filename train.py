@@ -105,12 +105,11 @@ if __name__ == '__main__':
         # class_names_file_path=r'C:\inz\train_data\lp_detection\train\classes.txt',
         # input_shape=(384, 640, 1),
 
-        # pretrained_model_path=r'C:\inz\git\yolo-lab\checkpoints\auto_person_detail\model_1452000_iter_mAP_0.4807_f1_0.7225_tp_iou_0.7357.h5',
-        optimizer='adam',
-        lr_policy='step',
-        train_image_path=r'C:\inz\train_data\auto_label_person_detail_3_class\train',
-        validation_image_path=r'C:\inz\train_data\auto_label_person_detail_3_class\validation',
-        class_names_file_path=r'C:\inz\train_data\auto_label_person_detail_3_class\train\classes.txt',
+        optimizer='sgd',
+        lr_policy='cosine',
+        train_image_path=r'list\person_3_class_with_crawling\train.txt',
+        validation_image_path=r'list\person_3_class_with_crawling\validation.txt',
+        class_names_file_path=r'C:\inz\train_data\person_3_class\train\classes.txt',
         input_shape=(192, 96, 1),
 
         # pretrained_model_path=r'model_last.h5',
@@ -124,7 +123,7 @@ if __name__ == '__main__':
         momentum=0.9,
         burn_in=1000,
         batch_size=4,
-        iterations=2558000,
+        iterations=1280000,
         curriculum_iterations=0,
         training_view=False,
         map_checkpoint=True).fit()
