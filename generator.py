@@ -257,6 +257,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
                     label_lines = file.readlines()
 
                 boxes = self.__convert_to_boxes(label_lines)
+                np.random.shuffle(boxes)
 
                 y = []
                 for i in range(self.num_output_layers):
