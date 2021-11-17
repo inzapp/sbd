@@ -250,9 +250,9 @@ class Yolo:
         print('\n')
         if self.__map_checkpoint:
             self.__model.save('model.h5', include_optimizer=False)
-            mean_ap, f1_score, tp_iou = calc_mean_average_precision(self.__model, self.__validation_image_paths)
+            mean_ap, f1_score, tp_iou, fp_sum = calc_mean_average_precision(self.__model, self.__validation_image_paths)
             if self.__is_better_than_before(mean_ap, f1_score, tp_iou):
-                self.__model.save(f'checkpoints/model_{iteration_count}_iter_mAP_{mean_ap:.4f}_f1_{f1_score:.4f}_tp_iou_{tp_iou:.4f}.h5', include_optimizer=False)
+                self.__model.save(f'checkpoints/model_{iteration_count}_iter_mAP_{mean_ap:.4f}_f1_{f1_score:.4f}_tp_iou_{tp_iou:.4f}_fp_sum_{fp_sum}.h5', include_optimizer=False)
                 self.__model.save('model_last.h5', include_optimizer=False)
         else:
             self.__model.save(f'checkpoints/model_{iteration_count}_iter.h5')
