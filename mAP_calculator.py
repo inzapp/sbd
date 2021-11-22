@@ -309,7 +309,9 @@ def calc_mean_average_precision(model, all_image_paths):
     mean_ap_sum = 0.0
     f1_sum = 0.0
     tp_iou_sum = 0.0
+    total_tp_sum = 0
     total_fp_sum = 0
+    total_fn_sum = 0
     print(f'confidence threshold for tp, fp, fn calculate : {g_confidence_threshold:.2f}')
     for iou_index, iou_threshold in enumerate(g_iou_thresholds):
         class_ap_sum = 0.0
@@ -351,12 +353,14 @@ def calc_mean_average_precision(model, all_image_paths):
         total_tp_iou = np.sum(tp_ious[iou_index]) / (float(tp_sum) + 1e-5)
         tp_iou_sum += total_tp_iou
 
+        total_tp_sum += tp_sum
         total_fp_sum += fp_sum
+        total_fn_sum += fn_sum
 
         print(f'mAP@{int(iou_threshold * 100)} : {mean_ap:.4f}')
         print(f'TP_IOU@{int(iou_threshold * 100)} : {total_tp_iou:.4f}')
         print(f'F1 score@{int(iou_threshold * 100)} : {total_f1:.4f}\n')
-    return mean_ap_sum / len(g_iou_thresholds), f1_sum / len(g_iou_thresholds), tp_iou_sum / len(g_iou_thresholds), total_fp_sum
+    return mean_ap_sum / len(g_iou_thresholds), f1_sum / len(g_iou_thresholds), tp_iou_sum / len(g_iou_thresholds), total_tp_sum, total_fp_sum, total_fn_sum
 
 
 def all_check():
