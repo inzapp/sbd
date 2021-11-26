@@ -247,6 +247,8 @@ def load_x_label_lines(image_path, color_mode, input_size, input_shape):
     if len(label_lines) == 0:
         return None, None
     x = cv2.imread(image_path, color_mode)
+    if color_mode == cv2.IMREAD_COLOR:
+        x = cv2.cvtColor(x, cv2.COLOR_BGR2RGB)  # rb swap
     if x is None:
         print(f'img is None : {image_path}')
         return None, None
