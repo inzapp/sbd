@@ -112,6 +112,8 @@ class Yolo:
         if self.__mixed_float16_training:
             mixed_precision.set_policy(mixed_precision.Policy('mixed_float16'))
 
+        os.makedirs('checkpoints', exist_ok=True)
+
     def __get_optimizer(self, optimizer_str):
         if optimizer_str == 'sgd':
             optimizer = tf.keras.optimizers.SGD(lr=self.__lr, momentum=self.__momentum, nesterov=True)
