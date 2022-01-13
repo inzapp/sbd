@@ -199,9 +199,9 @@ class Yolo:
                 if iteration_count % 1000 == 0:
                     self.__save_model(iteration_count=iteration_count)
                 if self.__lr_policy == 'step':
-                    if iteration_count == int(self.__iterations * 0.5):
+                    if iteration_count == int(self.__iterations * 0.8):
                         tf.keras.backend.set_value(self.__model.optimizer.lr, self.__model.optimizer.lr * 0.1)
-                    elif iteration_count == int(self.__iterations * 0.8):
+                    elif iteration_count == int(self.__iterations * 0.9):
                         tf.keras.backend.set_value(self.__model.optimizer.lr, self.__model.optimizer.lr * 0.1)
                 if iteration_count == self.__iterations:
                     print('\n\ntrain end successfully')
