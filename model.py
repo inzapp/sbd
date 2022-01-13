@@ -53,7 +53,7 @@ class Model:
         # return self.__lp_detection_sbd()
         # return self.__lp_detection_sbd_csp()
         # return self.__person_detail()
-        return self.__person_detail_new()
+        # return self.__person_detail_new()
         # return self.__lcd_csp()
         # return self.__200m_big()
         # return self.__200m_big_csp()
@@ -61,7 +61,7 @@ class Model:
         # return self.__64_64_crop_csp()
         # return self.__tiny_yolo_v3_no_upscale()
         # return self.__tiny_yolo_v4_no_upscale()
-        # return self.__loon()
+        return self.__loon()
         # return self.__loon_csp()
 
     def __200m_big(self):
@@ -288,25 +288,25 @@ class Model:
 
     def __loon(self):
         input_layer = tf.keras.layers.Input(shape=self.__input_shape)
-        x = self.__conv_block(8, 3, input_layer, bn=True)
+        x = self.__conv_block(8, 3, input_layer, activation='swish', bn=True)
         x = self.__avg_max_pool(x)
 
         x = self.__drop_filter(x, 0.0625)
-        x = self.__conv_block(16, 3, x, bn=True)
+        x = self.__conv_block(16, 3, x, activation='swish', bn=True)
         x = self.__avg_max_pool(x)
 
         x = self.__drop_filter(x, 0.0625)
-        x = self.__conv_block(32, 3, x, bn=True)
+        x = self.__conv_block(32, 3, x, activation='swish', bn=True)
         x = self.__avg_max_pool(x)
         y1 = self.__detection_layer(x, 'output_1')
 
         x = self.__drop_filter(x, 0.0625)
-        x = self.__conv_block(64, 3, x, bn=True)
+        x = self.__conv_block(64, 3, x, activation='swish', bn=True)
         x = self.__avg_max_pool(x)
 
         x = self.__drop_filter(x, 0.0625)
         y2 = self.__detection_layer(x, 'output_2')
-        x = self.__conv_block(128, 3, x, bn=True)
+        x = self.__conv_block(128, 3, x, activation='swish', bn=True)
         x = self.__avg_max_pool(x)
 
         y3 = self.__detection_layer(x, 'output_3')
@@ -636,17 +636,27 @@ class Model:
         x = tf.keras.layers.Concatenate()([x_0, x_1])
         return x
 
-    def __conv_block(self, filters, kernel_size, x, activation_first=False, bn=True):
+    def __conv_block(self, filters, kernel_size, x, activation='relu', activation_first=False, bn=True):
         x = self.__conv(x, filters, kernel_size, use_bias=False if bn else True)
         if activation_first:
-            x = self.__relu(x)
+            if activation == 'relu':
+                x = self.__relu(x)
+            elif activation == 'swish':
+                x = self.__swish(x)
             if bn:
                 x = self.__bn(x)
         else:
             if bn:
                 x = self.__bn(x)
-            x = self.__relu(x)
+            if activation == 'relu':
+                x = self.__relu(x)
+            elif activation == 'swish':
+                x = self.__swish(x)
         return x
+
+    def __swish(self, x):
+        x_sigmoid = tf.keras.layers.Activation('sigmoid')(x)
+        return tf.keras.layers.Multiply()([x, x_sigmoid])
 
     def __conv(self, x, filters, kernel_size, use_bias=True):
         return tf.keras.layers.Conv2D(
