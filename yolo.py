@@ -196,7 +196,7 @@ class Yolo:
                 print(f'\r[iteration count : {iteration_count:6d}] loss => {logs["loss"]:.4f}', end='')
                 if self.__training_view:
                     self.__training_view_function()
-                if iteration_count % 1000 == 0:
+                if iteration_count > int(self.__iterations * 0.8) and iteration_count % 1000 == 0:
                     self.__save_model(iteration_count=iteration_count)
                 if self.__lr_policy == 'step':
                     if iteration_count == int(self.__iterations * 0.8):
@@ -267,9 +267,7 @@ class Yolo:
             for i in range(len(all_image_paths)):
                 all_image_paths[i] = all_image_paths[i].replace('\n', '')
         else:
-            all_image_paths = glob(f'{image_path}/*.jpg')
-            all_image_paths += glob(f'{image_path}/*/*.jpg')
-            all_image_paths += glob(f'{image_path}/*/*/*.jpg')
+            all_image_paths = glob(f'{image_path}/**/*.jpg', recursive=True)
         random.shuffle(all_image_paths)
         num_train_images = int(len(all_image_paths) * (1.0 - validation_split))
         image_paths = all_image_paths[:num_train_images]
