@@ -20,7 +20,7 @@ limitations under the License.
 import os
 import random
 from glob import glob
-from time import time, sleep
+from time import time, sleep, perf_counter
 
 import natsort
 import numpy as np
@@ -138,11 +138,31 @@ class Yolo:
         self.__train_data_generator.flow().print_not_trained_box_count()
         optimizer = self.__get_optimizer(self.__optimizer)
         self.__model.compile(optimizer=optimizer, loss=yolo_loss)
+        self.__check_forwarding_time()
         if self.__burn_in > 0:
             self.__burn_in_train()
         if self.__curriculum_iterations > 0:
             self.__curriculum_train()
         self.__train()
+
+    def __check_forwarding_time(self):
+        input_shape = self.__model.input_shape[1:]
+        mul = 1
+        for val in input_shape:
+            mul *= val
+
+        forward_count = 32
+        noise = np.random.uniform(0.0, 1.0, mul * forward_count)
+        noise = np.asarray(noise).reshape((forward_count, 1) + input_shape).astype('float32')
+        self.__model.predict_on_batch(x=noise[0])  # only first forward is slow, skip first forward in check forwarding time
+
+        print('\nstart test forward for check forwarding time.')
+        st = perf_counter()
+        for i in range(forward_count):
+            self.__model.predict_on_batch(x=noise[i])
+        et = perf_counter()
+        forwarding_time = ((et - st) / forward_count) * 1000.0
+        print(f'model forwarding time : {forwarding_time:.2f} ms')
 
     def __burn_in_train(self):
         optimizer = self.__get_optimizer('sgd')
