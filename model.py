@@ -456,7 +456,7 @@ class Model:
         y3 = self.__detection_layer(x, 'output_3')
         return tf.keras.models.Model(input_layer, [y1, y2, y3])
 
-    def __csp_block(self, x, filters, kernel_size, first_depth_n_convs=3, second_depth_n_convs=5, bn=False, activation='none', inner_activation='none'):
+    def __csp_block(self, x, filters, kernel_size, first_depth_n_convs=1, second_depth_n_convs=2, bn=False, activation='none', inner_activation='none'):
         x_0 = self.__conv_block(x, filters / 2, 1, bn=False, activation='none')
         for i in range(first_depth_n_convs):
             if i == 0:
