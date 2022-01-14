@@ -139,6 +139,7 @@ class Yolo:
         optimizer = self.__get_optimizer(self.__optimizer)
         self.__model.compile(optimizer=optimizer, loss=yolo_loss)
         self.__check_forwarding_time()
+
         if self.__burn_in > 0:
             self.__burn_in_train()
         if self.__curriculum_iterations > 0:
@@ -154,13 +155,15 @@ class Yolo:
         forward_count = 32
         noise = np.random.uniform(0.0, 1.0, mul * forward_count)
         noise = np.asarray(noise).reshape((forward_count, 1) + input_shape).astype('float32')
-        self.__model.predict_on_batch(x=noise[0])  # only first forward is slow, skip first forward in check forwarding time
+        with tf.device('/cpu:0'):
+            self.__model.predict_on_batch(x=noise[0])  # only first forward is slow, skip first forward in check forwarding time
 
         print('\nstart test forward for check forwarding time.')
-        st = perf_counter()
-        for i in range(forward_count):
-            self.__model.predict_on_batch(x=noise[i])
-        et = perf_counter()
+        with tf.device('/cpu:0'):
+            st = perf_counter()
+            for i in range(forward_count):
+                self.__model.predict_on_batch(x=noise[i])
+            et = perf_counter()
         forwarding_time = ((et - st) / forward_count) * 1000.0
         print(f'model forwarding time : {forwarding_time:.2f} ms')
 
