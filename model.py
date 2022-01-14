@@ -58,8 +58,8 @@ class Model:
         # return self.__200m_big()
         # return self.__64_64_crop()
         # return self.__tiny_yolo_v3_no_upscale()
-        return self.__loon()
-        # return self.__loon_csp()
+        # return self.__loon()
+        return self.__loon_csp()
 
     def __200m_big(self):
         input_layer = tf.keras.layers.Input(shape=self.__input_shape)
@@ -201,25 +201,25 @@ class Model:
 
     def __loon_csp(self):
         input_layer = tf.keras.layers.Input(shape=self.__input_shape)
-        x = self.__conv_block(input_layer, 8, 3, bn=True, activation='relu')
+        x = self.__conv_block(input_layer, 8, 3, bn=True, activation='swish')
         x = self.__avg_max_pool(x)
 
         x = self.__drop_filter(x, 0.0625)
-        x = self.__conv_block(x, 16, 3, bn=True, activation='relu')
+        x = self.__conv_block(x, 16, 3, bn=True, activation='swish')
         x = self.__avg_max_pool(x)
 
         x = self.__drop_filter(x, 0.0625)
-        x = self.__csp_block(x, 32, 3, bn=True, activation='relu')
+        x = self.__csp_block(x, 32, 3, first_depth_n_convs=1, second_depth_n_convs=2, bn=True, activation='swish', inner_activation='relu')
         x = self.__avg_max_pool(x)
         y1 = self.__detection_layer(x, 'output_1')
 
         x = self.__drop_filter(x, 0.0625)
-        x = self.__csp_block(x, 64, 3, bn=True, activation='relu')
+        x = self.__csp_block(x, 64, 3, first_depth_n_convs=1, second_depth_n_convs=2, bn=True, activation='swish', inner_activation='relu')
         x = self.__avg_max_pool(x)
 
         x = self.__drop_filter(x, 0.0625)
         y2 = self.__detection_layer(x, 'output_2')
-        x = self.__csp_block(x, 128, 3, bn=True, activation='relu')
+        x = self.__csp_block(x, 128, 3, first_depth_n_convs=1, second_depth_n_convs=2, bn=True, activation='swish', inner_activation='relu')
         x = self.__avg_max_pool(x)
 
         y3 = self.__detection_layer(x, 'output_3')
@@ -319,17 +319,17 @@ class Model:
         x = self.__conv_block(x, 64, 3, bn=False, activation='relu')
         x = self.__avg_max_pool(x)
 
-        x = self.__csp_block(x, 128, 3, bn=False, activation='relu')
+        x = self.__csp_block(x, 128, 3, first_depth_n_convs=1, second_depth_n_convs=2, bn=False, activation='relu', inner_activation='relu')
         x = self.__conv_block(x, 128, 3, bn=True, activation='relu')
         y1 = self.__detection_layer(x, 'output_1')
         x = self.__avg_max_pool(x)
 
-        x = self.__csp_block(x, 128, 3, bn=False, activation='relu')
+        x = self.__csp_block(x, 128, 3, first_depth_n_convs=1, second_depth_n_convs=2, bn=False, activation='relu', inner_activation='relu')
         x = self.__conv_block(x, 128, 3, bn=True, activation='relu')
         y2 = self.__detection_layer(x, 'output_2')
         x = self.__avg_max_pool(x)
 
-        x = self.__csp_block(x, 256, 3, bn=False, activation='relu')
+        x = self.__csp_block(x, 256, 3, first_depth_n_convs=1, second_depth_n_convs=2, bn=False, activation='relu', inner_activation='relu')
         x = self.__conv_block(x, 256, 3, bn=True, activation='relu')
         y3 = self.__detection_layer(x, 'output_3')
         return tf.keras.models.Model(input_layer, [y1, y2, y3])
@@ -374,17 +374,17 @@ class Model:
         x = self.__avg_max_pool(x)
 
         x = self.__drop_filter(x, 0.0625)
-        x = self.__csp_block(64, 3, bn=True, activation='relu')
+        x = self.__csp_block(64, 3, first_depth_n_convs=1, second_depth_n_convs=2, bn=True, activation='relu', inner_activation='relu')
         y1 = self.__detection_layer(x, 'output_1')
         x = self.__avg_max_pool(x)
 
         x = self.__drop_filter(x, 0.0625)
-        x = self.__csp_block(128, 3, bn=True, activation='relu')
+        x = self.__csp_block(128, 3, first_depth_n_convs=1, second_depth_n_convs=2, bn=True, activation='relu', inner_activation='relu')
         y2 = self.__detection_layer(x, 'output_2')
         x = self.__avg_max_pool(x)
 
         x = self.__drop_filter(x, 0.0625)
-        x = self.__csp_block(128, 3, bn=True, activation='relu')
+        x = self.__csp_block(128, 3, first_depth_n_convs=1, second_depth_n_convs=2, bn=True, activation='relu', inner_activation='relu')
         y3 = self.__detection_layer(x, 'output_3')
         return tf.keras.models.Model(input_layer, [y1, y2, y3])
 
@@ -456,13 +456,19 @@ class Model:
         y3 = self.__detection_layer(x, 'output_3')
         return tf.keras.models.Model(input_layer, [y1, y2, y3])
 
-    def __csp_block(self, x, filters, kernel_size, bn=False, activation='none'):
+    def __csp_block(self, x, filters, kernel_size, first_depth_n_convs=3, second_depth_n_convs=5, bn=False, activation='none', inner_activation='none'):
         x_0 = self.__conv_block(x, filters / 2, 1, bn=False, activation='none')
-        x_1 = self.__conv_block(x, filters / 2, 1, bn=False, activation='relu')
-        x_1 = self.__conv_block(x_1, filters / 2, kernel_size, bn=False, activation='relu')
-        x_1_0 = self.__conv_block(x_1, filters / 4, 1, bn=False, activation='relu')
-        x_1_1 = self.__conv_block(x_1, filters / 4, 1, bn=False, activation='relu')
-        x_1_1 = self.__conv_block(x_1_1, filters / 4, kernel_size, bn=False, activation='none')
+        for i in range(first_depth_n_convs):
+            if i == 0:
+                x_1 = self.__conv_block(x, filters / 2, 1, bn=False, activation=inner_activation)
+            else:
+                x_1 = self.__conv_block(x_1, filters / 2, kernel_size, bn=False, activation=inner_activation)
+        x_1_0 = self.__conv_block(x_1, filters / 4, 1, bn=False, activation='none')
+        for i in range(second_depth_n_convs):
+            if i == 0:
+                x_1_1 = self.__conv_block(x_1, filters / 4, 1, bn=False, activation=inner_activation)
+            else:
+                x_1_1 = self.__conv_block(x_1_1, filters / 4, kernel_size, bn=False, activation='none' if i == second_depth_n_convs - 1 else inner_activation)
         x_1 = tf.keras.layers.Concatenate()([x_1_0, x_1_1])
         x = tf.keras.layers.Concatenate()([x_0, x_1])
         if bn:
