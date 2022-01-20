@@ -62,29 +62,29 @@ class Model:
 
     def __normal_model(self):
         input_layer = tf.keras.layers.Input(shape=self.__input_shape)
-        x = self.__conv_block(input_layer, 32, 3, bn=True, activation='relu')
+        x = self.__conv_block(input_layer, 32, 3, bn=True, activation='swish')
         x = self.__avg_max_pool(x)
 
         x = self.__drop_filter(x, 0.0625)
-        x = self.__csp_block(x, 64, 3, first_depth_n_convs=1, second_depth_n_convs=2, bn=True, activation='relu', inner_activation='swish')
+        x = self.__csp_block(x, 64, 3, first_depth_n_convs=1, second_depth_n_convs=2, bn=True, activation='swish', inner_activation='swish')
         x = self.__max_pool(x)
 
         x = self.__drop_filter(x, 0.0625)
-        x = self.__csp_block(x, 128, 3, first_depth_n_convs=1, second_depth_n_convs=3, bn=True, activation='relu', inner_activation='swish')
+        x = self.__csp_block(x, 128, 3, first_depth_n_convs=1, second_depth_n_convs=3, bn=True, activation='swish', inner_activation='swish')
         x = self.__avg_max_pool(x)
 
         x = self.__drop_filter(x, 0.0625)
-        x = self.__csp_block(x, 256, 3, first_depth_n_convs=1, second_depth_n_convs=4, bn=True, activation='relu', inner_activation='swish')
+        x = self.__csp_block(x, 256, 3, first_depth_n_convs=1, second_depth_n_convs=4, bn=True, activation='swish', inner_activation='swish')
         y1 = self.__detection_layer(x, 'output_1')
         x = self.__avg_max_pool(x)
 
         x = self.__drop_filter(x, 0.0625)
-        x = self.__csp_block(x, 512, 3, first_depth_n_convs=1, second_depth_n_convs=4, bn=True, activation='relu', inner_activation='swish')
+        x = self.__csp_block(x, 512, 3, first_depth_n_convs=1, second_depth_n_convs=4, bn=True, activation='swish', inner_activation='swish')
         y2 = self.__detection_layer(x, 'output_2')
         x = self.__avg_max_pool(x)
 
         x = self.__drop_filter(x, 0.0625)
-        x = self.__csp_block(x, 1024, 3, first_depth_n_convs=1, second_depth_n_convs=4, bn=True, activation='relu', inner_activation='swish')
+        x = self.__csp_block(x, 1024, 3, first_depth_n_convs=1, second_depth_n_convs=4, bn=True, activation='swish', inner_activation='swish')
         y3 = self.__detection_layer(x, 'output_3')
         return tf.keras.models.Model(input_layer, [y1, y2, y3])
 
@@ -490,10 +490,10 @@ class Model:
         return tf.keras.layers.BatchNormalization(beta_initializer=tf.keras.initializers.zeros(), fused=True)(x)
 
     @staticmethod
-    def __activation(x, activation='relu'):
+    def __activation(x, activation='none'):
         if activation == 'relu':
             return tf.keras.layers.Activation('relu')(x)
-        elif activation == 'swish':
+        elif activation == 'silu' or activation == 'swish':
             x_sigmoid = tf.keras.layers.Activation('sigmoid')(x)
             return tf.keras.layers.Multiply()([x, x_sigmoid])
         elif activation == 'mish':
