@@ -28,83 +28,24 @@ def __smooth(y_true, alpha, true_only=False):
         return tf.clip_by_value(y_true, 0.0 + alpha, 1.0 - alpha)
 
 
-def __reverse_sigmoid(x):
-    eps = tf.keras.backend.epsilon()
-    t = tf.clip_by_value(x - eps, 0.0, 1.0)
-    f = tf.clip_by_value(((x + eps) * -1.0 + eps * 2.0), 0.0, 1.0)
-    x = t + f
-    x = -tf.math.log(x / (1.0 - x))
-    return x
-
-
-def __abs_log_loss(y_true, y_pred):
-    ones = 1.0 + tf.keras.backend.epsilon() * 10.0
-    loss = -tf.math.log(ones - tf.abs(y_true - y_pred))
-    return loss
-
-
-def binary_focal_loss_fixed(y_true, y_pred):
-    """
-    Binary form of focal loss.
-      FL(p_t) = -alpha * (1 - p_t)**gamma * log(p_t)
-      where p = sigmoid(x), p_t = p or 1 - p depending on if the label is 1 or 0, respectively.
-    References:
-        https://arxiv.org/pdf/1708.02002.pdf
-    Usage:
-     model.compile(loss=[binary_focal_loss(alpha=.25, gamma=2)], metrics=["accuracy"], optimizer=adam)
-
-    :param y_true: A tensor of the same shape as `y_pred`
-    :param y_pred:  A tensor resulting from a sigmoid
-    :return: Output tensor.
-    """
-    gamma = 2.0
-    alpha = 0.25
-    eps = tf.keras.backend.epsilon()
-
-    y_true = tf.cast(y_true, tf.float32)
-    y_pred = tf.keras.backend.clip(y_pred, eps, 1.0 - eps)
-    p_t = tf.where(tf.keras.backend.equal(y_true, 1), y_pred, 1 - y_pred)
-    alpha_factor = tf.keras.backend.ones_like(y_true) * alpha
-    alpha_t = tf.where(tf.keras.backend.equal(y_true, 1), alpha_factor, 1 - alpha_factor)
-    cross_entropy = -tf.keras.backend.log(p_t)
-    weight = alpha_t * tf.keras.backend.pow((1 - p_t), gamma)
-    loss = weight * cross_entropy
-    # loss = tf.keras.backend.mean(tf.keras.backend.sum(loss, axis=1))
-    return loss
-
-
-# origin confidence loss
 def __confidence_loss(y_true, y_pred):
-    no_obj = 1.0
     obj_true = y_true[:, :, :, 0]
     obj_pred = y_pred[:, :, :, 0]
-    obj_false = tf.ones(shape=tf.shape(obj_true), dtype=tf.dtypes.float32) - obj_true
-
-    smooth_obj_true = __smooth(obj_true, alpha=0.02, true_only=True)
-    obj_confidence_loss = __abs_log_loss(smooth_obj_true, obj_pred) * obj_true  # log conf loss
-
-    # smooth_iou = __smooth(__iou(y_true, y_pred), alpha=0.02, true_only=True)
-    # obj_confidence_loss = __abs_log_loss(smooth_iou, obj_pred) * obj_true  # iou conf loss
-
-    obj_confidence_loss = tf.reduce_mean(obj_confidence_loss, axis=0)
-    obj_confidence_loss = tf.reduce_sum(obj_confidence_loss)
-
-    zeros = tf.zeros(shape=tf.shape(obj_true), dtype=tf.dtypes.float32)
-    no_obj_confidence_loss = __abs_log_loss(zeros, obj_pred) * obj_false
-    no_obj_confidence_loss = tf.reduce_mean(no_obj_confidence_loss, axis=0)
-    no_obj_confidence_loss = tf.reduce_sum(no_obj_confidence_loss)
-    return obj_confidence_loss + (no_obj_confidence_loss * no_obj)
+    loss = tf.losses.binary_crossentropy(obj_true, obj_pred)
+    return tf.reduce_mean(loss)
 
 
 def __iou(y_true, y_pred):
     y_true_shape = tf.cast(tf.shape(y_true), dtype=tf.dtypes.float32)
     grid_height, grid_width = y_true_shape[1], y_true_shape[2]
-    eps = tf.keras.backend.epsilon()
+    # eps = tf.keras.backend.epsilon()
 
     cx_true = y_true[:, :, :, 1]
     cy_true = y_true[:, :, :, 2]
-    w_true = tf.sqrt(y_true[:, :, :, 3] + eps)
-    h_true = tf.sqrt(y_true[:, :, :, 4] + eps)
+    w_true = y_true[:, :, :, 3]
+    h_true = y_true[:, :, :, 4]
+    # w_true = tf.sqrt(y_true[:, :, :, 3] + eps)
+    # h_true = tf.sqrt(y_true[:, :, :, 4] + eps)
 
     x_range = tf.range(grid_width, dtype=tf.dtypes.float32)
     x_offset = tf.broadcast_to(x_range, shape=tf.shape(cx_true))
@@ -123,8 +64,10 @@ def __iou(y_true, y_pred):
 
     cx_pred = y_pred[:, :, :, 1]
     cy_pred = y_pred[:, :, :, 2]
-    w_pred = tf.sqrt(y_pred[:, :, :, 3] + eps)
-    h_pred = tf.sqrt(y_pred[:, :, :, 4] + eps)
+    w_pred = y_pred[:, :, :, 3]
+    h_pred = y_pred[:, :, :, 4]
+    # w_pred = tf.sqrt(y_pred[:, :, :, 3] + eps)
+    # h_pred = tf.sqrt(y_pred[:, :, :, 4] + eps)
 
     cx_pred = x_offset + (cx_pred * 1.0 / grid_width)
     cy_pred = y_offset + (cy_pred * 1.0 / grid_height)
@@ -149,73 +92,34 @@ def __iou(y_true, y_pred):
     return intersection / (union + 1e-5)
 
 
-# origin bbox loss
 def __bbox_loss(y_true, y_pred):
-    """
-    Absolute log loss (sqrt(obj(x))) at width and height regression loss
-    Sqrt was used to weight the width, height loss for small boxes.
-
-    To avoid dividing by zero when going through the derivative formula of sqrt,
-    Adds the eps value to the sqrt parameter.
-
-    Derivative of sqrt : 1 / (2 * sqrt(x))
-    """
     obj_true = y_true[:, :, :, 0]
-    eps = tf.keras.backend.epsilon()
+    obj_count = tf.cast(tf.reduce_sum(obj_true), tf.float32)
+    if tf.equal(obj_count, tf.constant(0.0)):
+        return 0.0
 
-    xy_true = y_true[:, :, :, 1:3]
-    xy_pred = y_pred[:, :, :, 1:3]
-    xy_loss = __abs_log_loss(xy_true, xy_pred)
-    xy_loss = tf.reduce_sum(xy_loss, axis=-1) * obj_true
-    xy_loss = tf.reduce_mean(xy_loss, axis=0)
-    xy_loss = tf.reduce_sum(xy_loss)
-
-    wh_true = tf.sqrt(y_true[:, :, :, 3:5] + eps)
-    wh_pred = tf.sqrt(y_pred[:, :, :, 3:5] + eps)
-    wh_loss = __abs_log_loss(wh_true, wh_pred)
-    wh_loss = tf.reduce_sum(wh_loss, axis=-1) * obj_true
-    wh_loss = tf.reduce_mean(wh_loss, axis=0)
-    wh_loss = tf.reduce_sum(wh_loss)
-    bbox_loss = xy_loss + wh_loss
-    return bbox_loss * 5.0
-
-
-# iou bbox loss
-# def __bbox_loss(y_true, y_pred):
-#     """
-#     Absolute log loss (sqrt(obj(x))) at width and height regression loss
-#     Sqrt was used to weight the width, height loss for small boxes.
-#
-#     To avoid dividing by zero when going through the derivative formula of sqrt,
-#     Adds the eps value to the sqrt parameter.
-#
-#     Derivative of sqrt : 1 / (2 * sqrt(x))
-#     """
-#     obj_true = y_true[:, :, :, 0]
-#
-#     center_true = y_true[:, :, :, 1:3]
-#     center_pred = y_pred[:, :, :, 1:3]
-#     center_loss = tf.square(center_true - center_pred)
-#     center_loss = tf.reduce_sum(center_loss, axis=-1) * obj_true
-#     center_loss = tf.reduce_mean(center_loss, axis=0)
-#     center_loss = tf.reduce_sum(center_loss)
-#
-#     iou_loss = obj_true - __iou(y_true, y_pred)
-#     iou_loss = tf.reduce_mean(iou_loss, axis=0) * obj_true
-#     iou_loss = tf.reduce_sum(iou_loss)
-#
-#     bbox_loss = center_loss + iou_loss
-#     return bbox_loss * 5
+    loss = tf.losses.binary_crossentropy(obj_true, __iou(y_true, y_pred) * obj_true)
+    loss = tf.reduce_mean(loss, axis=0)
+    loss = tf.reduce_sum(loss) / obj_count
+    return loss * 5.0
 
 
 def __classification_loss(y_true, y_pred):
     obj_true = y_true[:, :, :, 0]
-    smooth_class_true = __smooth(y_true[:, :, :, 5:], alpha=0.02)
-    classification_loss = __abs_log_loss(smooth_class_true, y_pred[:, :, :, 5:])
-    classification_loss = tf.reduce_sum(classification_loss, axis=-1) * obj_true
-    classification_loss = tf.reduce_mean(classification_loss, axis=0)
-    classification_loss = tf.reduce_sum(classification_loss)
-    return classification_loss
+    obj_count = tf.cast(tf.reduce_sum(obj_true), tf.float32)
+    if tf.equal(obj_count, tf.constant(0.0)):
+        return 0.0
+
+    y_true_shape = tf.shape(y_true)
+    num_classes = tf.cast(y_true_shape[-1] - 5, tf.int32)
+
+    obj_mask = tf.repeat(tf.expand_dims(obj_true, axis=-1), num_classes, axis=-1)
+    class_true = y_true[:, :, :, 5:] * obj_mask
+    class_pred = y_pred[:, :, :, 5:] * obj_mask
+
+    loss = tf.losses.binary_crossentropy(class_true, class_pred)
+    loss = tf.reduce_mean(loss, axis=0)
+    return tf.reduce_sum(loss) / obj_count
 
 
 def confidence_loss(y_true, y_pred):
