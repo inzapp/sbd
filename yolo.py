@@ -77,11 +77,18 @@ class Yolo:
             class_names_file_path = f'{train_image_path}/classes.txt'
         self.__class_names, self.__num_classes = self.__init_class_names(class_names_file_path)
 
-        if os.path.exists(pretrained_model_path) and os.path.isfile(pretrained_model_path):
-            self.__model = tf.keras.models.load_model(pretrained_model_path, compile=False)
+        if pretrained_model_path != '':
+            if os.path.exists(pretrained_model_path) and os.path.isfile(pretrained_model_path):
+                self.__model = tf.keras.models.load_model(pretrained_model_path, compile=False)
+                print(f'success loading pretrained model : [{pretrained_model_path}]')
+            else:
+                print(f'pretrained model not found : [{pretrained_model_path}]')
+                exit(0)
         else:
             if self.__optimizer == 'adam':
                 self.__decay = 0.0
+            for _ in range(100):
+                print('create model')
             self.__model = Model(input_shape=input_shape, output_channel=self.__num_classes + 5, decay=self.__decay).build()
 
         if validation_image_path != '':
@@ -215,6 +222,7 @@ class Yolo:
                 if self.__training_view:
                     self.__training_view_function()
 
+                # if iteration_count % 1000 == 0:
                 if iteration_count > int(self.__iterations * 0.9) and iteration_count % 2000 == 0:
                     self.__save_model(iteration_count=iteration_count, use_map_checkpoint=self.__map_checkpoint)
                 elif iteration_count % 20000 == 0:
