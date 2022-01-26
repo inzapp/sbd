@@ -87,8 +87,6 @@ class Yolo:
         else:
             if self.__optimizer == 'adam':
                 self.__decay = 0.0
-            for _ in range(100):
-                print('create model')
             self.__model = Model(input_shape=input_shape, output_channel=self.__num_classes + 5, decay=self.__decay).build()
 
         if validation_image_path != '':
