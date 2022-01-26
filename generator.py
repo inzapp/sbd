@@ -70,10 +70,13 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         self.output_shapes = output_shapes
         self.batch_size = batch_size
         self.num_output_layers = len(output_shapes)
-        self.clustered_ws = []
-        self.clustered_hs = []
+        self.virtual_anchor_ws = []
+        self.virtual_anchor_hs = []
         self.label_obj_count = 0  # obj count in real label txt
         self.pool = ThreadPoolExecutor(8)
+
+        self.train_type = 'all_layer_auto_split'
+        self.train_layer_index = 1
 
         queue_size = 64
         self.batch_index = 0
@@ -122,7 +125,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         union_area = a_area + b_area - intersection_area
         return intersection_area / (float(union_area) + 1e-5)
 
-    def __get_best_iou_with_index(self, box, clustered_ws, clustered_hs):
+    def __get_best_iou_with_index(self, box, virtual_anchor_ws, virtual_anchor_hs):
         cx, cy, w, h = box
         x1 = cx - w * 0.5
         y1 = cy - h * 0.5
@@ -133,10 +136,10 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         best_iou = 0.0
         best_iou_index = -1
         for i in range(self.num_output_layers):
-            x1 = cx - clustered_ws[i] * 0.5
-            y1 = cy - clustered_hs[i] * 0.5
-            x2 = cx + clustered_ws[i] * 0.5
-            y2 = cy + clustered_hs[i] * 0.5
+            x1 = cx - virtual_anchor_ws[i] * 0.5
+            y1 = cy - virtual_anchor_hs[i] * 0.5
+            x2 = cx + virtual_anchor_ws[i] * 0.5
+            y2 = cy + virtual_anchor_hs[i] * 0.5
             clustered_box = [x1, y1, x2, y2]
             iou = self.__iou(true_box, clustered_box)
             if iou > best_iou:
@@ -144,10 +147,10 @@ class GeneratorFlow(tf.keras.utils.Sequence):
                 best_iou_index = i
         return best_iou, best_iou_index
 
-    def __iou_with_clustered_wh(self, boxes, clustered_ws, clustered_hs):
+    def __iou_with_clustered_wh(self, boxes, virtual_anchor_ws, virtual_anchor_hs):
         iou_sum = 0.0
         for true_box in boxes:
-            best_iou, _ = self.__get_best_iou_with_index(true_box, clustered_ws, clustered_hs)
+            best_iou, _ = self.__get_best_iou_with_index(true_box, virtual_anchor_ws, virtual_anchor_hs)
             iou_sum += best_iou
         return iou_sum / float(len(boxes))
 
@@ -184,31 +187,38 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         height_compactness /= float(len(self.image_paths))
         print(f'height compactness : {height_compactness:.7f}')
 
-        # self.clustered_ws = sorted(np.asarray(ws).reshape(-1))
-        # self.clustered_hs = sorted(np.asarray(hs).reshape(-1))
-        self.clustered_ws = [0.05, 0.125, 0.35]
-        self.clustered_hs = [0.05, 0.125, 0.35]
+        self.virtual_anchor_ws = sorted(np.asarray(ws).reshape(-1))
+        self.virtual_anchor_hs = sorted(np.asarray(hs).reshape(-1))
 
         print(f'clustered  widths : ', end='')
         for i in range(num_cluster):
-            print(f'{self.clustered_ws[i]:.4f} ', end='')
+            print(f'{self.virtual_anchor_ws[i]:.4f} ', end='')
         print()
         print(f'clustered heights : ', end='')
         for i in range(num_cluster):
-            print(f'{self.clustered_hs[i]:.4f} ', end='')
+            print(f'{self.virtual_anchor_hs[i]:.4f} ', end='')
         print()
-        print(f'avg IoU : {self.__iou_with_clustered_wh(boxes, self.clustered_ws, self.clustered_hs):.4f}')
+        print(f'avg IoU : {self.__iou_with_clustered_wh(boxes, self.virtual_anchor_ws, self.virtual_anchor_hs):.4f}')
+        if self.train_type == 'all_layer_auto_split':
+            self.virtual_anchor_ws = [1.0 / float(self.output_shapes[layer_index][2]) for layer_index in range(len(self.output_shapes))]
+            self.virtual_anchor_hs = [1.0 / float(self.output_shapes[layer_index][1]) for layer_index in range(len(self.output_shapes))]
+            print(f'auto split width  criteria: ', end='')
+            for i in range(len(self.output_shapes)):
+                print(f'{self.virtual_anchor_ws[i]:.4f} ', end='')
+            print()
+            print(f'auto split height criteria: ', end='')
+            for i in range(len(self.output_shapes)):
+                print(f'{self.virtual_anchor_hs[i]:.4f} ', end='')
+            print()
 
     def print_not_trained_box_count(self):
         y_true_obj_count = 0  # obj count in train tensor(y_true)
         for batch_x, batch_y in tqdm(self):
             for i in range(self.num_output_layers):
                 y_true_obj_count += np.sum(batch_y[i][:, :, :, 0])
-
         y_true_obj_count = int(y_true_obj_count)
         not_trained_obj_count = self.label_obj_count - y_true_obj_count
         not_trained_obj_rate = int(not_trained_obj_count / self.label_obj_count * 100.0)
-
         print(f'ground truth obj count : {self.label_obj_count}')
         print(f'train tensor obj count : {y_true_obj_count}')
         print(f'not trained  obj count : {not_trained_obj_count} ({not_trained_obj_rate}%)')
@@ -263,9 +273,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
                 for i in range(self.num_output_layers):
                     y.append(np.zeros((self.output_shapes[i][1], self.output_shapes[i][2], self.output_shapes[i][3]), dtype=np.float32))
 
-                train_type = 'one_layer'
-
-                if train_type == 'all_layer':
+                if self.train_type == 'all_layer':
                     big_last_boxes = sorted(boxes, key=lambda __x: __x['area'], reverse=False)
                     small_last_boxes = sorted(boxes, key=lambda __x: __x['area'], reverse=True)
                     middle_last_boxes = self.__sort_middle_last(big_last_boxes, small_last_boxes)
@@ -287,16 +295,16 @@ class GeneratorFlow(tf.keras.utils.Sequence):
                             y[output_layer_index][center_row][center_col][int(class_index + 5)] = 1.0
                 else:
                     for b in boxes:
-                        output_layer_index = 1
+                        output_layer_index = self.train_layer_index
                         class_index, cx, cy, w, h = b['class_index'], b['cx'], b['cy'], b['w'], b['h']
-                        if train_type == 'one_layer':
+                        if self.train_type == 'one_layer':
                             pass
-                        elif train_type == 'all_layer_cluster':
-                            _, output_layer_index = self.__get_best_iou_with_index([cx, cy, w, h], self.clustered_ws, self.clustered_hs)
+                        elif self.train_type == 'all_layer_cluster' or self.train_type == 'all_layer_auto_split':
+                            _, output_layer_index = self.__get_best_iou_with_index([cx, cy, w, h], self.virtual_anchor_ws, self.virtual_anchor_hs)
                         output_rows = float(self.output_shapes[output_layer_index][1])
                         output_cols = float(self.output_shapes[output_layer_index][2])
-                        grid_width_ratio = 1 / output_cols
-                        grid_height_ratio = 1 / output_rows
+                        grid_width_ratio = 1.0 / output_cols
+                        grid_height_ratio = 1.0 / output_rows
                         center_row = int(cy * output_rows)
                         center_col = int(cx * output_cols)
                         y[output_layer_index][center_row][center_col][0] = 1.0
