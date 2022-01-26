@@ -53,8 +53,8 @@ class Model:
         # return self.__darknet_53()
         # return self.__lp_detection_sbd()
         # return self.__lp_detection_sbd_csp()
-        # return self.__person_detail()
-        return self.__lcd_csp()
+        return self.__person_detail()
+        # return self.__lcd_csp()
         # return self.__200m_big()
         # return self.__tiny_yolo_v3_no_upscale()
         # return self.__loon()
@@ -221,35 +221,35 @@ class Model:
 
     def __person_detail(self):
         input_layer = tf.keras.layers.Input(shape=self.__input_shape)
-        x = self.__conv_block(input_layer, 16, 3, bn=True, activation='relu')
-        x = self.__avg_max_pool(x)
+        x = self.__conv_block(input_layer, 16, 3, bn=True, activation='swish')
+        x = self.__max_pool(x)
 
         x = self.__drop_filter(x, 0.0625)
-        x = self.__conv_block(x, 32, 3, bn=False, activation='relu')
-        x = self.__avg_max_pool(x)
+        x = self.__conv_block(x, 32, 3, bn=False, activation='swish')
+        x = self.__max_pool(x)
 
         x = self.__drop_filter(x, 0.0625)
-        x = self.__conv_block(x, 64, 3, bn=False, activation='relu')
-        x = self.__avg_max_pool(x)
+        x = self.__conv_block(x, 64, 3, bn=False, activation='swish')
+        x = self.__max_pool(x)
 
         x = self.__drop_filter(x, 0.0625)
-        x = self.__conv_block(x, 128, 3, bn=False, activation='relu')
+        x = self.__conv_block(x, 128, 3, bn=False, activation='swish')
         x = self.__drop_filter(x, 0.0625)
-        x = self.__conv_block(x, 128, 3, bn=True, activation='relu')
+        x = self.__conv_block(x, 128, 3, bn=True, activation='swish')
         y1 = self.__detection_layer(x, 'sbd_output_1')
         x = self.__avg_max_pool(x)
 
         x = self.__drop_filter(x, 0.0625)
-        x = self.__conv_block(x, 256, 3, bn=False, activation='relu')
+        x = self.__conv_block(x, 256, 3, bn=False, activation='swish')
         x = self.__drop_filter(x, 0.0625)
-        x = self.__conv_block(x, 256, 3, bn=True, activation='relu')
+        x = self.__conv_block(x, 256, 3, bn=True, activation='swish')
         y2 = self.__detection_layer(x, 'sbd_output_2')
         x = self.__avg_max_pool(x)
 
         x = self.__drop_filter(x, 0.0625)
-        x = self.__conv_block(x, 256, 3, bn=False, activation='relu')
+        x = self.__conv_block(x, 256, 3, bn=False, activation='swish')
         x = self.__drop_filter(x, 0.0625)
-        x = self.__conv_block(x, 256, 3, bn=True, activation='relu')
+        x = self.__conv_block(x, 256, 3, bn=True, activation='swish')
         y3 = self.__detection_layer(x, 'sbd_output_3')
         return tf.keras.models.Model(input_layer, [y1, y2, y3])
 
@@ -423,7 +423,6 @@ class Model:
 
     def __csp_block(self, x, filters, kernel_size, first_depth_n_convs=1, second_depth_n_convs=2, bn=False, activation='none', inner_activation='none'):
         half_filters = filters / 2
-        quarter_filters = filters / 2
         x_0 = self.__conv_block(x, half_filters, 1, bn=False, activation='none')
         for i in range(first_depth_n_convs):
             if i == 0:
@@ -433,9 +432,9 @@ class Model:
         x_1_0 = self.__conv_block(x_1, half_filters, 1, bn=False, activation='none')
         for i in range(second_depth_n_convs):
             if i == 0:
-                x_1_1 = self.__conv_block(x_1, quarter_filters, 1, bn=False, activation=inner_activation)
+                x_1_1 = self.__conv_block(x_1, half_filters, 1, bn=False, activation=inner_activation)
             else:
-                x_1_1 = self.__conv_block(x_1_1, quarter_filters, kernel_size, bn=False, activation='none' if i == second_depth_n_convs - 1 else inner_activation)
+                x_1_1 = self.__conv_block(x_1_1, half_filters, kernel_size, bn=False, activation='none' if i == second_depth_n_convs - 1 else inner_activation)
         x_1 = tf.keras.layers.Concatenate()([x_1_0, x_1_1])
         x = tf.keras.layers.Concatenate()([x_0, x_1])
         if bn:
@@ -452,6 +451,50 @@ class Model:
             padding='same',
             use_bias=False if bn else True,
             kernel_regularizer=tf.keras.regularizers.l2(l2=self.__decay) if self.__decay > 0.0 else None)(x)
+        if bn:
+            x = self.__bn(x)
+        x = self.__activation(x, activation=activation)
+        return x
+
+    def __cross_csp_block(self, x, filters, kernel_size, first_depth_n_convs=1, second_depth_n_convs=2, bn=False, mode='add', activation='none', inner_activation='none'):
+        half_filters = filters / 2
+        x_0 = self.__cross_conv_block(x, half_filters, 1, bn=False, mode=mode, activation='none')
+        for i in range(first_depth_n_convs):
+            if i == 0:
+                x_1 = self.__cross_conv_block(x, half_filters, 1, bn=False, mode=mode, activation=inner_activation)
+            else:
+                x_1 = self.__cross_conv_block(x_1, half_filters, kernel_size, bn=False, mode=mode, activation=inner_activation)
+        x_1_0 = self.__cross_conv_block(x_1, half_filters, 1, bn=False, activation='none')
+        for i in range(second_depth_n_convs):
+            if i == 0:
+                x_1_1 = self.__cross_conv_block(x_1, half_filters, 1, bn=False, mode=mode, activation=inner_activation)
+            else:
+                x_1_1 = self.__cross_conv_block(x_1_1, half_filters, kernel_size, bn=False, mode=mode, activation='none' if i == second_depth_n_convs - 1 else inner_activation)
+        x_1 = tf.keras.layers.Concatenate()([x_1_0, x_1_1])
+        x = tf.keras.layers.Concatenate()([x_0, x_1])
+        if bn:
+            x = self.__bn(x)
+        x = self.__activation(x, activation=activation)
+        return x
+
+    def __cross_conv_block(self, x, filters, kernel_size, bn=True, mode='add', activation='none'):
+        v_conv = tf.keras.layers.Conv2D(
+            filters=filters if mode == 'add' else filters / 2,
+            kernel_size=(1, kernel_size),
+            kernel_initializer=tf.keras.initializers.he_uniform(),
+            bias_initializer=tf.keras.initializers.zeros(),
+            padding='same',
+            use_bias=False if bn else True,
+            kernel_regularizer=tf.keras.regularizers.l2(l2=self.__decay) if self.__decay > 0.0 else None)(x)
+        h_conv = tf.keras.layers.Conv2D(
+            filters=filters if mode == 'add' else filters / 2,
+            kernel_size=(kernel_size, 1),
+            kernel_initializer=tf.keras.initializers.he_uniform(),
+            bias_initializer=tf.keras.initializers.zeros(),
+            padding='same',
+            use_bias=False if bn else True,
+            kernel_regularizer=tf.keras.regularizers.l2(l2=self.__decay) if self.__decay > 0.0 else None)(x)
+        x = tf.keras.layers.Add()([v_conv, h_conv]) if mode == 'add' else tf.keras.layers.Concatenate()([v_conv, h_conv])
         if bn:
             x = self.__bn(x)
         x = self.__activation(x, activation=activation)
