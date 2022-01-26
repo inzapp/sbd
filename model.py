@@ -48,43 +48,48 @@ class Model:
         return cls.__new__(cls)
 
     def build(self):
+        # return self.__normal_model()
         # return self.__vgg_16()
         # return self.__darknet_53()
         # return self.__lp_detection_sbd()
         # return self.__lp_detection_sbd_csp()
         # return self.__person_detail()
-        # return self.__lcd_csp()
-        # return self.__normal_model()
+        return self.__lcd_csp()
         # return self.__200m_big()
         # return self.__tiny_yolo_v3_no_upscale()
         # return self.__loon()
-        return self.__loon_csp()
+        # return self.__loon_csp()
 
     def __normal_model(self):
         input_layer = tf.keras.layers.Input(shape=self.__input_shape)
         x = self.__conv_block(input_layer, 32, 3, bn=True, activation='swish')
-        x = self.__avg_max_pool(x)
-
-        x = self.__drop_filter(x, 0.0625)
-        x = self.__csp_block(x, 64, 3, first_depth_n_convs=1, second_depth_n_convs=2, bn=True, activation='swish', inner_activation='swish')
         x = self.__max_pool(x)
 
         x = self.__drop_filter(x, 0.0625)
-        x = self.__csp_block(x, 128, 3, first_depth_n_convs=1, second_depth_n_convs=3, bn=True, activation='swish', inner_activation='swish')
-        x = self.__avg_max_pool(x)
+        x = self.__conv_block(x, 64, 3, bn=False, activation='swish')
+        x = self.__conv_block(x, 64, 3, bn=True, activation='swish')
+        x = self.__max_pool(x)
 
         x = self.__drop_filter(x, 0.0625)
-        x = self.__csp_block(x, 256, 3, first_depth_n_convs=1, second_depth_n_convs=4, bn=True, activation='swish', inner_activation='swish')
+        x = self.__conv_block(x, 128, 3, bn=False, activation='swish')
+        x = self.__conv_block(x, 128, 3, bn=True, activation='swish')
+        x = self.__max_pool(x)
+
+        x = self.__drop_filter(x, 0.0625)
+        x = self.__conv_block(x, 256, 3, bn=False, activation='swish')
+        x = self.__conv_block(x, 256, 3, bn=True, activation='swish')
         y1 = self.__detection_layer(x, 'sbd_output_1')
         x = self.__avg_max_pool(x)
 
         x = self.__drop_filter(x, 0.0625)
-        x = self.__csp_block(x, 512, 3, first_depth_n_convs=1, second_depth_n_convs=4, bn=True, activation='swish', inner_activation='swish')
+        x = self.__conv_block(x, 512, 3, bn=False, activation='swish')
+        x = self.__conv_block(x, 512, 3, bn=True, activation='swish')
         y2 = self.__detection_layer(x, 'sbd_output_2')
         x = self.__avg_max_pool(x)
 
         x = self.__drop_filter(x, 0.0625)
-        x = self.__csp_block(x, 1024, 3, first_depth_n_convs=1, second_depth_n_convs=4, bn=True, activation='swish', inner_activation='swish')
+        x = self.__conv_block(x, 512, 3, bn=False, activation='swish')
+        x = self.__conv_block(x, 512, 3, bn=True, activation='swish')
         y3 = self.__detection_layer(x, 'sbd_output_3')
         return tf.keras.models.Model(input_layer, [y1, y2, y3])
 
@@ -418,7 +423,7 @@ class Model:
 
     def __csp_block(self, x, filters, kernel_size, first_depth_n_convs=1, second_depth_n_convs=2, bn=False, activation='none', inner_activation='none'):
         half_filters = filters / 2
-        quarter_filters = filters / 4
+        quarter_filters = filters / 2
         x_0 = self.__conv_block(x, half_filters, 1, bn=False, activation='none')
         for i in range(first_depth_n_convs):
             if i == 0:
