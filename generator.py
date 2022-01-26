@@ -125,27 +125,35 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         union_area = a_area + b_area - intersection_area
         return intersection_area / (float(union_area) + 1e-5)
 
-    def __get_best_iou_with_index(self, box, virtual_anchor_ws, virtual_anchor_hs):
+    def __get_iou_with_index(self, box, virtual_anchor_ws, virtual_anchor_hs):
         cx, cy, w, h = box
         x1 = cx - w * 0.5
         y1 = cy - h * 0.5
         x2 = cx + w * 0.5
         y2 = cy + h * 0.5
         true_box = [x1, y1, x2, y2]
-
-        best_iou = 0.0
-        best_iou_index = -1
+        res = []
         for i in range(self.num_output_layers):
             x1 = cx - virtual_anchor_ws[i] * 0.5
             y1 = cy - virtual_anchor_hs[i] * 0.5
             x2 = cx + virtual_anchor_ws[i] * 0.5
             y2 = cy + virtual_anchor_hs[i] * 0.5
-            clustered_box = [x1, y1, x2, y2]
-            iou = self.__iou(true_box, clustered_box)
-            if iou > best_iou:
-                best_iou = iou
-                best_iou_index = i
-        return best_iou, best_iou_index
+            virtual_anchor_box = [x1, y1, x2, y2]
+            iou = self.__iou(true_box, virtual_anchor_box)
+            res.append({'index': i, 'iou': iou})
+        return sorted(res, key=lambda x: x['iou'], reverse=True)
+
+    def __get_layer_indexes_threshold(self, box, virtual_anchor_ws, virtual_anchor_hs, threshold=0.6):
+        res = self.__get_iou_with_index(box, virtual_anchor_ws, virtual_anchor_hs)
+        indexes = [res[0]['index']]
+        for i in range(1, len(res)):
+            if res[i]['iou'] >= threshold:
+                indexes.append(res[i]['index'])
+        return indexes
+
+    def __get_best_iou_with_index(self, box, virtual_anchor_ws, virtual_anchor_hs):
+        res = self.__get_iou_with_index(box, virtual_anchor_ws, virtual_anchor_hs)
+        return res[0]['iou'], res[0]['index']
 
     def __iou_with_clustered_wh(self, boxes, virtual_anchor_ws, virtual_anchor_hs):
         iou_sum = 0.0
@@ -200,8 +208,8 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         print()
         print(f'avg IoU : {self.__iou_with_clustered_wh(boxes, self.virtual_anchor_ws, self.virtual_anchor_hs):.4f}')
         if self.train_type == 'all_layer_auto_split':
-            self.virtual_anchor_ws = [1.0 / float(self.output_shapes[layer_index][2]) for layer_index in range(len(self.output_shapes))]
-            self.virtual_anchor_hs = [1.0 / float(self.output_shapes[layer_index][1]) for layer_index in range(len(self.output_shapes))]
+            self.virtual_anchor_ws = [1.0 / float(self.output_shapes[layer_index][2]) for layer_index in range(self.num_output_layers)]
+            self.virtual_anchor_hs = [1.0 / float(self.output_shapes[layer_index][1]) for layer_index in range(self.num_output_layers)]
             print(f'auto split width  criteria: ', end='')
             for i in range(len(self.output_shapes)):
                 print(f'{self.virtual_anchor_ws[i]:.4f} ', end='')
@@ -295,24 +303,24 @@ class GeneratorFlow(tf.keras.utils.Sequence):
                             y[output_layer_index][center_row][center_col][int(class_index + 5)] = 1.0
                 else:
                     for b in boxes:
-                        output_layer_index = self.train_layer_index
                         class_index, cx, cy, w, h = b['class_index'], b['cx'], b['cy'], b['w'], b['h']
                         if self.train_type == 'one_layer':
-                            pass
+                            output_layer_indexes = [self.train_layer_index]
                         elif self.train_type == 'all_layer_cluster' or self.train_type == 'all_layer_auto_split':
-                            _, output_layer_index = self.__get_best_iou_with_index([cx, cy, w, h], self.virtual_anchor_ws, self.virtual_anchor_hs)
-                        output_rows = float(self.output_shapes[output_layer_index][1])
-                        output_cols = float(self.output_shapes[output_layer_index][2])
-                        grid_width_ratio = 1.0 / output_cols
-                        grid_height_ratio = 1.0 / output_rows
-                        center_row = int(cy * output_rows)
-                        center_col = int(cx * output_cols)
-                        y[output_layer_index][center_row][center_col][0] = 1.0
-                        y[output_layer_index][center_row][center_col][1] = (cx - (center_col * grid_width_ratio)) / grid_width_ratio
-                        y[output_layer_index][center_row][center_col][2] = (cy - (center_row * grid_height_ratio)) / grid_height_ratio
-                        y[output_layer_index][center_row][center_col][3] = w
-                        y[output_layer_index][center_row][center_col][4] = h
-                        y[output_layer_index][center_row][center_col][int(class_index + 5)] = 1.0
+                            output_layer_indexes = self.__get_layer_indexes_threshold([cx, cy, w, h], self.virtual_anchor_ws, self.virtual_anchor_hs, threshold=0.6)
+                        for output_layer_index in output_layer_indexes:
+                            output_rows = float(self.output_shapes[output_layer_index][1])
+                            output_cols = float(self.output_shapes[output_layer_index][2])
+                            grid_width_ratio = 1.0 / output_cols
+                            grid_height_ratio = 1.0 / output_rows
+                            center_row = int(cy * output_rows)
+                            center_col = int(cx * output_cols)
+                            y[output_layer_index][center_row][center_col][0] = 1.0
+                            y[output_layer_index][center_row][center_col][1] = (cx - (center_col * grid_width_ratio)) / grid_width_ratio
+                            y[output_layer_index][center_row][center_col][2] = (cy - (center_row * grid_height_ratio)) / grid_height_ratio
+                            y[output_layer_index][center_row][center_col][3] = w
+                            y[output_layer_index][center_row][center_col][4] = h
+                            y[output_layer_index][center_row][center_col][int(class_index + 5)] = 1.0
 
                 batch_y1.append(y[0])
                 batch_y2.append(y[1])
