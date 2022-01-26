@@ -43,7 +43,7 @@ class Yolo:
                  decay=0.0005,
                  momentum=0.9,
                  burn_in=1000,
-                 batch_size=32,
+                 batch_size=4,
                  iterations=100000,
                  curriculum_iterations=0,
                  validation_split=0.2,
@@ -83,10 +83,6 @@ class Yolo:
             if self.__optimizer == 'adam':
                 self.__decay = 0.0
             self.__model = Model(input_shape=input_shape, output_channel=self.__num_classes + 5, decay=self.__decay).build()
-            # os.environ['PATH'] += os.pathsep + r'C:\inz\etc\Graphviz\bin'
-            # tf.keras.utils.plot_model(self.__model, show_shapes=True)
-            # print('save model image success')
-            # exit(0)
 
         if validation_image_path != '':
             self.__train_image_paths, _ = self.__init_image_paths(train_image_path)
@@ -111,7 +107,6 @@ class Yolo:
         self.__live_loss_plot = None
         if self.__mixed_float16_training:
             mixed_precision.set_policy(mixed_precision.Policy('mixed_float16'))
-
         os.makedirs('checkpoints', exist_ok=True)
 
     def __get_optimizer(self, optimizer_str):
@@ -219,8 +214,11 @@ class Yolo:
                 print(f'\r[iteration count : {iteration_count:6d}] loss => {logs["loss"]:.4f}', end='')
                 if self.__training_view:
                     self.__training_view_function()
-                if iteration_count > int(self.__iterations * 0.8) and iteration_count % 1000 == 0:
-                    self.__save_model(iteration_count=iteration_count)
+
+                if iteration_count > int(self.__iterations * 0.9) and iteration_count % 2000 == 0:
+                    self.__save_model(iteration_count=iteration_count, use_map_checkpoint=self.__map_checkpoint)
+                elif iteration_count % 20000 == 0:
+                    self.__save_model(iteration_count=iteration_count, use_map_checkpoint=False)
                 if self.__lr_policy == 'step':
                     if iteration_count == int(self.__iterations * 0.8):
                         tf.keras.backend.set_value(self.__model.optimizer.lr, self.__model.optimizer.lr * 0.1)
@@ -271,9 +269,9 @@ class Yolo:
             better_than_before = True
         return better_than_before
 
-    def __save_model(self, iteration_count):
+    def __save_model(self, iteration_count, use_map_checkpoint=True):
         print('\n')
-        if self.__map_checkpoint:
+        if use_map_checkpoint:
             self.__model.save('model.h5', include_optimizer=False)
             mean_ap, f1_score, tp_iou, tp, fp, fn = calc_mean_average_precision(self.__model, self.__validation_image_paths)
             if self.__is_better_than_before(mean_ap, f1_score, tp_iou):
@@ -429,43 +427,6 @@ class Yolo:
                     exit(0)
             cap.release()
             cv2.destroyAllWindows()
-
-    # @staticmethod
-    # def __concat(img_0, img_1, img_2):
-    #     img_0 = np.asarray(img_0).reshape(img_0.shape + (1,))
-    #     img_1 = np.asarray(img_1).reshape(img_1.shape + (1,))
-    #     img_2 = np.asarray(img_2).reshape(img_2.shape + (1,))
-    #     img = np.concatenate((img_0, img_1, img_2), axis=-1)
-    #     return img
-
-    # def predict_video_3ch_sequence(self, video_path):
-    #     """
-    #     Equal to the evaluate function. video path is required.
-    #     """
-    #     with tf.device('/cpu:0'):
-    #         img_stack = []
-    #         cap = cv2.VideoCapture(video_path)
-    #         while True:
-    #             frame_exist, raw = cap.read()
-    #             if not frame_exist:
-    #                 break
-    #             x = cv2.cvtColor(raw, cv2.COLOR_BGR2GRAY)
-    #             img_stack.append(x)
-    #             if len(img_stack) < 3:
-    #                 continue
-    #             elif len(img_stack) > 3:
-    #                 img_stack.pop(0)
-    #             x = self.__concat(img_stack[0], img_stack[1], img_stack[2])
-    #             res = self.predict(x)
-    #             boxed_image = self.bounding_box(raw, res)
-    #             cv2.imshow('video', boxed_image)
-    #             key = cv2.waitKey(1)
-    #             if key == ord('q'):
-    #                 break
-    #             elif key == 27:
-    #                 exit(0)
-    #         cap.release()
-    #         cv2.destroyAllWindows()
 
     def predict_images(self, image_paths):
         """
