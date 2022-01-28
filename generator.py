@@ -291,13 +291,11 @@ class GeneratorFlow(tf.keras.utils.Sequence):
                         output_cols = float(self.output_shapes[output_layer_index][2])
                         for b in layer_mapping_boxes[output_layer_index]:
                             class_index, cx, cy, w, h = b['class_index'], b['cx'], b['cy'], b['w'], b['h']
-                            grid_width_ratio = 1 / output_cols
-                            grid_height_ratio = 1 / output_rows
                             center_row = int(cy * output_rows)
                             center_col = int(cx * output_cols)
                             y[output_layer_index][center_row][center_col][0] = 1.0
-                            y[output_layer_index][center_row][center_col][1] = (cx - (center_col * grid_width_ratio)) / grid_width_ratio
-                            y[output_layer_index][center_row][center_col][2] = (cy - (center_row * grid_height_ratio)) / grid_height_ratio
+                            y[output_layer_index][center_row][center_col][1] = (cx - float(center_col) / output_cols) / (1.0 / output_cols)
+                            y[output_layer_index][center_row][center_col][2] = (cy - float(center_row) / output_rows) / (1.0 / output_rows)
                             y[output_layer_index][center_row][center_col][3] = w
                             y[output_layer_index][center_row][center_col][4] = h
                             y[output_layer_index][center_row][center_col][int(class_index + 5)] = 1.0
@@ -311,13 +309,11 @@ class GeneratorFlow(tf.keras.utils.Sequence):
                         for output_layer_index in output_layer_indexes:
                             output_rows = float(self.output_shapes[output_layer_index][1])
                             output_cols = float(self.output_shapes[output_layer_index][2])
-                            grid_width_ratio = 1.0 / output_cols
-                            grid_height_ratio = 1.0 / output_rows
                             center_row = int(cy * output_rows)
                             center_col = int(cx * output_cols)
                             y[output_layer_index][center_row][center_col][0] = 1.0
-                            y[output_layer_index][center_row][center_col][1] = (cx - (center_col * grid_width_ratio)) / grid_width_ratio
-                            y[output_layer_index][center_row][center_col][2] = (cy - (center_row * grid_height_ratio)) / grid_height_ratio
+                            y[output_layer_index][center_row][center_col][1] = (cx - float(center_col) / output_cols) / (1.0 / output_cols)
+                            y[output_layer_index][center_row][center_col][2] = (cy - float(center_row) / output_rows) / (1.0 / output_rows)
                             y[output_layer_index][center_row][center_col][3] = w
                             y[output_layer_index][center_row][center_col][4] = h
                             y[output_layer_index][center_row][center_col][int(class_index + 5)] = 1.0
