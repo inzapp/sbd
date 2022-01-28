@@ -13,6 +13,8 @@ g_iou_thresholds = [0.5]
 g_confidence_threshold = 0.25  # only for tp, fp, fn
 g_nms_iou_threshold = 0.45  # darknet yolo nms threshold value
 g_label_smoothing = 0.0
+g_input_rows = 0
+g_input_cols = 0
 
 
 def iou(a, b):
@@ -35,16 +37,15 @@ def iou(a, b):
 
 
 def get_y_true(label_lines, target_class_index):
-    raw_width = 1000
-    raw_height = 1000
+    global g_input_rows, g_input_cols
     y_true = []
     for label_line in label_lines:
         class_index, cx, cy, w, h = list(map(float, label_line.split(' ')))
         if int(class_index) == target_class_index:
-            x1 = int((cx - w / 2.0) * raw_width)
-            x2 = int((cx + w / 2.0) * raw_width)
-            y1 = int((cy - h / 2.0) * raw_height)
-            y2 = int((cy + h / 2.0) * raw_height)
+            x1 = int((cx - w / 2.0) * g_input_cols)
+            x2 = int((cx + w / 2.0) * g_input_cols)
+            y1 = int((cy - h / 2.0) * g_input_rows)
+            y2 = int((cy + h / 2.0) * g_input_rows)
             y_true.append({
                 'class': int(class_index),
                 'bbox': [x1, y1, x2, y2],
@@ -90,11 +91,16 @@ def nms_origin(y_pred):
     return y_pred
 
 
-def get_y_pred(y, target_class_index, confidence_threshold):
-    global g_label_smoothing, g_nms_iou_threshold
-    raw_width = 1000
-    raw_height = 1000
+def sigmoid(x):
+    if x > 20.0:
+        return 1.0
+    elif x < -20.0:
+        return 0.0
+    return 1.0 / (1.0 + np.exp(-1.0 * x))
 
+
+def get_y_pred(y, target_class_index, confidence_threshold):
+    global g_label_smoothing, g_nms_iou_threshold, g_input_rows, g_input_cols
     y_pred = []
     for layer_index in range(len(y)):
         rows = y[layer_index][0].shape[0]
@@ -103,7 +109,8 @@ def get_y_pred(y, target_class_index, confidence_threshold):
 
         for i in range(rows):
             for j in range(cols):
-                confidence = y[layer_index][0][i][j][0]
+                confidence = sigmoid(y[layer_index][0][i][j][0])
+                # print(f'confidence : {confidence}')
                 # if confidence < label_smoothing + 0.005:  # darknet yolo mAP confidence threshold value
                 if confidence < confidence_threshold:
                     continue
@@ -116,6 +123,7 @@ def get_y_pred(y, target_class_index, confidence_threshold):
                         class_index = cur_channel_index - 5
                         class_score = cur_class_score
 
+                class_score = sigmoid(class_score)
                 confidence *= class_score
                 # if confidence < label_smoothing + 0.005:  # darknet yolo mAP confidence threshold value
                 if confidence < confidence_threshold:
@@ -124,19 +132,24 @@ def get_y_pred(y, target_class_index, confidence_threshold):
                 if class_index != target_class_index:
                     continue
 
-                cx_f = (j + y[layer_index][0][i][j][1]) / float(cols)
-                cy_f = (i + y[layer_index][0][i][j][2]) / float(rows)
-                w = y[layer_index][0][i][j][3]
-                h = y[layer_index][0][i][j][4]
+                # print(f'class_score : {class_score}')
+                # print(f'confidence * class_score : {confidence}')
+                # print()
+
+                cx_f = (j + sigmoid(y[layer_index][0][i][j][1])) / float(cols)
+                cy_f = (i + sigmoid(y[layer_index][0][i][j][2])) / float(rows)
+                w = (1.0 / cols * float(g_input_cols)) * np.exp(y[layer_index][0][i][j][3]) / float(g_input_cols)
+                h = (1.0 / rows * float(g_input_rows)) * np.exp(y[layer_index][0][i][j][4]) / float(g_input_rows)
+                cx_f, cy_f, w, h = np.clip(np.array([cx_f, cy_f, w, h]), 0.0, 1.0)
 
                 x_min_f = cx_f - w / 2.0
                 y_min_f = cy_f - h / 2.0
                 x_max_f = cx_f + w / 2.0
                 y_max_f = cy_f + h / 2.0
-                x_min = int(x_min_f * raw_width)
-                y_min = int(y_min_f * raw_height)
-                x_max = int(x_max_f * raw_width)
-                y_max = int(y_max_f * raw_height)
+                x_min = int(x_min_f * g_input_cols)
+                y_min = int(y_min_f * g_input_rows)
+                x_max = int(x_max_f * g_input_cols)
+                y_max = int(y_max_f * g_input_rows)
 
                 y_pred.append({
                     'confidence': confidence,
@@ -258,7 +271,9 @@ def load_x_label_lines(image_path, color_mode, input_size, input_shape):
 
 
 def calc_mean_average_precision(model, all_image_paths):
-    global g_iou_thresholds, g_confidence_threshold
+    global g_iou_thresholds, g_confidence_threshold, g_input_rows, g_input_cols
+    g_input_rows = model.input_shape[1:][0]
+    g_input_cols = model.input_shape[1:][1]
 
     # from random import shuffle
     # shuffle(all_image_paths)
@@ -383,9 +398,12 @@ def all_check():
 
 
 def main():
+    global g_input_rows, g_input_cols
     model_path = r'model_last.h5'
     img_paths = glob(r'T:\200m_big_small_detection\train_data\small\small_all\validation_200\*.jpg')
     model = tf.keras.models.load_model(model_path, compile=False)
+    g_input_rows = model.input_shape[1:][0]
+    g_input_cols = model.input_shape[1:][1]
     calc_mean_average_precision(model, img_paths)
 
 
