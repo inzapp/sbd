@@ -74,10 +74,9 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         self.virtual_anchor_hs = []
         self.label_obj_count = 0  # obj count in real label txt
         self.pool = ThreadPoolExecutor(8)
-        # self.pool = ThreadPoolExecutor(1)
 
-        self.train_type = 'one_layer'
-        self.train_layer_index = 0
+        self.train_type = 'all_layer_auto_split'
+        self.train_layer_index = 1
 
         queue_size = 64
         self.batch_index = 0
@@ -292,19 +291,16 @@ class GeneratorFlow(tf.keras.utils.Sequence):
                         output_cols = float(self.output_shapes[output_layer_index][2])
                         for b in layer_mapping_boxes[output_layer_index]:
                             class_index, cx, cy, w, h = b['class_index'], b['cx'], b['cy'], b['w'], b['h']
+                            grid_width_ratio = 1 / output_cols
+                            grid_height_ratio = 1 / output_rows
                             center_row = int(cy * output_rows)
                             center_col = int(cx * output_cols)
                             y[output_layer_index][center_row][center_col][0] = 1.0
-                            y[output_layer_index][center_row][center_col][1] = (cx - float(center_col) / output_cols) / (1.0 / output_cols)
-                            y[output_layer_index][center_row][center_col][2] = (cy - float(center_row) / output_rows) / (1.0 / output_rows)
-                            # y[output_layer_index][center_row][center_col][3] = np.log((w * self.input_shape[1]) / (1.0 / output_cols * self.input_shape[1]))
-                            # y[output_layer_index][center_row][center_col][4] = np.log((h * self.input_shape[0]) / (1.0 / output_rows * self.input_shape[0]))
-                            y[output_layer_index][center_row][center_col][3] = (w * self.input_shape[1]) / (1.0 / output_cols * self.input_shape[1])
-                            y[output_layer_index][center_row][center_col][4] = (h * self.input_shape[0]) / (1.0 / output_rows * self.input_shape[0])
+                            y[output_layer_index][center_row][center_col][1] = (cx - (center_col * grid_width_ratio)) / grid_width_ratio
+                            y[output_layer_index][center_row][center_col][2] = (cy - (center_row * grid_height_ratio)) / grid_height_ratio
+                            y[output_layer_index][center_row][center_col][3] = w
+                            y[output_layer_index][center_row][center_col][4] = h
                             y[output_layer_index][center_row][center_col][int(class_index + 5)] = 1.0
-
-                            # print(y[output_layer_index][center_row][center_col][3])
-                            # print(y[output_layer_index][center_row][center_col][4])
                 else:
                     for b in boxes:
                         class_index, cx, cy, w, h = b['class_index'], b['cx'], b['cy'], b['w'], b['h']
@@ -315,19 +311,16 @@ class GeneratorFlow(tf.keras.utils.Sequence):
                         for output_layer_index in output_layer_indexes:
                             output_rows = float(self.output_shapes[output_layer_index][1])
                             output_cols = float(self.output_shapes[output_layer_index][2])
+                            grid_width_ratio = 1.0 / output_cols
+                            grid_height_ratio = 1.0 / output_rows
                             center_row = int(cy * output_rows)
                             center_col = int(cx * output_cols)
                             y[output_layer_index][center_row][center_col][0] = 1.0
-                            y[output_layer_index][center_row][center_col][1] = (cx - float(center_col) / output_cols) / (1.0 / output_cols)
-                            y[output_layer_index][center_row][center_col][2] = (cy - float(center_row) / output_rows) / (1.0 / output_rows)
-                            # y[output_layer_index][center_row][center_col][3] = np.log((w * self.input_shape[1]) / (1.0 / output_cols * self.input_shape[1]))
-                            # y[output_layer_index][center_row][center_col][4] = np.log((h * self.input_shape[0]) / (1.0 / output_rows * self.input_shape[0]))
-                            y[output_layer_index][center_row][center_col][3] = (w * self.input_shape[1]) / (1.0 / output_cols * self.input_shape[1])
-                            y[output_layer_index][center_row][center_col][4] = (h * self.input_shape[0]) / (1.0 / output_rows * self.input_shape[0])
+                            y[output_layer_index][center_row][center_col][1] = (cx - (center_col * grid_width_ratio)) / grid_width_ratio
+                            y[output_layer_index][center_row][center_col][2] = (cy - (center_row * grid_height_ratio)) / grid_height_ratio
+                            y[output_layer_index][center_row][center_col][3] = w
+                            y[output_layer_index][center_row][center_col][4] = h
                             y[output_layer_index][center_row][center_col][int(class_index + 5)] = 1.0
-
-                            # print(y[output_layer_index][center_row][center_col][3])
-                            # print(y[output_layer_index][center_row][center_col][4])
 
                 batch_y1.append(y[0])
                 batch_y2.append(y[1])

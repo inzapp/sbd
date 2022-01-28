@@ -34,9 +34,8 @@ def __abs_log_loss(y_true, y_pred):
 
 def __confidence_loss(y_true, y_pred):
     obj_true = y_true[:, :, :, 0]
-    # obj_pred = tf.sigmoid(y_pred[:, :, :, 0])
     obj_pred = y_pred[:, :, :, 0]
-    loss = tf.losses.binary_crossentropy(obj_true, obj_pred, from_logits=True)
+    loss = tf.losses.binary_crossentropy(obj_true, obj_pred)
     loss = tf.reduce_mean(loss, axis=0)
     loss = tf.reduce_sum(loss)
     return loss 
@@ -106,22 +105,18 @@ def __bbox_loss(y_true, y_pred):
         return 0.0
 
     xy_true = y_true[:, :, :, 1:3]
-    xy_pred = tf.sigmoid(y_pred[:, :, :, 1:3])
-    # xy_loss = __abs_log_loss(xy_true, xy_pred)
-    xy_loss = tf.square(xy_true - xy_pred)
-    xy_loss = tf.reduce_sum(xy_loss, axis=-1) * obj_true
-    xy_loss = tf.reduce_mean(xy_loss, axis=0)
+    xy_pred = y_pred[:, :, :, 1:3]
+    xy_loss = __abs_log_loss(xy_true, xy_pred)
+    xy_loss = tf.reduce_mean(xy_loss, axis=-1) * obj_true
     xy_loss = tf.reduce_sum(xy_loss)
 
-    # wh_true = tf.math.exp(y_true[:, :, :, 3:5])
-    wh_true = y_true[:, :, :, 3:5]
-    wh_pred = tf.math.exp(y_pred[:, :, :, 3:5])
-    wh_loss = tf.abs(wh_true - wh_pred)
-    wh_loss = tf.reduce_sum(wh_loss, axis=-1) * obj_true
-    wh_loss = tf.reduce_mean(wh_loss, axis=0)
+    eps = tf.keras.backend.epsilon()
+    wh_true = tf.sqrt(y_true[:, :, :, 3:5] + eps)
+    wh_pred = tf.sqrt(y_pred[:, :, :, 3:5] + eps)
+    wh_loss = __abs_log_loss(wh_true, wh_pred)
+    wh_loss = tf.reduce_mean(wh_loss, axis=-1) * obj_true
     wh_loss = tf.reduce_sum(wh_loss)
-    # return (xy_loss) * 1.0
-    return (xy_loss + wh_loss) * 1.0
+    return (xy_loss + wh_loss) * 5.0
 
 
 def __classification_loss(y_true, y_pred):
@@ -131,9 +126,8 @@ def __classification_loss(y_true, y_pred):
         return 0.0
 
     class_true = y_true[:, :, :, 5:]
-    # class_pred = tf.sigmoid(y_pred[:, :, :, 5:])
     class_pred = y_pred[:, :, :, 5:]
-    loss = tf.losses.binary_crossentropy(class_true, class_pred, from_logits=True)
+    loss = tf.losses.binary_crossentropy(class_true, class_pred)
     loss = tf.reduce_mean(loss, axis=0) * obj_true
     loss = tf.reduce_sum(loss)
     return loss
@@ -155,6 +149,3 @@ def yolo_loss(y_true, y_pred):
     y_pred = convert_to_tensor_v2(y_pred)
     y_true = tf.cast(y_true, y_pred.dtype)
     return __confidence_loss(y_true, y_pred) + __bbox_loss(y_true, y_pred) + __classification_loss(y_true, y_pred)
-    # return __confidence_loss(y_true, y_pred) + __classification_loss(y_true, y_pred)
-    # return __confidence_loss(y_true, y_pred)
-    # return __classification_loss(y_true, y_pred)

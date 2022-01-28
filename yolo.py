@@ -319,13 +319,6 @@ class Yolo:
                 y_pred.append(y_pred_copy[i])
         return y_pred
 
-    def __sigmoid(self, x):
-        if x > 20.0:
-            return 1.0
-        elif x < -20.0:
-            return 0.0
-        return 1.0 / (1.0 + np.exp(-1.0 * x))
-
     def predict(self, img, confidence_threshold=0.25, nms_iou_threshold=0.45):
         """
         Detect object in image using trained YOLO model.
@@ -337,8 +330,6 @@ class Yolo:
         """
         raw_width, raw_height = img.shape[1], img.shape[0]
         input_shape = self.__model.input_shape[1:]
-        input_rows = input_shape[0]
-        input_cols = input_shape[1]
         output_shape = self.__model.output_shape
 
         if img.shape[1] > input_shape[1] or img.shape[0] > input_shape[0]:
@@ -355,7 +346,7 @@ class Yolo:
             cols = output_shape[layer_index][2]
             for i in range(rows):
                 for j in range(cols):
-                    confidence = self.__sigmoid(y[layer_index][0][i][j][0])
+                    confidence = y[layer_index][0][i][j][0]
                     if confidence < confidence_threshold:
                         continue
 
@@ -367,22 +358,14 @@ class Yolo:
                             class_index = cur_channel_index
                             class_score = cur_class_score
 
-                    class_score = self.__sigmoid(class_score)
                     confidence = confidence * class_score
                     if confidence < confidence_threshold:
                         continue
 
-                    cx_f = (j + self.__sigmoid(y[layer_index][0][i][j][1])) / float(cols)
-                    cy_f = (i + self.__sigmoid(y[layer_index][0][i][j][2])) / float(rows)
-                    w = (1.0 / cols * float(input_cols)) * np.exp(y[layer_index][0][i][j][3]) / float(input_cols)
-                    h = (1.0 / rows * float(input_rows)) * np.exp(y[layer_index][0][i][j][4]) / float(input_rows)
-                    print(f'layer_index, output_cols, input_cols, {layer_index}, {cols}, {input_cols}')
-                    print(f'w raw output : {y[layer_index][0][i][j][3]}')
-                    print(f'w sigmoid raw output : {self.__sigmoid(y[layer_index][0][i][j][3])}')
-                    print(f'w : {w:.6f}')
-                    print(f'h : {h:.6f}\n')
-                    cx_f, cy_f, w, h = np.clip(np.array([cx_f, cy_f, w, h]), 0.0, 1.0)
-
+                    cx_f = (j + y[layer_index][0][i][j][1]) / float(cols)
+                    cy_f = (i + y[layer_index][0][i][j][2]) / float(rows)
+                    w = y[layer_index][0][i][j][3]
+                    h = y[layer_index][0][i][j][4]
 
                     x_min_f = cx_f - w / 2.0
                     y_min_f = cy_f - h / 2.0

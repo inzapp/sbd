@@ -50,7 +50,7 @@ class Model:
     def build(self):
         # return self.__normal_model()
         # return self.__vgg_16()
-        # return self.__darknet_19()
+        # return self.__darknet_53()
         # return self.__lp_detection_sbd()
         # return self.__lp_detection_sbd_csp()
         # return self.__person_detail()
@@ -173,28 +173,26 @@ class Model:
     def __loon(self):
         input_layer = tf.keras.layers.Input(shape=self.__input_shape)
         x = self.__conv_block(input_layer, 8, 3, bn=True, activation='swish')
-        x = self.__max_pool(x)
+        x = self.__avg_max_pool(x)
 
         x = self.__drop_filter(x, 0.0625)
         x = self.__conv_block(x, 16, 3, bn=True, activation='swish')
-        x = self.__max_pool(x)
+        x = self.__avg_max_pool(x)
 
         x = self.__drop_filter(x, 0.0625)
         x = self.__conv_block(x, 32, 3, bn=True, activation='swish')
-        x = self.__max_pool(x)
+        x = self.__avg_max_pool(x)
+        y1 = self.__detection_layer(x, 'sbd_output_1')
 
         x = self.__drop_filter(x, 0.0625)
         x = self.__conv_block(x, 64, 3, bn=True, activation='swish')
-        y1 = self.__detection_layer(x, 'sbd_output_1')
-        x = self.__max_pool(x)
+        x = self.__avg_max_pool(x)
 
         x = self.__drop_filter(x, 0.0625)
-        x = self.__conv_block(x, 128, 3, bn=True, activation='swish')
         y2 = self.__detection_layer(x, 'sbd_output_2')
-        x = self.__max_pool(x)
+        x = self.__conv_block(x, 128, 3, bn=True, activation='swish')
+        x = self.__avg_max_pool(x)
 
-        x = self.__drop_filter(x, 0.0625)
-        x = self.__conv_block(x, 256, 3, bn=True, activation='swish')
         y3 = self.__detection_layer(x, 'sbd_output_3')
         return tf.keras.models.Model(input_layer, [y1, y2, y3])
 
@@ -312,35 +310,35 @@ class Model:
 
     def __person_part_detail(self):
         input_layer = tf.keras.layers.Input(shape=self.__input_shape)
-        x = self.__cross_conv_block(input_layer, 32, 3, bn=True, mode='concat', activation='swish')
+        x = self.__cross_conv_block(input_layer, 16, 3, bn=True, activation='swish')
         x = self.__max_pool(x)
 
         x = self.__drop_filter(x, 0.0625)
-        x = self.__cross_conv_block(x, 64, 3, bn=False, mode='concat', activation='swish')
+        x = self.__cross_conv_block(x, 32, 3, bn=False, activation='swish')
         x = self.__max_pool(x)
 
         x = self.__drop_filter(x, 0.0625)
-        x = self.__cross_conv_block(x, 128, 3, bn=False, mode='concat', activation='swish')
+        x = self.__cross_conv_block(x, 64, 3, bn=False, activation='swish')
         x = self.__max_pool(x)
 
         x = self.__drop_filter(x, 0.0625)
-        x = self.__conv_block(x, 256, 3, bn=False, activation='swish')
+        x = self.__cross_conv_block(x, 128, 3, bn=False, activation='swish')
         x = self.__drop_filter(x, 0.0625)
-        x = self.__conv_block(x, 256, 3, bn=True, activation='swish')
+        x = self.__cross_conv_block(x, 128, 3, bn=True, activation='swish')
         y1 = self.__detection_layer(x, 'sbd_output_1')
         x = self.__avg_max_pool(x)
 
         x = self.__drop_filter(x, 0.0625)
-        x = self.__conv_block(x, 256, 3, bn=False, activation='swish')
+        x = self.__cross_conv_block(x, 256, 3, bn=False, activation='swish')
         x = self.__drop_filter(x, 0.0625)
-        x = self.__conv_block(x, 256, 3, bn=True, activation='swish')
+        x = self.__cross_conv_block(x, 256, 3, bn=True, activation='swish')
         y2 = self.__detection_layer(x, 'sbd_output_2')
         x = self.__avg_max_pool(x)
 
         x = self.__drop_filter(x, 0.0625)
-        x = self.__conv_block(x, 256, 3, bn=False, activation='swish')
+        x = self.__cross_conv_block(x, 256, 3, bn=False, activation='swish')
         x = self.__drop_filter(x, 0.0625)
-        x = self.__conv_block(x, 256, 3, bn=True, activation='swish')
+        x = self.__cross_conv_block(x, 256, 3, bn=True, activation='swish')
         y3 = self.__detection_layer(x, 'sbd_output_3')
         return tf.keras.models.Model(input_layer, [y1, y2, y3])
 
@@ -526,8 +524,8 @@ class Model:
                 x_1_1 = self.__conv_block(x_1, half_filters, 1, bn=False, activation=inner_activation)
             else:
                 x_1_1 = self.__conv_block(x_1_1, half_filters, kernel_size, bn=False, activation='none' if i == second_depth_n_convs - 1 else inner_activation)
-        x_1 = self.__concatenate ([x_1_0, x_1_1])
-        x = self.__concatenate([x_0, x_1])
+        x_1 = tf.keras.layers.Concatenate()([x_1_0, x_1_1])
+        x = tf.keras.layers.Concatenate()([x_0, x_1])
         if bn:
             x = self.__bn(x)
         x = self.__activation(x, activation=activation)
@@ -561,14 +559,14 @@ class Model:
                 x_1_1 = self.__cross_conv_block(x_1, half_filters, 1, bn=False, mode=mode, activation=inner_activation)
             else:
                 x_1_1 = self.__cross_conv_block(x_1_1, half_filters, kernel_size, bn=False, mode=mode, activation='none' if i == second_depth_n_convs - 1 else inner_activation)
-        x_1 = self.__concatenate([x_1_0, x_1_1])
-        x = self.__concatenate([x_0, x_1])
+        x_1 = tf.keras.layers.Concatenate()([x_1_0, x_1_1])
+        x = tf.keras.layers.Concatenate()([x_0, x_1])
         if bn:
             x = self.__bn(x)
         x = self.__activation(x, activation=activation)
         return x
 
-    def __cross_conv_block(self, x, filters, kernel_size, bn=True, mode='concat', activation='none'):
+    def __cross_conv_block(self, x, filters, kernel_size, bn=True, mode='add', activation='none'):
         v_conv = tf.keras.layers.Conv2D(
             filters=filters if mode == 'add' else filters / 2,
             kernel_size=(1, kernel_size),
@@ -585,7 +583,7 @@ class Model:
             padding='same',
             use_bias=False if bn else True,
             kernel_regularizer=tf.keras.regularizers.l2(l2=self.__decay) if self.__decay > 0.0 else None)(x)
-        x = self.__add([v_conv, h_conv]) if mode == 'add' else self.__concatenate([v_conv, h_conv])
+        x = tf.keras.layers.Add()([v_conv, h_conv]) if mode == 'add' else tf.keras.layers.Concatenate()([v_conv, h_conv])
         if bn:
             x = self.__bn(x)
         x = self.__activation(x, activation=activation)
@@ -595,38 +593,8 @@ class Model:
         return tf.keras.layers.Conv2D(
             filters=self.__output_channel,
             kernel_size=1,
-            activation='linear',
+            activation='sigmoid',
             name=name)(x)
-
-    def __spatial_pyramid_pooling(self, x, mode='add', two_depth_only=False):
-        p0 = self.__max_pool(x, kernel_size=2)
-        p1 = self.__max_pool(x, kernel_size=4)
-        p1 = tf.keras.layers.ZeroPadding2D(padding=(p1.shape[1] // 2, p1.shape[2] // 2))(p1)
-        if two_depth_only:
-            return self.__concatenate([p0, p1]) if mode == 'concat' else self.__add([p0, p1])
-        p2 = self.__max_pool(x, kernel_size=8)
-        p2 = tf.keras.layers.ZeroPadding2D(padding=(int(p2.shape[1] * 1.5), int(p2.shape[2] * 1.5)))(p2)
-        return self.__concatenate([p0, p1, p2]) if mode == 'concat' else self.__add([p0, p1, p2])
-
-    def __avg_max_pool(self, x, kernel_size=2):
-        ap = tf.keras.layers.AvgPool2D(pool_size=(kernel_size, kernel_size), padding='valid')(x)
-        mp = tf.keras.layers.MaxPool2D(pool_size=(kernel_size, kernel_size), padding='valid')(x)
-        return self.__add([ap, mp])
-
-    def __spatial_pyramid_pooling_caffe_conversion_fail(self, x, mode='concat', two_depth_only=False):
-        p0 = self.__max_pool(x, kernel_size=2)
-        p1 = self.__max_pool(x, kernel_size=4)
-        p1 = tf.keras.layers.ZeroPadding2D(padding=(p1.shape[1] // 2, p1.shape[2] // 2))(p1)
-        if two_depth_only:
-            return self.__concatenate([p0, p1]) if mode == 'concat' else self.__add([p0, p1])
-        p2 = self.__max_pool(x, kernel_size=8)
-        p2 = tf.keras.layers.ZeroPadding2D(padding=(int(p2.shape[1] * 1.5), int(p2.shape[2] * 1.5)))(p2)
-        return self.__concatenate([p0, p1, p2]) if mode == 'concat' else self.__add([p0, p1, p2])
-
-    def __avg_max_pool(self, x, kernel_size=2):
-        ap = tf.keras.layers.AvgPool2D(pool_size=(kernel_size, kernel_size), padding='valid')(x)
-        mp = tf.keras.layers.MaxPool2D(pool_size=(kernel_size, kernel_size), padding='valid')(x)
-        return self.__add([ap, mp])
 
     @staticmethod
     def standardization(w):
@@ -637,16 +605,14 @@ class Model:
         return w
 
     @staticmethod
-    def __max_pool(x, kernel_size=2):
-        return tf.keras.layers.MaxPool2D(pool_size=(kernel_size, kernel_size), padding='valid')(x)
+    def __max_pool(x):
+        return tf.keras.layers.MaxPool2D()(x)
 
     @staticmethod
-    def __concatenate(layers):
-        return tf.keras.layers.Concatenate()(layers)
-
-    @staticmethod
-    def __add(layers):
-        return tf.keras.layers.Add()(layers)
+    def __avg_max_pool(x):
+        ap = tf.keras.layers.AvgPool2D()(x)
+        mp = tf.keras.layers.MaxPool2D()(x)
+        return tf.keras.layers.Add()([ap, mp])
 
     @staticmethod
     def __dropout(x, rate):
