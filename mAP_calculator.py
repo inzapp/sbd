@@ -247,8 +247,6 @@ def load_x_label_lines(image_path, color_mode, input_size, input_shape):
     if len(label_lines) == 0:
         return None, None
     x = cv2.imread(image_path, color_mode)
-    if color_mode == cv2.IMREAD_COLOR:
-        x = cv2.cvtColor(x, cv2.COLOR_BGR2RGB)  # rb swap
     if x is None:
         print(f'img is None : {image_path}')
         return None, None
@@ -383,7 +381,7 @@ def all_check():
 
 
 def main():
-    model_path = r'model_last.h5'
+    model_path = r'model.h5'
     img_paths = glob(r'T:\200m_big_small_detection\train_data\small\small_all\validation_200\*.jpg')
     model = tf.keras.models.load_model(model_path, compile=False)
     calc_mean_average_precision(model, img_paths)

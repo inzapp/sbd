@@ -76,7 +76,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         self.pool = ThreadPoolExecutor(8)
 
         self.train_type = 'all_layer_auto_split'
-        self.train_layer_index = 1
+        self.train_layer_index = 0
 
         queue_size = 64
         self.batch_index = 0
@@ -340,8 +340,6 @@ class GeneratorFlow(tf.keras.utils.Sequence):
 
     def __load_img(self, path):
         img = cv2.imread(path, cv2.IMREAD_GRAYSCALE if self.input_shape[2] == 1 else cv2.IMREAD_COLOR)
-        if self.input_shape[2] == 3:
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  # rb swap
         # img = self.__random_adjust(img)  # so slow
         return path, img
 

@@ -445,8 +445,6 @@ class Yolo:
             for path in image_paths:
                 raw = cv2.imread(path, cv2.IMREAD_COLOR)
                 x = cv2.cvtColor(raw, cv2.COLOR_BGR2GRAY) if self.__model.input.shape[-1] == 1 else raw.copy()
-                if self.__model.input_shape[-1] == 3:
-                    x = cv2.cvtColor(x, cv2.COLOR_BGR2RGB) # rb swap
                 res = self.predict(x)
                 boxed_image = self.bounding_box(raw, res)
                 cv2.imshow('res', boxed_image)
