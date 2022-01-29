@@ -72,12 +72,12 @@ if __name__ == '__main__':
     """
 
     Yolo(
-        optimizer='sgd',
-        lr_policy='step',
-        train_image_path=r'C:\inz\train_data\loon\train',
-        validation_image_path=r'C:\inz\train_data\loon\validation',
-        class_names_file_path=r'C:\inz\train_data\loon\train\classes.txt',
-        input_shape=(128, 512, 3),
+        # optimizer='sgd',
+        # lr_policy='step',
+        # train_image_path=r'C:\inz\train_data\loon\train',
+        # validation_image_path=r'C:\inz\train_data\loon\validation',
+        # class_names_file_path=r'C:\inz\train_data\loon\train\classes.txt',
+        # input_shape=(128, 512, 3),
 
         # train_image_path=r'C:\inz\train_data\200m_sequence_for_auto_label\train',
         # validation_image_path=r'C:\inz\train_data\200m_sequence_for_auto_label\validation',
@@ -133,6 +133,13 @@ if __name__ == '__main__':
         # validation_image_path=r'C:\inz\train_data\lcd_white\validation',
         # class_names_file_path=r'C:\inz\train_data\lcd_white\train\classes.txt',
         # input_shape=(96, 192, 1),
+
+        optimizer='sgd',
+        lr_policy='step',
+        train_image_path=r'C:\inz\train_data\square_set',
+        validation_image_path=r'C:\inz\train_data\square_set',
+        class_names_file_path=r'C:\inz\train_data\square_set\classes.txt',
+        input_shape=(128, 128, 1),
 
         lr=0.001,
         decay=0.0005,
