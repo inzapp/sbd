@@ -301,7 +301,8 @@ class Yolo:
         validation_image_paths = all_image_paths[num_train_images:]
         return image_paths, validation_image_paths
 
-    def __nms(self, y_pred, nms_iou_threshold):
+    @staticmethod
+    def nms(y_pred, nms_iou_threshold):
         y_pred = sorted(y_pred, key=lambda x: x['confidence'], reverse=True)
         for i in range(len(y_pred) - 1):
             if y_pred[i]['discard']:
@@ -309,7 +310,7 @@ class Yolo:
             for j in range(i + 1, len(y_pred)):
                 if y_pred[j]['discard'] or y_pred[i]['class'] != y_pred[j]['class']:
                     continue
-                if self.__iou(y_pred[i]['bbox'], y_pred[j]['bbox']) > nms_iou_threshold:
+                if Yolo.iou(y_pred[i]['bbox'], y_pred[j]['bbox']) > nms_iou_threshold:
                     y_pred[j]['discard'] = True
 
         y_pred_copy = np.asarray(y_pred.copy())
@@ -319,7 +320,8 @@ class Yolo:
                 y_pred.append(y_pred_copy[i])
         return y_pred
 
-    def predict(self, img, confidence_threshold=0.25, nms_iou_threshold=0.45):
+    @staticmethod
+    def predict(model, img, confidence_threshold=0.25, nms_iou_threshold=0.45):
         """
         Detect object in image using trained YOLO model.
         :param img: (width, height, channel) formatted image to be predicted.
@@ -329,8 +331,8 @@ class Yolo:
         each dictionary has class index and bbox info: [x1, y1, x2, y2].
         """
         raw_width, raw_height = img.shape[1], img.shape[0]
-        input_shape = self.__model.input_shape[1:]
-        output_shape = self.__model.output_shape
+        input_shape = model.input_shape[1:]
+        output_shape = model.output_shape
 
         if img.shape[1] > input_shape[1] or img.shape[0] > input_shape[0]:
             img = cv2.resize(img, (input_shape[1], input_shape[0]), interpolation=cv2.INTER_AREA)
@@ -338,7 +340,7 @@ class Yolo:
             img = cv2.resize(img, (input_shape[1], input_shape[0]), interpolation=cv2.INTER_LINEAR)
 
         x = np.asarray(img).reshape((1,) + input_shape).astype('float32') / 255.0
-        y = self.__model.predict_on_batch(x=x)
+        y = model.predict_on_batch(x=x)
 
         y_pred = []
         for layer_index in range(len(output_shape)):
@@ -366,11 +368,13 @@ class Yolo:
                     cy_f = (i + y[layer_index][0][i][j][2]) / float(rows)
                     w = y[layer_index][0][i][j][3]
                     h = y[layer_index][0][i][j][4]
+                    cx_f, cy_f, w, h = np.clip(np.array([cx_f, cy_f, w, h]), 0.0, 1.0)
 
                     x_min_f = cx_f - w / 2.0
                     y_min_f = cy_f - h / 2.0
                     x_max_f = cx_f + w / 2.0
                     y_max_f = cy_f + h / 2.0
+                    x_min_f, y_min_f, x_max_f, y_max_f = np.clip(np.array([x_min_f, y_min_f, x_max_f, y_max_f]), 0.0, 1.0)
                     x_min = int(x_min_f * raw_width)
                     y_min = int(y_min_f * raw_height)
                     x_max = int(x_max_f * raw_width)
@@ -378,10 +382,11 @@ class Yolo:
                     y_pred.append({
                         'confidence': confidence,
                         'bbox': [x_min, y_min, x_max, y_max],
+                        'bbox_norm': [x_min_f, y_min_f, x_max_f, y_max_f],
                         'class': class_index - 5,
                         'discard': False})
 
-        y_pred = self.__nms(y_pred, nms_iou_threshold)
+        y_pred = Yolo.nms(y_pred, nms_iou_threshold)
         return y_pred
 
     def bounding_box(self, img, yolo_res, font_scale=0.4):
@@ -423,7 +428,7 @@ class Yolo:
                 if not frame_exist:
                     break
                 x = cv2.cvtColor(raw, cv2.COLOR_BGR2GRAY) if self.__model.input.shape[-1] == 1 else raw.copy()
-                res = self.predict(x)
+                res = Yolo.predict(self.__model, x)
                 boxed_image = self.bounding_box(raw, res)
                 cv2.imshow('video', boxed_image)
                 key = cv2.waitKey(1)
@@ -445,7 +450,7 @@ class Yolo:
             for path in image_paths:
                 raw = cv2.imread(path, cv2.IMREAD_COLOR)
                 x = cv2.cvtColor(raw, cv2.COLOR_BGR2GRAY) if self.__model.input.shape[-1] == 1 else raw.copy()
-                res = self.predict(x)
+                res = Yolo.predict(self.__model, x)
                 boxed_image = self.bounding_box(raw, res)
                 cv2.imshow('res', boxed_image)
                 key = cv2.waitKey(0)
@@ -476,7 +481,7 @@ class Yolo:
             else:
                 img_path = random.choice(self.__validation_image_paths)
             img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE if self.__model.input.shape[-1] == 1 else cv2.IMREAD_COLOR)
-            res = self.predict(img)
+            res = Yolo.predict(self.__model, img)
             boxed_image = self.bounding_box(img, res)
             cv2.imshow('training view', boxed_image)
             cv2.waitKey(1)
@@ -498,7 +503,7 @@ class Yolo:
             return [], 0
 
     @staticmethod
-    def __iou(a, b):
+    def iou(a, b):
         """
         Intersection of union function.
         :param a: [x_min, y_min, x_max, y_max] format box a

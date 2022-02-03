@@ -1,383 +1,71 @@
 import os
-from concurrent.futures import ThreadPoolExecutor
-from glob import glob
-
+import cv2
 import numpy as np
-import tensorflow as tf
-from cv2 import cv2
-from tqdm import tqdm
+from map_boxes import mean_average_precision_for_boxes
 
-os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
-g_iou_thresholds = [0.5]
+g_iou_threshold = 0.5
 g_confidence_threshold = 0.25  # only for tp, fp, fn
 g_nms_iou_threshold = 0.45  # darknet yolo nms threshold value
-g_label_smoothing = 0.0
+g_annotations_csv_name = 'annotations.csv'
+g_predictions_csv_name = 'predictions.csv'
 
 
-def iou(a, b):
-    """
-    Intersection of union function.
-    :param a: [x_min, y_min, x_max, y_max] format box a
-    :param b: [x_min, y_min, x_max, y_max] format box b
-    """
-    a_x_min, a_y_min, a_x_max, a_y_max = a
-    b_x_min, b_y_min, b_x_max, b_y_max = b
-    intersection_width = min(a_x_max, b_x_max) - max(a_x_min, b_x_min)
-    intersection_height = min(a_y_max, b_y_max) - max(a_y_min, b_y_min)
-    if intersection_width <= 0 or intersection_height <= 0:
-        return 0.0
-    intersection_area = intersection_width * intersection_height
-    a_area = abs((a_x_max - a_x_min) * (a_y_max - a_y_min))
-    b_area = abs((b_x_max - b_x_min) * (b_y_max - b_y_min))
-    union_area = a_area + b_area - intersection_area
-    return intersection_area / (float(union_area) + 1e-5)
+def make_annotations_csv(image_paths):
+    global g_annotations_csv_name
+    csv = 'ImageID,LabelName,XMin,XMax,YMin,YMax\n'
+    for path in image_paths:
+        basename = os.path.basename(path)
+        label_path = f'{path[:-4]}.txt'
+        with open(label_path, 'rt') as f:
+            lines = f.readlines()
+        for line in lines:
+            class_index, cx, cy, w, h = list(map(float, line.split()))
+            class_index = int(class_index)
+            xmin = cx - w * 0.5
+            ymin = cy - h * 0.5
+            xmax = cx + w * 0.5
+            ymax = cy + h * 0.5
+            csv += f'{basename},{class_index},{xmin:.6f},{xmax:.6f},{ymin:.6f},{ymax:.6f}\n'
+    with open(g_annotations_csv_name, 'wt') as f:
+        f.writelines(csv)
 
 
-def get_y_true(label_lines, target_class_index):
-    raw_width = 1000
-    raw_height = 1000
-    y_true = []
-    for label_line in label_lines:
-        class_index, cx, cy, w, h = list(map(float, label_line.split(' ')))
-        if int(class_index) == target_class_index:
-            x1 = int((cx - w / 2.0) * raw_width)
-            x2 = int((cx + w / 2.0) * raw_width)
-            y1 = int((cy - h / 2.0) * raw_height)
-            y2 = int((cy + h / 2.0) * raw_height)
-            y_true.append({
-                'class': int(class_index),
-                'bbox': [x1, y1, x2, y2],
-                'discard': False})
-    return y_true
+def convert_boxes_to_csv_lines(path, boxes):
+    csv = ''
+    for b in boxes:
+        basename = os.path.basename(path)
+        confidence = b['confidence']
+        class_index = b['class']
+        xmin, ymin, xmax, ymax = b['bbox_norm']
+        csv += f'{basename},{class_index},{confidence:.6f},{xmin:.6f},{xmax:.6f},{ymin:.6f},{ymax:.6f}\n'
+    return csv
 
 
-def nms(y_pred):
-    y_pred = sorted(y_pred, key=lambda x: x['confidence'], reverse=True)
-    for i in range(len(y_pred) - 1):
-        if y_pred[i]['discard']:
-            continue
-        for j in range(i + 1, len(y_pred)):
-            if y_pred[j]['discard'] or y_pred[i]['class'] != y_pred[j]['class']:
-                continue
-            if iou(y_pred[i]['bbox'], y_pred[j]['bbox']) > g_nms_iou_threshold:
-                y_pred[j]['discard'] = True
-
-    y_pred_copy = np.asarray(y_pred.copy())
-    y_pred = []
-    for i in range(len(y_pred_copy)):
-        if not y_pred_copy[i]['discard']:
-            y_pred.append(y_pred_copy[i])
-    return y_pred
-
-
-def nms_origin(y_pred):
-    for i in range(len(y_pred)):
-        if y_pred[i]['discard']:
-            continue
-        for j in range(len(y_pred)):
-            if i == j or y_pred[j]['discard']:
-                continue
-            if iou(y_pred[i]['bbox'], y_pred[j]['bbox']) > g_nms_iou_threshold:
-                if y_pred[i]['confidence'] >= y_pred[j]['confidence']:
-                    y_pred[j]['discard'] = True
-
-    y_pred_copy = np.asarray(y_pred.copy())
-    y_pred = []
-    for i in range(len(y_pred_copy)):
-        if not y_pred_copy[i]['discard']:
-            y_pred.append(y_pred_copy[i])
-    return y_pred
-
-
-def get_y_pred(y, target_class_index, confidence_threshold):
-    global g_label_smoothing, g_nms_iou_threshold
-    raw_width = 1000
-    raw_height = 1000
-
-    y_pred = []
-    for layer_index in range(len(y)):
-        rows = y[layer_index][0].shape[0]
-        cols = y[layer_index][0].shape[1]
-        channels = y[layer_index][0].shape[2]
-
-        for i in range(rows):
-            for j in range(cols):
-                confidence = y[layer_index][0][i][j][0]
-                # if confidence < label_smoothing + 0.005:  # darknet yolo mAP confidence threshold value
-                if confidence < confidence_threshold:
-                    continue
-
-                class_index = -1
-                class_score = 0.0
-                for cur_channel_index in range(5, channels):
-                    cur_class_score = y[layer_index][0][i][j][cur_channel_index]
-                    if class_score < cur_class_score:
-                        class_index = cur_channel_index - 5
-                        class_score = cur_class_score
-
-                confidence *= class_score
-                # if confidence < label_smoothing + 0.005:  # darknet yolo mAP confidence threshold value
-                if confidence < confidence_threshold:
-                    continue
-
-                if class_index != target_class_index:
-                    continue
-
-                cx_f = (j + y[layer_index][0][i][j][1]) / float(cols)
-                cy_f = (i + y[layer_index][0][i][j][2]) / float(rows)
-                w = y[layer_index][0][i][j][3]
-                h = y[layer_index][0][i][j][4]
-
-                x_min_f = cx_f - w / 2.0
-                y_min_f = cy_f - h / 2.0
-                x_max_f = cx_f + w / 2.0
-                y_max_f = cy_f + h / 2.0
-                x_min = int(x_min_f * raw_width)
-                y_min = int(y_min_f * raw_height)
-                x_max = int(x_max_f * raw_width)
-                y_max = int(y_max_f * raw_height)
-
-                y_pred.append({
-                    'confidence': confidence,
-                    'bbox': [x_min, y_min, x_max, y_max],
-                    'class': class_index,
-                    'result': '',
-                    'precision': 0.0,
-                    'recall': 0.0,
-                    'discard': False})
-
-    # y_pred = nms(y_pred)
-    y_pred = nms_origin(y_pred)
-    return y_pred
-
-
-def get_interpolated_precision(y_pred, recall):
-    max_precision = 0.0
-    for i in range(len(y_pred)):
-        if y_pred[i]['recall'] >= recall and y_pred[i]['precision'] > max_precision:
-            max_precision = y_pred[i]['precision']
-    return max_precision
-
-
-def calc_area_under_curve(y_pred):
-    interpolated_precision_sum = 0.0
-    for i in range(11):
-        interpolated_precision_sum += get_interpolated_precision(y_pred, i / 10.0)
-    ap = interpolated_precision_sum / 11.0
-    return ap
-
-
-def calc_tp_fp_fn_for_f1_score(y_true, y_pred, iou_threshold):
-    global g_confidence_threshold
-    for i in range(len(y_true)):
-        y_true[i]['discard'] = False
-    for i in range(len(y_pred)):
-        y_pred[i]['discard'] = False
-
-    tp = 0
-    tp_iou_sum = 0.0
-    for i in range(len(y_true)):
-        for j in range(len(y_pred)):
-            if y_pred[j]['discard'] or y_true[i]['class'] != y_pred[j]['class']:
-                continue
-            if y_pred[j]['confidence'] < g_confidence_threshold:
-                continue
-            iou_val = iou(y_true[i]['bbox'], y_pred[j]['bbox'])
-            if iou_val > iou_threshold:
-                y_true[i]['discard'] = True
-                y_pred[j]['discard'] = True
-                tp_iou_sum += iou_val
-                tp += 1
-                break
-
-    fp = 0
-    for i in range(len(y_pred)):
-        if not y_pred[i]['discard']:
-            y_pred[i]['result'] = 'FP'
-            fp += 1
-
-    fn = 0
-    for i in range(len(y_true)):
-        if not y_true[i]['discard']:
-            fn += 1
-    return tp, fp, fn, tp_iou_sum
-
-
-def calc_ap(y_true, y_pred, iou_threshold):
-    global g_label_smoothing
-    for i in range(len(y_true)):
-        for j in range(len(y_pred)):
-            if y_pred[j]['discard'] or y_true[i]['class'] != y_pred[j]['class']:
-                continue
-            iou_val = iou(y_true[i]['bbox'], y_pred[j]['bbox'])
-            if iou_val > iou_threshold:
-                y_true[i]['discard'] = True
-                y_pred[j]['discard'] = True
-                y_pred[j]['result'] = 'TP'
-                break
-
-    for i in range(len(y_pred)):
-        if not y_pred[i]['discard']:
-            y_pred[i]['result'] = 'FP'
-
-    tp_sum = 0
-    fp_sum = 0
-    y_pred = sorted(y_pred, key=lambda x: x['confidence'], reverse=True)
-    for i in range(len(y_pred)):
-        if y_pred[i]['result'] == 'TP':
-            tp_sum += 1
-        elif y_pred[i]['result'] == 'FP':
-            fp_sum += 1
-
-        tp_fp_sum = tp_sum + fp_sum
-        y_pred[i]['precision'] = 0 if tp_fp_sum == 0 else tp_sum / float(tp_fp_sum)
-        y_pred[i]['recall'] = tp_sum / float(len(y_true))
-
-    ap = calc_area_under_curve(y_pred)
-    return ap
-
-
-def load_x_label_lines(image_path, color_mode, input_size, input_shape):
-    label_path = f'{image_path[:-4]}.txt'
-    if not (os.path.exists(label_path) and os.path.isfile(label_path)):
-        return None, None
-    with open(label_path, mode='rt') as f:
-        label_lines = f.readlines()
-    if len(label_lines) == 0:
-        return None, None
-    x = cv2.imread(image_path, color_mode)
-    if x is None:
-        print(f'img is None : {image_path}')
-        return None, None
-    x = cv2.resize(x, input_size)
-    x = np.asarray(x).astype('float32').reshape((1,) + input_shape) / 255.0
-    return x, label_lines
+def make_predictions_csv(model, image_paths):
+    from yolo import Yolo
+    global g_predictions_csv_name
+    csv = 'ImageID,LabelName,Conf,XMin,XMax,YMin,YMax\n'
+    for path in image_paths:
+        img = np.fromfile(path, np.uint8)
+        img = cv2.imdecode(img, cv2.IMREAD_COLOR)
+        if model.input_shape[-1] == 1:
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        boxes = Yolo.predict(model, img, confidence_threshold=0.005, nms_iou_threshold=g_nms_iou_threshold)
+        csv += convert_boxes_to_csv_lines(path, boxes)
+    with open(g_predictions_csv_name, 'wt') as f:
+        f.writelines(csv)
 
 
 def calc_mean_average_precision(model, all_image_paths):
-    global g_iou_thresholds, g_confidence_threshold
-
+    global g_iou_threshold, g_confidence_threshold, g_annotations_csv_name, g_predictions_csv_name
     # from random import shuffle
     # shuffle(all_image_paths)
     # image_paths = all_image_paths[:500]
     image_paths = all_image_paths
-
-    input_shape = model.input_shape[1:]
-    input_size = (input_shape[1], input_shape[0])
-    color_mode = cv2.IMREAD_GRAYSCALE if input_shape[-1] == 1 else cv2.IMREAD_COLOR
-    num_classes = model.output_shape[0][-1] - 5
-
-    obj_count = np.zeros((len(g_iou_thresholds), num_classes), dtype=np.int32)
-    ap_valid_count = np.zeros((len(g_iou_thresholds), num_classes), dtype=np.int32)
-    aps = np.zeros((len(g_iou_thresholds), num_classes), dtype=np.int32)
-    tps = np.zeros((len(g_iou_thresholds), num_classes), dtype=np.int32)
-    fps = np.zeros((len(g_iou_thresholds), num_classes), dtype=np.int32)
-    fns = np.zeros((len(g_iou_thresholds), num_classes), dtype=np.int32)
-    tp_ious = np.zeros((len(g_iou_thresholds), num_classes), dtype=np.float32)
-
-    pool = ThreadPoolExecutor(8)
-
-    fs = []
-    for image_path in image_paths:
-        fs.append(pool.submit(load_x_label_lines, image_path, color_mode, input_size, input_shape))
-
-    for f in tqdm(fs):
-        x, label_lines = f.result()
-        if x is None:
-            continue
-        y = model.predict_on_batch(x=x)
-
-        for iou_index, iou_threshold in enumerate(g_iou_thresholds):
-            for class_index in range(num_classes):
-                y_true = get_y_true(label_lines, class_index)
-                num_class_obj = len(y_true)
-                if num_class_obj > 0:
-                    y_pred = get_y_pred(y, class_index, g_label_smoothing + 0.005)
-                    aps[iou_index][class_index] += calc_ap(y_true, y_pred, iou_threshold)
-                    ap_valid_count[iou_index][class_index] += 1
-
-                y_pred = get_y_pred(y, class_index, g_confidence_threshold)
-                tp, fp, fn, tp_iou_sum = calc_tp_fp_fn_for_f1_score(y_true, y_pred, iou_threshold)
-
-                tps[iou_index][class_index] += tp
-                fps[iou_index][class_index] += fp
-                fns[iou_index][class_index] += fn
-                tp_ious[iou_index][class_index] += tp_iou_sum
-                obj_count[iou_index][class_index] += num_class_obj
-
-    mean_ap_sum = 0.0
-    f1_sum = 0.0
-    tp_iou_sum = 0.0
-    total_tp_sum = 0
-    total_fp_sum = 0
-    total_fn_sum = 0
-    print(f'confidence threshold for tp, fp, fn calculate : {g_confidence_threshold:.2f}')
-    for iou_index, iou_threshold in enumerate(g_iou_thresholds):
-        class_ap_sum = 0.0
-        class_f1_sum = 0.0
-        class_precision_sum = 0.0
-        class_recall_sum = 0.0
-        class_tp_iou_sum = 0.0
-        for class_index in range(num_classes):
-            cur_class_obj_count = obj_count[iou_index][class_index]
-            cur_class_ap = aps[iou_index][class_index] / (float(ap_valid_count[iou_index][class_index]) + 1e-5)
-            cur_class_tp = tps[iou_index][class_index]
-            cur_class_fp = fps[iou_index][class_index]
-            cur_class_fn = fns[iou_index][class_index]
-            cur_class_precision = cur_class_tp / (float(cur_class_tp + cur_class_fp) + 1e-5)
-            cur_class_recall = cur_class_tp / (float(cur_class_tp + cur_class_fn) + 1e-5)
-            cur_class_f1 = 2.0 * (cur_class_precision * cur_class_recall) / (cur_class_precision + cur_class_recall + 1e-5)
-            cur_class_tp_iou = tp_ious[iou_index][class_index] / (float(cur_class_tp) + 1e-5)
-
-            class_ap_sum += cur_class_ap
-            class_f1_sum += cur_class_f1
-            class_precision_sum += cur_class_precision
-            class_recall_sum += cur_class_recall
-            class_tp_iou_sum += cur_class_tp_iou
-            print(
-                f'class {str(class_index):3s} ap : {cur_class_ap:.4f}, obj_count : {str(cur_class_obj_count):6s}, tp : {str(cur_class_tp):6s}, fp : {str(cur_class_fp):6s}, fn : {str(cur_class_fn):6s}, precision : {cur_class_precision:.4f}, recall : {cur_class_recall:.4f}, f1 score : {cur_class_f1:.4f}, tp iou : {cur_class_tp_iou:.4f}')
-
-        mean_ap = class_ap_sum / float(num_classes)
-        mean_ap_sum += mean_ap
-
-        tp_sum = np.sum(tps[iou_index])
-        fp_sum = np.sum(fps[iou_index])
-        fn_sum = np.sum(fns[iou_index])
-        total_precision = tp_sum / (float(tp_sum + fp_sum) + 1e-5)
-        total_recall = tp_sum / (float(tp_sum + fn_sum) + 1e-5)
-
-        total_f1 = (2.0 * total_precision * total_recall) / (total_precision + total_recall + 1e-5)
-        f1_sum += total_f1
-
-        total_tp_iou = np.sum(tp_ious[iou_index]) / (float(tp_sum) + 1e-5)
-        tp_iou_sum += total_tp_iou
-
-        total_tp_sum += tp_sum
-        total_fp_sum += fp_sum
-        total_fn_sum += fn_sum
-
-        print(f'mAP@{int(iou_threshold * 100)} : {mean_ap:.4f}')
-        print(f'TP_IOU@{int(iou_threshold * 100)} : {total_tp_iou:.4f}')
-        print(f'F1 score@{int(iou_threshold * 100)} : {total_f1:.4f}\n')
-    return mean_ap_sum / len(g_iou_thresholds), f1_sum / len(g_iou_thresholds), tp_iou_sum / len(g_iou_thresholds), total_tp_sum, total_fp_sum, total_fn_sum
-
-
-def all_check():
-    results = []
-    img_paths = glob(r'T:\200m_big_small_detection\train_data\small\small_all\validation_200\*.jpg')
-    for model_path in glob('*.h5'):
-        print(model_path)
-        model = tf.keras.models.load_model(model_path, compile=False)
-        mean_ap, f1_score, tp_iou = calc_mean_average_precision(model, img_paths)
-        results.append({'model_path': model_path, 'mAP': mean_ap, 'f1': f1_score})
-    results = sorted(results, key=lambda x: x['f1'], reverse=True)
-    results = sorted(results, key=lambda x: x['mAP'], reverse=True)
-    s = ''
-    for result in results:
-        s += f'mAP : {result["mAP"]:.4f}, f1: {result["f1"]}model_path : {result["model_path"]}\n'
-    with open('results.txt', 'wt') as f:
-        f.writelines(s)
+    make_annotations_csv(image_paths)
+    make_predictions_csv(model, image_paths)
+    return mean_average_precision_for_boxes(g_annotations_csv_name, g_predictions_csv_name, confidence_threshold_for_f1=g_confidence_threshold, iou_threshold=g_iou_threshold, verbose=True)
 
 
 def main():
