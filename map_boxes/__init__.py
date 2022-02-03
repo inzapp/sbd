@@ -236,7 +236,7 @@ def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_th
         average_precision = _compute_ap(recall, precision)
         average_precisions[label] = average_precision, num_annotations
         if verbose:
-            print(f'class {class_index} obj count : {obj_count:6d}, ap : {average_precision:.4f}, tp : {tp:6d}, fp : {fp:6d}, fn : {fn:6d}, precision : {p:.4f}, recall : {r:.4f}, f1 : {f1:.4f}, iou : {tp_iou:.4f}')
+            print(f'class {class_index} ap : {average_precision:.4f}, obj count : {obj_count:6d}, tp : {tp:6d}, fp : {fp:6d}, fn : {fn:6d}, precision : {p:.4f}, recall : {r:.4f}, f1 : {f1:.4f}, iou : {tp_iou:.4f}')
 
     present_classes = 0
     precision = 0
