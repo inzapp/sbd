@@ -35,7 +35,7 @@ def __abs_log_loss(y_true, y_pred):
 def __confidence_loss(y_true, y_pred):
     obj_true = y_true[:, :, :, 0]
     obj_pred = y_pred[:, :, :, 0]
-    loss = tf.losses.binary_crossentropy(obj_true, obj_pred)
+    loss = tf.keras.backend.binary_crossentropy(obj_true, obj_pred)
     loss = tf.reduce_mean(loss, axis=0)
     loss = tf.reduce_sum(loss)
     return loss 
@@ -111,7 +111,7 @@ def __bbox_loss_xywh(y_true, y_pred):
     wh_loss = __abs_log_loss(wh_true, wh_pred)
     wh_loss = tf.reduce_mean(wh_loss, axis=-1) * obj_true
     wh_loss = tf.reduce_sum(wh_loss)
-    return (xy_loss + wh_loss) * 5.0
+    return xy_loss + wh_loss
 
 
 def __bbox_loss_iou(y_true, y_pred):
@@ -120,15 +120,15 @@ def __bbox_loss_iou(y_true, y_pred):
     if tf.equal(obj_count, tf.constant(0.0)):
         return 0.0
 
-    loss = tf.losses.binary_crossentropy(obj_true, __iou(y_true, y_pred) * obj_true)
+    loss = tf.keras.backend.binary_crossentropy(obj_true, __iou(y_true, y_pred) * obj_true)
     loss = tf.reduce_mean(loss, axis=0)
     loss = tf.reduce_sum(loss)
     return loss
 
 
 def __bbox_loss(y_true, y_pred):
-    return __bbox_loss_iou(y_true, y_pred)
-    # return __bbox_loss_xywh(y_true, y_pred)
+    # return __bbox_loss_iou(y_true, y_pred)
+    return __bbox_loss_xywh(y_true, y_pred)
 
 
 def __classification_loss(y_true, y_pred):
@@ -139,8 +139,9 @@ def __classification_loss(y_true, y_pred):
 
     class_true = y_true[:, :, :, 5:]
     class_pred = y_pred[:, :, :, 5:]
-    loss = tf.losses.binary_crossentropy(class_true, class_pred)
-    loss = tf.reduce_mean(loss, axis=0) * obj_true
+    loss = tf.keras.backend.binary_crossentropy(class_true, class_pred)
+    loss = tf.reduce_sum(loss, axis=-1) * obj_true
+    loss = tf.reduce_mean(loss, axis=0)
     loss = tf.reduce_sum(loss)
     return loss
 
