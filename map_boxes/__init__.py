@@ -92,7 +92,6 @@ def _compute_ap(recall, precision):
 
 def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_threshold_for_f1=0.25, exclude_not_in_annotations=False, verbose=True):
     """
-
     :param ann: path to CSV-file with annotations or numpy array of shape (N, 6)
     :param pred: path to CSV-file with predictions (detections) or numpy array of shape (N, 7)
     :param iou_threshold: IoU between boxes which count as 'match'. Default: 0.5
@@ -198,17 +197,17 @@ def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_th
         true_positives = np.array(true_positives)
         scores = np.array(scores)
 
-        # sort by score
-        indices = np.argsort(-scores)
-        false_positives = false_positives[indices]
-        true_positives = true_positives[indices]
-
         # mask
         tp_mask = np.where(scores > confidence_threshold_for_f1, 1, 0)
         true_positives_over_threshold = true_positives * tp_mask
         false_positives_over_threshold = false_positives * tp_mask
         tp_ious *= tp_mask
         tp_iou_sum = np.sum(tp_ious)
+
+        # sort by score
+        indices = np.argsort(-scores)
+        false_positives = false_positives[indices]
+        true_positives = true_positives[indices]
 
         obj_count = int(num_annotations)
         tp = int(np.sum(true_positives_over_threshold))
