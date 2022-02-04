@@ -140,19 +140,10 @@ def __classification_loss(y_true, y_pred):
     if tf.equal(obj_count, tf.constant(0.0)):
         return 0.0
 
-    y_true_shape = tf.shape(y_true)
-    num_classes = tf.cast(y_true_shape[-1] - 5, tf.int32)
-    obj_pred = y_pred[:, :, :, 0]
-    expanded_obj_pred = tf.repeat(tf.expand_dims(obj_pred, axis=-1), num_classes, axis=-1)
-    obj_pred_mask = tf.where(obj_pred > 0.0, 1.0, 0.0)
-
-    b_obj_true = tf.cast(obj_true, tf.bool)
-    b_obj_pred_mask = tf.cast(obj_pred_mask, tf.bool)
-    fp_included_obj_true_mask = tf.cast(tf.logical_or(b_obj_true, b_obj_pred_mask), tf.float32)
     class_true = y_true[:, :, :, 5:]
-    class_pred = y_pred[:, :, :, 5:] * expanded_obj_pred
+    class_pred = y_pred[:, :, :, 5:]
     loss = tf.keras.backend.binary_crossentropy(class_true, class_pred)
-    loss = tf.reduce_sum(loss, axis=-1) * fp_included_obj_true_mask
+    loss = tf.reduce_sum(loss, axis=-1) * obj_true
     loss = tf.reduce_mean(loss, axis=0)
     loss = tf.reduce_sum(loss)
     return loss
