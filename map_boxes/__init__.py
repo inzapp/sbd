@@ -174,21 +174,23 @@ def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_th
                 if len(annotations) == 0:
                     false_positives.append(1)
                     true_positives.append(0)
+                    tp_ious.append(0.0)
                     continue
 
                 overlaps = compute_overlap(np.expand_dims(np.array(d, dtype=np.float64), axis=0), annotations)
                 assigned_annotation = np.argmax(overlaps, axis=1)
                 max_overlap = overlaps[0, assigned_annotation]
-                iou = max_overlap[0]
-                tp_ious.append(iou)
 
                 if max_overlap >= iou_threshold and assigned_annotation not in detected_annotations:
                     false_positives.append(0)
                     true_positives.append(1)
                     detected_annotations.append(assigned_annotation)
+                    tp_ious.append(max_overlap[0])
+                    # print(f'conf : {d[4]:.4f}, iou : {max_overlap[0]:.4f}')
                 else:
                     false_positives.append(1)
                     true_positives.append(0)
+                    tp_ious.append(0.0)
 
         if num_annotations == 0:
             average_precisions[label] = 0, 0
@@ -197,9 +199,10 @@ def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_th
         false_positives = np.array(false_positives)
         true_positives = np.array(true_positives)
         scores = np.array(scores)
+        tp_ious = np.array(tp_ious)
 
         # mask
-        tp_mask = np.where(scores > confidence_threshold_for_f1, 1, 0)
+        tp_mask= np.where(scores > confidence_threshold_for_f1, 1, 0)
         true_positives_over_threshold = true_positives * tp_mask
         false_positives_over_threshold = false_positives * tp_mask
         tp_ious *= tp_mask
