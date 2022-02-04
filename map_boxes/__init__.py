@@ -134,6 +134,7 @@ def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_th
         print('Detections length: {}'.format(len(all_detections)))
         print('Annotations length: {}'.format(len(all_annotations)))
 
+    print(f'\nconfidence threshold for tp, fp, fn calculate : {confidence_threshold_for_f1}')
     total_tp_iou_sum = 0.0
     total_tp = 0
     total_fp = 0
