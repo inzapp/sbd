@@ -99,17 +99,19 @@ def __bbox_loss_xywh(y_true, y_pred):
     if tf.equal(obj_count, tf.constant(0.0)):
         return 0.0
 
+    weight_mask = (((obj_true + 0.05) * obj_true) - (__iou(y_true, y_pred) * obj_true)) * 5.0
+    # weight_mask = obj_true * 5.0
     xy_true = y_true[:, :, :, 1:3]
     xy_pred = y_pred[:, :, :, 1:3]
     xy_loss = __abs_log_loss(xy_true, xy_pred)
-    xy_loss = tf.reduce_mean(xy_loss, axis=-1) * obj_true
+    xy_loss = tf.reduce_mean(xy_loss, axis=-1) * weight_mask
     xy_loss = tf.reduce_sum(xy_loss)
 
     eps = tf.keras.backend.epsilon()
     wh_true = tf.sqrt(y_true[:, :, :, 3:5] + eps)
     wh_pred = tf.sqrt(y_pred[:, :, :, 3:5] + eps)
     wh_loss = __abs_log_loss(wh_true, wh_pred)
-    wh_loss = tf.reduce_mean(wh_loss, axis=-1) * obj_true
+    wh_loss = tf.reduce_mean(wh_loss, axis=-1) * weight_mask
     wh_loss = tf.reduce_sum(wh_loss)
     return xy_loss + wh_loss
 
