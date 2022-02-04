@@ -72,6 +72,7 @@ if __name__ == '__main__':
     """
 
     Yolo(
+        # pretrained_model_path=r'checkpoints/model_5000_iter_mAP_1.0000_f1_0.9709_tp_iou_0.8272_tp_100_fp_2_fn_4.h5',
         # optimizer='sgd',
         # lr_policy='step',
         # train_image_path=r'C:\inz\train_data\loon\train',
@@ -101,6 +102,7 @@ if __name__ == '__main__':
         # class_names_file_path=r'T:/200m_big_small_detection/train_data/crop/classes.txt',
         # input_shape=(64, 64, 1),
 
+        # pretrained_model_path=r'checkpoints/person/head_detail/model_722000_iter_mAP_0.6116_f1_0.5790_tp_iou_0.7655_tp_1954_fp_794_fn_2048.h5',
         # optimizer='adam',
         # train_image_path=r'C:\inz\train_data\lp_detection\train',
         # validation_image_path=r'C:\inz\train_data\lp_detection\validation',
@@ -114,6 +116,7 @@ if __name__ == '__main__':
         # class_names_file_path=r'C:\inz\train_data\person_3_class\train\classes.txt',
         # input_shape=(192, 96, 1),
 
+        # pretrained_model_path=r'checkpoints/object_detail/head_detail/model_722000_iter_mAP_0.6116_f1_0.5790_tp_iou_0.7655_tp_1954_fp_794_fn_2048.h5',
         # optimizer='sgd',
         # lr_policy='cosine',
         # train_image_path=r'list/head_crop_detection/train.txt',
@@ -128,28 +131,30 @@ if __name__ == '__main__':
         # class_names_file_path=r'T:\person\5_class_one_person\train\classes.txt',
         # input_shape=(96, 192, 1),
 
-        # pretrained_model_path=r'model_last.h5',
-        # train_image_path=r'C:\inz\train_data\lcd_white\train',
-        # validation_image_path=r'C:\inz\train_data\lcd_white\validation',
-        # class_names_file_path=r'C:\inz\train_data\lcd_white\train\classes.txt',
-        # input_shape=(96, 192, 1),
+        pretrained_model_path=r'checkpoints/lcd_white/model_32000_iter_mAP_0.8227_f1_0.9569_tp_iou_0.8338.h5',
+        train_image_path=r'C:\inz\train_data\lcd_white\train',
+        validation_image_path=r'C:\inz\train_data\lcd_white\validation',
+        class_names_file_path=r'C:\inz\train_data\lcd_white\train\classes.txt',
+        input_shape=(96, 192, 1),
 
-        optimizer='sgd',
-        lr_policy='step',
-        train_image_path=r'C:\inz\train_data\square_set',
-        validation_image_path=r'C:\inz\train_data\square_set',
-        class_names_file_path=r'C:\inz\train_data\square_set\classes.txt',
-        input_shape=(128, 128, 1),
+        # optimizer='sgd',
+        # lr_policy='step',
+        # train_image_path=r'C:\inz\train_data\square_set',
+        # validation_image_path=r'C:\inz\train_data\square_set',
+        # class_names_file_path=r'C:\inz\train_data\square_set\classes.txt',
+        # input_shape=(128, 128, 1),
 
         lr=0.001,
         decay=0.0005,
         momentum=0.9,
         burn_in=1000,
         batch_size=2,
-        iterations=1280000,
+        iterations=10000,
         curriculum_iterations=0,
-        training_view=False,
-        map_checkpoint=True).fit()
+        training_view=True,
+        # map_checkpoint=True).fit()
+        # map_checkpoint=True).predict_validation_images()
+        map_checkpoint=True).map_validation_images()
 
     # from glob import glob
     # from random import shuffle
