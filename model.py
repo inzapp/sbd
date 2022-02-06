@@ -173,26 +173,25 @@ class Model:
     def __loon(self):
         input_layer = tf.keras.layers.Input(shape=self.__input_shape)
         x = self.__conv_block(input_layer, 8, 3, bn=True, activation='swish')
-        x = self.__avg_max_pool(x)
+        x = self.__max_pool(x)
 
         x = self.__drop_filter(x, 0.0625)
         x = self.__conv_block(x, 16, 3, bn=True, activation='swish')
-        x = self.__avg_max_pool(x)
+        x = self.__max_pool(x)
 
         x = self.__drop_filter(x, 0.0625)
         x = self.__conv_block(x, 32, 3, bn=True, activation='swish')
-        x = self.__avg_max_pool(x)
+        x = self.__max_pool(x)
         y1 = self.__detection_layer(x, 'sbd_output_1')
 
         x = self.__drop_filter(x, 0.0625)
         x = self.__conv_block(x, 64, 3, bn=True, activation='swish')
-        x = self.__avg_max_pool(x)
+        x = self.__max_pool(x)
+        y2 = self.__detection_layer(x, 'sbd_output_2')
 
         x = self.__drop_filter(x, 0.0625)
-        y2 = self.__detection_layer(x, 'sbd_output_2')
         x = self.__conv_block(x, 128, 3, bn=True, activation='swish')
-        x = self.__avg_max_pool(x)
-
+        x = self.__max_pool(x)
         y3 = self.__detection_layer(x, 'sbd_output_3')
         return tf.keras.models.Model(input_layer, [y1, y2, y3])
 

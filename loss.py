@@ -100,6 +100,7 @@ def __bbox_loss_xywh(y_true, y_pred):
         return 0.0
 
     weight_mask = (((obj_true + 0.05) * obj_true) - (__iou(y_true, y_pred) * obj_true)) * 5.0
+    # weight_mask = obj_true * 5.0
     xy_true = y_true[:, :, :, 1:3]
     xy_pred = y_pred[:, :, :, 1:3]
     xy_loss = __abs_log_loss(xy_true, xy_pred)
