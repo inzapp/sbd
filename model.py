@@ -48,7 +48,7 @@ class Model:
         return cls.__new__(cls)
 
     def build(self):
-        # return self.__normal_model()
+        return self.__normal_model()
         # return self.__vgg_16()
         # return self.__darknet_53()
         # return self.__lp_detection_sbd()
@@ -58,41 +58,61 @@ class Model:
         # return self.__lcd_csp()
         # return self.__200m_big()
         # return self.__tiny_yolo_v3_no_upscale()
-        return self.__loon()
+        # return self.__loon()
         # return self.__loon_csp()
         # return self.__loon_cross()
         # return self.__loon_cross_csp()
 
     def __normal_model(self):
         input_layer = tf.keras.layers.Input(shape=self.__input_shape)
-        x = self.__conv_block(input_layer, 32, 3, bn=True, activation='swish')
+        x = self.__conv_block(input_layer, 16, 3, bn=True, activation='relu')
         x = self.__max_pool(x)
 
         x = self.__drop_filter(x, 0.0625)
-        x = self.__conv_block(x, 64, 3, bn=False, activation='swish')
-        x = self.__conv_block(x, 64, 3, bn=True, activation='swish')
+        x = self.__conv_block(x, 32, 3, bn=False, activation='relu')
         x = self.__max_pool(x)
 
         x = self.__drop_filter(x, 0.0625)
-        x = self.__conv_block(x, 128, 3, bn=False, activation='swish')
-        x = self.__conv_block(x, 128, 3, bn=True, activation='swish')
+        x = self.__conv_block(x, 64, 3, bn=False, activation='relu')
+        x = self.__conv_block(x, 64, 3, bn=False, activation='relu')
         x = self.__max_pool(x)
 
         x = self.__drop_filter(x, 0.0625)
-        x = self.__conv_block(x, 256, 3, bn=False, activation='swish')
-        x = self.__conv_block(x, 256, 3, bn=True, activation='swish')
+        x = self.__conv_block(x, 128, 3, bn=False, activation='relu')
+        x = self.__conv_block(x, 128, 3, bn=False, activation='relu')
+        x = self.__conv_block(x, 128, 3, bn=False, activation='relu')
+        x = self.__max_pool(x)
+
+        x = self.__drop_filter(x, 0.0625)
+        x = self.__conv_block(x, 256, 3, bn=False, activation='relu')
+        x = self.__conv_block(x, 128, 1, bn=False, activation='relu')
+        x = self.__conv_block(x, 256, 3, bn=False, activation='relu')
+        x = self.__conv_block(x, 128, 1, bn=False, activation='relu')
+        x = self.__conv_block(x, 256, 3, bn=True, activation='relu')
         y1 = self.__detection_layer(x, 'sbd_output_1')
-        x = self.__avg_max_pool(x)
+        x = self.__max_pool(x)
 
         x = self.__drop_filter(x, 0.0625)
-        x = self.__conv_block(x, 512, 3, bn=False, activation='swish')
-        x = self.__conv_block(x, 512, 3, bn=True, activation='swish')
+        x = self.__conv_block(x, 256, 3, bn=False, activation='relu')
+        x = self.__conv_block(x, 128, 1, bn=False, activation='relu')
+        x = self.__conv_block(x, 256, 3, bn=False, activation='relu')
+        x = self.__conv_block(x, 128, 1, bn=False, activation='relu')
+        x = self.__conv_block(x, 256, 3, bn=False, activation='relu')
+        x = self.__conv_block(x, 128, 1, bn=False, activation='relu')
+        x = self.__conv_block(x, 256, 3, bn=True, activation='relu')
         y2 = self.__detection_layer(x, 'sbd_output_2')
-        x = self.__avg_max_pool(x)
+        x = self.__max_pool(x)
 
         x = self.__drop_filter(x, 0.0625)
-        x = self.__conv_block(x, 512, 3, bn=False, activation='swish')
-        x = self.__conv_block(x, 512, 3, bn=True, activation='swish')
+        x = self.__conv_block(x, 256, 3, bn=False, activation='relu')
+        x = self.__conv_block(x, 128, 1, bn=False, activation='relu')
+        x = self.__conv_block(x, 256, 3, bn=False, activation='relu')
+        x = self.__conv_block(x, 128, 1, bn=False, activation='relu')
+        x = self.__conv_block(x, 256, 3, bn=False, activation='relu')
+        x = self.__conv_block(x, 128, 1, bn=False, activation='relu')
+        x = self.__conv_block(x, 256, 3, bn=False, activation='relu')
+        x = self.__conv_block(x, 128, 1, bn=False, activation='relu')
+        x = self.__conv_block(x, 256, 3, bn=True, activation='relu')
         y3 = self.__detection_layer(x, 'sbd_output_3')
         return tf.keras.models.Model(input_layer, [y1, y2, y3])
 
@@ -565,24 +585,31 @@ class Model:
         x = self.__activation(x, activation=activation)
         return x
 
-    def __cross_conv_block(self, x, filters, kernel_size, bn=True, mode='add', activation='none'):
+    def __cross_conv_block(self, x, filters, kernel_size, bn=True, mode='nest', activation='none'):
         v_conv = tf.keras.layers.Conv2D(
-            filters=filters if mode == 'add' else filters / 2,
+            filters=filters / 2 if mode == 'concat' else filters,
             kernel_size=(1, kernel_size),
             kernel_initializer=tf.keras.initializers.he_uniform(),
             bias_initializer=tf.keras.initializers.zeros(),
             padding='same',
             use_bias=False if bn else True,
             kernel_regularizer=tf.keras.regularizers.l2(l2=self.__decay) if self.__decay > 0.0 else None)(x)
+        if mode == 'nest':
+            v_conv = self.__activation(v_conv, activation=activation)
         h_conv = tf.keras.layers.Conv2D(
-            filters=filters if mode == 'add' else filters / 2,
+            filters=filters / 2 if mode == 'concat' else filters,
             kernel_size=(kernel_size, 1),
             kernel_initializer=tf.keras.initializers.he_uniform(),
             bias_initializer=tf.keras.initializers.zeros(),
             padding='same',
             use_bias=False if bn else True,
-            kernel_regularizer=tf.keras.regularizers.l2(l2=self.__decay) if self.__decay > 0.0 else None)(x)
-        x = tf.keras.layers.Add()([v_conv, h_conv]) if mode == 'add' else tf.keras.layers.Concatenate()([v_conv, h_conv])
+            kernel_regularizer=tf.keras.regularizers.l2(l2=self.__decay) if self.__decay > 0.0 else None)(v_conv if mode == 'nest' else x)
+        if mode == 'add':
+            x = tf.keras.layers.Add()([v_conv, h_conv])
+        elif mode == 'concat':
+            x = tf.keras.layers.Concatenate()([v_conv, h_conv])
+        elif mode == 'nest':
+            x = h_conv
         if bn:
             x = self.__bn(x)
         x = self.__activation(x, activation=activation)
