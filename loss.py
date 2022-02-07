@@ -124,7 +124,8 @@ def __bbox_loss_iou(y_true, y_pred):
     if tf.equal(obj_count, tf.constant(0.0)):
         return 0.0
 
-    loss = tf.keras.backend.binary_crossentropy(obj_true, __iou(y_true, y_pred) * obj_true)
+    # loss = tf.keras.backend.binary_crossentropy(obj_true, __iou(y_true, y_pred) * obj_true)
+    loss = obj_true - (__iou(y_true, y_pred) * obj_true)
     loss = tf.reduce_mean(loss, axis=0)
     loss = tf.reduce_sum(loss)
     return loss
@@ -147,7 +148,7 @@ def __classification_loss(y_true, y_pred):
     loss = tf.reduce_sum(loss, axis=-1) * obj_true
     loss = tf.reduce_mean(loss, axis=0)
     loss = tf.reduce_sum(loss)
-    return loss
+    return loss * 0.5
 
 
 def confidence_loss(y_true, y_pred):
