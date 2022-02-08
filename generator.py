@@ -75,7 +75,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         self.label_obj_count = 0  # obj count in real label txt
         self.pool = ThreadPoolExecutor(8)
 
-        self.train_type = 'all_layer_auto_split'
+        self.train_type = 'all_layer'
         self.train_layer_index = 2
 
         queue_size = 64
@@ -166,22 +166,46 @@ class GeneratorFlow(tf.keras.utils.Sequence):
     def __load_label(__label_path):
         with open(__label_path, 'rt') as __f:
             __lines = __f.readlines()
-        return __lines
+        return __lines, __label_path
+
+    def __is_invalid_label(self, path, label, num_classes):
+        class_index, cx, cy, w, h = label
+        if class_index < 0 or class_index >= num_classes:
+            print(f'\ninvalid class index {int(class_index)} in num_classs {num_classes} : [{path}]')
+            return True
+        elif cx < 0.0 or cx >= 1.0 or cy < 0.0 or cy >= 1.0:
+            print(f'\ninvalid cx or cy. cx : {cx:.6f}, cy : {cy:.6f} : [{path}]')
+            return True
+        elif w < 0.0 or w > 1.0 or h < 0.0 or h > 1.0:
+            print(f'\ninvalid width or height. width : {w:.6f}, height : {h:.6f} : [{path}]')
+            return True
+        else:
+            return False
 
     def cluster_wh(self):
         fs = []
         for path in self.image_paths:
             fs.append(self.pool.submit(self.__load_label, f'{path[:-4]}.txt'))
 
+        num_classes = self.output_shapes[0][-1] - 5
+        invalid_label_paths = []
         boxes, ws, hs = [], [], []
         for f in tqdm(fs):
-            lines = f.result()
+            lines, label_path = f.result()
             for line in lines:
                 class_index, cx, cy, w, h = list(map(float, line.split()))
+                if self.__is_invalid_label(label_path, [class_index, cx, cy, w, h], num_classes):
+                    invalid_label_paths.append(label_path)
                 boxes.append([cx, cy, w, h])
                 ws.append(w)
                 hs.append(h)
                 self.label_obj_count += 1
+
+        if len(invalid_label_paths) > 0:
+            print('\ninvalid label exists')
+            for label_path in invalid_label_paths:
+                print(label_path)
+            exit(0)
 
         ws = np.asarray(ws).reshape((1, len(ws))).astype('float32')
         hs = np.asarray(hs).reshape((1, len(hs))).astype('float32')
