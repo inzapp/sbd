@@ -35,8 +35,7 @@ def __abs_log_loss(y_true, y_pred):
 def __confidence_loss(y_true, y_pred):
     obj_true = y_true[:, :, :, 0]
     obj_pred = y_pred[:, :, :, 0]
-    # weight_mask = tf.where(tf.keras.backend.equal(obj_true, 1.0), 1.0, tf.clip_by_value(obj_pred * 10.0, 0.1, 2.0))
-    loss = tf.keras.backend.binary_crossentropy(obj_true, obj_pred)# * weight_mask
+    loss = tf.keras.backend.binary_crossentropy(obj_true, obj_pred)
     loss = tf.reduce_mean(loss, axis=0)
     loss = tf.reduce_sum(loss)
     return loss
@@ -101,7 +100,6 @@ def __bbox_loss_xywh(y_true, y_pred):
         return 0.0
 
     weight_mask = ((obj_true * 1.05) - (__iou(y_true, y_pred) * obj_true)) * 5.0
-    # weight_mask = tf.clip_by_value((1.0 - __iou(y_true, y_pred)) * 10.0, 1.0, 5.0)
     xy_true = y_true[:, :, :, 1:3]
     xy_pred = y_pred[:, :, :, 1:3]
     xy_loss = __abs_log_loss(xy_true, xy_pred)
@@ -165,8 +163,7 @@ def __classification_loss(y_true, y_pred):
 
     class_true = y_true[:, :, :, 5:]
     class_pred = y_pred[:, :, :, 5:]
-    # weight_mask = tf.where(tf.keras.backend.equal(class_true, 1.0), 1.0, tf.clip_by_value(class_pred * 10.0, 0.1, 1.0))
-    loss = tf.keras.backend.binary_crossentropy(class_true, class_pred)# * weight_mask
+    loss = tf.keras.backend.binary_crossentropy(class_true, class_pred)
     loss = tf.reduce_sum(loss, axis=-1) * obj_true
     loss = tf.reduce_mean(loss, axis=0)
     loss = tf.reduce_sum(loss)
