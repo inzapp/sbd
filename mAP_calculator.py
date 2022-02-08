@@ -10,8 +10,7 @@ g_iou_threshold = 0.5
 g_confidence_threshold = 0.25  # only for tp, fp, fn
 g_nms_iou_threshold = 0.45  # darknet yolo nms threshold value
 g_annotations_csv_name = 'annotations.csv'
-g_predictions_csv_name = 'predictions_one_layer_95.csv'
-# g_predictions_csv_name = 'predictions.csv'
+g_predictions_csv_name = 'predictions.csv'
 
 
 def load_label(image_path):
@@ -81,13 +80,5 @@ def calc_mean_average_precision(model, all_image_paths):
     return mean_average_precision_for_boxes(g_annotations_csv_name, g_predictions_csv_name, confidence_threshold_for_f1=g_confidence_threshold, iou_threshold=g_iou_threshold, verbose=True)
 
 
-def main():
-    # model_path = r'../competition/checkpoints/after/model_iter_970000.h5'
-    # img_paths = glob(r'T:\200m_big_small_detection\train_data\small\small_all\validation_200\*.jpg')
-    # model = tf.keras.models.load_model(model_path, compile=False)
-    # calc_mean_average_precision(model, img_paths)
-    return mean_average_precision_for_boxes(g_annotations_csv_name, g_predictions_csv_name, confidence_threshold_for_f1=g_confidence_threshold, iou_threshold=g_iou_threshold, verbose=True)
-
-
 if __name__ == '__main__':
-    main()
+    mean_average_precision_for_boxes(g_annotations_csv_name, g_predictions_csv_name, confidence_threshold_for_f1=g_confidence_threshold, iou_threshold=g_iou_threshold, verbose=True)
