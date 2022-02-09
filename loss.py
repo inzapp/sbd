@@ -53,7 +53,7 @@ def __confidence_loss(y_true, y_pred):
     return loss
 
 
-def __iou(y_true, y_pred):
+def __iou(y_true, y_pred, diou=False):
     y_true_shape = tf.cast(tf.shape(y_true), dtype=tf.dtypes.float32)
     grid_height, grid_width = y_true_shape[1], y_true_shape[2]
 
@@ -102,7 +102,18 @@ def __iou(y_true, y_pred):
     y_true_area = w_true * h_true
     y_pred_area = w_pred * h_pred
     union = y_true_area + y_pred_area - intersection
-    return intersection / (union + 1e-5)
+    iou = intersection / (union + 1e-5)
+
+    if diou:
+        cxy_true = y_true[:, :, :, 1:3]
+        cxy_pred = y_true[:, :, :, 1:3]
+        center_distance = tf.reduce_sum(tf.square(cxy_true - cxy_pred), axis=-1)
+        union_width = tf.maximum(x2_true, x2_pred) - tf.minimum(x1_true, x1_pred)
+        union_height = tf.maximum(y2_true, y2_pred) - tf.minimum(y1_true, y1_pred)
+        diagonal = tf.square(union_width) + tf.square(union_height) + tf.keras.backend.epsilon()
+        return iou + (center_distance / diagonal)
+    else:
+        return iou
 
 
 def __bbox_loss_xywh(y_true, y_pred):
@@ -136,7 +147,7 @@ def __bbox_loss_iou(y_true, y_pred):
         return 0.0
 
     # loss = tf.keras.backend.binary_crossentropy(obj_true, __iou(y_true, y_pred) * obj_true)
-    loss = obj_true - (__iou(y_true, y_pred) * obj_true)
+    loss = obj_true - (__iou(y_true, y_pred, diou=True) * obj_true)
     loss = tf.reduce_mean(loss, axis=0)
     loss = tf.reduce_sum(loss)
     return loss
@@ -162,9 +173,9 @@ def __bbox_loss_center_iou(y_true, y_pred):
 
 
 def __bbox_loss(y_true, y_pred):
-    # return __bbox_loss_iou(y_true, y_pred)
+    return __bbox_loss_iou(y_true, y_pred)
     # return __bbox_loss_center_iou(y_true, y_pred)
-    return __bbox_loss_xywh(y_true, y_pred)
+    # return __bbox_loss_xywh(y_true, y_pred)
 
 
 def __classification_loss(y_true, y_pred):
