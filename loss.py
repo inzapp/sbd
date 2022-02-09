@@ -32,10 +32,22 @@ def __abs_log_loss(y_true, y_pred):
     return -tf.math.log((1.0 + tf.keras.backend.epsilon()) - tf.abs(y_true - y_pred))
 
 
+def focal_loss(y_true, y_pred, alpha=0.25, gamma=2.0):
+    eps = tf.keras.backend.epsilon()
+    p_t = tf.where(tf.keras.backend.equal(y_true, 1.0), y_pred, 1.0 - y_pred)
+    alpha_factor = tf.keras.backend.ones_like(y_true) * alpha
+    alpha_t = tf.where(tf.keras.backend.equal(y_true, 1.0), alpha_factor, 1.0 - alpha_factor)
+    cross_entropy = tf.keras.backend.binary_crossentropy(y_true, y_pred)
+    weight = alpha_t * tf.keras.backend.pow((1.0 - p_t), gamma)
+    loss = weight * cross_entropy
+    return loss
+
+
 def __confidence_loss(y_true, y_pred):
     obj_true = y_true[:, :, :, 0]
     obj_pred = y_pred[:, :, :, 0]
-    loss = tf.keras.backend.binary_crossentropy(obj_true, obj_pred)
+    # loss = tf.keras.backend.binary_crossentropy(obj_true, obj_pred)
+    loss = focal_loss(obj_true, obj_pred)
     loss = tf.reduce_mean(loss, axis=0)
     loss = tf.reduce_sum(loss)
     return loss
@@ -163,7 +175,8 @@ def __classification_loss(y_true, y_pred):
 
     class_true = y_true[:, :, :, 5:]
     class_pred = y_pred[:, :, :, 5:]
-    loss = tf.keras.backend.binary_crossentropy(class_true, class_pred)
+    # loss = tf.keras.backend.binary_crossentropy(class_true, class_pred)
+    loss = focal_loss(class_true, class_pred)
     loss = tf.reduce_sum(loss, axis=-1) * obj_true
     loss = tf.reduce_mean(loss, axis=0)
     loss = tf.reduce_sum(loss)
