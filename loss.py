@@ -111,9 +111,12 @@ def __iou(y_true, y_pred, diou=False):
         union_width = tf.maximum(x2_true, x2_pred) - tf.minimum(x1_true, x1_pred)
         union_height = tf.maximum(y2_true, y2_pred) - tf.minimum(y1_true, y1_pred)
         diagonal = tf.square(union_width) + tf.square(union_height) + tf.keras.backend.epsilon()
-        return iou + (center_distance / diagonal)
+        diou_factor = center_distance / diagonal
+        diou_factor = tf.reduce_mean(diou_factor, axis=0)
+        diou_factor = tf.reduce_sum(diou_factor)
+        return iou, diou_factor
     else:
-        return iou
+        return iou, 0.0
 
 
 def __bbox_loss_xywh(y_true, y_pred):
@@ -122,7 +125,8 @@ def __bbox_loss_xywh(y_true, y_pred):
     if tf.equal(obj_count, tf.constant(0.0)):
         return 0.0
 
-    weight_mask = ((obj_true * 1.05) - (__iou(y_true, y_pred) * obj_true)) * 5.0
+    # weight_mask = ((obj_true * 1.05) - (__iou(y_true, y_pred) * obj_true)) * 5.0
+    weight_mask = 5.0
     xy_true = y_true[:, :, :, 1:3]
     xy_pred = y_pred[:, :, :, 1:3]
     xy_loss = __abs_log_loss(xy_true, xy_pred)
@@ -147,34 +151,15 @@ def __bbox_loss_iou(y_true, y_pred):
         return 0.0
 
     # loss = tf.keras.backend.binary_crossentropy(obj_true, __iou(y_true, y_pred) * obj_true)
-    loss = obj_true - (__iou(y_true, y_pred, diou=True) * obj_true)
+    iou, diou_factor = __iou(y_true, y_pred, diou=True)
+    loss = obj_true - (iou * obj_true)
     loss = tf.reduce_mean(loss, axis=0)
     loss = tf.reduce_sum(loss)
-    return loss
-
-
-def __bbox_loss_center_iou(y_true, y_pred):
-    obj_true = y_true[:, :, :, 0]
-    obj_count = tf.cast(tf.reduce_sum(obj_true), tf.float32)
-    if tf.equal(obj_count, tf.constant(0.0)):
-        return 0.0
-
-    # weight_mask = (((obj_true + 0.05) * obj_true) - (__iou(y_true, y_pred) * obj_true)) * 5.0
-    x_pos_true = y_true[:, :, :, 1]
-    x_pos_pred = y_pred[:, :, :, 1]
-    y_pos_true = y_true[:, :, :, 2]
-    y_pos_pred = y_pred[:, :, :, 2]
-    eps = tf.keras.backend.epsilon()
-    center_loss = tf.sqrt((tf.square(x_pos_true - x_pos_pred) + tf.square(y_pos_true - y_pos_pred)) * obj_true + eps)
-    iou_loss = obj_true - (__iou(y_true, y_pred) * obj_true)
-    iou_loss = tf.reduce_mean(iou_loss, axis=0)
-    iou_loss = tf.reduce_sum(iou_loss)
-    return iou_loss + center_loss
+    return loss + diou_factor
 
 
 def __bbox_loss(y_true, y_pred):
     return __bbox_loss_iou(y_true, y_pred)
-    # return __bbox_loss_center_iou(y_true, y_pred)
     # return __bbox_loss_xywh(y_true, y_pred)
 
 
