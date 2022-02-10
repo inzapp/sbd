@@ -220,8 +220,8 @@ class Yolo:
                 if self.__training_view:
                     self.__training_view_function()
 
-                # if iteration_count > int(self.__iterations * 0.9) and iteration_count % 2000 == 0:
-                if iteration_count % 1000 == 0:
+                # if iteration_count % 1000 == 0:
+                if iteration_count > int(self.__iterations * 0.9) and iteration_count % 10000 == 0:
                     self.__save_model(iteration_count=iteration_count, use_map_checkpoint=self.__map_checkpoint)
                 elif iteration_count % 20000 == 0:
                     self.__save_model(iteration_count=iteration_count, use_map_checkpoint=False)
@@ -284,7 +284,7 @@ class Yolo:
                 self.__model.save(f'checkpoints/model_{iteration_count}_iter_mAP_{mean_ap:.4f}_f1_{f1_score:.4f}_tp_iou_{tp_iou:.4f}_tp_{tp}_fp_{fp}_fn_{fn}.h5', include_optimizer=False)
                 self.__model.save('model_last.h5', include_optimizer=False)
         else:
-            self.__model.save(f'checkpoints/model_{iteration_count}_iter.h5')
+            self.__model.save(f'checkpoints/model_{iteration_count}_iter.h5', include_optimizer=False)
 
     @staticmethod
     def __init_image_paths(image_path, validation_split=0.0):
@@ -448,7 +448,7 @@ class Yolo:
         image_paths = natsort.natsorted(image_paths)
         with tf.device('/cpu:0'):
             for path in image_paths:
-                raw = cv2.imread(path, cv2.IMREAD_COLOR)
+                raw = cv2.imdecode(np.fromfile(path, np.uint8), cv2.IMREAD_COLOR)
                 x = cv2.cvtColor(raw, cv2.COLOR_BGR2GRAY) if self.__model.input.shape[-1] == 1 else raw.copy()
                 res = Yolo.predict(self.__model, x)
                 boxed_image = self.bounding_box(raw, res)
@@ -458,16 +458,20 @@ class Yolo:
                     break
 
     def predict_train_images(self):
-        self.predict_images(self.__train_image_paths)
+        with tf.device('/cpu:0'):
+            self.predict_images(self.__train_image_paths)
 
     def predict_validation_images(self):
-        self.predict_images(self.__validation_image_paths)
+        with tf.device('/cpu:0'):
+            self.predict_images(self.__validation_image_paths)
 
     def map_train_images(self):
-        calc_mean_average_precision(self.__model, self.__train_image_paths)
+        with tf.device('/gpu:0'):
+            calc_mean_average_precision(self.__model, self.__train_image_paths)
 
     def map_validation_images(self):
-        calc_mean_average_precision(self.__model, self.__validation_image_paths)
+        with tf.device('/gpu:0'):
+            calc_mean_average_precision(self.__model, self.__validation_image_paths)
 
     def __training_view_function(self):
         """
