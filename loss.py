@@ -33,7 +33,6 @@ def __abs_log_loss(y_true, y_pred):
 
 
 def focal_loss(y_true, y_pred, alpha=0.25, gamma=2.0):
-    eps = tf.keras.backend.epsilon()
     p_t = tf.where(tf.keras.backend.equal(y_true, 1.0), y_pred, 1.0 - y_pred)
     alpha_factor = tf.keras.backend.ones_like(y_true) * alpha
     alpha_t = tf.where(tf.keras.backend.equal(y_true, 1.0), alpha_factor, 1.0 - alpha_factor)
@@ -150,7 +149,6 @@ def __bbox_loss_iou(y_true, y_pred):
     if tf.equal(obj_count, tf.constant(0.0)):
         return 0.0
 
-    # loss = tf.keras.backend.binary_crossentropy(obj_true, __iou(y_true, y_pred) * obj_true)
     iou, diou_factor = __iou(y_true, y_pred, diou=True)
     loss = obj_true - (iou * obj_true)
     loss = tf.reduce_mean(loss, axis=0)
