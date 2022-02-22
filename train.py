@@ -72,7 +72,7 @@ if __name__ == '__main__':
     """
 
     Yolo(
-        # pretrained_model_path=r'checkpoints/model_5000_iter_mAP_1.0000_f1_0.9709_tp_iou_0.8272_tp_100_fp_2_fn_4.h5',
+        # pretrained_model_path=r'checkpoints/model_10000_iter_mAP_0.8703_f1_0.9231_tp_iou_0.8650_tp_96_fp_8_fn_8.h5',
         # optimizer='sgd',
         # lr_policy='step',
         # train_image_path=r'C:\inz\train_data\loon\train',
@@ -112,23 +112,38 @@ if __name__ == '__main__':
         # class_names_file_path=r'C:\inz\train_data\lcd_white\train\classes.txt',
         # input_shape=(96, 192, 1),
 
-        # pretrained_model_path=r'checkpoints/model_6000_iter_mAP_0.8519_f1_0.9412_tp_iou_0.6763_tp_8_fp_0_fn_1.h5',
+        # pretrained_model_path=r'model.h5',
+        # optimizer='sgd',
+        # lr_policy='step',
+        # train_image_path=r'C:\inz\train_data\square_set',
+        # validation_image_path=r'C:\inz\train_data\square_set',
+        # class_names_file_path=r'C:\inz\train_data\square_set\classes.txt',
+        # input_shape=(640, 640, 1),
+
+        # pretrained_model_path=r'checkpoints/model_1128000_iter_mAP_0.9649_f1_0.9358_tp_iou_0.9362_tp_10101_fp_840_fn_546.h5',
+        # optimizer='sgd',
+        # lr_policy='step',
+        # train_image_path=r'C:\inz\train_data\pig_cow\train',
+        # validation_image_path=r'C:\inz\train_data\pig_cow\validation',
+        # class_names_file_path=r'C:\inz\train_data\pig_cow\classes.txt',
+        # input_shape=(352, 640, 3),
+
+        # pretrained_model_path=r'checkpoints/model_14000_iter_mAP_0.9618_f1_0.9530_tp_iou_0.8017_tp_274_fp_10_fn_17.h5',
         optimizer='sgd',
         lr_policy='step',
-        train_image_path=r'C:\inz\train_data\square_set',
-        validation_image_path=r'C:\inz\train_data\square_set',
-        class_names_file_path=r'C:\inz\train_data\square_set\classes.txt',
-        # input_shape=(128, 128, 1),
-        input_shape=(96, 96, 1),
+        train_image_path=r'C:\inz\train_data\lp_in_car\train',
+        validation_image_path=r'C:\inz\train_data\lp_in_car\validation',
+        class_names_file_path=r'C:\inz\train_data\lp_in_car\train\classes.txt',
+        input_shape=(256, 256, 3),
 
         lr=0.001,
         decay=0.0005,
         momentum=0.9,
         burn_in=1000,
         batch_size=2,
-        iterations=10000,
+        iterations=200000,
         curriculum_iterations=0,
-        training_view=True,
+        training_view=False,
         map_checkpoint=True).fit()
         # map_checkpoint=True).predict_validation_images()
         # map_checkpoint=True).map_validation_images()
