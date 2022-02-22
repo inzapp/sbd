@@ -363,7 +363,9 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         return batch_image_paths
 
     def __load_img(self, path):
-        img = cv2.imread(path, cv2.IMREAD_GRAYSCALE if self.input_shape[2] == 1 else cv2.IMREAD_COLOR)
+        img = cv2.imdecode(np.fromfile(path, np.uint8), cv2.IMREAD_COLOR)
+        if self.input_shape[-1] == 1:
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         # img = self.__random_adjust(img)  # so slow
         return path, img
 
