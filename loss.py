@@ -54,7 +54,7 @@ def __confidence_loss(y_true, y_pred):
 
 
 def __iou(y_true, y_pred, diou=False):
-    y_true_shape = K.cast(K.shape(y_true), dtype=K.floatx())
+    y_true_shape = K.cast_to_floatx(K.shape(y_true))
     grid_height, grid_width = y_true_shape[1], y_true_shape[2]
 
     cx_true = y_true[:, :, :, 1]
@@ -121,7 +121,7 @@ def __iou(y_true, y_pred, diou=False):
 
 def __bbox_loss_xywh(y_true, y_pred):
     obj_true = y_true[:, :, :, 0]
-    obj_count = K.cast(K.sum(obj_true), dtype=K.floatx())
+    obj_count = K.cast_to_floatx(K.sum(obj_true))
     if K.equal(obj_count, K.constant(0.0)):
         return 0.0
 
@@ -146,7 +146,7 @@ def __bbox_loss_xywh(y_true, y_pred):
 
 def __bbox_loss_iou(y_true, y_pred):
     obj_true = y_true[:, :, :, 0]
-    obj_count = K.cast(K.sum(obj_true), dtype=K.floatx())
+    obj_count = K.cast_to_floatx(K.sum(obj_true))
     if K.equal(obj_count, K.constant(0.0)):
         return 0.0
 
@@ -164,7 +164,7 @@ def __bbox_loss(y_true, y_pred):
 
 def __classification_loss(y_true, y_pred):
     obj_true = y_true[:, :, :, 0]
-    obj_count = K.cast(K.sum(obj_true), dtype=K.floatx())
+    obj_count = K.cast_to_floatx(K.sum(obj_true))
     if K.equal(obj_count, K.constant(0.0)):
         return 0.0
 
