@@ -48,77 +48,17 @@ class Model:
         return cls.__new__(cls)
 
     def build(self):
+        # return self.__lcd()
         # return self.__lightnet_alpha()
-        # return self.__lightnet_beta()
+        return self.__lightnet_beta()
         # return self.__lightnet_gamma()
         # return self.__lightnet_delta()
-        return self.__lightnet_epsilon()
+        # return self.__lightnet_epsilon()
         # return self.__lightnet_zeta()
         # return self.__lightnet_eta()
         # return self.__lightnet_theta()
-        # return self.__normal_model()
         # return self.__vgg_16()
-        # return self.__darknet_53()
-        # return self.__lp_detection_sbd()
-        # return self.__lp_detection_sbd_csp()
-        # return self.__person_detail()
-        # return self.__person_part_detail()
-        # return self.__lcd_csp()
-        # return self.__loon()
-        # return self.__loon_csp()
-        # return self.__loon_cross()
-        # return self.__loon_cross_csp()
-
-    def __normal_model(self):
-        input_layer = tf.keras.layers.Input(shape=self.__input_shape)
-        x = self.__conv_block(input_layer, 16, 3, bn=True, activation='relu')
-        x = self.__max_pool(x)
-
-        x = self.__drop_filter(x, 0.0625)
-        x = self.__conv_block(x, 32, 3, bn=False, activation='relu')
-        x = self.__conv_block(x, 32, 3, bn=False, activation='relu')
-        x = self.__max_pool(x)
-
-        x = self.__drop_filter(x, 0.0625)
-        x = self.__conv_block(x, 64, 3, bn=False, activation='relu')
-        x = self.__conv_block(x, 64, 3, bn=False, activation='relu')
-        x = self.__conv_block(x, 64, 3, bn=False, activation='relu')
-        x = self.__max_pool(x)
-
-        x = self.__drop_filter(x, 0.0625)
-        x = self.__conv_block(x, 128, 3, bn=False, activation='relu')
-        x = self.__conv_block(x, 128, 3, bn=False, activation='relu')
-        x = self.__conv_block(x, 128, 3, bn=False, activation='relu')
-        x = self.__conv_block(x, 128, 3, bn=False, activation='relu')
-        x = self.__conv_block(x, 128, 3, bn=True, activation='relu')
-        y1 = self.__detection_layer(x, 'sbd_output_1')
-        x = self.__avg_max_pool(x)
-
-        x = self.__drop_filter(x, 0.0625)
-        x = self.__conv_block(x, 256, 3, bn=False, activation='relu')
-        x = self.__conv_block(x, 128, 1, bn=False, activation='relu')
-        x = self.__conv_block(x, 256, 3, bn=False, activation='relu')
-        x = self.__conv_block(x, 128, 1, bn=False, activation='relu')
-        x = self.__conv_block(x, 256, 3, bn=False, activation='relu')
-        x = self.__conv_block(x, 128, 1, bn=False, activation='relu')
-        x = self.__conv_block(x, 256, 3, bn=False, activation='relu')
-        x = self.__conv_block(x, 128, 1, bn=False, activation='relu')
-        x = self.__conv_block(x, 256, 3, bn=True, activation='relu')
-        y2 = self.__detection_layer(x, 'sbd_output_2')
-        x = self.__avg_max_pool(x)
-
-        x = self.__drop_filter(x, 0.0625)
-        x = self.__conv_block(x, 512, 3, bn=False, activation='relu')
-        x = self.__conv_block(x, 256, 1, bn=False, activation='relu')
-        x = self.__conv_block(x, 512, 3, bn=False, activation='relu')
-        x = self.__conv_block(x, 256, 1, bn=False, activation='relu')
-        x = self.__conv_block(x, 512, 3, bn=False, activation='relu')
-        x = self.__conv_block(x, 256, 1, bn=False, activation='relu')
-        x = self.__conv_block(x, 512, 3, bn=False, activation='relu')
-        x = self.__conv_block(x, 256, 1, bn=False, activation='relu')
-        x = self.__conv_block(x, 512, 3, bn=True, activation='relu')
-        y3 = self.__detection_layer(x, 'sbd_output_3')
-        return tf.keras.models.Model(input_layer, [y1, y2, y3])
+        # return self.__darknet_19()
 
     def __lightnet_alpha(self):
         input_layer = tf.keras.layers.Input(shape=self.__input_shape)
@@ -126,7 +66,7 @@ class Model:
         x = self.__max_pool(x)
 
         x = self.__drop_filter(x, 0.0625)
-        x = self.__cross_conv_block(x, 16, 3, bn=False, mode='add', activation='relu')
+        x = self.__conv_block(x, 16, 3, bn=False, activation='relu')
         x = self.__max_pool(x)
 
         x = self.__drop_filter(x, 0.0625)
@@ -151,7 +91,7 @@ class Model:
         x = self.__max_pool(x)
 
         x = self.__drop_filter(x, 0.0625)
-        x = self.__cross_conv_block(x, 32, 3, bn=False, mode='add', activation='relu')
+        x = self.__conv_block(x, 32, 3, bn=False, activation='relu')
         x = self.__max_pool(x)
 
         x = self.__drop_filter(x, 0.0625)
@@ -455,177 +395,6 @@ class Model:
         y3 = self.__detection_layer(x, 'sbd_output_3')
         return tf.keras.models.Model(input_layer, [y1, y2, y3])
 
-    def __loon(self):
-        input_layer = tf.keras.layers.Input(shape=self.__input_shape)
-        x = self.__conv_block(input_layer, 8, 3, bn=True, activation='swish')
-        x = self.__max_pool(x)
-
-        x = self.__drop_filter(x, 0.0625)
-        x = self.__conv_block(x, 16, 3, bn=True, activation='swish')
-        x = self.__max_pool(x)
-
-        x = self.__drop_filter(x, 0.0625)
-        x = self.__conv_block(x, 32, 3, bn=True, activation='swish')
-        x = self.__max_pool(x)
-        y1 = self.__detection_layer(x, 'sbd_output_1')
-
-        x = self.__drop_filter(x, 0.0625)
-        x = self.__conv_block(x, 64, 3, bn=True, activation='swish')
-        x = self.__max_pool(x)
-        y2 = self.__detection_layer(x, 'sbd_output_2')
-
-        x = self.__drop_filter(x, 0.0625)
-        x = self.__conv_block(x, 128, 3, bn=True, activation='swish')
-        x = self.__max_pool(x)
-        y3 = self.__detection_layer(x, 'sbd_output_3')
-        return tf.keras.models.Model(input_layer, [y1, y2, y3])
-
-    def __loon_csp(self):
-        input_layer = tf.keras.layers.Input(shape=self.__input_shape)
-        x = self.__conv_block(input_layer, 8, 3, bn=True, activation='swish')
-        x = self.__avg_max_pool(x)
-
-        x = self.__drop_filter(x, 0.0625)
-        x = self.__conv_block(x, 16, 3, bn=True, activation='swish')
-        x = self.__avg_max_pool(x)
-
-        x = self.__drop_filter(x, 0.0625)
-        x = self.__csp_block(x, 32, 3, first_depth_n_convs=1, second_depth_n_convs=2, bn=True, activation='swish', inner_activation='swish')
-        x = self.__avg_max_pool(x)
-        y1 = self.__detection_layer(x, 'sbd_output_1')
-
-        x = self.__drop_filter(x, 0.0625)
-        x = self.__csp_block(x, 64, 3, first_depth_n_convs=1, second_depth_n_convs=2, bn=True, activation='swish', inner_activation='swish')
-        x = self.__avg_max_pool(x)
-
-        x = self.__drop_filter(x, 0.0625)
-        y2 = self.__detection_layer(x, 'sbd_output_2')
-        x = self.__csp_block(x, 128, 3, first_depth_n_convs=1, second_depth_n_convs=2, bn=True, activation='swish', inner_activation='swish')
-        x = self.__avg_max_pool(x)
-
-        y3 = self.__detection_layer(x, 'sbd_output_3')
-        return tf.keras.models.Model(input_layer, [y1, y2, y3])
-
-    def __loon_cross(self):
-        input_layer = tf.keras.layers.Input(shape=self.__input_shape)
-        x = self.__cross_conv_block(input_layer, 8, 3, bn=True, mode='add', activation='swish')
-        x = self.__avg_max_pool(x)
-
-        x = self.__drop_filter(x, 0.0625)
-        x = self.__cross_conv_block(x, 16, 3, bn=True, mode='add', activation='swish')
-        x = self.__avg_max_pool(x)
-
-        x = self.__drop_filter(x, 0.0625)
-        x = self.__cross_conv_block(x, 32, 3, bn=True, mode='add', activation='swish')
-        x = self.__avg_max_pool(x)
-        y1 = self.__detection_layer(x, 'sbd_output_1')
-
-        x = self.__drop_filter(x, 0.0625)
-        x = self.__cross_conv_block(x, 64, 3, bn=True, mode='add', activation='swish')
-        x = self.__avg_max_pool(x)
-
-        x = self.__drop_filter(x, 0.0625)
-        y2 = self.__detection_layer(x, 'sbd_output_2')
-        x = self.__cross_conv_block(x, 128, 3, bn=True, mode='add', activation='swish')
-        x = self.__avg_max_pool(x)
-
-        y3 = self.__detection_layer(x, 'sbd_output_3')
-        return tf.keras.models.Model(input_layer, [y1, y2, y3])
-
-    def __loon_cross_csp(self):
-        input_layer = tf.keras.layers.Input(shape=self.__input_shape)
-        x = self.__cross_conv_block(input_layer, 8, 3, bn=True, activation='swish')
-        x = self.__avg_max_pool(x)
-
-        x = self.__drop_filter(x, 0.0625)
-        x = self.__cross_conv_block(x, 16, 3, bn=True, activation='swish')
-        x = self.__avg_max_pool(x)
-
-        x = self.__drop_filter(x, 0.0625)
-        x = self.__cross_csp_block(x, 32, 3, first_depth_n_convs=1, second_depth_n_convs=2, bn=True, mode='add', activation='swish', inner_activation='swish')
-        x = self.__avg_max_pool(x)
-        y1 = self.__detection_layer(x, 'sbd_output_1')
-
-        x = self.__drop_filter(x, 0.0625)
-        x = self.__cross_csp_block(x, 64, 3, first_depth_n_convs=1, second_depth_n_convs=2, bn=True, mode='add', activation='swish', inner_activation='swish')
-        x = self.__avg_max_pool(x)
-
-        x = self.__drop_filter(x, 0.0625)
-        y2 = self.__detection_layer(x, 'sbd_output_2')
-        x = self.__cross_csp_block(x, 128, 3, first_depth_n_convs=1, second_depth_n_convs=2, bn=True, mode='add', activation='swish', inner_activation='swish')
-        x = self.__avg_max_pool(x)
-
-        y3 = self.__detection_layer(x, 'sbd_output_3')
-        return tf.keras.models.Model(input_layer, [y1, y2, y3])
-
-    def __person_detail(self):
-        input_layer = tf.keras.layers.Input(shape=self.__input_shape)
-        x = self.__conv_block(input_layer, 16, 3, bn=True, activation='swish')
-        x = self.__max_pool(x)
-
-        x = self.__drop_filter(x, 0.0625)
-        x = self.__conv_block(x, 32, 3, bn=False, activation='swish')
-        x = self.__max_pool(x)
-
-        x = self.__drop_filter(x, 0.0625)
-        x = self.__conv_block(x, 64, 3, bn=False, activation='swish')
-        x = self.__max_pool(x)
-
-        x = self.__drop_filter(x, 0.0625)
-        x = self.__conv_block(x, 128, 3, bn=False, activation='swish')
-        x = self.__drop_filter(x, 0.0625)
-        x = self.__conv_block(x, 128, 3, bn=True, activation='swish')
-        y1 = self.__detection_layer(x, 'sbd_output_1')
-        x = self.__avg_max_pool(x)
-
-        x = self.__drop_filter(x, 0.0625)
-        x = self.__conv_block(x, 256, 3, bn=False, activation='swish')
-        x = self.__drop_filter(x, 0.0625)
-        x = self.__conv_block(x, 256, 3, bn=True, activation='swish')
-        y2 = self.__detection_layer(x, 'sbd_output_2')
-        x = self.__avg_max_pool(x)
-
-        x = self.__drop_filter(x, 0.0625)
-        x = self.__conv_block(x, 256, 3, bn=False, activation='swish')
-        x = self.__drop_filter(x, 0.0625)
-        x = self.__conv_block(x, 256, 3, bn=True, activation='swish')
-        y3 = self.__detection_layer(x, 'sbd_output_3')
-        return tf.keras.models.Model(input_layer, [y1, y2, y3])
-
-    def __person_part_detail(self):
-        input_layer = tf.keras.layers.Input(shape=self.__input_shape)
-        x = self.__cross_conv_block(input_layer, 16, 3, bn=True, activation='swish')
-        x = self.__max_pool(x)
-
-        x = self.__drop_filter(x, 0.0625)
-        x = self.__cross_conv_block(x, 32, 3, bn=False, activation='swish')
-        x = self.__max_pool(x)
-
-        x = self.__drop_filter(x, 0.0625)
-        x = self.__cross_conv_block(x, 64, 3, bn=False, activation='swish')
-        x = self.__max_pool(x)
-
-        x = self.__drop_filter(x, 0.0625)
-        x = self.__cross_conv_block(x, 128, 3, bn=False, activation='swish')
-        x = self.__drop_filter(x, 0.0625)
-        x = self.__cross_conv_block(x, 128, 3, bn=True, activation='swish')
-        y1 = self.__detection_layer(x, 'sbd_output_1')
-        x = self.__avg_max_pool(x)
-
-        x = self.__drop_filter(x, 0.0625)
-        x = self.__cross_conv_block(x, 256, 3, bn=False, activation='swish')
-        x = self.__drop_filter(x, 0.0625)
-        x = self.__cross_conv_block(x, 256, 3, bn=True, activation='swish')
-        y2 = self.__detection_layer(x, 'sbd_output_2')
-        x = self.__avg_max_pool(x)
-
-        x = self.__drop_filter(x, 0.0625)
-        x = self.__cross_conv_block(x, 256, 3, bn=False, activation='swish')
-        x = self.__drop_filter(x, 0.0625)
-        x = self.__cross_conv_block(x, 256, 3, bn=True, activation='swish')
-        y3 = self.__detection_layer(x, 'sbd_output_3')
-        return tf.keras.models.Model(input_layer, [y1, y2, y3])
-
     def __lcd(self):
         input_layer = tf.keras.layers.Input(shape=self.__input_shape)
         x = self.__conv_block(input_layer, 16, 3, bn=True, activation='relu')
@@ -646,80 +415,6 @@ class Model:
         x = self.__max_pool(x)
 
         x = self.__conv_block(x, 512, 3, bn=True, activation='relu')
-        y3 = self.__detection_layer(x, 'sbd_output_3')
-        return tf.keras.models.Model(input_layer, [y1, y2, y3])
-
-    def __lcd_csp(self):
-        input_layer = tf.keras.layers.Input(shape=self.__input_shape)
-        x = self.__conv_block(input_layer, 16, 3, bn=True, activation='relu')
-        x = self.__avg_max_pool(x)
-
-        x = self.__conv_block(x, 32, 3, bn=False, activation='relu')
-        x = self.__avg_max_pool(x)
-
-        x = self.__conv_block(x, 64, 3, bn=False, activation='relu')
-        x = self.__avg_max_pool(x)
-
-        x = self.__csp_block(x, 128, 3, first_depth_n_convs=1, second_depth_n_convs=2, bn=True, activation='relu', inner_activation='relu')
-        y1 = self.__detection_layer(x, 'sbd_output_1')
-        x = self.__avg_max_pool(x)
-
-        x = self.__csp_block(x, 128, 3, first_depth_n_convs=1, second_depth_n_convs=2, bn=True, activation='relu', inner_activation='relu')
-        y2 = self.__detection_layer(x, 'sbd_output_2')
-        x = self.__avg_max_pool(x)
-
-        x = self.__csp_block(x, 256, 3, first_depth_n_convs=1, second_depth_n_convs=2, bn=True, activation='relu', inner_activation='relu')
-        y3 = self.__detection_layer(x, 'sbd_output_3')
-        return tf.keras.models.Model(input_layer, [y1, y2, y3])
-
-    def __lp_detection_sbd(self):
-        input_layer = tf.keras.layers.Input(shape=self.__input_shape)
-        x = self.__conv_block(input_layer, 4, 3, bn=False, activation='tanh')
-        x = self.__max_pool(x)
-
-        x = self.__conv_block(x, 8, 3, bn=False, activation='tanh')
-        x = self.__max_pool(x)
-
-        x = self.__conv_block(x, 16, 3, bn=False, activation='tanh')
-        x = self.__avg_max_pool(x)
-
-        x = self.__conv_block(x, 32, 3, bn=False, activation='tanh')
-        y1 = self.__detection_layer(x, 'sbd_output_1')
-        x = self.__avg_max_pool(x)
-
-        x = self.__conv_block(x, 64, 3, bn=False, activation='tanh')
-        y2 = self.__detection_layer(x, 'sbd_output_2')
-        x = self.__avg_max_pool(x)
-
-        x = self.__conv_block(x, 128, 3, bn=False, activation='tanh')
-        y3 = self.__detection_layer(x, 'sbd_output_3')
-        return tf.keras.models.Model(input_layer, [y1, y2, y3])
-
-    def __lp_detection_sbd_csp(self):
-        input_layer = tf.keras.layers.Input(shape=self.__input_shape)
-        x = self.__conv_block(input_layer, 8, 3, bn=True, activation='relu')
-        x = self.__avg_max_pool(x)
-
-        x = self.__drop_filter(x, 0.0625)
-        x = self.__conv_block(x, 16, 3, bn=False, activation='relu')
-        x = self.__avg_max_pool(x)
-
-        x = self.__drop_filter(x, 0.0625)
-        x = self.__conv_block(x, 32, 3, bn=False, activation='relu')
-        x = self.__avg_max_pool(x)
-
-        x = self.__drop_filter(x, 0.0625)
-        x = self.__csp_block(64, 3, first_depth_n_convs=1, second_depth_n_convs=2, bn=True, activation='relu', inner_activation='relu')
-        y1 = self.__detection_layer(x, 'sbd_output_1')
-        x = self.__avg_max_pool(x)
-
-        x = self.__drop_filter(x, 0.0625)
-        x = self.__csp_block(128, 3, first_depth_n_convs=1, second_depth_n_convs=2, bn=True, activation='relu', inner_activation='relu')
-        y2 = self.__detection_layer(x, 'sbd_output_2')
-        x = self.__avg_max_pool(x)
-
-        x = self.__drop_filter(x, 0.0625)
-        x = self.__csp_block(128, 3, first_depth_n_convs=1, second_depth_n_convs=2, bn=True, activation='relu', inner_activation='relu')
         y3 = self.__detection_layer(x, 'sbd_output_3')
         return tf.keras.models.Model(input_layer, [y1, y2, y3])
 
