@@ -75,8 +75,8 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         self.label_obj_count = 0  # obj count in real label txt
         self.pool = ThreadPoolExecutor(8)
 
-        self.train_type = 'all_layer'
-        self.train_layer_index = 2
+        self.train_type = 'all_layer_assist'
+        self.train_layer_index = 1
 
         queue_size = 64
         self.batch_index = 0
@@ -102,12 +102,12 @@ class GeneratorFlow(tf.keras.utils.Sequence):
 
         self.insert_thread_running = True
         for _ in range(4):
-            insert_thread = Thread(target=self.__insert_batch_into_q)
+            insert_thread = Thread(target=self.insert_batch_into_q)
             insert_thread.setDaemon(True)
             insert_thread.start()
 
     @staticmethod
-    def __iou(a, b):
+    def iou(a, b):
         """
         Intersection of union function.
         :param a: [x_min, y_min, x_max, y_max] format box a
@@ -125,7 +125,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         union_area = a_area + b_area - intersection_area
         return intersection_area / (float(union_area) + 1e-5)
 
-    def __get_iou_with_index(self, box, virtual_anchor_ws, virtual_anchor_hs):
+    def get_iou_with_index(self, box, virtual_anchor_ws, virtual_anchor_hs):
         cx, cy, w, h = box
         x1 = cx - w * 0.5
         y1 = cy - h * 0.5
@@ -139,36 +139,36 @@ class GeneratorFlow(tf.keras.utils.Sequence):
             x2 = cx + virtual_anchor_ws[i] * 0.5
             y2 = cy + virtual_anchor_hs[i] * 0.5
             virtual_anchor_box = [x1, y1, x2, y2]
-            iou = self.__iou(true_box, virtual_anchor_box)
+            iou = self.iou(true_box, virtual_anchor_box)
             res.append({'index': i, 'iou': iou})
         return sorted(res, key=lambda x: x['iou'], reverse=True)
 
-    def __get_layer_indexes_threshold(self, box, virtual_anchor_ws, virtual_anchor_hs, threshold=0.6):
-        res = self.__get_iou_with_index(box, virtual_anchor_ws, virtual_anchor_hs)
+    def get_layer_indexes_threshold(self, box, virtual_anchor_ws, virtual_anchor_hs, threshold=0.6):
+        res = self.get_iou_with_index(box, virtual_anchor_ws, virtual_anchor_hs)
         indexes = [res[0]['index']]
         for i in range(1, len(res)):
             if res[i]['iou'] >= threshold:
                 indexes.append(res[i]['index'])
         return indexes
 
-    def __get_best_iou_with_index(self, box, virtual_anchor_ws, virtual_anchor_hs):
-        res = self.__get_iou_with_index(box, virtual_anchor_ws, virtual_anchor_hs)
+    def get_best_iou_with_index(self, box, virtual_anchor_ws, virtual_anchor_hs):
+        res = self.get_iou_with_index(box, virtual_anchor_ws, virtual_anchor_hs)
         return res[0]['iou'], res[0]['index']
 
-    def __iou_with_clustered_wh(self, boxes, virtual_anchor_ws, virtual_anchor_hs):
+    def iou_with_clustered_wh(self, boxes, virtual_anchor_ws, virtual_anchor_hs):
         iou_sum = 0.0
         for true_box in boxes:
-            best_iou, _ = self.__get_best_iou_with_index(true_box, virtual_anchor_ws, virtual_anchor_hs)
+            best_iou, _ = self.get_best_iou_with_index(true_box, virtual_anchor_ws, virtual_anchor_hs)
             iou_sum += best_iou
         return iou_sum / float(len(boxes))
 
     @staticmethod
-    def __load_label(__label_path):
-        with open(__label_path, 'rt') as __f:
-            __lines = __f.readlines()
-        return __lines, __label_path
+    def load_label(label_path):
+        with open(label_path, 'rt') as f:
+            lines = f.readlines()
+        return lines, label_path
 
-    def __is_invalid_label(self, path, label, num_classes):
+    def is_invalid_label(self, path, label, num_classes):
         class_index, cx, cy, w, h = label
         if class_index < 0 or class_index >= num_classes:
             print(f'\ninvalid class index {int(class_index)} in num_classs {num_classes} : [{path}]')
@@ -185,7 +185,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
     def cluster_wh(self):
         fs = []
         for path in self.image_paths:
-            fs.append(self.pool.submit(self.__load_label, f'{path[:-4]}.txt'))
+            fs.append(self.pool.submit(self.load_label, f'{path[:-4]}.txt'))
 
         num_classes = self.output_shapes[0][-1] - 5
         invalid_label_paths = []
@@ -194,7 +194,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
             lines, label_path = f.result()
             for line in lines:
                 class_index, cx, cy, w, h = list(map(float, line.split()))
-                if self.__is_invalid_label(label_path, [class_index, cx, cy, w, h], num_classes):
+                if self.is_invalid_label(label_path, [class_index, cx, cy, w, h], num_classes):
                     invalid_label_paths.append(label_path)
                 boxes.append([cx, cy, w, h])
                 ws.append(w)
@@ -230,7 +230,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         for i in range(num_cluster):
             print(f'{self.virtual_anchor_hs[i]:.4f} ', end='')
         print()
-        print(f'avg IoU : {self.__iou_with_clustered_wh(boxes, self.virtual_anchor_ws, self.virtual_anchor_hs):.4f}')
+        print(f'avg IoU : {self.iou_with_clustered_wh(boxes, self.virtual_anchor_ws, self.virtual_anchor_hs):.4f}')
         if self.train_type == 'all_layer_auto_split':
             self.virtual_anchor_ws = [1.0 / float(self.output_shapes[layer_index][2]) for layer_index in range(self.num_output_layers)]
             self.virtual_anchor_hs = [1.0 / float(self.output_shapes[layer_index][1]) for layer_index in range(self.num_output_layers)]
@@ -256,7 +256,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         print(f'not trained  obj count : {not_trained_obj_count} ({not_trained_obj_rate}%)')
 
     @staticmethod
-    def __convert_to_boxes(label_lines):
+    def convert_to_boxes(label_lines):
         boxes = []
         for line in label_lines:
             class_index, cx, cy, w, h = list(map(float, line.split(' ')))
@@ -271,7 +271,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         return boxes
 
     @staticmethod
-    def __sort_middle_last(big_last_boxes, small_last_boxes):
+    def sort_middle_last(big_last_boxes, small_last_boxes):
         middle_index = int(len(big_last_boxes) / 2)
         middle_last_boxes = []
         for i in range(middle_index):
@@ -281,11 +281,49 @@ class GeneratorFlow(tf.keras.utils.Sequence):
             middle_last_boxes.append(small_last_boxes[middle_index])
         return middle_last_boxes
 
-    def __insert_batch_into_q(self):
+    def convert_to_x1y1x2y2(self, box):
+        cx, cy, w, h = box
+        x1 = cx - w * 0.5
+        x2 = cx + w * 0.5
+        y1 = cy - h * 0.5
+        y2 = cy + h * 0.5
+        return [x1, y1, x2, y2]
+
+    def filter_small_boxes(self, boxes):
+        criteria = 0.075
+        small_boxes = []
+        for box in boxes:
+            cx, cy, w, h = box['cx'], box['cy'], box['w'], box['h']
+            if w < criteria and h < criteria:
+                small_boxes.append(box)
+                continue
+            a = self.convert_to_x1y1x2y2([cx, cy, w, h])
+            b = self.convert_to_x1y1x2y2([cx, cy, criteria, criteria])
+            iou = self.iou(a, b)
+            if iou > 0.5:
+                small_boxes.append(box)
+        return small_boxes
+
+    def filter_big_boxes(self, boxes):
+        criteria = 0.3
+        big_boxes = []
+        for box in boxes:
+            cx, cy, w, h = box['cx'], box['cy'], box['w'], box['h']
+            if w > criteria or h > criteria:
+                big_boxes.append(box)
+                continue
+            a = self.convert_to_x1y1x2y2([cx, cy, w, h])
+            b = self.convert_to_x1y1x2y2([cx, cy, criteria, criteria])
+            iou = self.iou(a, b)
+            if iou > 0.5:
+                big_boxes.append(box)
+        return big_boxes
+            
+    def insert_batch_into_q(self):
         while True:
             fs, batch_x, batch_y1, batch_y2, batch_y3 = [], [], [], [], []
-            for path in self.__get_next_batch_image_paths():
-                fs.append(self.pool.submit(self.__load_img, path))
+            for path in self.get_next_batch_image_paths():
+                fs.append(self.pool.submit(self.load_img, path))
             for f in fs:
                 cur_img_path, x = f.result()
                 if x.shape[1] > self.input_shape[1] or x.shape[0] > self.input_shape[0]:
@@ -298,17 +336,34 @@ class GeneratorFlow(tf.keras.utils.Sequence):
                 with open(f'{cur_img_path[:-4]}.txt', mode='rt') as file:
                     label_lines = file.readlines()
 
-                boxes = self.__convert_to_boxes(label_lines)
+                boxes = self.convert_to_boxes(label_lines)
                 np.random.shuffle(boxes)
 
                 y = []
                 for i in range(self.num_output_layers):
                     y.append(np.zeros((self.output_shapes[i][1], self.output_shapes[i][2], self.output_shapes[i][3]), dtype=np.float32))
 
-                if self.train_type == 'all_layer':
+                if self.train_type == 'all_layer_assist':
+                    big_boxes = self.filter_big_boxes(boxes)
+                    small_boxes = self.filter_small_boxes(boxes)
+                    layer_mapping_boxes = [small_boxes, boxes, big_boxes]
+                    for output_layer_index in range(self.num_output_layers):
+                        output_rows = float(self.output_shapes[output_layer_index][1])
+                        output_cols = float(self.output_shapes[output_layer_index][2])
+                        for b in layer_mapping_boxes[output_layer_index]:
+                            class_index, cx, cy, w, h = b['class_index'], b['cx'], b['cy'], b['w'], b['h']
+                            center_row = int(cy * output_rows)
+                            center_col = int(cx * output_cols)
+                            y[output_layer_index][center_row][center_col][0] = 1.0
+                            y[output_layer_index][center_row][center_col][1] = (cx - float(center_col) / output_cols) / (1.0 / output_cols)
+                            y[output_layer_index][center_row][center_col][2] = (cy - float(center_row) / output_rows) / (1.0 / output_rows)
+                            y[output_layer_index][center_row][center_col][3] = w
+                            y[output_layer_index][center_row][center_col][4] = h
+                            y[output_layer_index][center_row][center_col][int(class_index + 5)] = 1.0
+                elif self.train_type == 'all_layer':
                     big_last_boxes = sorted(boxes, key=lambda __x: __x['area'], reverse=False)
                     small_last_boxes = sorted(boxes, key=lambda __x: __x['area'], reverse=True)
-                    middle_last_boxes = self.__sort_middle_last(big_last_boxes, small_last_boxes)
+                    middle_last_boxes = self.sort_middle_last(big_last_boxes, small_last_boxes)
                     layer_mapping_boxes = [small_last_boxes, middle_last_boxes, big_last_boxes]
                     for output_layer_index in range(self.num_output_layers):
                         output_rows = float(self.output_shapes[output_layer_index][1])
@@ -329,7 +384,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
                         if self.train_type == 'one_layer':
                             output_layer_indexes = [self.train_layer_index]
                         elif self.train_type == 'all_layer_cluster' or self.train_type == 'all_layer_auto_split':
-                            output_layer_indexes = self.__get_layer_indexes_threshold([cx, cy, w, h], self.virtual_anchor_ws, self.virtual_anchor_hs, threshold=0.6)
+                            output_layer_indexes = self.get_layer_indexes_threshold([cx, cy, w, h], self.virtual_anchor_ws, self.virtual_anchor_hs, threshold=0.6)
                         for output_layer_index in output_layer_indexes:
                             output_rows = float(self.output_shapes[output_layer_index][1])
                             output_cols = float(self.output_shapes[output_layer_index][2])
@@ -352,7 +407,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
             sleep(0)
             self.batch_q.put((batch_x, [batch_y1, batch_y2, batch_y3]), block=True)
 
-    def __get_next_batch_image_paths(self):
+    def get_next_batch_image_paths(self):
         start_index = self.batch_size * self.batch_index
         end_index = start_index + self.batch_size
         batch_image_paths = self.image_paths[start_index:end_index]
@@ -362,22 +417,22 @@ class GeneratorFlow(tf.keras.utils.Sequence):
             np.random.shuffle(self.image_paths)
         return batch_image_paths
 
-    def __load_img(self, path):
+    def load_img(self, path):
         img = cv2.imdecode(np.fromfile(path, np.uint8), cv2.IMREAD_COLOR)
         if self.input_shape[-1] == 1:
             img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        # img = self.__random_adjust(img)  # so slow
+        # img = self.random_adjust(img)  # so slow
         return path, img
 
-    def __random_adjust(self, img):
+    def random_adjust(self, img):
         vs = [['hue', 0.1], ['saturation', 0.5], ['value', 0.5]]
         np.random.shuffle(vs)
         for v in vs:
-            img = self.__adjust(img, v[1], v[0])
+            img = self.adjust(img, v[1], v[0])
         return img
 
     @staticmethod
-    def __adjust(img, adjust_val, adjust_type):
+    def adjust(img, adjust_val, adjust_type):
         range_min, range_max = 1.0 - adjust_val, 1.0 + adjust_val
         weight = np.random.uniform(range_min, range_max, 1)
 
