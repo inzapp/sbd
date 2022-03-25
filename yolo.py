@@ -286,7 +286,7 @@ class Yolo:
             mean_ap, f1_score, tp_iou, tp, fp, fn = calc_mean_average_precision(self.__model, self.__validation_image_paths)
             if self.__is_better_than_before(mean_ap, f1_score, tp_iou):
                 self.__model.save(f'checkpoints/model_{iteration_count}_iter_mAP_{mean_ap:.4f}_f1_{f1_score:.4f}_tp_iou_{tp_iou:.4f}_tp_{tp}_fp_{fp}_fn_{fn}_ul_{ul}.h5', include_optimizer=False)
-                self.__model.save('model_last_ul_{ul}.h5', include_optimizer=False)
+                self.__model.save(f'model_last_ul_{ul}.h5', include_optimizer=False)
         else:
             self.__model.save(f'checkpoints/model_{iteration_count}_iter_ul_{ul}.h5', include_optimizer=False)
 
