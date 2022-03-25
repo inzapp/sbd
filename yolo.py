@@ -36,6 +36,7 @@ from model import Model
 
 
 class Yolo:
+    g_use_layers = []
     def __init__(self,
                  train_image_path=None,
                  input_shape=(256, 256, 1),
@@ -50,6 +51,7 @@ class Yolo:
                  validation_image_path='',
                  optimizer='sgd',
                  lr_policy='step',
+                 use_layers=[],
                  test_only=False,
                  training_view=False,
                  map_checkpoint=False,
@@ -72,6 +74,7 @@ class Yolo:
         self.__cycle_step = 0
         self.__cycle_length = 2500
         self.max_map, self.max_f1, self.max_map_iou_hm, self.max_f1_iou_hm = 0.0, 0.0, 0.0, 0.0
+        Yolo.g_use_layers = use_layers
 
         if class_names_file_path == '':
             class_names_file_path = f'{train_image_path}/classes.txt'
@@ -277,14 +280,15 @@ class Yolo:
 
     def __save_model(self, iteration_count, use_map_checkpoint=True):
         print('\n')
+        ul = str(Yolo.g_use_layers) if len(Yolo.g_use_layers) > 0 else 'all'
         if use_map_checkpoint:
             self.__model.save('model.h5', include_optimizer=False)
             mean_ap, f1_score, tp_iou, tp, fp, fn = calc_mean_average_precision(self.__model, self.__validation_image_paths)
             if self.__is_better_than_before(mean_ap, f1_score, tp_iou):
-                self.__model.save(f'checkpoints/model_{iteration_count}_iter_mAP_{mean_ap:.4f}_f1_{f1_score:.4f}_tp_iou_{tp_iou:.4f}_tp_{tp}_fp_{fp}_fn_{fn}.h5', include_optimizer=False)
-                self.__model.save('model_last.h5', include_optimizer=False)
+                self.__model.save(f'checkpoints/model_{iteration_count}_iter_mAP_{mean_ap:.4f}_f1_{f1_score:.4f}_tp_iou_{tp_iou:.4f}_tp_{tp}_fp_{fp}_fn_{fn}_ul_{ul}.h5', include_optimizer=False)
+                self.__model.save('model_last_ul_{ul}.h5', include_optimizer=False)
         else:
-            self.__model.save(f'checkpoints/model_{iteration_count}_iter.h5', include_optimizer=False)
+            self.__model.save(f'checkpoints/model_{iteration_count}_iter_ul_{ul}.h5', include_optimizer=False)
 
     @staticmethod
     def __init_image_paths(image_path, validation_split=0.0):
@@ -344,6 +348,8 @@ class Yolo:
 
         y_pred = []
         for layer_index in range(len(output_shape)):
+            if len(Yolo.g_use_layers) > 0 and layer_index not in Yolo.g_use_layers:
+                continue
             rows = output_shape[layer_index][1]
             cols = output_shape[layer_index][2]
             for i in range(rows):

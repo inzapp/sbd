@@ -75,8 +75,11 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         self.label_obj_count = 0  # obj count in real label txt
         self.pool = ThreadPoolExecutor(8)
 
-        self.train_type = 'all_layer_assist'
+        self.train_type = 'one_layer'
         self.train_layer_index = 1
+        from yolo import Yolo
+        if len(Yolo.g_use_layers) > 0:
+            self.train_type = 'all_layer'
 
         queue_size = 64
         self.batch_index = 0
