@@ -336,6 +336,9 @@ class Yolo:
         raw_width, raw_height = img.shape[1], img.shape[0]
         input_shape = model.input_shape[1:]
         output_shape = model.output_shape
+        num_output_layers = 1 if type(output_shape) == tuple else len(output_shape)
+        if num_output_layers == 1:
+            output_shape = [output_shape]
 
         if img.shape[1] > input_shape[1] or img.shape[0] > input_shape[0]:
             img = cv2.resize(img, (input_shape[1], input_shape[0]), interpolation=cv2.INTER_AREA)
@@ -344,9 +347,11 @@ class Yolo:
 
         x = np.asarray(img).reshape((1,) + input_shape).astype('float32') / 255.0
         y = model.predict_on_batch(x=x)
+        if num_output_layers == 1:
+            y = [y]
 
         y_pred = []
-        for layer_index in range(len(output_shape)):
+        for layer_index in range(num_output_layers):
             if len(Yolo.g_use_layers) > 0 and layer_index not in Yolo.g_use_layers:
                 continue
             rows = output_shape[layer_index][1]

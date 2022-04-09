@@ -63,25 +63,25 @@ class GeneratorFlow(tf.keras.utils.Sequence):
     Usage:
         generator_flow = GeneratorFlow(image_paths=image_paths)
     """
-
     def __init__(self, image_paths, input_shape, output_shapes, batch_size):
         self.image_paths = image_paths
         self.input_shape = input_shape
         self.output_shapes = output_shapes
+        if type(self.output_shapes) == tuple:
+            self.output_shapes = [self.output_shapes]
         self.batch_size = batch_size
-        self.num_output_layers = len(output_shapes)
+        self.num_output_layers = len(self.output_shapes)
         self.virtual_anchor_ws = []
         self.virtual_anchor_hs = []
         self.label_obj_count = 0  # obj count in real label txt
+        self.batch_index = 0
         self.pool = ThreadPoolExecutor(8)
 
         self.train_type = 'one_layer'
-        self.train_layer_index = 1
+        self.train_layer_index = 1 if self.num_output_layers > 1 else 0
         from yolo import Yolo
         if len(Yolo.g_use_layers) > 0:
             self.train_type = 'all_layer'
-
-        self.batch_index = 0
 
     def __len__(self):
         """
@@ -145,8 +145,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
             iou_sum += best_iou
         return iou_sum / float(len(boxes))
 
-    @staticmethod
-    def load_label(label_path):
+    def load_label(self, label_path):
         with open(label_path, 'rt') as f:
             lines = f.readlines()
         return lines, label_path
@@ -229,6 +228,8 @@ class GeneratorFlow(tf.keras.utils.Sequence):
     def print_not_trained_box_count(self):
         y_true_obj_count = 0  # obj count in train tensor(y_true)
         for batch_x, batch_y in tqdm(self):
+            if self.num_output_layers == 1:
+                batch_y = [batch_y]
             for i in range(self.num_output_layers):
                 y_true_obj_count += np.sum(batch_y[i][:, :, :, 0])
         y_true_obj_count = int(y_true_obj_count)
@@ -304,7 +305,9 @@ class GeneratorFlow(tf.keras.utils.Sequence):
             
     def __getitem__(self, index):
         while True:
-            fs, batch_x, batch_y1, batch_y2, batch_y3 = [], [], [], [], []
+            fs, batch_x, batch_y = [], [], []
+            for i in range(self.num_output_layers):
+                batch_y.append([])
             for path in self.get_next_batch_image_paths():
                 fs.append(self.pool.submit(self.load_img, path))
             for f in fs:
@@ -318,13 +321,12 @@ class GeneratorFlow(tf.keras.utils.Sequence):
 
                 with open(f'{cur_img_path[:-4]}.txt', mode='rt') as file:
                     label_lines = file.readlines()
-
                 boxes = self.convert_to_boxes(label_lines)
                 np.random.shuffle(boxes)
 
                 y = []
                 for i in range(self.num_output_layers):
-                    y.append(np.zeros((self.output_shapes[i][1], self.output_shapes[i][2], self.output_shapes[i][3]), dtype=np.float32))
+                    y.append(np.zeros(shape=tuple(self.output_shapes[i][1:]), dtype=np.float32).tolist())
 
                 if self.train_type == 'all_layer_assist':
                     big_boxes = self.filter_big_boxes(boxes)
@@ -380,15 +382,12 @@ class GeneratorFlow(tf.keras.utils.Sequence):
                             y[output_layer_index][center_row][center_col][4] = h
                             y[output_layer_index][center_row][center_col][int(class_index + 5)] = 1.0
 
-                batch_y1.append(y[0])
-                batch_y2.append(y[1])
-                batch_y3.append(y[2])
+                for i in range(self.num_output_layers):
+                    batch_y[i].append(y[i])
             batch_x = np.asarray(batch_x).astype('float32')
-            batch_y1 = np.asarray(batch_y1).astype('float32')
-            batch_y2 = np.asarray(batch_y2).astype('float32')
-            batch_y3 = np.asarray(batch_y3).astype('float32')
-            sleep(0)
-            return batch_x, [batch_y1, batch_y2, batch_y3]
+            for i in range(self.num_output_layers):
+                batch_y[i] = np.asarray(batch_y[i]).astype('float32')
+            return batch_x, batch_y if self.num_output_layers > 1 else batch_y[0]
 
     def get_next_batch_image_paths(self):
         start_index = self.batch_size * self.batch_index
