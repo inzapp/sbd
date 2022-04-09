@@ -92,6 +92,11 @@ class Yolo:
                 self.__decay = 0.0
             self.__model = Model(input_shape=input_shape, output_channel=self.__num_classes + 5, decay=self.__decay).build()
 
+        if type(self.__model.output_shape) == tuple:
+            self.num_output_layers = 1
+        else:
+            self.num_output_layers = len(self.__model.output_shape)
+
         if validation_image_path != '':
             self.__train_image_paths, _ = self.__init_image_paths(train_image_path)
             self.__validation_image_paths, _ = self.__init_image_paths(validation_image_path)
@@ -119,9 +124,9 @@ class Yolo:
 
     def __get_optimizer(self, optimizer_str):
         if optimizer_str == 'sgd':
-            optimizer = tf.keras.optimizers.SGD(lr=self.__lr, momentum=self.__momentum, nesterov=True)
+            optimizer = tf.keras.optimizers.SGD(lr=1.0, momentum=self.__momentum, nesterov=True)
         elif optimizer_str == 'adam':
-            optimizer = tf.keras.optimizers.Adam(lr=self.__lr, beta_1=self.__momentum)
+            optimizer = tf.keras.optimizers.Adam(lr=1.0, beta_1=self.__momentum)
         else:
             print(f'\n\nunknown optimizer : {optimizer_str}')
             return None
@@ -170,18 +175,31 @@ class Yolo:
         print(f'model forwarding time : {forwarding_time:.2f} ms')
 
     def __burn_in_train(self):
+        @tf.function
+        def compute_gradient(model, optimizer, x, y_true, lr, num_output_layers):
+            with tf.GradientTape() as tape:
+                loss = 0.0
+                y_pred = model(x, training=True)
+                if num_output_layers == 1:
+                    loss = yolo_loss(y_true, y_pred)
+                else:
+                    for i in range(num_output_layers):
+                        loss += yolo_loss(y_true[i], y_pred[i])
+                gradients = tape.gradient(loss * lr, model.trainable_variables)
+            optimizer.apply_gradients(zip(gradients, model.trainable_variables))
+            return loss
+
         optimizer = self.__get_optimizer('sgd')
-        self.__model.compile(optimizer=optimizer, loss=yolo_loss)
         iteration_count = 0
+        lr = 0.0
         while True:
             for batch_x, batch_y in self.__train_data_generator.flow():
                 iteration_count += 1
-                self.__update_burn_in_lr(iteration_count=iteration_count)
-                logs = self.__model.train_on_batch(batch_x, batch_y, return_dict=True)
-                print(f'\r[burn in iteration count : {iteration_count:6d}] loss => {logs["loss"]:.4f}', end='')
+                lr = self.__update_burn_in_lr(iteration_count=iteration_count)
+                loss = compute_gradient(self.__model, optimizer, batch_x, batch_y, tf.constant(lr), self.num_output_layers)
+                print(f'\r[burn in iteration count : {iteration_count:6d}] loss => {loss:.4f}', end='')
                 if iteration_count == self.__burn_in:
                     print()
-                    self.__model.save('model.h5', include_optimizer=False)
                     return
 
     def __curriculum_train(self):
@@ -207,18 +225,31 @@ class Yolo:
                         return
 
     def __train(self):
-        sleep(0.5)
-        self.__model = tf.keras.models.load_model('model.h5', compile=False)
+        @tf.function
+        def compute_gradient(model, optimizer, x, y_true, lr, num_output_layers):
+            with tf.GradientTape() as tape:
+                loss = 0.0
+                y_pred = model(x, training=True)
+                if num_output_layers == 1:
+                    loss = yolo_loss(y_true, y_pred)
+                else:
+                    for i in range(num_output_layers):
+                        loss += yolo_loss(y_true[i], y_pred[i])
+                gradients = tape.gradient(loss * lr, model.trainable_variables)
+            optimizer.apply_gradients(zip(gradients, model.trainable_variables))
+            return loss
+
         optimizer = self.__get_optimizer(self.__optimizer)
-        self.__model.compile(optimizer=optimizer, loss=yolo_loss)
+        # self.__model.compile(optimizer=optimizer, loss=yolo_loss)
         iteration_count = 0
         while True:
             for batch_x, batch_y in self.__train_data_generator.flow():
                 if self.__lr_policy == 'cosine':
                     self.__update_cosine_lr()
-                logs = self.__model.train_on_batch(batch_x, batch_y, return_dict=True)
+                # loss = self.__model.train_on_batch(batch_x, batch_y, return_dict=True)['loss']
+                loss = compute_gradient(self.__model, optimizer, batch_x, batch_y, tf.constant(self.__lr), self.num_output_layers)
                 iteration_count += 1
-                print(f'\r[iteration count : {iteration_count:6d}] loss => {logs["loss"]:.4f}', end='')
+                print(f'\r[iteration count : {iteration_count:6d}] loss => {loss:.4f}', end='')
                 if self.__training_view:
                     self.__training_view_function()
 
@@ -238,7 +269,8 @@ class Yolo:
 
     def __update_burn_in_lr(self, iteration_count):
         lr = self.__lr * pow(float(iteration_count) / self.__burn_in, 4)
-        tf.keras.backend.set_value(self.__model.optimizer.lr, lr)
+        return lr
+        # tf.keras.backend.set_value(self.__model.optimizer.lr, lr)
 
     def __update_cosine_lr(self):
         if self.__cycle_step % self.__cycle_length == 0 and self.__cycle_step != 0:
