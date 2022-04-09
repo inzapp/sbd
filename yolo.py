@@ -137,7 +137,6 @@ class Yolo:
 
         print('start training')
         self.__train_data_generator.flow().cluster_wh()
-        self.__train_data_generator.flow().start()
         self.__train_data_generator.flow().print_not_trained_box_count()
         optimizer = self.__get_optimizer(self.__optimizer)
         self.__model.compile(optimizer=optimizer, loss=yolo_loss)

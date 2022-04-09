@@ -81,33 +81,13 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         if len(Yolo.g_use_layers) > 0:
             self.train_type = 'all_layer'
 
-        queue_size = 64
         self.batch_index = 0
-        self.batch_q = Queue(maxsize=queue_size)
-        self.insert_thread_running = False
 
     def __len__(self):
         """
         Number of total iteration.
         """
         return int(np.floor(len(self.image_paths) / self.batch_size))
-
-    def __getitem__(self, index):
-        # print()
-        # print(self.batch_q.qsize())
-        # print()
-        return self.batch_q.get(block=True)
-
-    def start(self):
-        if self.insert_thread_running:
-            print('insert thread is already running !!!')
-            return
-
-        self.insert_thread_running = True
-        for _ in range(4):
-            insert_thread = Thread(target=self.insert_batch_into_q)
-            insert_thread.setDaemon(True)
-            insert_thread.start()
 
     @staticmethod
     def iou(a, b):
@@ -322,7 +302,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
                 big_boxes.append(box)
         return big_boxes
             
-    def insert_batch_into_q(self):
+    def __getitem__(self, index):
         while True:
             fs, batch_x, batch_y1, batch_y2, batch_y3 = [], [], [], [], []
             for path in self.get_next_batch_image_paths():
@@ -408,7 +388,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
             batch_y2 = np.asarray(batch_y2).astype('float32')
             batch_y3 = np.asarray(batch_y3).astype('float32')
             sleep(0)
-            self.batch_q.put((batch_x, [batch_y1, batch_y2, batch_y3]), block=True)
+            return batch_x, [batch_y1, batch_y2, batch_y3]
 
     def get_next_batch_image_paths(self):
         start_index = self.batch_size * self.batch_index
