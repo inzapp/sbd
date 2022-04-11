@@ -126,7 +126,7 @@ class Yolo:
         if optimizer_str == 'sgd':
             optimizer = tf.keras.optimizers.SGD(lr=1.0, momentum=self.__momentum, nesterov=True)
         elif optimizer_str == 'adam':
-            optimizer = tf.keras.optimizers.Adam(lr=1.0, beta_1=self.__momentum)
+            optimizer = tf.keras.optimizers.Adam(lr=self.__lr, beta_1=self.__momentum)
         else:
             print(f'\n\nunknown optimizer : {optimizer_str}')
             return None
@@ -145,7 +145,7 @@ class Yolo:
         self.__train_data_generator.flow().print_not_trained_box_count()
         self.__check_forwarding_time()
 
-        if self.__burn_in > 0:
+        if self.__burn_in > 0 and self.__optimizer == 'sgd':
             self.__burn_in_train()
         if self.__curriculum_iterations > 0:
             self.__curriculum_train()
@@ -225,7 +225,7 @@ class Yolo:
 
     def __train(self):
         @tf.function
-        def compute_gradient(model, optimizer, x, y_true, lr, num_output_layers):
+        def compute_gradient(model, optimizer, x, y_true, lr, num_output_layers, is_sgd):
             with tf.GradientTape() as tape:
                 loss = 0.0
                 y_pred = model(x, training=True)
@@ -234,8 +234,9 @@ class Yolo:
                 else:
                     for i in range(num_output_layers):
                         loss += yolo_loss(y_true[i], y_pred[i])
-                lr = tf.cast(lr, dtype=loss.dtype)
-                gradients = tape.gradient(loss * lr, model.trainable_variables)
+                if is_sgd:
+                    loss *= tf.cast(lr, dtype=loss.dtype)
+                gradients = tape.gradient(loss, model.trainable_variables)
             optimizer.apply_gradients(zip(gradients, model.trainable_variables))
             return loss
 
@@ -243,13 +244,14 @@ class Yolo:
         cosine_save = True
         iteration_count = 0
         optimizer = self.__get_optimizer(self.__optimizer)
+        b_sgd = optimizer.__str__().lower().find('sgd') > -1
         while True:
             for batch_x, batch_y in self.__train_data_generator.flow():
                 if self.__lr_policy == 'cosine':
                     lr = self.__update_cosine_lr()
                     if lr == self.__lr:
                         cosine_save = True
-                loss = compute_gradient(self.__model, optimizer, batch_x, batch_y, tf.constant(lr), self.num_output_layers)
+                loss = compute_gradient(self.__model, optimizer, batch_x, batch_y, tf.constant(lr), self.num_output_layers, b_sgd)
                 iteration_count += 1
                 print(f'\r[iteration count : {iteration_count:6d}] loss => {loss:.4f}', end='')
                 if self.__training_view:
@@ -259,17 +261,22 @@ class Yolo:
                     if cosine_save and lr < 1e-9:
                         self.__save_model(iteration_count=iteration_count, use_map_checkpoint=self.__map_checkpoint)
                         cosine_save = False
-                else:
+                elif self.__lr_policy == 'step':
                     # if iteration_count % 1000 == 0:
                     if iteration_count > int(self.__iterations * 0.9) and iteration_count % 10000 == 0:
                         self.__save_model(iteration_count=iteration_count, use_map_checkpoint=self.__map_checkpoint)
-                    elif iteration_count % 20000 == 0:
+                    if iteration_count == int(self.__iterations * 0.8):
+                        lr *= 0.1
+                    elif iteration_count == int(self.__iterations * 0.9):
+                        lr *= 0.1
+                    if iteration_count % 20000 == 0:
                         self.__save_model(iteration_count=iteration_count, use_map_checkpoint=False)
-                    if self.__lr_policy == 'step':
-                        if iteration_count == int(self.__iterations * 0.8):
-                            lr *= 0.1
-                        elif iteration_count == int(self.__iterations * 0.9):
-                            lr *= 0.1
+                elif self.__lr_policy == 'constant':
+                    if iteration_count % 1000 == 0:
+                        self.__save_model(iteration_count=iteration_count, use_map_checkpoint=True)
+                else:
+                    print(f'unknwon lr policy : {self.__lr_policy}')
+                    exit(0)
                 if iteration_count == self.__iterations:
                     print('\n\ntrain end successfully')
                     return
