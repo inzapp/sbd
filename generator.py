@@ -326,7 +326,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
 
                 y = []
                 for i in range(self.num_output_layers):
-                    y.append(np.zeros(shape=tuple(self.output_shapes[i][1:]), dtype=np.float32).tolist())
+                    y.append(np.zeros(shape=tuple(self.output_shapes[i][1:]), dtype=np.float32))
 
                 if self.train_type == 'all_layer_assist':
                     big_boxes = self.filter_big_boxes(boxes)
