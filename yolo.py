@@ -143,8 +143,6 @@ class Yolo:
         print('start training')
         self.__train_data_generator.flow().cluster_wh()
         self.__train_data_generator.flow().print_not_trained_box_count()
-        optimizer = self.__get_optimizer(self.__optimizer)
-        self.__model.compile(optimizer=optimizer, loss=yolo_loss)
         self.__check_forwarding_time()
 
         if self.__burn_in > 0:
@@ -163,13 +161,13 @@ class Yolo:
         noise = np.random.uniform(0.0, 1.0, mul * forward_count)
         noise = np.asarray(noise).reshape((forward_count, 1) + input_shape).astype('float32')
         with tf.device('/cpu:0'):
-            self.__model.predict_on_batch(x=noise[0])  # only first forward is slow, skip first forward in check forwarding time
+            self.__model(noise[0], training=False)  # only first forward is slow, skip first forward in check forwarding time
 
         print('\nstart test forward for check forwarding time.')
         with tf.device('/cpu:0'):
             st = perf_counter()
             for i in range(forward_count):
-                self.__model.predict_on_batch(x=noise[i])
+                self.__model(noise[i], training=False)
             et = perf_counter()
         forwarding_time = ((et - st) / forward_count) * 1000.0
         print(f'model forwarding time : {forwarding_time:.2f} ms')
@@ -185,6 +183,7 @@ class Yolo:
                 else:
                     for i in range(num_output_layers):
                         loss += yolo_loss(y_true[i], y_pred[i])
+                lr = tf.cast(lr, dtype=loss.dtype)
                 gradients = tape.gradient(loss * lr, model.trainable_variables)
             optimizer.apply_gradients(zip(gradients, model.trainable_variables))
             return loss
@@ -235,42 +234,48 @@ class Yolo:
                 else:
                     for i in range(num_output_layers):
                         loss += yolo_loss(y_true[i], y_pred[i])
+                lr = tf.cast(lr, dtype=loss.dtype)
                 gradients = tape.gradient(loss * lr, model.trainable_variables)
             optimizer.apply_gradients(zip(gradients, model.trainable_variables))
             return loss
 
-        optimizer = self.__get_optimizer(self.__optimizer)
-        # self.__model.compile(optimizer=optimizer, loss=yolo_loss)
+        lr = self.__lr
+        cosine_save = True
         iteration_count = 0
+        optimizer = self.__get_optimizer(self.__optimizer)
         while True:
             for batch_x, batch_y in self.__train_data_generator.flow():
                 if self.__lr_policy == 'cosine':
-                    self.__update_cosine_lr()
-                # loss = self.__model.train_on_batch(batch_x, batch_y, return_dict=True)['loss']
-                loss = compute_gradient(self.__model, optimizer, batch_x, batch_y, tf.constant(self.__lr), self.num_output_layers)
+                    lr = self.__update_cosine_lr()
+                    if lr == self.__lr:
+                        cosine_save = True
+                loss = compute_gradient(self.__model, optimizer, batch_x, batch_y, tf.constant(lr), self.num_output_layers)
                 iteration_count += 1
                 print(f'\r[iteration count : {iteration_count:6d}] loss => {loss:.4f}', end='')
                 if self.__training_view:
                     self.__training_view_function()
 
-                # if iteration_count % 1000 == 0:
-                if iteration_count > int(self.__iterations * 0.9) and iteration_count % 10000 == 0:
-                    self.__save_model(iteration_count=iteration_count, use_map_checkpoint=self.__map_checkpoint)
-                elif iteration_count % 20000 == 0:
-                    self.__save_model(iteration_count=iteration_count, use_map_checkpoint=False)
-                if self.__lr_policy == 'step':
-                    if iteration_count == int(self.__iterations * 0.8):
-                        tf.keras.backend.set_value(self.__model.optimizer.lr, self.__model.optimizer.lr * 0.1)
-                    elif iteration_count == int(self.__iterations * 0.9):
-                        tf.keras.backend.set_value(self.__model.optimizer.lr, self.__model.optimizer.lr * 0.1)
+                if self.__lr_policy == 'cosine':
+                    if cosine_save and lr < 1e-9:
+                        self.__save_model(iteration_count=iteration_count, use_map_checkpoint=self.__map_checkpoint)
+                        cosine_save = False
+                else:
+                    # if iteration_count % 1000 == 0:
+                    if iteration_count > int(self.__iterations * 0.9) and iteration_count % 10000 == 0:
+                        self.__save_model(iteration_count=iteration_count, use_map_checkpoint=self.__map_checkpoint)
+                    elif iteration_count % 20000 == 0:
+                        self.__save_model(iteration_count=iteration_count, use_map_checkpoint=False)
+                    if self.__lr_policy == 'step':
+                        if iteration_count == int(self.__iterations * 0.8):
+                            lr *= 0.1
+                        elif iteration_count == int(self.__iterations * 0.9):
+                            lr *= 0.1
                 if iteration_count == self.__iterations:
                     print('\n\ntrain end successfully')
                     return
 
     def __update_burn_in_lr(self, iteration_count):
-        lr = self.__lr * pow(float(iteration_count) / self.__burn_in, 4)
-        return lr
-        # tf.keras.backend.set_value(self.__model.optimizer.lr, lr)
+        return self.__lr * pow(float(iteration_count) / self.__burn_in, 4)
 
     def __update_cosine_lr(self):
         if self.__cycle_step % self.__cycle_length == 0 and self.__cycle_step != 0:
@@ -281,8 +286,8 @@ class Yolo:
         # min_lr = self.__lr * 0.01
         # lr = min_lr + 0.5 * (max_lr - min_lr) * (1.0 + np.cos(((1.0 / (0.5 * self.__cycle_length)) * np.pi * self.__cycle_step) + np.pi))  # up and down
         lr = min_lr + 0.5 * (max_lr - min_lr) * (1.0 + np.cos(((1.0 / self.__cycle_length) * np.pi * (self.__cycle_step % self.__cycle_length))))  # down and down
-        tf.keras.backend.set_value(self.__model.optimizer.lr, lr)
         self.__cycle_step += 1
+        return lr
 
     @staticmethod
     def __harmonic_mean(a, b):
