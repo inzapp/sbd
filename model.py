@@ -49,15 +49,38 @@ class Model:
         return cls.__new__(cls)
 
     def build(self):
+        return self.sbd()
         # return self.lcd()
         # return self.lightnet_alpha()
         # return self.lightnet_beta()
         # return self.lightnet_gamma()
         # return self.lightnet_delta()
-        return self.lightnet_epsilon(csp=False)
+        # return self.lightnet_epsilon(csp=False)
         # return self.lightnet_zeta(csp=False)
         # return self.vgg_16()
         # return self.darknet_19()
+
+    def sbd(self):
+        input_layer = tf.keras.layers.Input(shape=self.input_shape)
+        x = self.conv_block(input_layer, 8, 3, bn=False, activation='relu')
+        x = self.max_pool(x)
+
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.conv_block(x, 16, 3, bn=False, activation='relu')
+        x = self.max_pool(x)
+
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.conv_block(x, 32, 3, bn=False, activation='relu')
+        x = self.max_pool(x)
+
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.conv_block(x, 64, 3, bn=False, activation='relu')
+        x = self.max_pool(x)
+
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.conv_block(x, 128, 3, bn=False, activation='relu')
+        y = self.detection_layer(x, 'sbd_output')
+        return tf.keras.models.Model(input_layer, y)
 
     def lightnet_alpha(self):
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
