@@ -199,49 +199,63 @@ class Model:
 
         x = self.drop_filter(x, self.drop_rate)
         x = self.conv_block(x, 64, 3, bn=False, activation='relu')
+        x = self.conv_block(x, 64, 3, bn=False, activation='relu')
         x = self.max_pool(x)
 
         x = self.drop_filter(x, self.drop_rate)
+        x = self.csp_block(x, 128, 3, first_depth_n_convs=1, second_depth_n_convs=4, bn=False, activation='relu', inner_activation='relu')
+        x = self.conv_block(x, 128, 1, bn=False, activation='relu')
+        f0 = x
+        x = self.max_pool(x)
+
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.csp_block(x, 256, 3, first_depth_n_convs=1, second_depth_n_convs=4, bn=False, activation='relu', inner_activation='relu')
+        x = self.conv_block(x, 256, 1, bn=False, activation='relu')
+        f1 = x
+        x = self.max_pool(x)
+
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.csp_block(x, 256, 3, first_depth_n_convs=1, second_depth_n_convs=4, bn=False, activation='relu', inner_activation='relu')
+        x = self.conv_block(x, 256, 1, bn=False, activation='relu')
+        f2 = x
+
+        # upsample start
+        x = self.upsampling(x)
+        x = self.add([x, f1])
+        x = self.conv_block(x, 256, 3, bn=False, activation='relu')
+        f1 = x
+
+        x = self.conv_block(x, 128, 1, bn=False, activation='relu')
+        x = self.upsampling(x)
+        x = self.add([x, f0])
         x = self.conv_block(x, 128, 3, bn=False, activation='relu')
         f0 = x
-        x = self.max_pool(x)
+        # upsample end
 
-        x = self.drop_filter(x, self.drop_rate)
+        # pool start
+        x = self.max_pool(x)
+        x = self.conv_block(x, 256, 1, bn=False, activation='relu')
+        x = self.add([x, f1])
         x = self.conv_block(x, 256, 3, bn=False, activation='relu')
         f1 = x
-        x = self.max_pool(x)
 
-        x = self.drop_filter(x, self.drop_rate)
+        x = self.max_pool(x)
+        x = self.add([x, f2])
         x = self.conv_block(x, 256, 3, bn=False, activation='relu')
         f2 = x
+        # pool end
 
-        fpn_channels = 128
-        x = self.fpn([f2, f1, f0], fpn_channels, bn=False, activation='relu')
+        # upsample start
+        x = self.upsampling(x)
+        x = self.add([x, f1])
+        x = self.conv_block(x, 256, 3, bn=False, activation='relu')
 
-        x = self.conv_block(x, fpn_channels, 1, bn=False, activation='relu')
-        f0 = self.conv_block(f0, fpn_channels, 1, bn=False, activation='relu')
-        x = self.add(x, f0)
-        x = self.drop_filter(x, self.drop_rate)
-        x = self.csp_block(x, 128, 3, first_depth_n_convs=1, second_depth_n_convs=5, bn=False, activation='relu', inner_activation='relu')
-        f0 = x
-        x = self.max_pool(x)
+        x = self.conv_block(x, 128, 1, bn=False, activation='relu')
+        x = self.upsampling(x)
+        x = self.add([x, f0])
+        x = self.conv_block(x, 128, 3, bn=False, activation='relu')
+        # upsample end
 
-        x = self.conv_block(x, fpn_channels, 1, bn=False, activation='relu')
-        f1 = self.conv_block(f1, fpn_channels, 1, bn=False, activation='relu')
-        x = self.add(x, f1)
-        x = self.drop_filter(x, self.drop_rate)
-        x = self.csp_block(x, 256, 3, first_depth_n_convs=1, second_depth_n_convs=5, bn=False, activation='relu', inner_activation='relu')
-        f1 = x
-        x = self.max_pool(x)
-
-        x = self.conv_block(x, fpn_channels, 1, bn=False, activation='relu')
-        f2 = self.conv_block(f2, fpn_channels, 1, bn=False, activation='relu')
-        x = self.add(x, f2)
-        x = self.drop_filter(x, self.drop_rate)
-        x = self.csp_block(x, 256, 3, first_depth_n_convs=1, second_depth_n_convs=5, bn=False, activation='relu', inner_activation='relu')
-        f2 = x
-
-        x = self.fpn([f2, f1, f0], 256, bn=False, activation='relu')
         y = self.detection_layer(x, 'sbd_output')
         return tf.keras.models.Model(input_layer, y)
 
@@ -490,7 +504,7 @@ class Model:
             layers[i] = self.conv_block(layers[i], channels, 1, bn=bn, activation=activation)
         for i in range(len(layers) - 1):
             x = tf.keras.layers.UpSampling2D()(layers[i] if i == 0 else x)
-            x = self.add(x, layers[i + 1])
+            x = self.add([x, layers[i + 1]])
             x = self.conv_block(x, channels, 3, bn=bn, activation=activation)
         return x
 
@@ -598,12 +612,20 @@ class Model:
         return w
 
     @staticmethod
+    def upsampling(x):
+        return tf.keras.layers.UpSampling2D()(x)
+
+    @staticmethod
     def max_pool(x):
         return tf.keras.layers.MaxPool2D()(x)
 
     @staticmethod
-    def add(a, b):
-        return tf.keras.layers.Add()([a, b])
+    def add(layers):
+        return tf.keras.layers.Add()(layers)
+
+    @staticmethod
+    def concat(layers):
+        return tf.keras.layers.Concatenate()(layers)
 
     @staticmethod
     def avg_max_pool(x):
