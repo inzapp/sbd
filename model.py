@@ -60,7 +60,7 @@ class Model:
         # return self.vgg_16()
         # return self.darknet_19()
 
-    def sbd(self):  # (368, 640, 1) cv2 11ms
+    def sbd(self):  # (368, 640, 1) cv2 13ms
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
         x = self.conv_block(input_layer, 8, 3, bn=False, activation='relu')
         x = self.max_pool(x)
@@ -85,7 +85,6 @@ class Model:
         x = self.conv_block(x, 128, 3, bn=False, activation='relu')
         x = self.drop_filter(x, self.drop_rate)
         x = self.conv_block(x, 128, 3, bn=False, activation='relu')
-        x = self.max_pool(x)
 
         x = self.drop_filter(x, self.drop_rate)
         x = self.conv_block(x, 128, 3, bn=False, activation='relu')
