@@ -197,76 +197,51 @@ class Model:
 
     def lightnet_delta(self):
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
-        x = self.conv_block(input_layer, 16, 3, bn=False, activation='relu')
+        x = self.cross_conv_block(input_layer, 16, 3, bn=False, mode='stack', activation='relu')
         x = self.max_pool(x)
 
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.conv_block(x, 32, 3, bn=False, activation='relu')
         x = self.drop_filter(x, self.drop_rate)
         x = self.conv_block(x, 32, 3, bn=False, activation='relu')
         x = self.max_pool(x)
 
         x = self.drop_filter(x, self.drop_rate)
         x = self.conv_block(x, 64, 3, bn=False, activation='relu')
+        x = self.drop_filter(x, self.drop_rate)
         x = self.conv_block(x, 64, 3, bn=False, activation='relu')
-        x = self.max_pool(x)
+        x = self.avg_max_pool(x)
 
         x = self.drop_filter(x, self.drop_rate)
-        x = self.csp_block(x, 128, 3, first_depth_n_convs=1, second_depth_n_convs=4, bn=False, activation='relu', inner_activation='relu')
+        x = self.conv_block(x, 128, 3, bn=False, activation='relu')
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.conv_block(x, 128, 3, bn=False, activation='relu')
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.conv_block(x, 128, 3, bn=False, activation='relu')
+        y1 = self.detection_layer(x, 'sbd_output_1')
+        x = self.avg_max_pool(x)
+
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.conv_block(x, 256, 3, bn=False, activation='relu')
         x = self.conv_block(x, 128, 1, bn=False, activation='relu')
-        f0 = x
-        x = self.max_pool(x)
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.conv_block(x, 256, 3, bn=False, activation='relu')
+        x = self.conv_block(x, 128, 1, bn=False, activation='relu')
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.conv_block(x, 256, 3, bn=False, activation='relu')
+        y2 = self.detection_layer(x, 'sbd_output_2')
+        x = self.avg_max_pool(x)
 
         x = self.drop_filter(x, self.drop_rate)
-        x = self.csp_block(x, 256, 3, first_depth_n_convs=1, second_depth_n_convs=4, bn=False, activation='relu', inner_activation='relu')
-        x = self.conv_block(x, 256, 1, bn=False, activation='relu')
-        f1 = x
-        x = self.max_pool(x)
-
+        x = self.conv_block(x, 256, 3, bn=False, activation='relu')
+        x = self.conv_block(x, 128, 1, bn=False, activation='relu')
         x = self.drop_filter(x, self.drop_rate)
-        x = self.csp_block(x, 256, 3, first_depth_n_convs=1, second_depth_n_convs=4, bn=False, activation='relu', inner_activation='relu')
-        x = self.conv_block(x, 256, 1, bn=False, activation='relu')
-        f2 = x
-
-        # # upsample start
-        # x = self.upsampling(x)
-        # x = self.add([x, f1])
-        # x = self.conv_block(x, 256, 3, bn=False, activation='relu')
-        # f1 = x
-
-        # x = self.conv_block(x, 128, 1, bn=False, activation='relu')
-        # x = self.upsampling(x)
-        # x = self.add([x, f0])
-        # x = self.conv_block(x, 128, 3, bn=False, activation='relu')
-        # f0 = x
-        # # upsample end
-
-        # # pool start
-        # x = self.max_pool(x)
-        # x = self.conv_block(x, 256, 1, bn=False, activation='relu')
-        # x = self.add([x, f1])
-        # x = self.conv_block(x, 256, 3, bn=False, activation='relu')
-        # f1 = x
-
-        # x = self.max_pool(x)
-        # x = self.add([x, f2])
-        # x = self.conv_block(x, 256, 3, bn=False, activation='relu')
-        # f2 = x
-        # # pool end
-
-        # # upsample start
-        # x = self.upsampling(x)
-        # x = self.add([x, f1])
-        # x = self.conv_block(x, 256, 3, bn=False, activation='relu')
-
-        # x = self.conv_block(x, 128, 1, bn=False, activation='relu')
-        # x = self.upsampling(x)
-        # x = self.add([x, f0])
-        # x = self.conv_block(x, 128, 3, bn=False, activation='relu')
-        # # upsample end
-
-        x = self.path_aggregation_network(f0, f1, f2, 128, 256, 256, bn=False, activation='relu')
-
-        y = self.detection_layer(x, 'sbd_output')
-        return tf.keras.models.Model(input_layer, y)
+        x = self.conv_block(x, 256, 3, bn=False, activation='relu')
+        x = self.conv_block(x, 128, 1, bn=False, activation='relu')
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.conv_block(x, 256, 3, bn=False, activation='relu')
+        y3 = self.detection_layer(x, 'sbd_output_3')
+        return tf.keras.models.Model(input_layer, [y1, y2, y3])
 
     def lightnet_epsilon(self, csp=False):
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
