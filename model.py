@@ -51,10 +51,10 @@ class Model:
     def build(self):
         # return self.sbd()
         # return self.lcd()
-        # return self.lightnet_alpha()
+        return self.lightnet_alpha()
         # return self.lightnet_beta()
         # return self.lightnet_gamma()
-        return self.lightnet_delta()
+        # return self.lightnet_delta()
         # return self.lightnet_epsilon(csp=True)
         # return self.lightnet_zeta(csp=False)
         # return self.vgg_16()
@@ -111,19 +111,21 @@ class Model:
 
         x = self.drop_filter(x, self.drop_rate)
         x = self.conv_block(x, 32, 3, bn=False, activation='relu')
-        x = self.avg_max_pool(x)
-        y1 = self.detection_layer(x, 'sbd_output_1')
+        x = self.max_pool(x)
 
         x = self.drop_filter(x, self.drop_rate)
         x = self.conv_block(x, 64, 3, bn=False, activation='relu')
-        x = self.avg_max_pool(x)
-        y2 = self.detection_layer(x, 'sbd_output_2')
+        x = self.max_pool(x)
+        f1 = x
 
         x = self.drop_filter(x, self.drop_rate)
         x = self.conv_block(x, 128, 3, bn=False, activation='relu')
-        x = self.avg_max_pool(x)
-        y3 = self.detection_layer(x, 'sbd_output_3')
-        return tf.keras.models.Model(input_layer, [y1, y2, y3])
+        x = self.max_pool(x)
+        f2 = x
+
+        x = self.feature_pyramid_network([f2, f1], 128, bn=False, activation='relu')
+        y = self.detection_layer(x, 'sbd_output')
+        return tf.keras.models.Model(input_layer, y)
 
     def lightnet_beta(self):
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
