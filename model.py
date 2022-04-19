@@ -60,23 +60,19 @@ class Model:
         # return self.vgg_16()
         # return self.darknet_19()
 
-    def sbd(self):  # (368, 640, 1) cv2 13ms
+    def sbd(self):  # (352, 640, 1) cv2 30ms
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
-        x = self.conv_block(input_layer, 8, 3, bn=False, activation='relu')
+        x = self.conv_block(input_layer, 16, 3, bn=False, activation='relu')
         x = self.max_pool(x)
 
         x = self.drop_filter(x, self.drop_rate)
         x = self.conv_block(x, 16, 3, bn=False, activation='relu')
-        x = self.max_pool(x)
-
-        x = self.drop_filter(x, self.drop_rate)
-        x = self.conv_block(x, 32, 3, bn=False, activation='relu')
         x = self.drop_filter(x, self.drop_rate)
         x = self.conv_block(x, 32, 3, bn=False, activation='relu')
         x = self.max_pool(x)
 
         x = self.drop_filter(x, self.drop_rate)
-        x = self.conv_block(x, 64, 3, bn=False, activation='relu')
+        x = self.conv_block(x, 32, 3, bn=False, activation='relu')
         x = self.drop_filter(x, self.drop_rate)
         x = self.conv_block(x, 64, 3, bn=False, activation='relu')
         x = self.max_pool(x)
@@ -85,11 +81,22 @@ class Model:
         x = self.conv_block(x, 128, 3, bn=False, activation='relu')
         x = self.drop_filter(x, self.drop_rate)
         x = self.conv_block(x, 128, 3, bn=False, activation='relu')
+        x = self.max_pool(x)
 
         x = self.drop_filter(x, self.drop_rate)
-        x = self.conv_block(x, 128, 3, bn=False, activation='relu')
+        x = self.conv_block(x, 256, 3, bn=False, activation='relu')
         x = self.drop_filter(x, self.drop_rate)
-        x = self.conv_block(x, 128, 3, bn=False, activation='relu')
+        x = self.conv_block(x, 256, 3, bn=False, activation='relu')
+        f1 = x
+        x = self.max_pool(x)
+
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.conv_block(x, 256, 3, bn=False, activation='relu')
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.conv_block(x, 256, 3, bn=False, activation='relu')
+        f2 = x
+
+        x = self.feature_pyramid_network([f2, f1], 256, bn=False, activation='relu')
         y = self.detection_layer(x, 'sbd_output')
         return tf.keras.models.Model(input_layer, y)
 
@@ -219,42 +226,44 @@ class Model:
         x = self.conv_block(x, 256, 1, bn=False, activation='relu')
         f2 = x
 
-        # upsample start
-        x = self.upsampling(x)
-        x = self.add([x, f1])
-        x = self.conv_block(x, 256, 3, bn=False, activation='relu')
-        f1 = x
+        # # upsample start
+        # x = self.upsampling(x)
+        # x = self.add([x, f1])
+        # x = self.conv_block(x, 256, 3, bn=False, activation='relu')
+        # f1 = x
 
-        x = self.conv_block(x, 128, 1, bn=False, activation='relu')
-        x = self.upsampling(x)
-        x = self.add([x, f0])
-        x = self.conv_block(x, 128, 3, bn=False, activation='relu')
-        f0 = x
-        # upsample end
+        # x = self.conv_block(x, 128, 1, bn=False, activation='relu')
+        # x = self.upsampling(x)
+        # x = self.add([x, f0])
+        # x = self.conv_block(x, 128, 3, bn=False, activation='relu')
+        # f0 = x
+        # # upsample end
 
-        # pool start
-        x = self.max_pool(x)
-        x = self.conv_block(x, 256, 1, bn=False, activation='relu')
-        x = self.add([x, f1])
-        x = self.conv_block(x, 256, 3, bn=False, activation='relu')
-        f1 = x
+        # # pool start
+        # x = self.max_pool(x)
+        # x = self.conv_block(x, 256, 1, bn=False, activation='relu')
+        # x = self.add([x, f1])
+        # x = self.conv_block(x, 256, 3, bn=False, activation='relu')
+        # f1 = x
 
-        x = self.max_pool(x)
-        x = self.add([x, f2])
-        x = self.conv_block(x, 256, 3, bn=False, activation='relu')
-        f2 = x
-        # pool end
+        # x = self.max_pool(x)
+        # x = self.add([x, f2])
+        # x = self.conv_block(x, 256, 3, bn=False, activation='relu')
+        # f2 = x
+        # # pool end
 
-        # upsample start
-        x = self.upsampling(x)
-        x = self.add([x, f1])
-        x = self.conv_block(x, 256, 3, bn=False, activation='relu')
+        # # upsample start
+        # x = self.upsampling(x)
+        # x = self.add([x, f1])
+        # x = self.conv_block(x, 256, 3, bn=False, activation='relu')
 
-        x = self.conv_block(x, 128, 1, bn=False, activation='relu')
-        x = self.upsampling(x)
-        x = self.add([x, f0])
-        x = self.conv_block(x, 128, 3, bn=False, activation='relu')
-        # upsample end
+        # x = self.conv_block(x, 128, 1, bn=False, activation='relu')
+        # x = self.upsampling(x)
+        # x = self.add([x, f0])
+        # x = self.conv_block(x, 128, 3, bn=False, activation='relu')
+        # # upsample end
+
+        x = self.path_aggregation_network(f0, f1, f2, 128, 256, 256, bn=False, activation='relu')
 
         y = self.detection_layer(x, 'sbd_output')
         return tf.keras.models.Model(input_layer, y)
@@ -324,7 +333,7 @@ class Model:
             x = self.conv_block(x, 256, 3, bn=False, activation='relu')
         f2 = x
 
-        x = self.fpn([f2, f1, f0], 256, bn=False, activation='relu')
+        x = self.feature_pyramid_network([f2, f1, f0], 256, bn=False, activation='relu')
         y = self.detection_layer(x, 'sbd_output')
         return tf.keras.models.Model(input_layer, y)
 
@@ -499,13 +508,56 @@ class Model:
         y3 = self.detection_layer(x, 'sbd_output_3')
         return tf.keras.models.Model(input_layer, [y1, y2, y3])
 
-    def fpn(self, layers, channels, bn, activation):
+    def path_aggregation_network(self, l_high, l_medium, l_low, f_high, f_medium, f_low, bn, activation):  # path aggregation
+        x = l_low
+        if f_low != f_medium:
+            x = self.conv_block(x, f_medium, 1, bn=bn, activation=activation)
+        x = self.upsampling(x)
+        x = self.add([x, l_medium])
+        x = self.conv_block(x, f_medium, 3, bn=bn, activation=activation)
+        l_medium = x
+
+        if f_medium != f_high:
+            x = self.conv_block(x, f_high, 1, bn=bn, activation=activation)
+        x = self.upsampling(x)
+        x = self.add([x, l_high])
+        x = self.conv_block(x, f_high, 3, bn=bn, activation=activation)
+        l_high = x
+
+        x = self.max_pool(x)
+        if f_high != f_medium:
+            x = self.conv_block(x, f_medium, 1, bn=bn, activation=activation)
+        x = self.add([x, l_medium])
+        x = self.conv_block(x, f_medium, 3, bn=bn, activation=activation)
+        l_medium = x
+
+        x = self.max_pool(x)
+        if f_medium != f_low:
+            x = self.conv_block(x, f_low, 1, bn=bn, activation=activation)
+        x = self.add([x, l_low])
+        x = self.conv_block(x, f_low, 3, bn=bn, activation=activation)
+        l_low = x
+
+        if f_low != f_medium:
+            x = self.conv_block(x, f_medium, 1, bn=bn, activation=activation)
+        x = self.upsampling(x)
+        x = self.add([x, l_medium])
+        x = self.conv_block(x, f_medium, 3, bn=bn, activation=activation)
+
+        if f_medium != f_high:
+            x = self.conv_block(x, f_high, 1, bn=bn, activation=activation)
+        x = self.upsampling(x)
+        x = self.add([x, l_high])
+        x = self.conv_block(x, f_high, 3, bn=bn, activation=activation)
+        return x
+
+    def feature_pyramid_network(self, layers, filters, bn, activation):
         for i in range(len(layers)):
-            layers[i] = self.conv_block(layers[i], channels, 1, bn=bn, activation=activation)
+            layers[i] = self.conv_block(layers[i], filters, 1, bn=bn, activation=activation)
         for i in range(len(layers) - 1):
             x = tf.keras.layers.UpSampling2D()(layers[i] if i == 0 else x)
             x = self.add([x, layers[i + 1]])
-            x = self.conv_block(x, channels, 3, bn=bn, activation=activation)
+            x = self.conv_block(x, filters, 3, bn=bn, activation=activation)
         return x
 
     def csp_block(self, x, filters, kernel_size, first_depth_n_convs=1, second_depth_n_convs=2, bn=False, activation='none', inner_activation='none'):
