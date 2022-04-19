@@ -52,10 +52,10 @@ class Model:
         # return self.sbd()
         # return self.lcd()
         # return self.lightnet_alpha()
-        return self.lightnet_beta()
+        # return self.lightnet_beta()
         # return self.lightnet_gamma()
         # return self.lightnet_delta()
-        # return self.lightnet_epsilon(csp=True)
+        return self.lightnet_epsilon()
         # return self.lightnet_zeta(csp=False)
         # return self.vgg_16()
         # return self.darknet_19()
@@ -274,45 +274,17 @@ class Model:
         x = self.max_pool(x)
 
         x = self.drop_filter(x, self.drop_rate)
-        if csp:
-            x = self.csp_block(x, 256, 3, first_depth_n_convs=1, second_depth_n_convs=5, bn=False, activation='relu', inner_activation='relu')
-        else:
-            x = self.conv_block(x, 256, 3, bn=False, activation='relu')
-            x = self.conv_block(x, 128, 1, bn=False, activation='relu')
-            x = self.drop_filter(x, self.drop_rate)
-            x = self.conv_block(x, 256, 3, bn=False, activation='relu')
-            x = self.conv_block(x, 128, 1, bn=False, activation='relu')
-            x = self.drop_filter(x, self.drop_rate)
-            x = self.conv_block(x, 256, 3, bn=False, activation='relu')
-            x = self.conv_block(x, 128, 1, bn=False, activation='relu')
-            x = self.drop_filter(x, self.drop_rate)
-            x = self.conv_block(x, 256, 3, bn=False, activation='relu')
-            x = self.conv_block(x, 128, 1, bn=False, activation='relu')
-            x = self.drop_filter(x, self.drop_rate)
-            x = self.conv_block(x, 256, 3, bn=False, activation='relu')
+        x = self.csp_block(x, 256, 3, first_depth_n_convs=1, second_depth_n_convs=4, bn=False, activation='relu', inner_activation='relu')
+        x = self.conv_block(x, 256, 1, bn=False, activation='relu')
         f1 = x
         x = self.max_pool(x)
 
         x = self.drop_filter(x, self.drop_rate)
-        if csp:
-            x = self.csp_block(x, 256, 3, first_depth_n_convs=1, second_depth_n_convs=5, bn=False, activation='relu', inner_activation='relu')
-        else:
-            x = self.conv_block(x, 256, 3, bn=False, activation='relu')
-            x = self.conv_block(x, 128, 1, bn=False, activation='relu')
-            x = self.drop_filter(x, self.drop_rate)
-            x = self.conv_block(x, 256, 3, bn=False, activation='relu')
-            x = self.conv_block(x, 128, 1, bn=False, activation='relu')
-            x = self.drop_filter(x, self.drop_rate)
-            x = self.conv_block(x, 256, 3, bn=False, activation='relu')
-            x = self.conv_block(x, 128, 1, bn=False, activation='relu')
-            x = self.drop_filter(x, self.drop_rate)
-            x = self.conv_block(x, 256, 3, bn=False, activation='relu')
-            x = self.conv_block(x, 128, 1, bn=False, activation='relu')
-            x = self.drop_filter(x, self.drop_rate)
-            x = self.conv_block(x, 256, 3, bn=False, activation='relu')
+        x = self.csp_block(x, 256, 3, first_depth_n_convs=1, second_depth_n_convs=4, bn=False, activation='relu', inner_activation='relu')
+        x = self.conv_block(x, 256, 1, bn=False, activation='relu')
         f2 = x
 
-        x = self.feature_pyramid_network([f2, f1, f0], 256, bn=False, activation='relu')
+        x = self.path_aggregation_network(f0, f1, f2, 128, 256, 256, bn=False, activation='relu')
         y = self.detection_layer(x, 'sbd_output')
         return tf.keras.models.Model(input_layer, y)
 
