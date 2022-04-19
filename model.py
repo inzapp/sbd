@@ -247,7 +247,7 @@ class Model:
         y = self.detection_layer(x)
         return tf.keras.models.Model(input_layer, y)
 
-    def lightnet_epsilon(self, csp=False):
+    def lightnet_epsilon(self):
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
         x = self.conv_block(input_layer, 16, 3, bn=False, activation='relu')
         x = self.max_pool(x)
