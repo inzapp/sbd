@@ -50,11 +50,11 @@ class Model:
 
     def build(self):
         # return self.sbd()
-        # return self.lcd()
+        return self.lcd()
         # return self.lightnet_alpha()
         # return self.lightnet_beta()
         # return self.lightnet_gamma()
-        return self.lightnet_delta()
+        # return self.lightnet_delta()
         # return self.lightnet_epsilon()
         # return self.lightnet_zeta(csp=False)
         # return self.vgg_16()
@@ -82,12 +82,12 @@ class Model:
         x = self.drop_filter(x, self.drop_rate)
         x = self.conv_block(x, 128, 3, bn=False, activation='relu')
         x = self.max_pool(x)
+        f1 = x
 
         x = self.drop_filter(x, self.drop_rate)
         x = self.conv_block(x, 256, 3, bn=False, activation='relu')
         x = self.drop_filter(x, self.drop_rate)
         x = self.conv_block(x, 256, 3, bn=False, activation='relu')
-        f1 = x
         x = self.max_pool(x)
 
         x = self.drop_filter(x, self.drop_rate)
@@ -97,7 +97,7 @@ class Model:
         f2 = x
 
         x = self.feature_pyramid_network([f2, f1], 256, bn=False, activation='relu')
-        y = self.detection_layer(x, name='sbd_output')
+        y = self.detection_layer(x)
         return tf.keras.models.Model(input_layer, y)
 
     def lightnet_alpha(self):
@@ -370,26 +370,29 @@ class Model:
 
     def lcd(self):
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
-        x = self.conv_block(input_layer, 16, 3, bn=True, activation='relu')
+        x = self.conv_block(input_layer, 16, 3, bn=False, activation='relu')
         x = self.max_pool(x)
 
-        x = self.conv_block(x, 32, 3, bn=True, activation='relu')
+        x = self.conv_block(x, 32, 3, bn=False, activation='relu')
         x = self.max_pool(x)
 
-        x = self.conv_block(x, 64, 3, bn=True, activation='relu')
+        x = self.conv_block(x, 64, 3, bn=False, activation='relu')
         x = self.max_pool(x)
 
-        y1 = self.detection_layer(x, 'sbd_output_1')
-        x = self.conv_block(x, 128, 3, bn=True, activation='relu')
+        x = self.conv_block(x, 128, 3, bn=False, activation='relu')
+        f0 = x
         x = self.max_pool(x)
 
-        y2 = self.detection_layer(x, 'sbd_output_2')
-        x = self.conv_block(x, 256, 3, bn=True, activation='relu')
+        x = self.conv_block(x, 256, 3, bn=False, activation='relu')
+        f1 = x
         x = self.max_pool(x)
 
-        x = self.conv_block(x, 512, 3, bn=True, activation='relu')
-        y3 = self.detection_layer(x, 'sbd_output_3')
-        return tf.keras.models.Model(input_layer, [y1, y2, y3])
+        x = self.conv_block(x, 512, 3, bn=False, activation='relu')
+        f2 = x
+
+        x = self.feature_pyramid_network([f2, f1, f0], 256, bn=False, activation='relu')
+        y = self.detection_layer(x, 'sbd_output')
+        return tf.keras.models.Model(input_layer, y)
 
     def vgg_16(self):
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
