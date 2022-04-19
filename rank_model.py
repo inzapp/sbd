@@ -11,20 +11,21 @@ def main():
     arr = []
     for path in glob('*.h5'):
         name = path[:-3]
-        sp = name.split('_')
-        mAP = float(sp[4])
-        f1 = float(sp[6])
-        iou = float(sp[9])
-        tp = int(sp[11])
-        fp = int(sp[13])
-        arr.append({
-            'rank_sum' : 0,
-            'name' : path,
-            'mAP' : mAP,
-            'f1' : f1,
-            'iou' : iou,
-            'tp' : tp,
-            'fp' : fp})
+        if name.find('mAP') > -1:
+            sp = name.split('_')
+            mAP = float(sp[4])
+            f1 = float(sp[6])
+            iou = float(sp[9])
+            tp = int(sp[11])
+            fp = int(sp[13])
+            arr.append({
+                'rank_sum' : 0,
+                'name' : path,
+                'mAP' : mAP,
+                'f1' : f1,
+                'iou' : iou,
+                'tp' : tp,
+                'fp' : fp})
 
     # sort_by_key_and_add_score(arr, 'mAP', reverse=True)
     # sort_by_key_and_add_score(arr, 'f1', reverse=True)
