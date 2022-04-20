@@ -49,8 +49,8 @@ class Model:
         return cls.__new__(cls)
 
     def build(self):
-        # return self.sbd()
-        return self.lcd()
+        return self.sbd()
+        # return self.lcd()
         # return self.lightnet_alpha()
         # return self.lightnet_beta()
         # return self.lightnet_gamma()
@@ -60,40 +60,35 @@ class Model:
         # return self.vgg_16()
         # return self.darknet_19()
 
-    def sbd(self):  # (352, 640, 1) cv2 30ms
+    def sbd(self):  # (352, 640, 1) cv2 20ms (16x 8x)
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
         x = self.conv_block(input_layer, 16, 3, bn=False, activation='relu')
         x = self.max_pool(x)
 
         x = self.drop_filter(x, self.drop_rate)
         x = self.conv_block(x, 16, 3, bn=False, activation='relu')
-        x = self.drop_filter(x, self.drop_rate)
-        x = self.conv_block(x, 32, 3, bn=False, activation='relu')
         x = self.max_pool(x)
 
         x = self.drop_filter(x, self.drop_rate)
         x = self.conv_block(x, 32, 3, bn=False, activation='relu')
         x = self.drop_filter(x, self.drop_rate)
-        x = self.conv_block(x, 64, 3, bn=False, activation='relu')
+        x = self.conv_block(x, 32, 3, bn=False, activation='relu')
         x = self.max_pool(x)
 
         x = self.drop_filter(x, self.drop_rate)
-        x = self.conv_block(x, 128, 3, bn=False, activation='relu')
-        x = self.drop_filter(x, self.drop_rate)
-        x = self.conv_block(x, 128, 3, bn=False, activation='relu')
+        x = self.csp_block(x, 128, 3, first_depth_n_convs=1, second_depth_n_convs=4, bn=False, activation='relu', inner_activation='relu')
+        x = self.conv_block(x, 128, 1, bn=False, activation='relu')
         x = self.max_pool(x)
         f1 = x
 
         x = self.drop_filter(x, self.drop_rate)
-        x = self.conv_block(x, 256, 3, bn=False, activation='relu')
-        x = self.drop_filter(x, self.drop_rate)
-        x = self.conv_block(x, 256, 3, bn=False, activation='relu')
+        x = self.csp_block(x, 256, 3, first_depth_n_convs=1, second_depth_n_convs=4, bn=False, activation='relu', inner_activation='relu')
+        x = self.conv_block(x, 256, 1, bn=False, activation='relu')
         x = self.max_pool(x)
 
         x = self.drop_filter(x, self.drop_rate)
-        x = self.conv_block(x, 256, 3, bn=False, activation='relu')
-        x = self.drop_filter(x, self.drop_rate)
-        x = self.conv_block(x, 256, 3, bn=False, activation='relu')
+        x = self.csp_block(x, 512, 3, first_depth_n_convs=1, second_depth_n_convs=4, bn=False, activation='relu', inner_activation='relu')
+        x = self.conv_block(x, 512, 1, bn=False, activation='relu')
         f2 = x
 
         x = self.feature_pyramid_network([f2, f1], 256, bn=False, activation='relu')
