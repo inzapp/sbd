@@ -77,11 +77,10 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         self.batch_index = 0
         self.pool = ThreadPoolExecutor(8)
 
-        self.train_type = 'one_layer'
-        self.train_layer_index = 1 if self.num_output_layers > 1 else 0
-        from yolo import Yolo
-        if len(Yolo.g_use_layers) > 0:
-            self.train_type = 'all_layer'
+        # self.train_type = 'one_layer'
+        # from yolo import Yolo
+        # if len(Yolo.g_use_layers) > 0:
+        #     self.train_type = 'all_layer'
 
     def __len__(self):
         """
@@ -213,17 +212,6 @@ class GeneratorFlow(tf.keras.utils.Sequence):
             print(f'{self.virtual_anchor_hs[i]:.4f} ', end='')
         print()
         print(f'avg IoU : {self.iou_with_clustered_wh(boxes, self.virtual_anchor_ws, self.virtual_anchor_hs):.4f}')
-        if self.train_type == 'all_layer_auto_split':
-            self.virtual_anchor_ws = [1.0 / float(self.output_shapes[layer_index][2]) for layer_index in range(self.num_output_layers)]
-            self.virtual_anchor_hs = [1.0 / float(self.output_shapes[layer_index][1]) for layer_index in range(self.num_output_layers)]
-            print(f'auto split width  criteria: ', end='')
-            for i in range(len(self.output_shapes)):
-                print(f'{self.virtual_anchor_ws[i]:.4f} ', end='')
-            print()
-            print(f'auto split height criteria: ', end='')
-            for i in range(len(self.output_shapes)):
-                print(f'{self.virtual_anchor_hs[i]:.4f} ', end='')
-            print()
 
     def print_not_trained_box_count(self):
         y_true_obj_count = 0  # obj count in train tensor(y_true)
@@ -254,8 +242,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
                 'area': w * h})
         return boxes
 
-    @staticmethod
-    def sort_middle_last(big_last_boxes, small_last_boxes):
+    def sort_middle_last(self, big_last_boxes, small_last_boxes):
         middle_index = int(len(big_last_boxes) / 2)
         middle_last_boxes = []
         for i in range(middle_index):
@@ -264,44 +251,6 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         if len(big_last_boxes) % 2 == 1:
             middle_last_boxes.append(small_last_boxes[middle_index])
         return middle_last_boxes
-
-    def convert_to_x1y1x2y2(self, box):
-        cx, cy, w, h = box
-        x1 = cx - w * 0.5
-        x2 = cx + w * 0.5
-        y1 = cy - h * 0.5
-        y2 = cy + h * 0.5
-        return [x1, y1, x2, y2]
-
-    def filter_small_boxes(self, boxes):
-        criteria = 0.075
-        small_boxes = []
-        for box in boxes:
-            cx, cy, w, h = box['cx'], box['cy'], box['w'], box['h']
-            if w < criteria and h < criteria:
-                small_boxes.append(box)
-                continue
-            a = self.convert_to_x1y1x2y2([cx, cy, w, h])
-            b = self.convert_to_x1y1x2y2([cx, cy, criteria, criteria])
-            iou = self.iou(a, b)
-            if iou > 0.5:
-                small_boxes.append(box)
-        return small_boxes
-
-    def filter_big_boxes(self, boxes):
-        criteria = 0.3
-        big_boxes = []
-        for box in boxes:
-            cx, cy, w, h = box['cx'], box['cy'], box['w'], box['h']
-            if w > criteria or h > criteria:
-                big_boxes.append(box)
-                continue
-            a = self.convert_to_x1y1x2y2([cx, cy, w, h])
-            b = self.convert_to_x1y1x2y2([cx, cy, criteria, criteria])
-            iou = self.iou(a, b)
-            if iou > 0.5:
-                big_boxes.append(box)
-        return big_boxes
             
     def __getitem__(self, index):
         while True:
@@ -328,59 +277,34 @@ class GeneratorFlow(tf.keras.utils.Sequence):
                 for i in range(self.num_output_layers):
                     y.append(np.zeros(shape=tuple(self.output_shapes[i][1:]), dtype=np.float32))
 
-                if self.train_type == 'all_layer_assist':
-                    big_boxes = self.filter_big_boxes(boxes)
-                    small_boxes = self.filter_small_boxes(boxes)
-                    layer_mapping_boxes = [small_boxes, boxes, big_boxes]
-                    for output_layer_index in range(self.num_output_layers):
-                        output_rows = float(self.output_shapes[output_layer_index][1])
-                        output_cols = float(self.output_shapes[output_layer_index][2])
-                        for b in layer_mapping_boxes[output_layer_index]:
-                            class_index, cx, cy, w, h = b['class_index'], b['cx'], b['cy'], b['w'], b['h']
-                            center_row = int(cy * output_rows)
-                            center_col = int(cx * output_cols)
-                            y[output_layer_index][center_row][center_col][0] = 1.0
-                            y[output_layer_index][center_row][center_col][1] = (cx - float(center_col) / output_cols) / (1.0 / output_cols)
-                            y[output_layer_index][center_row][center_col][2] = (cy - float(center_row) / output_rows) / (1.0 / output_rows)
-                            y[output_layer_index][center_row][center_col][3] = w
-                            y[output_layer_index][center_row][center_col][4] = h
-                            y[output_layer_index][center_row][center_col][int(class_index + 5)] = 1.0
-                elif self.train_type == 'all_layer':
+                layer_mapping_boxes = None
+                if self.num_output_layers == 1:
+                    layer_mapping_boxes = [boxes]
+                else:
                     big_last_boxes = sorted(boxes, key=lambda __x: __x['area'], reverse=False)
                     small_last_boxes = sorted(boxes, key=lambda __x: __x['area'], reverse=True)
                     middle_last_boxes = self.sort_middle_last(big_last_boxes, small_last_boxes)
-                    layer_mapping_boxes = [small_last_boxes, middle_last_boxes, big_last_boxes]
-                    for output_layer_index in range(self.num_output_layers):
-                        output_rows = float(self.output_shapes[output_layer_index][1])
-                        output_cols = float(self.output_shapes[output_layer_index][2])
-                        for b in layer_mapping_boxes[output_layer_index]:
-                            class_index, cx, cy, w, h = b['class_index'], b['cx'], b['cy'], b['w'], b['h']
-                            center_row = int(cy * output_rows)
-                            center_col = int(cx * output_cols)
-                            y[output_layer_index][center_row][center_col][0] = 1.0
-                            y[output_layer_index][center_row][center_col][1] = (cx - float(center_col) / output_cols) / (1.0 / output_cols)
-                            y[output_layer_index][center_row][center_col][2] = (cy - float(center_row) / output_rows) / (1.0 / output_rows)
-                            y[output_layer_index][center_row][center_col][3] = w
-                            y[output_layer_index][center_row][center_col][4] = h
-                            y[output_layer_index][center_row][center_col][int(class_index + 5)] = 1.0
-                else:
-                    for b in boxes:
+                    if self.num_output_layers == 2:
+                        layer_mapping_boxes = [big_last_boxes, middle_last_boxes]
+                    else:
+                        layer_mapping_boxes = [big_last_boxes, middle_last_boxes, small_last_boxes]
+                        if self.num_output_layers > 3:
+                            for i in range(self.num_output_layers - 3):
+                                layer_mapping_boxes.append(small_last_boxes)
+                    
+                for output_layer_index in range(self.num_output_layers):
+                    output_rows = float(self.output_shapes[output_layer_index][1])
+                    output_cols = float(self.output_shapes[output_layer_index][2])
+                    for b in layer_mapping_boxes[output_layer_index]:
                         class_index, cx, cy, w, h = b['class_index'], b['cx'], b['cy'], b['w'], b['h']
-                        if self.train_type == 'one_layer':
-                            output_layer_indexes = [self.train_layer_index]
-                        elif self.train_type == 'all_layer_cluster' or self.train_type == 'all_layer_auto_split':
-                            output_layer_indexes = self.get_layer_indexes_threshold([cx, cy, w, h], self.virtual_anchor_ws, self.virtual_anchor_hs, threshold=0.6)
-                        for output_layer_index in output_layer_indexes:
-                            output_rows = float(self.output_shapes[output_layer_index][1])
-                            output_cols = float(self.output_shapes[output_layer_index][2])
-                            center_row = int(cy * output_rows)
-                            center_col = int(cx * output_cols)
-                            y[output_layer_index][center_row][center_col][0] = 1.0
-                            y[output_layer_index][center_row][center_col][1] = (cx - float(center_col) / output_cols) / (1.0 / output_cols)
-                            y[output_layer_index][center_row][center_col][2] = (cy - float(center_row) / output_rows) / (1.0 / output_rows)
-                            y[output_layer_index][center_row][center_col][3] = w
-                            y[output_layer_index][center_row][center_col][4] = h
-                            y[output_layer_index][center_row][center_col][int(class_index + 5)] = 1.0
+                        center_row = int(cy * output_rows)
+                        center_col = int(cx * output_cols)
+                        y[output_layer_index][center_row][center_col][0] = 1.0
+                        y[output_layer_index][center_row][center_col][1] = (cx - float(center_col) / output_cols) / (1.0 / output_cols)
+                        y[output_layer_index][center_row][center_col][2] = (cy - float(center_row) / output_rows) / (1.0 / output_rows)
+                        y[output_layer_index][center_row][center_col][3] = w
+                        y[output_layer_index][center_row][center_col][4] = h
+                        y[output_layer_index][center_row][center_col][int(class_index + 5)] = 1.0
 
                 for i in range(self.num_output_layers):
                     batch_y[i].append(y[i])
