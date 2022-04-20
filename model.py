@@ -49,8 +49,8 @@ class Model:
         return cls.__new__(cls)
 
     def build(self):
-        return self.sbd()
-        # return self.lcd()
+        # return self.sbd()
+        return self.lcd()
         # return self.lightnet_alpha()
         # return self.lightnet_beta()
         # return self.lightnet_gamma()
@@ -385,9 +385,11 @@ class Model:
         x = self.conv_block(x, 512, 3, bn=False, activation='relu')
         f2 = x
 
-        x = self.feature_pyramid_network([f2, f1, f0], 256, bn=False, activation='relu')
-        y = self.detection_layer(x, 'sbd_output')
-        return tf.keras.models.Model(input_layer, y)
+        f2, f1, f0 = self.feature_pyramid_network([f2, f1, f0], 256, bn=False, activation='relu', return_layers=True)
+        y0 = self.detection_layer(f2, 'sbd_output_0')
+        y1 = self.detection_layer(f1, 'sbd_output_1')
+        y2 = self.detection_layer(f0, 'sbd_output_2')
+        return tf.keras.models.Model(input_layer, [y0, y1, y2])
 
     def vgg_16(self):
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
@@ -457,7 +459,8 @@ class Model:
         y3 = self.detection_layer(x, 'sbd_output_3')
         return tf.keras.models.Model(input_layer, [y1, y2, y3])
 
-    def path_aggregation_network(self, l_high, l_medium, l_low, f_high, f_medium, f_low, bn, activation):
+    def path_aggregation_network(self, l_high, l_medium, l_low, f_high, f_medium, f_low, bn, activation, return_layers=False):
+        ret = []
         x = l_low
         if f_low != f_medium:
             x = self.conv_block(x, f_medium, 1, bn=bn, activation=activation)
@@ -492,22 +495,29 @@ class Model:
         x = self.upsampling(x)
         x = self.add([x, l_medium])
         x = self.conv_block(x, f_medium, 3, bn=bn, activation=activation)
+        l_medium = x
 
         if f_medium != f_high:
             x = self.conv_block(x, f_high, 1, bn=bn, activation=activation)
         x = self.upsampling(x)
         x = self.add([x, l_high])
         x = self.conv_block(x, f_high, 3, bn=bn, activation=activation)
-        return x
+        l_high = x
+        return l_high, l_medium, l_low if return_layers else x
 
-    def feature_pyramid_network(self, layers, filters, bn, activation):
+    def feature_pyramid_network(self, layers, filters, bn, activation, return_layers=False):
+        ret = []
         for i in range(len(layers)):
             layers[i] = self.conv_block(layers[i], filters, 1, bn=bn, activation=activation)
+        if return_layers:
+            ret.append(layers[0])
         for i in range(len(layers) - 1):
             x = tf.keras.layers.UpSampling2D()(layers[i] if i == 0 else x)
             x = self.add([x, layers[i + 1]])
             x = self.conv_block(x, filters, 3, bn=bn, activation=activation)
-        return x
+            if return_layers:
+                ret.append(x)
+        return ret if return_layers else x
 
     def csp_block(self, x, filters, kernel_size, first_depth_n_convs=1, second_depth_n_convs=2, bn=False, activation='none', inner_activation='none'):
         half_filters = filters / 2
