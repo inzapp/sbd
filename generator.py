@@ -327,40 +327,46 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         img = cv2.imdecode(np.fromfile(path, np.uint8), cv2.IMREAD_COLOR)
         if self.input_shape[-1] == 1:
             img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        # img = self.random_adjust(img)  # so slow
+        img = self.random_adjust(img)
         return path, img
 
     def random_adjust(self, img):
-        vs = [['hue', 0.1], ['saturation', 0.5], ['value', 0.5]]
-        np.random.shuffle(vs)
-        for v in vs:
-            img = self.adjust(img, v[1], v[0])
+        adjust_opts = ['saturation', 'brightness', 'contrast', 'noise']
+        np.random.shuffle(adjust_opts)
+        for i in range(len(adjust_opts)):
+            img = self.adjust(img, adjust_opts[i])
+        if np.random.rand() > 0.5:
+            if np.random.rand() > 0.5:
+                img = cv2.GaussianBlur(img, (3, 3), 0)
+            else:
+                img = cv2.blur(img, (2, 2))
         return img
 
-    @staticmethod
-    def adjust(img, adjust_val, adjust_type):
-        range_min, range_max = 1.0 - adjust_val, 1.0 + adjust_val
-        weight = np.random.uniform(range_min, range_max, 1)
-
-        is_gray_img = False
-        if len(img.shape) == 2:
-            is_gray_img = True
-            img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+    def adjust(self, img, adjust_type):
+        weight = np.random.uniform(0.75, 1.25)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
         h, s, v = cv2.split(img)
 
-        if adjust_type == 'hue':
-            h = np.asarray(h).astype('float32') * weight
-            h = np.clip(h, 0.0, 255.0).astype('uint8')
-        elif adjust_type == 'saturation':
+        if adjust_type == 'saturation':
             s = np.asarray(s).astype('float32') * weight
             s = np.clip(s, 0.0, 255.0).astype('uint8')
-        elif adjust_type == 'value':
+        elif adjust_type == 'brightness':
             v = np.asarray(v).astype('float32') * weight
+            v = np.clip(v, 0.0, 255.0).astype('uint8')
+        elif adjust_type == 'contrast':
+            weight = np.random.uniform(0.0, 0.25)
+            criteria = np.random.uniform(84.0, 170.0)
+            v = np.asarray(v).astype('float32')
+            v += (criteria - v) * weight
+            v = np.clip(v, 0.0, 255.0).astype('uint8')
+        elif adjust_type == 'noise':
+            range_min = np.random.uniform(0.0, 25.0)
+            range_max = np.random.uniform(0.0, 25.0)
+            v = np.asarray(v).astype('float32')
+            v += np.random.uniform(-range_min, range_max, size=v.shape)
             v = np.clip(v, 0.0, 255.0).astype('uint8')
 
         img = cv2.merge([h, s, v])
         img = cv2.cvtColor(img, cv2.COLOR_HSV2BGR)
-        if is_gray_img:
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         return img
+

@@ -151,8 +151,9 @@ def __bbox_loss_iou(y_true, y_pred):
         return 0.0
 
     iou, diou_factor = __iou(y_true, y_pred, diou=True)
+    ignore_mask = tf.where(iou > 0.75, 0.0, 1.0) * obj_true
     loss = obj_true - (iou * obj_true)
-    loss = K.mean(loss, axis=0)
+    loss = K.mean(loss * ignore_mask, axis=0)
     loss = K.sum(loss)
     return loss + diou_factor
 
@@ -168,10 +169,11 @@ def __classification_loss(y_true, y_pred):
     if K.equal(obj_count, K.constant(0.0)):
         return 0.0
 
-    class_true = y_true[:, :, :, 5:]
+    class_true = K.clip(y_true[:, :, :, 5:], 0.1, 0.9)
     class_pred = y_pred[:, :, :, 5:]
     # loss = K.binary_crossentropy(class_true, class_pred)
-    loss = focal_loss(class_true, class_pred)
+    #loss = focal_loss(class_true, class_pred)
+    loss = __abs_log_loss(class_true, class_pred)
     loss = K.sum(loss, axis=-1) * obj_true
     loss = K.mean(loss, axis=0)
     loss = K.sum(loss)
