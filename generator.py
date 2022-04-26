@@ -325,9 +325,9 @@ class GeneratorFlow(tf.keras.utils.Sequence):
 
     def load_img(self, path):
         img = cv2.imdecode(np.fromfile(path, np.uint8), cv2.IMREAD_COLOR)
+        img = self.random_adjust(img)
         if self.input_shape[-1] == 1:
             img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        img = self.random_adjust(img)
         return path, img
 
     def random_adjust(self, img):
