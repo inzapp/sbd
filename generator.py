@@ -324,10 +324,15 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         return batch_image_paths
 
     def load_img(self, path):
-        img = cv2.imdecode(np.fromfile(path, np.uint8), cv2.IMREAD_COLOR)
-        img = self.random_adjust(img)
-        if self.input_shape[-1] == 1:
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        color_mode = cv2.IMREAD_COLOR if self.input_shape[-1] == 3 else cv2.IMREAD_GRAYSCALE
+        img = cv2.imdecode(np.fromfile(path, dtype=np.uint8), color_mode)
+        if color_mode == cv2.IMREAD_COLOR:
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  # rb swap
+        if np.random.rand() > 0.5:
+            if np.random.rand() > 0.5:
+                img = cv2.GaussianBlur(img, (3, 3), 0)
+            else:
+                img = cv2.blur(img, (2, 2))
         return path, img
 
     def random_adjust(self, img):
@@ -335,11 +340,6 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         np.random.shuffle(adjust_opts)
         for i in range(len(adjust_opts)):
             img = self.adjust(img, adjust_opts[i])
-        if np.random.rand() > 0.5:
-            if np.random.rand() > 0.5:
-                img = cv2.GaussianBlur(img, (3, 3), 0)
-            else:
-                img = cv2.blur(img, (2, 2))
         return img
 
     def adjust(self, img, adjust_type):
