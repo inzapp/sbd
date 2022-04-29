@@ -46,6 +46,7 @@ class Yolo:
                  burn_in=1000,
                  batch_size=4,
                  iterations=100000,
+                 ignore_threshold=0.8,
                  curriculum_iterations=0,
                  validation_split=0.2,
                  validation_image_path='',
@@ -68,6 +69,7 @@ class Yolo:
         self.__lr_policy = lr_policy
         self.__training_view = training_view
         self.__map_checkpoint = map_checkpoint
+        self.__ignore_threshold = ignore_threshold
         self.__curriculum_iterations = curriculum_iterations
         self.__mixed_float16_training = mixed_float16_training
         self.__live_view_previous_time = time()
@@ -177,15 +179,15 @@ class Yolo:
 
     def __burn_in_train(self):
         @tf.function
-        def compute_gradient(model, optimizer, x, y_true, lr, num_output_layers):
+        def compute_gradient(model, optimizer, x, y_true, lr, num_output_layers, ignore_threshold):
             with tf.GradientTape() as tape:
                 loss = 0.0
                 y_pred = model(x, training=True)
                 if num_output_layers == 1:
-                    loss = yolo_loss(y_true, y_pred)
+                    loss = yolo_loss(y_true, y_pred, ignore_threshold=ignore_threshold)
                 else:
                     for i in range(num_output_layers):
-                        loss += yolo_loss(y_true[i], y_pred[i])
+                        loss += yolo_loss(y_true[i], y_pred[i], ignore_threshold=ignore_threshold)
                 lr = tf.cast(lr, dtype=loss.dtype)
                 gradients = tape.gradient(loss * lr, model.trainable_variables)
             optimizer.apply_gradients(zip(gradients, model.trainable_variables))
@@ -198,7 +200,7 @@ class Yolo:
             for batch_x, batch_y in self.__train_data_generator.flow():
                 iteration_count += 1
                 lr = self.__update_burn_in_lr(iteration_count=iteration_count)
-                loss = compute_gradient(self.__model, optimizer, batch_x, batch_y, tf.constant(lr), self.num_output_layers)
+                loss = compute_gradient(self.__model, optimizer, batch_x, batch_y, tf.constant(lr), self.num_output_layers, self.__ignore_threshold)
                 print(f'\r[burn in iteration count : {iteration_count:6d}] loss => {loss:.4f}', end='')
                 if iteration_count == self.__burn_in:
                     print()
