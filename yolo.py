@@ -58,7 +58,8 @@ class Yolo:
                  map_checkpoint=False,
                  mixed_float16_training=False,
                  pretrained_model_path='',
-                 class_names_file_path=''):
+                 class_names_file_path='',
+                 checkpoints='checkpoints'):
         self.__lr = lr
         self.__decay = decay
         self.__momentum = momentum
@@ -73,6 +74,7 @@ class Yolo:
         self.__curriculum_iterations = curriculum_iterations
         self.__mixed_float16_training = mixed_float16_training
         self.__live_view_previous_time = time()
+        self.__checkpoints = checkpoints
         self.__cycle_step = 0
         self.__cycle_length = 2500
         self.max_map, self.max_f1, self.max_map_iou_hm, self.max_f1_iou_hm = 0.0, 0.0, 0.0, 0.0
@@ -122,7 +124,7 @@ class Yolo:
         self.__live_loss_plot = None
         if self.__mixed_float16_training:
             mixed_precision.set_policy(mixed_precision.Policy('mixed_float16'))
-        os.makedirs('checkpoints', exist_ok=True)
+        os.makedirs(f'{self.__checkpoints}', exist_ok=True)
 
     def __get_optimizer(self, optimizer_str):
         if optimizer_str == 'sgd':
@@ -271,8 +273,8 @@ class Yolo:
                         lr *= 0.1
                     elif iteration_count == int(self.__iterations * 0.9):
                         lr *= 0.1
-                    # if iteration_count % 1000 == 0:
-                    if iteration_count > int(self.__iterations * 0.8) and iteration_count % 10000 == 0:
+                    # if iteration_count > int(self.__iterations * 0.8) and iteration_count % 10000 == 0:
+                    if iteration_count % 1000 == 0:
                         self.__save_model(iteration_count=iteration_count, use_map_checkpoint=self.__map_checkpoint)
                     elif iteration_count % 20000 == 0:
                         self.__save_model(iteration_count=iteration_count, use_map_checkpoint=False)
@@ -333,10 +335,10 @@ class Yolo:
             self.__model.save('model.h5', include_optimizer=False)
             mean_ap, f1_score, tp_iou, tp, fp, fn = calc_mean_average_precision(self.__model, self.__validation_image_paths)
             # if self.__is_better_than_before(mean_ap, f1_score, tp_iou):
-            self.__model.save(f'checkpoints/model_{iteration_count}_iter_mAP_{mean_ap:.4f}_f1_{f1_score:.4f}_tp_iou_{tp_iou:.4f}_tp_{tp}_fp_{fp}_fn_{fn}_ul_{ul}.h5', include_optimizer=False)
+            self.__model.save(f'{self.__checkpoints}/model_{iteration_count}_iter_mAP_{mean_ap:.4f}_f1_{f1_score:.4f}_tp_iou_{tp_iou:.4f}_tp_{tp}_fp_{fp}_fn_{fn}_ul_{ul}.h5', include_optimizer=False)
             self.__model.save(f'model_last_ul_{ul}.h5', include_optimizer=False)
         else:
-            self.__model.save(f'checkpoints/model_{iteration_count}_iter_ul_{ul}.h5', include_optimizer=False)
+            self.__model.save(f'{self.__checkpoints}/model_{iteration_count}_iter_ul_{ul}.h5', include_optimizer=False)
 
     @staticmethod
     def __init_image_paths(image_path, validation_split=0.0):

@@ -118,10 +118,11 @@ if __name__ == '__main__':
         # pretrained_model_path=r'checkpoints/model_220000_iter_ul_all.h5',
         optimizer='sgd',
         lr_policy='step',
-        ignore_threshold=0.95,
-        train_image_path=r'C:\inz\train_data\new_lcd\lcd_biz\train',
-        validation_image_path=r'C:\inz\train_data\new_lcd\lcd_biz\validation',
-        class_names_file_path=r'C:\inz\train_data\new_lcd\lcd_biz\classes.txt',
+        ignore_threshold=0.9,
+        train_image_path=r'C:\inz\train_data\new_lcd\lcd_b1\train',
+        validation_image_path=r'C:\inz\train_data\new_lcd\lcd_b1\validation',
+        class_names_file_path=r'C:\inz\train_data\new_lcd\lcd_b1\classes.txt',
+        checkpoints='checkpoints/lcd/re/test/1l_0.9',
         input_shape=(96, 192, 1),
 
         # pretrained_model_path=r'checkpoints/square/eps_sq_no_1conv_92000_iter_mAP_1.0000_f1_1.0000_tp_iou_0.9955_tp_52_fp_0_fn_0.h5',
@@ -162,6 +163,7 @@ if __name__ == '__main__':
         map_checkpoint=True).fit()
         # map_checkpoint=True).predict_validation_images()
         # map_checkpoint=True).map_validation_images()
+        # map_checkpoint=True).map_train_images()
 
     # from glob import glob
     # from random import shuffle
