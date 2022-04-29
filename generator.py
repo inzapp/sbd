@@ -183,9 +183,9 @@ class GeneratorFlow(tf.keras.utils.Sequence):
                 self.label_obj_count += 1
 
         if len(invalid_label_paths) > 0:
-            print('\ninvalid label exists')
             for label_path in invalid_label_paths:
                 print(label_path)
+            print('\ninvalid label exists fix it')
             exit(0)
 
         ws = np.asarray(ws).reshape((1, len(ws))).astype('float32')
@@ -218,14 +218,20 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         for batch_x, batch_y in tqdm(self):
             if self.num_output_layers == 1:
                 batch_y = [batch_y]
+            max_area = 0
+            max_area_index = -1
             for i in range(self.num_output_layers):
-                y_true_obj_count += np.sum(batch_y[i][:, :, :, 0])
+                cur_area = np.sum(np.ones_like(batch_y[i][:, :, :, 0], dtype=np.float32))
+                if cur_area > max_area:
+                    max_area = cur_area
+                    max_area_index = i
+            y_true_obj_count += np.sum(batch_y[max_area_index][:, :, :, 0])
         y_true_obj_count = int(y_true_obj_count)
         not_trained_obj_count = self.label_obj_count - y_true_obj_count
-        not_trained_obj_rate = int(not_trained_obj_count / self.label_obj_count * 100.0)
+        not_trained_obj_rate = not_trained_obj_count / self.label_obj_count * 100.0
         print(f'ground truth obj count : {self.label_obj_count}')
         print(f'train tensor obj count : {y_true_obj_count}')
-        print(f'not trained  obj count : {not_trained_obj_count} ({not_trained_obj_rate}%)')
+        print(f'not trained  obj count : {not_trained_obj_count} ({not_trained_obj_rate:.2f}%)')
 
     @staticmethod
     def convert_to_boxes(label_lines):
