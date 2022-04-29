@@ -152,6 +152,9 @@ class Yolo:
         self.__train()
 
     def __check_forwarding_time(self):
+        @tf.function
+        def graph_forward(model, x):
+            return model(x, training=False)
         input_shape = self.__model.input_shape[1:]
         mul = 1
         for val in input_shape:
@@ -160,14 +163,14 @@ class Yolo:
         forward_count = 32
         noise = np.random.uniform(0.0, 1.0, mul * forward_count)
         noise = np.asarray(noise).reshape((forward_count, 1) + input_shape).astype('float32')
-        with tf.device('/cpu:0'):
-            self.__model(noise[0], training=False)  # only first forward is slow, skip first forward in check forwarding time
+        with tf.device('/gpu:0'):
+            graph_forward(self.__model, noise[0])  # only first forward is slow, skip first forward in check forwarding time
 
-        print('\nstart test forward for check forwarding time.')
-        with tf.device('/cpu:0'):
+        print('\nstart test forward for checking forwarding time.')
+        with tf.device('/gpu:0'):
             st = perf_counter()
             for i in range(forward_count):
-                self.__model(noise[i], training=False)
+                graph_forward(self.__model, noise[i])
             et = perf_counter()
         forwarding_time = ((et - st) / forward_count) * 1000.0
         print(f'model forwarding time : {forwarding_time:.2f} ms')
@@ -262,14 +265,14 @@ class Yolo:
                         self.__save_model(iteration_count=iteration_count, use_map_checkpoint=self.__map_checkpoint)
                         cosine_save = False
                 elif self.__lr_policy == 'step':
-                    # if iteration_count % 1000 == 0:
-                    if iteration_count > int(self.__iterations * 0.9) and iteration_count % 10000 == 0:
-                        self.__save_model(iteration_count=iteration_count, use_map_checkpoint=self.__map_checkpoint)
                     if iteration_count == int(self.__iterations * 0.8):
                         lr *= 0.1
                     elif iteration_count == int(self.__iterations * 0.9):
                         lr *= 0.1
-                    if iteration_count % 20000 == 0:
+                    # if iteration_count % 1000 == 0:
+                    if iteration_count > int(self.__iterations * 0.8) and iteration_count % 10000 == 0:
+                        self.__save_model(iteration_count=iteration_count, use_map_checkpoint=self.__map_checkpoint)
+                    elif iteration_count % 20000 == 0:
                         self.__save_model(iteration_count=iteration_count, use_map_checkpoint=False)
                 elif self.__lr_policy == 'constant':
                     if iteration_count % 10000 == 0:
