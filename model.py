@@ -49,7 +49,8 @@ class Model:
         return cls.__new__(cls)
 
     def build(self):
-        # return self.sbd()
+        # return self.sbd_20ms()
+        # return self.sbd_11ms()
         return self.lcd()
         # return self.lightnet_alpha()
         # return self.lightnet_beta()
@@ -60,7 +61,7 @@ class Model:
         # return self.vgg_16()
         # return self.darknet_19()
 
-    def sbd(self):  # (352, 640, 1) cv2 20ms (16x 8x)
+    def sbd_20ms(self):  # (352, 640, 1) cv2 20ms (16x 8x)
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
         x = self.conv_block(input_layer, 16, 3, bn=False, activation='relu')
         x = self.max_pool(x)
@@ -91,9 +92,50 @@ class Model:
         x = self.conv_block(x, 512, 1, bn=False, activation='relu')
         f2 = x
 
-        x = self.feature_pyramid_network([f2, f1], 256, bn=False, activation='relu')
+        x = self.feature_pyramid_network([f1, f2], 256, bn=False, activation='relu')
         y = self.detection_layer(x)
         return tf.keras.models.Model(input_layer, y)
+
+    def sbd_11ms(self):  # (368, 640, 1) cv2 12ms
+        input_layer = tf.keras.layers.Input(shape=self.input_shape)
+        x = self.conv_block(input_layer, 8, 3, bn=False, activation='relu')
+        x = self.max_pool(x)
+
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.conv_block(x, 16, 3, bn=False, activation='relu')
+        x = self.max_pool(x)
+
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.conv_block(x, 32, 3, bn=False, activation='relu')
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.conv_block(x, 32, 3, bn=False, activation='relu')
+        x = self.max_pool(x)
+
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.conv_block(x, 64, 3, bn=False, activation='relu')
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.conv_block(x, 64, 3, bn=False, activation='relu')
+        f0 = x
+        x = self.max_pool(x)
+
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.conv_block(x, 128, 3, bn=False, activation='relu')
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.conv_block(x, 128, 3, bn=False, activation='relu')
+        f1 = x
+        x = self.max_pool(x)
+
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.conv_block(x, 256, 3, bn=False, activation='relu')
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.conv_block(x, 256, 3, bn=False, activation='relu')
+        f2 = x
+
+        f0, f1, f2 = self.feature_pyramid_network([f0, f1, f2], [64, 128, 256], bn=False, activation='relu', return_layers=True)
+        y0 = self.detection_layer(f2, 'sbd_output_0')
+        y1 = self.detection_layer(f1, 'sbd_output_1')
+        y2 = self.detection_layer(f0, 'sbd_output_2')
+        return tf.keras.models.Model(input_layer, [y0, y1, y2])
 
     def lightnet_alpha(self):
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
@@ -118,7 +160,7 @@ class Model:
         x = self.max_pool(x)
         f2 = x
 
-        x = self.feature_pyramid_network([f2, f1], 128, bn=False, activation='relu')
+        x = self.feature_pyramid_network([f1, f2], 128, bn=False, activation='relu')
         y = self.detection_layer(x)
         return tf.keras.models.Model(input_layer, y)
 
@@ -151,7 +193,7 @@ class Model:
         x = self.max_pool(x)
         f2 = x
 
-        x = self.feature_pyramid_network([f2, f1], 128, bn=False, activation='relu')
+        x = self.feature_pyramid_network([f1, f2], 128, bn=False, activation='relu')
         y = self.detection_layer(x)
         return tf.keras.models.Model(input_layer, y)
 
@@ -238,7 +280,7 @@ class Model:
         x = self.conv_block(x, 256, 3, bn=False, activation='relu')
         f2 = x
 
-        x = self.feature_pyramid_network([f2, f1], 256, bn=False, activation='relu')
+        x = self.feature_pyramid_network([f1, f2], 256, bn=False, activation='relu')
         y = self.detection_layer(x)
         return tf.keras.models.Model(input_layer, y)
 
@@ -385,7 +427,7 @@ class Model:
         x = self.conv_block(x, 512, 3, bn=False, activation='relu')
         f2 = x
 
-        f2, f1, f0 = self.feature_pyramid_network([f2, f1, f0], 256, bn=False, activation='relu', return_layers=True)
+        f0, f1, f2 = self.feature_pyramid_network([f0, f1, f2], [128, 256, 256], bn=False, activation='relu', return_layers=True)
         y0 = self.detection_layer(f2, 'sbd_output_0')
         y1 = self.detection_layer(f1, 'sbd_output_1')
         y2 = self.detection_layer(f0, 'sbd_output_2')
@@ -506,18 +548,23 @@ class Model:
         return l_high, l_medium, l_low if return_layers else x
 
     def feature_pyramid_network(self, layers, filters, bn, activation, return_layers=False):
-        ret = []
+        layers = list(reversed(layers))
+        if type(filters) == list:
+            filters = list(reversed(filters))
         for i in range(len(layers)):
-            layers[i] = self.conv_block(layers[i], filters, 1, bn=bn, activation=activation)
+            layers[i] = self.conv_block(layers[i], filters if type(filters) == int else filters[i], 1, bn=bn, activation=activation)
+        ret = []
         if return_layers:
             ret.append(layers[0])
         for i in range(len(layers) - 1):
             x = tf.keras.layers.UpSampling2D()(layers[i] if i == 0 else x)
+            if type(filters) == list and filters[i] != filters[i + 1]:
+                x = self.conv_block(x, filters[i + 1], 1, bn=bn, activation=activation)
             x = self.add([x, layers[i + 1]])
-            x = self.conv_block(x, filters, 3, bn=bn, activation=activation)
+            x = self.conv_block(x, filters if type(filters) == int else filters[i + 1], 3, bn=bn, activation=activation)
             if return_layers:
                 ret.append(x)
-        return ret if return_layers else x
+        return list(reversed(ret)) if return_layers else x
 
     def csp_block(self, x, filters, kernel_size, first_depth_n_convs=1, second_depth_n_convs=2, bn=False, activation='none', inner_activation='none'):
         half_filters = filters / 2
