@@ -427,11 +427,9 @@ class Model:
         x = self.conv_block(x, 512, 3, bn=False, activation='relu')
         f2 = x
 
-        f0, f1, f2 = self.feature_pyramid_network([f0, f1, f2], [128, 256, 256], bn=False, activation='relu', return_layers=True)
-        y0 = self.detection_layer(f2, 'sbd_output_0')
-        y1 = self.detection_layer(f1, 'sbd_output_1')
-        y2 = self.detection_layer(f0, 'sbd_output_2')
-        return tf.keras.models.Model(input_layer, [y0, y1, y2])
+        x = self.feature_pyramid_network([f0, f1, f2], [128, 256, 512], bn=False, activation='relu')
+        y = self.detection_layer(x, 'sbd_output')
+        return tf.keras.models.Model(input_layer, y)
 
     def vgg_16(self):
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
