@@ -2,8 +2,10 @@ import os
 import cv2
 import numpy as np
 from tqdm import tqdm
-from map_boxes import mean_average_precision_for_boxes
 from concurrent.futures.thread import ThreadPoolExecutor
+
+from generator import GeneratorFlow
+from map_boxes import mean_average_precision_for_boxes
 
 
 g_iou_threshold = 0.5
@@ -61,10 +63,7 @@ def make_predictions_csv(model, image_paths):
     global g_predictions_csv_name
     csv = 'ImageID,LabelName,Conf,XMin,XMax,YMin,YMax\n'
     for path in tqdm(image_paths):
-        img = np.fromfile(path, np.uint8)
-        img = cv2.imdecode(img, cv2.IMREAD_COLOR)
-        if model.input_shape[-1] == 1:
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        img, _, _ = GeneratorFlow.load_img(path, model.input_shape[-1])
         boxes = Yolo.predict(model, img, confidence_threshold=0.005, nms_iou_threshold=g_nms_iou_threshold)
         csv += convert_boxes_to_csv_lines(path, boxes)
     with open(g_predictions_csv_name, 'wt') as f:
@@ -73,7 +72,6 @@ def make_predictions_csv(model, image_paths):
 
 def calc_mean_average_precision(model, all_image_paths):
     global g_iou_threshold, g_confidence_threshold, g_annotations_csv_name, g_predictions_csv_name
-    # from random import shuffle; shuffle(all_image_paths); image_paths = all_image_paths[:500] # test
     image_paths = all_image_paths
     make_annotations_csv(image_paths)
     make_predictions_csv(model, image_paths)

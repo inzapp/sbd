@@ -30,6 +30,7 @@ from tensorflow.keras.mixed_precision import experimental as mixed_precision
 
 from box_colors import colors
 from generator import YoloDataGenerator
+from generator import GeneratorFlow
 from loss import confidence_loss, confidence_with_bbox_loss, yolo_loss
 from mAP_calculator import calc_mean_average_precision
 from model import Model
@@ -545,9 +546,9 @@ class Yolo:
                 img_path = random.choice(self.__train_image_paths)
             else:
                 img_path = random.choice(self.__validation_image_paths)
-            img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE if self.__model.input.shape[-1] == 1 else cv2.IMREAD_COLOR)
+            img, raw_bgr, _ = GeneratorFlow.load_img(img_path, self.__model.input.shape[-1])
             res = Yolo.predict(self.__model, img)
-            boxed_image = self.bounding_box(img, res)
+            boxed_image = self.bounding_box(raw_bgr, res)
             cv2.imshow('training view', boxed_image)
             cv2.waitKey(1)
 

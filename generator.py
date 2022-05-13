@@ -264,9 +264,10 @@ class GeneratorFlow(tf.keras.utils.Sequence):
             for i in range(self.num_output_layers):
                 batch_y.append([])
             for path in self.get_next_batch_image_paths():
-                fs.append(self.pool.submit(self.load_img, path))
+                fs.append(self.pool.submit(self.load_img, path, self.input_shape[-1]))
             for f in fs:
-                cur_img_path, x = f.result()
+                x, _, cur_img_path = f.result()
+                x = self.random_blur(x)
                 if x.shape[1] > self.input_shape[1] or x.shape[0] > self.input_shape[0]:
                     x = cv2.resize(x, (self.input_shape[1], self.input_shape[0]), interpolation=cv2.INTER_AREA)
                 else:
@@ -329,17 +330,22 @@ class GeneratorFlow(tf.keras.utils.Sequence):
             np.random.shuffle(self.image_paths)
         return batch_image_paths
 
-    def load_img(self, path):
-        color_mode = cv2.IMREAD_COLOR if self.input_shape[-1] == 3 else cv2.IMREAD_GRAYSCALE
-        img = cv2.imdecode(np.fromfile(path, dtype=np.uint8), color_mode)
-        if color_mode == cv2.IMREAD_COLOR:
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  # rb swap
+    def random_blur(self, img):
         if np.random.rand() > 0.5:
             if np.random.rand() > 0.5:
                 img = cv2.GaussianBlur(img, (3, 3), 0)
             else:
                 img = cv2.blur(img, (2, 2))
-        return path, img
+        return img
+
+    @staticmethod
+    def load_img(path, channel):
+        color_mode = cv2.IMREAD_COLOR if channel == 3 else cv2.IMREAD_GRAYSCALE
+        img = cv2.imdecode(np.fromfile(path, dtype=np.uint8), color_mode)
+        raw_bgr = img
+        if color_mode == cv2.IMREAD_COLOR:
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  # rb swap
+        return img, raw_bgr, path
 
     def random_adjust(self, img):
         adjust_opts = ['saturation', 'brightness', 'contrast', 'noise']
