@@ -18,23 +18,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 import os
-
 import tensorflow as tf
 
+
 os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
-
-
-class Between(tf.keras.constraints.Constraint):
-    def __init__(self, min_value, max_value):
-        self.min_value = min_value
-        self.max_value = max_value
-
-    def __call__(self, w):
-        return tf.keras.backend.clip(w, self.min_value, self.max_value)
-
-    def get_config(self):
-        return {'min_value': self.min_value,
-                'max_value': self.max_value}
 
 
 class Model:
@@ -381,7 +368,7 @@ class Model:
         x = self.conv_block(x, 64, 3, bn=False, activation='relu')
         x = self.drop_filter(x, self.drop_rate)
         x = self.conv_block(x, 64, 3, bn=False, activation='relu')
-        x = self.avg_max_pool(x)
+        x = self.max_pool(x)
 
         x = self.drop_filter(x, self.drop_rate)
         if csp:
@@ -402,7 +389,7 @@ class Model:
             x = self.drop_filter(x, self.drop_rate)
             x = self.conv_block(x, 128, 3, bn=False, activation='relu')
         y1 = self.detection_layer(x, 'sbd_output_1')
-        x = self.avg_max_pool(x)
+        x = self.max_pool(x)
 
         x = self.drop_filter(x, self.drop_rate)
         if csp:
@@ -423,7 +410,7 @@ class Model:
             x = self.drop_filter(x, self.drop_rate)
             x = self.conv_block(x, 256, 3, bn=False, activation='relu')
         y2 = self.detection_layer(x, 'sbd_output_2')
-        x = self.avg_max_pool(x)
+        x = self.max_pool(x)
 
         x = self.drop_filter(x, self.drop_rate)
         if csp:
@@ -727,20 +714,12 @@ class Model:
             exit(-1)
 
     @staticmethod
-    def standardization(w):
-        w_mean = tf.reduce_mean(w, axis=[0, 1, 2], keepdims=True)
-        w = w - w_mean
-        w_std = tf.keras.backend.std(w, axis=[0, 1, 2], keepdims=True)
-        w = w / (w_std + 1e-5)
-        return w
+    def max_pool(x):
+        return tf.keras.layers.MaxPool2D()(x)
 
     @staticmethod
     def upsampling(x):
         return tf.keras.layers.UpSampling2D()(x)
-
-    @staticmethod
-    def max_pool(x):
-        return tf.keras.layers.MaxPool2D()(x)
 
     @staticmethod
     def add(layers):
@@ -755,20 +734,10 @@ class Model:
         return tf.keras.layers.Concatenate()(layers)
 
     @staticmethod
-    def avg_max_pool(x):
-        ap = tf.keras.layers.AvgPool2D()(x)
-        mp = tf.keras.layers.MaxPool2D()(x)
-        return tf.keras.layers.Add()([ap, mp])
-
-    @staticmethod
-    def dropout(x, rate):
-        return tf.keras.layers.Dropout(rate)(x)
+    def bn(x):
+        return tf.keras.layers.BatchNormalization(beta_initializer=tf.keras.initializers.zeros(), fused=True)(x)
 
     @staticmethod
     def drop_filter(x, rate):
         return tf.keras.layers.SpatialDropout2D(rate)(x)
-
-    @staticmethod
-    def bn(x):
-        return tf.keras.layers.BatchNormalization(beta_initializer=tf.keras.initializers.zeros(), fused=True)(x)
 
