@@ -52,8 +52,8 @@ class Model:
         # return self.lpd_20ms()
         # return self.lpd_11ms()
         # return self.lpd_crop()
-        # return self.lcd()
-        return self.lightnet_alpha()
+        return self.lcd()
+        # return self.lightnet_alpha()
         # return self.lightnet_beta()
         # return self.lightnet_gamma()
         # return self.lightnet_delta()
@@ -249,7 +249,8 @@ class Model:
         x = self.conv_block(x, 64, 3, bn=False, activation='relu')
         x = self.drop_filter(x, self.drop_rate)
         x = self.conv_block(x, 64, 3, bn=False, activation='relu')
-        x = self.avg_max_pool(x)
+        x = self.max_pool(x)
+        f0 = x
         y1 = self.detection_layer(x, 'sbd_output_1')
 
         x = self.drop_filter(x, self.drop_rate)
@@ -258,7 +259,8 @@ class Model:
         x = self.conv_block(x, 128, 3, bn=False, activation='relu')
         x = self.drop_filter(x, self.drop_rate)
         x = self.conv_block(x, 128, 3, bn=False, activation='relu')
-        x = self.avg_max_pool(x)
+        x = self.max_pool(x)
+        f1 = x
         y2 = self.detection_layer(x, 'sbd_output_2')
 
         x = self.drop_filter(x, self.drop_rate)
@@ -269,9 +271,11 @@ class Model:
         x = self.conv_block(x, 128, 1, bn=False, activation='relu')
         x = self.drop_filter(x, self.drop_rate)
         x = self.conv_block(x, 256, 3, bn=False, activation='relu')
-        x = self.avg_max_pool(x)
-        y3 = self.detection_layer(x, 'sbd_output_3')
-        return tf.keras.models.Model(input_layer, [y1, y2, y3])
+        x = self.max_pool(x)
+        f2 = x
+        x = self.feature_pyramid_network([f0, f1, f2], [128, 128, 256], bn=False, activation='relu')
+        y = self.detection_layer(x, 'sbd_output_3')
+        return tf.keras.models.Model(input_layer, y)
 
     def lightnet_delta(self):
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
@@ -536,6 +540,12 @@ class Model:
         y3 = self.detection_layer(x, 'sbd_output_3')
         return tf.keras.models.Model(input_layer, [y1, y2, y3])
 
+    def attention_block(self, x, channel, bn, reduction_ratio=8):
+        input_layer = x
+        x = self.conv_block(x, channel // reduction_ratio, 1, bn=bn, activation='relu')
+        x = self.conv_block(x, channel, 1, bn=bn, activation='sigmoid')
+        return tf.keras.layers.Multiply()([x, input_layer])
+
     def path_aggregation_network(self, l_high, l_medium, l_low, f_high, f_medium, f_low, bn, activation, return_layers=False):
         ret = []
         x = l_low
@@ -696,6 +706,26 @@ class Model:
             activation='sigmoid',
             name=name)(x)
 
+    def activation(self, x, activation='none'):
+        if activation == 'sigmoid':
+            return tf.keras.layers.Activation('sigmoid')(x)
+        elif activation == 'tanh':
+            return tf.keras.layers.Activation('tanh')(x)
+        elif activation == 'relu':
+            return tf.keras.layers.Activation('relu')(x)
+        elif activation == 'silu' or activation == 'swish':
+            x_sigmoid = tf.keras.layers.Activation('sigmoid')(x)
+            return self.multiply([x, x_sigmoid])
+        elif activation == 'mish':
+            x_softplus = tf.keras.layers.Activation('softplus')(x)
+            x_tanh = tf.keras.layers.Activation('tanh')(x_softplus)
+            return self.multiply([x, x_tanh])
+        elif activation == 'none':
+            return x
+        else:
+            print(f'[FATAL] unknown activation : [{activation}]')
+            exit(-1)
+
     @staticmethod
     def standardization(w):
         w_mean = tf.reduce_mean(w, axis=[0, 1, 2], keepdims=True)
@@ -715,6 +745,10 @@ class Model:
     @staticmethod
     def add(layers):
         return tf.keras.layers.Add()(layers)
+
+    @staticmethod
+    def multiply(layers):
+        return tf.keras.layers.Multiply()(layers)
 
     @staticmethod
     def concat(layers):
@@ -737,25 +771,4 @@ class Model:
     @staticmethod
     def bn(x):
         return tf.keras.layers.BatchNormalization(beta_initializer=tf.keras.initializers.zeros(), fused=True)(x)
-
-    @staticmethod
-    def activation(x, activation='none'):
-        if activation == 'sigmoid':
-            return tf.keras.layers.Activation('sigmoid')(x)
-        elif activation == 'tanh':
-            return tf.keras.layers.Activation('tanh')(x)
-        elif activation == 'relu':
-            return tf.keras.layers.Activation('relu')(x)
-        elif activation == 'silu' or activation == 'swish':
-            x_sigmoid = tf.keras.layers.Activation('sigmoid')(x)
-            return tf.keras.layers.Multiply()([x, x_sigmoid])
-        elif activation == 'mish':
-            x_softplus = tf.keras.layers.Activation('softplus')(x)
-            x_tanh = tf.keras.layers.Activation('tanh')(x_softplus)
-            return tf.keras.layers.Multiply()([x, x_tanh])
-        elif activation == 'none':
-            return x
-        else:
-            print(f'[FATAL] unknown activation : [{activation}]')
-            exit(-1)
 
