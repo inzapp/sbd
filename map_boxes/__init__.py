@@ -140,6 +140,7 @@ def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_th
     total_fp = 0
     total_obj_count = 0
     average_precisions = {}
+    class_confidence_sum = 0.0
     for class_index, label in enumerate(sorted(unique_classes)):
         # Negative class
         if str(label) == 'nan':
@@ -201,6 +202,9 @@ def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_th
         scores = np.array(scores)
         tp_ious = np.array(tp_ious)
 
+        tp_confidence = np.sum(scores * true_positives) / np.sum(true_positives)
+        class_confidence_sum += tp_confidence
+
         # mask
         tp_mask= np.where(scores > confidence_threshold_for_f1, 1, 0)
         true_positives_over_threshold = true_positives * tp_mask
@@ -239,7 +243,7 @@ def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_th
         average_precision = _compute_ap(recall, precision)
         average_precisions[label] = average_precision, num_annotations
         if verbose:
-            print(f'class {class_index} ap : {average_precision:.4f}, obj count : {obj_count:6d}, tp : {tp:6d}, fp : {fp:6d}, fn : {fn:6d}, precision : {p:.4f}, recall : {r:.4f}, f1 : {f1:.4f}, iou : {tp_iou:.4f}')
+            print(f'class {class_index} ap : {average_precision:.4f}, obj count : {obj_count:6d}, tp : {tp:6d}, fp : {fp:6d}, fn : {fn:6d}, precision : {p:.4f}, recall : {r:.4f}, f1 : {f1:.4f}, iou : {tp_iou:.4f}, confidence : {tp_confidence:.4f}')
 
     present_classes = 0
     precision = 0
@@ -252,7 +256,9 @@ def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_th
     r = total_tp / (total_obj_count + 1e-7)
     f1 = (2.0 * p * r) / (p + r + 1e-7)
     tp_iou = total_tp_iou_sum / (total_tp + 1e-7)
+    confidence = class_confidence_sum / present_classes
     print(f'F1@{int(iou_threshold * 100)} : {f1:.4f}')
     print(f'mAP@{int(iou_threshold * 100)} : {mean_ap:.4f}')
     print(f'TP_IOU@{int(iou_threshold * 100)} : {tp_iou:.4f}')
+    print(f'TP_Confidence : {confidence:.4f}')
     return mean_ap, f1, tp_iou, total_tp, total_fp, total_obj_count - total_tp
