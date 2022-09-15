@@ -169,21 +169,21 @@ class GeneratorFlow(tf.keras.utils.Sequence):
             fs.append(self.pool.submit(self.load_label, f'{path[:-4]}.txt'))
 
         num_classes = self.output_shapes[0][-1] - 5
-        invalid_label_paths = []
+        invalid_label_paths = set()
         boxes, ws, hs = [], [], []
         for f in tqdm(fs):
             lines, label_path = f.result()
             for line in lines:
                 class_index, cx, cy, w, h = list(map(float, line.split()))
                 if self.is_invalid_label(label_path, [class_index, cx, cy, w, h], num_classes):
-                    invalid_label_paths.append(label_path)
+                    invalid_label_paths.add(label_path)
                 boxes.append([cx, cy, w, h])
                 ws.append(w)
                 hs.append(h)
                 self.label_obj_count += 1
 
         if len(invalid_label_paths) > 0:
-            for label_path in invalid_label_paths:
+            for label_path in list(invalid_label_paths):
                 print(label_path)
             print('\ninvalid label exists fix it')
             exit(0)
