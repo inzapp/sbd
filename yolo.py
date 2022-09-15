@@ -34,6 +34,7 @@ from generator import GeneratorFlow
 from loss import confidence_loss, confidence_with_bbox_loss, yolo_loss
 from mAP_calculator import calc_mean_average_precision
 from model import Model
+from keras_flops import get_flops
 
 
 class Yolo:
@@ -140,8 +141,10 @@ class Yolo:
         return optimizer
 
     def fit(self):
+        gflops = get_flops(self.__model, batch_size=1) * 1e-9
         self.__model.summary()
         self.__model.save('model.h5', include_optimizer=False)
+        print(f'\nGFLOPs : {gflops:.4f}')
         print(f'\ntrain on {len(self.__train_image_paths)} samples.')
         print(f'validate on {len(self.__validation_image_paths)} samples.')
 
@@ -275,7 +278,7 @@ class Yolo:
                     elif iteration_count == int(self.__iterations * 0.9):
                         lr *= 0.1
                     # if iteration_count > int(self.__iterations * 0.8) and iteration_count % 10000 == 0:
-                    if iteration_count % 1000 == 0:
+                    if iteration_count % 2000 == 0:
                         self.__save_model(iteration_count=iteration_count, use_map_checkpoint=self.__map_checkpoint)
                     elif iteration_count % 20000 == 0:
                         self.__save_model(iteration_count=iteration_count, use_map_checkpoint=False)
