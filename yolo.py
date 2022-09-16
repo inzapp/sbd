@@ -48,7 +48,7 @@ class Yolo:
                  burn_in=1000,
                  batch_size=4,
                  iterations=100000,
-                 ignore_threshold=0.8,
+                 ignore_threshold=0.9,
                  curriculum_iterations=0,
                  validation_split=0.2,
                  validation_image_path='',
