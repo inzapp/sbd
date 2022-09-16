@@ -28,6 +28,7 @@ def load_label(image_path):
         ymin = cy - h * 0.5
         xmax = cx + w * 0.5
         ymax = cy + h * 0.5
+        xmin, ymin, xmax, ymax = np.clip(np.array([xmin, ymin, xmax, ymax]), 0.0, 1.0)
         csv += f'{basename},{class_index},{xmin:.6f},{xmax:.6f},{ymin:.6f},{ymax:.6f}\n'
     return csv
 
