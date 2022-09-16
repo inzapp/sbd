@@ -213,7 +213,37 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         print()
         print(f'avg IoU : {self.iou_with_clustered_wh(boxes, self.virtual_anchor_ws, self.virtual_anchor_hs):.4f}')
 
+    def check_invalid_label(self):
+        num_classes = self.output_shapes[0][-1] - 5
+        fs = []
+        for path in self.image_paths:
+            fs.append(self.pool.submit(self.load_label, f'{path[:-4]}.txt'))
+        invalid_label_paths = set()
+        for f in tqdm(fs):
+            lines, label_path = f.result()
+            for line in lines:
+                class_index, cx, cy, w, h = list(map(float, line.split()))
+                if self.is_invalid_label(label_path, [class_index, cx, cy, w, h], num_classes):
+                    invalid_label_paths.add(label_path)
+        if len(invalid_label_paths) > 0:
+            print()
+            for label_path in list(invalid_label_paths):
+                print(label_path)
+            print(f'\n{len(invalid_label_paths)} invalid label exists fix it')
+            exit(0)
+        print('invalid label not found')
+
     def print_not_trained_box_count(self):
+        num_classes = self.output_shapes[0][-1] - 5
+        box_count_in_real_data = 0
+        fs = []
+        for path in self.image_paths:
+            fs.append(self.pool.submit(self.load_label, f'{path[:-4]}.txt'))
+        invalid_label_paths = set()
+        for f in tqdm(fs):
+            lines, _ = f.result()
+            box_count_in_real_data += len(self.convert_to_boxes(lines))
+
         y_true_obj_count = 0  # obj count in train tensor(y_true)
         for batch_x, batch_y in tqdm(self):
             if self.num_output_layers == 1:
@@ -227,25 +257,38 @@ class GeneratorFlow(tf.keras.utils.Sequence):
                     max_area_index = i
             y_true_obj_count += np.sum(batch_y[max_area_index][:, :, :, 0])
         y_true_obj_count = int(y_true_obj_count)
-        not_trained_obj_count = self.label_obj_count - y_true_obj_count
-        not_trained_obj_rate = not_trained_obj_count / self.label_obj_count * 100.0
-        print(f'ground truth obj count : {self.label_obj_count}')
+        not_trained_obj_count = box_count_in_real_data - y_true_obj_count
+        not_trained_obj_rate = not_trained_obj_count / box_count_in_real_data * 100.0
+        print(f'ground truth obj count : {box_count_in_real_data}')
         print(f'train tensor obj count : {y_true_obj_count}')
         print(f'not trained  obj count : {not_trained_obj_count} ({not_trained_obj_rate:.2f}%)')
 
     @staticmethod
     def convert_to_boxes(label_lines):
+        def get_same_box_index(boxes, cx, cy, w, h):
+            box_str = f'{cx}_{cy}_{w}_{h}'
+            for i in range(len(boxes)):
+                box_cx, box_cy, box_w, box_h = boxes[i]['cx'], boxes[i]['cy'], boxes[i]['w'], boxes[i]['h']
+                cur_box_str = f'{box_cx}_{box_cy}_{box_w}_{box_h}'
+                if cur_box_str == box_str:
+                    return i
+            return -1
+
         boxes = []
         for line in label_lines:
             class_index, cx, cy, w, h = list(map(float, line.split(' ')))
             class_index = int(class_index)
-            boxes.append({
-                'class_index': class_index,
-                'cx': cx,
-                'cy': cy,
-                'w': w,
-                'h': h,
-                'area': w * h})
+            same_box_index = get_same_box_index(boxes, cx, cy, w, h)
+            if same_box_index == -1:
+                boxes.append({
+                    'class_indexes': [class_index],
+                    'cx': cx,
+                    'cy': cy,
+                    'w': w,
+                    'h': h,
+                    'area': w * h})
+            else:
+                boxes[same_box_index]['class_indexes'].append(class_index)
         return boxes
 
     def sort_middle_last(self, big_last_boxes, small_last_boxes):
@@ -303,7 +346,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
                     output_rows = float(self.output_shapes[output_layer_index][1])
                     output_cols = float(self.output_shapes[output_layer_index][2])
                     for b in layer_mapping_boxes[output_layer_index]:
-                        class_index, cx, cy, w, h = b['class_index'], b['cx'], b['cy'], b['w'], b['h']
+                        class_indexes, cx, cy, w, h = b['class_indexes'], b['cx'], b['cy'], b['w'], b['h']
                         center_row = int(cy * output_rows)
                         center_col = int(cx * output_cols)
                         y[output_layer_index][center_row][center_col][0] = 1.0
@@ -311,7 +354,8 @@ class GeneratorFlow(tf.keras.utils.Sequence):
                         y[output_layer_index][center_row][center_col][2] = (cy - float(center_row) / output_rows) / (1.0 / output_rows)
                         y[output_layer_index][center_row][center_col][3] = w
                         y[output_layer_index][center_row][center_col][4] = h
-                        y[output_layer_index][center_row][center_col][int(class_index + 5)] = 1.0
+                        for class_index in class_indexes:
+                            y[output_layer_index][center_row][center_col][class_index+5] = 1.0
 
                 for i in range(self.num_output_layers):
                     batch_y[i].append(y[i])

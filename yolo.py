@@ -122,11 +122,28 @@ class Yolo:
             input_shape=input_shape,
             output_shape=self.__model.output_shape,
             batch_size=batch_size)
+        self.__train_data_generator_for_check = YoloDataGenerator(
+            image_paths=self.__train_image_paths,
+            input_shape=input_shape,
+            output_shape=self.__model.output_shape,
+            batch_size=self.__get_zero_mod_batch_size(len(self.__train_image_paths)))
+        self.__validation_data_generator_for_check = YoloDataGenerator(
+            image_paths=self.__validation_image_paths,
+            input_shape=input_shape,
+            output_shape=self.__model.output_shape,
+            batch_size=self.__get_zero_mod_batch_size(len(self.__validation_image_paths)))
 
         self.__live_loss_plot = None
         if self.__mixed_float16_training:
             mixed_precision.set_policy(mixed_precision.Policy('mixed_float16'))
         os.makedirs(f'{self.__checkpoints}', exist_ok=True)
+
+    def __get_zero_mod_batch_size(self, size):
+        zero_mod_batch_size = 1
+        for i in range(1, 256, 1):
+            if size % i == 0:
+                zero_mod_batch_size = i
+        return zero_mod_batch_size
 
     def __get_optimizer(self, optimizer_str):
         if optimizer_str == 'sgd':
@@ -148,11 +165,16 @@ class Yolo:
         print(f'\ntrain on {len(self.__train_image_paths)} samples.')
         print(f'validate on {len(self.__validation_image_paths)} samples.')
 
-        print('start training')
-        self.__train_data_generator.flow().cluster_wh()
-        self.__train_data_generator.flow().print_not_trained_box_count()
+        # self.__train_data_generator_for_check.flow().cluster_wh()
+        print('\ninvalid label check in train data...')
+        self.__train_data_generator_for_check.flow().check_invalid_label()
+        print('\ninvalid label check in validation data...')
+        self.__validation_data_generator_for_check.flow().check_invalid_label()
+        print('\nnot assigned bbox counting in train tensor...')
+        self.__train_data_generator_for_check.flow().print_not_trained_box_count()
         self.__check_forwarding_time()
 
+        print('\nstart training')
         if self.__burn_in > 0 and self.__optimizer == 'sgd':
             self.__burn_in_train()
         if self.__curriculum_iterations > 0:
@@ -171,11 +193,11 @@ class Yolo:
         forward_count = 32
         noise = np.random.uniform(0.0, 1.0, mul * forward_count)
         noise = np.asarray(noise).reshape((forward_count, 1) + input_shape).astype('float32')
-        with tf.device('/gpu:0'):
+        with tf.device('/cpu:0'):
             graph_forward(self.__model, noise[0])  # only first forward is slow, skip first forward in check forwarding time
 
         print('\nstart test forward for checking forwarding time.')
-        with tf.device('/gpu:0'):
+        with tf.device('/cpu:0'):
             st = perf_counter()
             for i in range(forward_count):
                 graph_forward(self.__model, noise[i])
@@ -278,7 +300,7 @@ class Yolo:
                     elif iteration_count == int(self.__iterations * 0.9):
                         lr *= 0.1
                     # if iteration_count > int(self.__iterations * 0.8) and iteration_count % 10000 == 0:
-                    if iteration_count % 2000 == 0:
+                    if iteration_count % 1000 == 0:
                         self.__save_model(iteration_count=iteration_count, use_map_checkpoint=self.__map_checkpoint)
                     elif iteration_count % 20000 == 0:
                         self.__save_model(iteration_count=iteration_count, use_map_checkpoint=False)
