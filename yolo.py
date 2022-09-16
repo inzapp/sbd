@@ -181,10 +181,13 @@ class Yolo:
             self.__curriculum_train()
         self.__train()
 
-    def __check_forwarding_time(self):
-        @tf.function
-        def graph_forward(model, x):
+    @staticmethod
+    @tf.function
+    def graph_forward(model, x, device='gpu'):
+        with tf.device(f'/{device}:0'):
             return model(x, training=False)
+
+    def __check_forwarding_time(self):
         input_shape = self.__model.input_shape[1:]
         mul = 1
         for val in input_shape:
@@ -193,15 +196,13 @@ class Yolo:
         forward_count = 32
         noise = np.random.uniform(0.0, 1.0, mul * forward_count)
         noise = np.asarray(noise).reshape((forward_count, 1) + input_shape).astype('float32')
-        with tf.device('/cpu:0'):
-            graph_forward(self.__model, noise[0])  # only first forward is slow, skip first forward in check forwarding time
+        Yolo.graph_forward(self.__model, noise[0], device='cpu')  # only first forward is slow, skip first forward in check forwarding time
 
         print('\nstart test forward for checking forwarding time.')
-        with tf.device('/cpu:0'):
-            st = perf_counter()
-            for i in range(forward_count):
-                graph_forward(self.__model, noise[i])
-            et = perf_counter()
+        st = perf_counter()
+        for i in range(forward_count):
+            Yolo.graph_forward(self.__model, noise[i], device='cpu')
+        et = perf_counter()
         forwarding_time = ((et - st) / forward_count) * 1000.0
         print(f'model forwarding time : {forwarding_time:.2f} ms')
 
@@ -423,7 +424,8 @@ class Yolo:
             img = cv2.resize(img, (input_shape[1], input_shape[0]), interpolation=cv2.INTER_LINEAR)
 
         x = np.asarray(img).reshape((1,) + input_shape).astype('float32') / 255.0
-        y = model.predict_on_batch(x=x)
+        y = Yolo.graph_forward(model, x, device='gpu')
+        y = np.asarray(y)
         if num_output_layers == 1:
             y = [y]
 
