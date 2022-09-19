@@ -39,13 +39,14 @@ class Model:
         # return self.lpd_20ms()
         # return self.lpd_11ms()
         # return self.lpd_crop()
-        return self.lcd()
+        # return self.lcd()
         # return self.lightnet_alpha()
         # return self.lightnet_beta()
         # return self.lightnet_gamma()
         # return self.lightnet_delta()
         # return self.lightnet_epsilon()
         # return self.lightnet_zeta(csp=False)
+        return self.lightnet_eta()
         # return self.vgg_16()
         # return self.darknet_19()
 
@@ -349,7 +350,8 @@ class Model:
         x = self.conv_block(x, 256, 1, bn=False, activation='relu')
         f2 = x
 
-        x = self.path_aggregation_network(f0, f1, f2, 128, 256, 256, bn=False, activation='relu')
+        # x = self.path_aggregation_network(f0, f1, f2, 128, 256, 256, bn=False, activation='relu')
+        x = self.feature_pyramid_network([f0, f1, f2], [128, 256, 256], bn=False, activation='relu')
         y = self.detection_layer(x)
         return tf.keras.models.Model(input_layer, y)
 
@@ -432,6 +434,65 @@ class Model:
             x = self.conv_block(x, 512, 3, bn=False, activation='relu')
         y3 = self.detection_layer(x, 'sbd_output_3')
         return tf.keras.models.Model(input_layer, [y1, y2, y3])
+
+    def lightnet_eta(self):
+        input_layer = tf.keras.layers.Input(shape=self.input_shape)
+        x = self.conv_block(input_layer, 16, 3, bn=True, activation='relu')
+        x = self.max_pool(x)
+
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.conv_block(x, 32, 3, bn=False, activation='relu')
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.conv_block(x, 32, 3, bn=False, activation='relu')
+        x = self.max_pool(x)
+
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.conv_block(x, 64, 3, bn=False, activation='relu')
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.conv_block(x, 64, 3, bn=False, activation='relu')
+        x = self.max_pool(x)
+
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.conv_block(x, 128, 3, bn=False, activation='relu')
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.conv_block(x, 128, 3, bn=False, activation='relu')
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.conv_block(x, 128, 3, bn=False, activation='relu')
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.conv_block(x, 128, 3, bn=False, activation='relu')
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.conv_block(x, 128, 3, bn=False, activation='relu')
+        f0 = x
+        x = self.max_pool(x)
+
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.conv_block(x, 256, 3, bn=False, activation='relu')
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.conv_block(x, 256, 3, bn=False, activation='relu')
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.conv_block(x, 256, 3, bn=False, activation='relu')
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.conv_block(x, 256, 3, bn=False, activation='relu')
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.conv_block(x, 256, 3, bn=False, activation='relu')
+        f1 = x
+        x = self.max_pool(x)
+
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.conv_block(x, 512, 3, bn=False, activation='relu')
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.conv_block(x, 512, 3, bn=False, activation='relu')
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.conv_block(x, 512, 3, bn=False, activation='relu')
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.conv_block(x, 512, 3, bn=False, activation='relu')
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.conv_block(x, 512, 3, bn=False, activation='relu')
+        f2 = x
+        
+        x = self.feature_pyramid_network([f0, f1, f2], [128, 256, 512], bn=False, activation='relu')
+        y = self.detection_layer(x, 'sbd_output')
+        return tf.keras.models.Model(input_layer, y)
 
     def lcd(self):
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
