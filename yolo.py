@@ -487,6 +487,7 @@ class Yolo:
         padding = 5
         if len(img.shape) == 2:
             img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+        img_height, img_width = img.shape[:2]
         for i, cur_res in enumerate(yolo_res):
             class_index = int(cur_res['class'])
             if len(self.__class_names) == 0:
@@ -496,7 +497,11 @@ class Yolo:
             label_background_color = colors[class_index]
             label_font_color = (0, 0, 0) if self.__is_background_color_bright(label_background_color) else (255, 255, 255)
             label_text = f'{class_name}({int(cur_res["confidence"] * 100.0)}%)'
-            x1, y1, x2, y2 = cur_res['bbox']
+            x1, y1, x2, y2 = cur_res['bbox_norm']
+            x1 = int(x1 * img_width)
+            y1 = int(y1 * img_height)
+            x2 = int(x2 * img_width)
+            y2 = int(y2 * img_height)
             l_size, baseline = cv2.getTextSize(label_text, cv2.FONT_HERSHEY_DUPLEX, font_scale, 1)
             bw, bh = l_size[0] + (padding * 2), l_size[1] + (padding * 2) + baseline
             cv2.rectangle(img, (x1, y1), (x2, y2), label_background_color, 1)
@@ -515,12 +520,11 @@ class Yolo:
                 break
             x = cv2.cvtColor(raw, cv2.COLOR_BGR2GRAY) if self.__model.input.shape[-1] == 1 else raw.copy()
             res = Yolo.predict(self.__model, x, device='gpu')
+            # raw = cv2.resize(raw, (640, 384), interpolation=cv2.INTER_AREA)
             boxed_image = self.bounding_box(raw, res)
             cv2.imshow('video', boxed_image)
             key = cv2.waitKey(1)
-            if key == ord('q'):
-                break
-            elif key == 27:
+            if key == 27:
                 exit(0)
         cap.release()
         cv2.destroyAllWindows()
