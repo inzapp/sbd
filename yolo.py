@@ -301,10 +301,8 @@ class Yolo:
                     elif iteration_count == int(self.__iterations * 0.9):
                         lr *= 0.1
                     # if iteration_count > int(self.__iterations * 0.8) and iteration_count % 10000 == 0:
-                    if iteration_count % 1000 == 0:
+                    if iteration_count % 2000 == 0:
                         self.__save_model(iteration_count=iteration_count, use_map_checkpoint=self.__map_checkpoint)
-                    elif iteration_count % 20000 == 0:
-                        self.__save_model(iteration_count=iteration_count, use_map_checkpoint=False)
                 elif self.__lr_policy == 'constant':
                     if iteration_count % 10000 == 0:
                         self.__save_model(iteration_count=iteration_count, use_map_checkpoint=True)
@@ -402,7 +400,7 @@ class Yolo:
         return y_pred
 
     @staticmethod
-    def predict(model, img, confidence_threshold=0.25, nms_iou_threshold=0.45):
+    def predict(model, img, confidence_threshold=0.25, nms_iou_threshold=0.45, device='cpu'):
         """
         Detect object in image using trained YOLO model.
         :param img: (width, height, channel) formatted image to be predicted.
@@ -424,7 +422,7 @@ class Yolo:
             img = cv2.resize(img, (input_shape[1], input_shape[0]), interpolation=cv2.INTER_LINEAR)
 
         x = np.asarray(img).reshape((1,) + input_shape).astype('float32') / 255.0
-        y = Yolo.graph_forward(model, x, device='gpu')
+        y = Yolo.graph_forward(model, x, device=device)
         y = np.asarray(y)
         if num_output_layers == 1:
             y = [y]
@@ -449,7 +447,7 @@ class Yolo:
                             class_index = cur_channel_index
                             class_score = cur_class_score
 
-                    confidence = confidence * class_score
+                    confidence *= class_score
                     if confidence < confidence_threshold:
                         continue
 
@@ -459,10 +457,10 @@ class Yolo:
                     h = y[layer_index][0][i][j][4]
                     cx_f, cy_f, w, h = np.clip(np.array([cx_f, cy_f, w, h]), 0.0, 1.0)
 
-                    x_min_f = cx_f - w / 2.0
-                    y_min_f = cy_f - h / 2.0
-                    x_max_f = cx_f + w / 2.0
-                    y_max_f = cy_f + h / 2.0
+                    x_min_f = cx_f - (w * 0.5)
+                    y_min_f = cy_f - (h * 0.5)
+                    x_max_f = cx_f + (w * 0.5)
+                    y_max_f = cy_f + (h * 0.5)
                     x_min_f, y_min_f, x_max_f, y_max_f = np.clip(np.array([x_min_f, y_min_f, x_max_f, y_max_f]), 0.0, 1.0)
                     x_min = int(x_min_f * raw_width)
                     y_min = int(y_min_f * raw_height)
@@ -510,57 +508,52 @@ class Yolo:
         """
         Equal to the evaluate function. video path is required.
         """
-        with tf.device('/cpu:0'):
-            cap = cv2.VideoCapture(video_path)
-            while True:
-                frame_exist, raw = cap.read()
-                if not frame_exist:
-                    break
-                x = cv2.cvtColor(raw, cv2.COLOR_BGR2GRAY) if self.__model.input.shape[-1] == 1 else raw.copy()
-                res = Yolo.predict(self.__model, x)
-                boxed_image = self.bounding_box(raw, res)
-                cv2.imshow('video', boxed_image)
-                key = cv2.waitKey(1)
-                if key == ord('q'):
-                    break
-                elif key == 27:
-                    exit(0)
-            cap.release()
-            cv2.destroyAllWindows()
+        cap = cv2.VideoCapture(video_path)
+        while True:
+            frame_exist, raw = cap.read()
+            if not frame_exist:
+                break
+            x = cv2.cvtColor(raw, cv2.COLOR_BGR2GRAY) if self.__model.input.shape[-1] == 1 else raw.copy()
+            res = Yolo.predict(self.__model, x, device='gpu')
+            boxed_image = self.bounding_box(raw, res)
+            cv2.imshow('video', boxed_image)
+            key = cv2.waitKey(1)
+            if key == ord('q'):
+                break
+            elif key == 27:
+                exit(0)
+        cap.release()
+        cv2.destroyAllWindows()
 
-    def predict_images(self, image_paths):
+    def predict_images(self, dataset='validation', device='cpu'):
         """
         Equal to the evaluate function. image paths are required.
         """
-        if type(image_paths) is str:
-            image_paths = glob(image_paths)
-        image_paths = natsort.natsorted(image_paths)
-        with tf.device('/cpu:0'):
-            for path in image_paths:
-                raw = cv2.imdecode(np.fromfile(path, np.uint8), cv2.IMREAD_COLOR)
-                x = cv2.cvtColor(raw, cv2.COLOR_BGR2GRAY) if self.__model.input.shape[-1] == 1 else raw.copy()
-                res = Yolo.predict(self.__model, x)
-                boxed_image = self.bounding_box(raw, res)
-                cv2.imshow('res', boxed_image)
-                key = cv2.waitKey(0)
-                if key == 27:
-                    break
+        if dataset == 'train':
+            image_paths = self.__train_image_paths
+        elif dataset == 'validation':
+            image_paths = self.__validation_image_paths
+        else:
+            print(f'invalid dataset : [{dataset}]')
+            return
+        for path in image_paths:
+            raw = cv2.imdecode(np.fromfile(path, np.uint8), cv2.IMREAD_COLOR)
+            x = cv2.cvtColor(raw, cv2.COLOR_BGR2GRAY) if self.__model.input.shape[-1] == 1 else raw.copy()
+            res = Yolo.predict(self.__model, x, device=device)
+            boxed_image = self.bounding_box(raw, res)
+            cv2.imshow('res', boxed_image)
+            key = cv2.waitKey(0)
+            if key == 27:
+                break
 
-    def predict_train_images(self):
-        with tf.device('/cpu:0'):
-            self.predict_images(self.__train_image_paths)
-
-    def predict_validation_images(self):
-        with tf.device('/cpu:0'):
-            self.predict_images(self.__validation_image_paths)
-
-    def map_train_images(self):
-        with tf.device('/gpu:0'):
+    def calculate_map(self, dataset='validation'):
+        if dataset == 'train':
             calc_mean_average_precision(self.__model, self.__train_image_paths)
-
-    def map_validation_images(self):
-        with tf.device('/gpu:0'):
+        elif dataset == 'validation':
             calc_mean_average_precision(self.__model, self.__validation_image_paths)
+        else:
+            print(f'invalid dataset : [{dataset}]')
+            return
 
     def __training_view_function(self):
         """
