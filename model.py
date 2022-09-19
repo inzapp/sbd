@@ -555,10 +555,15 @@ class Model:
         y3 = self.detection_layer(x, 'sbd_output_3')
         return tf.keras.models.Model(input_layer, [y1, y2, y3])
 
-    def attention_block(self, x, channel, bn, reduction_ratio=8):
+    def spatial_attention_block(self, x, bn, activation, reduction_ratio=16):
         input_layer = x
-        x = self.conv_block(x, channel // reduction_ratio, 1, bn=bn, activation='relu')
-        x = self.conv_block(x, channel, 1, bn=bn, activation='sigmoid')
+        input_filters = input_layer.shape[-1]
+        reduced_channel = input_filters // reduction_ratio
+        if reduced_channel < 4:
+            reduced_channel = 4
+        x = self.conv_block(x, reduced_channel, 1, bn=bn, activation=activation)
+        x = self.conv_block(x, reduced_channel, 7, bn=bn, activation=activation)
+        x = self.conv_block(x, input_filters, 1, bn=bn, activation='sigmoid')
         return tf.keras.layers.Multiply()([x, input_layer])
 
     def path_aggregation_network(self, l_high, l_medium, l_low, f_high, f_medium, f_low, bn, activation, return_layers=False):
