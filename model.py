@@ -40,13 +40,14 @@ class Model:
         # return self.lpd_11ms()
         # return self.lpd_crop()
         # return self.lcd()
+        return self.lightnet_illusion()
         # return self.lightnet_alpha()
         # return self.lightnet_beta()
         # return self.lightnet_gamma()
         # return self.lightnet_delta()
         # return self.lightnet_epsilon()
         # return self.lightnet_zeta()
-        return self.lightnet_eta()
+        # return self.lightnet_eta()
         # return self.vgg_16()
         # return self.darknet_19()
 
@@ -67,18 +68,15 @@ class Model:
 
         x = self.drop_filter(x, self.drop_rate)
         x = self.csp_block(x, 128, 3, first_depth_n_convs=1, second_depth_n_convs=4, bn=False, activation='relu', inner_activation='relu')
-        x = self.conv_block(x, 128, 1, bn=False, activation='relu')
         x = self.max_pool(x)
         f1 = x
 
         x = self.drop_filter(x, self.drop_rate)
         x = self.csp_block(x, 256, 3, first_depth_n_convs=1, second_depth_n_convs=4, bn=False, activation='relu', inner_activation='relu')
-        x = self.conv_block(x, 256, 1, bn=False, activation='relu')
         x = self.max_pool(x)
 
         x = self.drop_filter(x, self.drop_rate)
         x = self.csp_block(x, 512, 3, first_depth_n_convs=1, second_depth_n_convs=4, bn=False, activation='relu', inner_activation='relu')
-        x = self.conv_block(x, 512, 1, bn=False, activation='relu')
         f2 = x
 
         x = self.feature_pyramid_network([f1, f2], 256, bn=False, activation='relu')
@@ -160,6 +158,38 @@ class Model:
 
         x = self.feature_pyramid_network([f1, f2], [128, 256], bn=False, activation='relu')
         y = self.detection_layer(x, 'sbd_output')
+        return tf.keras.models.Model(input_layer, y)
+
+    def lightnet_illusion(self):
+        input_layer = tf.keras.layers.Input(shape=self.input_shape)
+        x = input_layer
+        x = self.conv_block(x, 16, 3, bn=False, activation='relu')
+        x = self.max_pool(x)
+
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.conv_block(x, 32, 3, bn=False, activation='relu')
+        x = self.max_pool(x)
+
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.conv_block(x, 64, 3, bn=False, activation='relu')
+        x = self.max_pool(x)
+
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.illusion_block(x, 128, depth=3, bn=False, activation='relu')
+        f0 = x
+        x = self.max_pool(x)
+
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.illusion_block(x, 256, depth=4, bn=False, activation='relu')
+        f1 = x
+        x = self.max_pool(x)
+
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.illusion_block(x, 512, depth=5, bn=False, activation='relu')
+        f2 = x
+
+        x = self.feature_pyramid_network([f0, f1, f2], [128, 256, 512], bn=False, activation='relu')
+        y = self.detection_layer(x)
         return tf.keras.models.Model(input_layer, y)
 
     def lightnet_alpha(self):
@@ -337,13 +367,11 @@ class Model:
 
         x = self.drop_filter(x, self.drop_rate)
         x = self.csp_block(x, 512, 3, first_depth_n_convs=1, second_depth_n_convs=4, bn=False, activation='relu', inner_activation='relu')
-        x = self.conv_block(x, 512, 1, bn=False, activation='relu')
         f1 = x
         x = self.max_pool(x)
 
         x = self.drop_filter(x, self.drop_rate)
         x = self.csp_block(x, 512, 3, first_depth_n_convs=1, second_depth_n_convs=4, bn=False, activation='relu', inner_activation='relu')
-        x = self.conv_block(x, 512, 1, bn=False, activation='relu')
         f2 = x
 
         x = self.feature_pyramid_network([f0, f1, f2], [128, 256, 256], bn=False, activation='relu')
@@ -631,6 +659,18 @@ class Model:
                 ret.append(x)
         return list(reversed(ret)) if return_layers else x
 
+    def illusion_block(self, x, filters, depth=1, bn=False, activation='none'):
+        if depth == 0:
+            return x
+        h_filters = max(filters // 2, 16)
+        x_0 = self.conv_block(x, h_filters, 1, bn=bn, activation=activation)
+        x_1 = self.conv_block(x, h_filters, 3, bn=bn, activation=activation)
+        x_2 = self.conv_block(x, h_filters, 5, bn=bn, activation=activation)
+        x_1 = self.illusion_block(x_1, h_filters, depth=depth-1, bn=bn, activation=activation)
+        x = self.concat([x_0, x_1, x_2])
+        x = self.conv_block(x, filters, 1, bn=bn, activation=activation)
+        return x
+
     def csp_block(self, x, filters, kernel_size, first_depth_n_convs=1, second_depth_n_convs=2, bn=False, activation='none', inner_activation='none'):
         half_filters = filters / 2
         x_0 = self.conv_block(x, half_filters, 1, bn=False, activation='none')
@@ -652,6 +692,7 @@ class Model:
         if bn:
             x = self.bn(x)
         x = self.activation(x, activation=activation)
+        x = self.conv_block(x, filters, 1, bn=bn, activation=activation)
         return x
 
     def conv_block(self, x, filters, kernel_size, bn=True, activation='none'):
