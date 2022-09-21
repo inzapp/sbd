@@ -202,11 +202,14 @@ def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_th
         scores = np.array(scores)
         tp_ious = np.array(tp_ious)
 
-        tp_confidence = np.sum(scores * true_positives) / np.sum(true_positives)
+        if np.sum(true_positives) == 0.0:
+            tp_confidence = 0.0
+        else:
+            tp_confidence = np.sum(scores * true_positives) / np.sum(true_positives)
         class_confidence_sum += tp_confidence
 
         # mask
-        tp_mask= np.where(scores > confidence_threshold_for_f1, 1, 0)
+        tp_mask = np.where(scores > confidence_threshold_for_f1, 1, 0)
         true_positives_over_threshold = true_positives * tp_mask
         false_positives_over_threshold = false_positives * tp_mask
         tp_ious *= tp_mask
