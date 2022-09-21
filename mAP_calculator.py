@@ -65,7 +65,7 @@ def make_predictions_csv(model, image_paths):
     csv = 'ImageID,LabelName,Conf,XMin,XMax,YMin,YMax\n'
     for path in tqdm(image_paths):
         img, _, _ = GeneratorFlow.load_img(path, model.input_shape[-1])
-        boxes = Yolo.predict(model, img, confidence_threshold=0.005, nms_iou_threshold=g_nms_iou_threshold)
+        boxes = Yolo.predict(model, img, confidence_threshold=0.005, nms_iou_threshold=g_nms_iou_threshold, device='gpu')
         csv += convert_boxes_to_csv_lines(path, boxes)
     with open(g_predictions_csv_name, 'wt') as f:
         f.writelines(csv)
