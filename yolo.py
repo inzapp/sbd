@@ -18,11 +18,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 import os
-import random
 from glob import glob
 from time import time, sleep, perf_counter
 
-import natsort
 import numpy as np
 import tensorflow as tf
 from cv2 import cv2
@@ -165,14 +163,15 @@ class Yolo:
         print(f'\ntrain on {len(self.__train_image_paths)} samples.')
         print(f'validate on {len(self.__validation_image_paths)} samples.')
 
-        # self.__train_data_generator_for_check.flow().cluster_wh()
         print('\ninvalid label check in train data...')
         self.__train_data_generator_for_check.flow().check_invalid_label()
         print('\ninvalid label check in validation data...')
         self.__validation_data_generator_for_check.flow().check_invalid_label()
         print('\nnot assigned bbox counting in train tensor...')
         self.__train_data_generator_for_check.flow().print_not_trained_box_count()
-        self.__check_forwarding_time()
+        print('\nstart test forward for checking forwarding time.')
+        self.__check_forwarding_time(device='cpu')
+        self.__check_forwarding_time(device='gpu')
 
         print('\nstart training')
         if self.__burn_in > 0 and self.__optimizer == 'sgd':
@@ -183,11 +182,11 @@ class Yolo:
 
     @staticmethod
     @tf.function
-    def graph_forward(model, x, device='gpu'):
+    def graph_forward(model, x, device):
         with tf.device(f'/{device}:0'):
             return model(x, training=False)
 
-    def __check_forwarding_time(self):
+    def __check_forwarding_time(self, device):
         input_shape = self.__model.input_shape[1:]
         mul = 1
         for val in input_shape:
@@ -196,15 +195,14 @@ class Yolo:
         forward_count = 32
         noise = np.random.uniform(0.0, 1.0, mul * forward_count)
         noise = np.asarray(noise).reshape((forward_count, 1) + input_shape).astype('float32')
-        Yolo.graph_forward(self.__model, noise[0], device='cpu')  # only first forward is slow, skip first forward in check forwarding time
+        Yolo.graph_forward(self.__model, noise[0], device=device)  # only first forward is slow, skip first forward in check forwarding time
 
-        print('\nstart test forward for checking forwarding time.')
         st = perf_counter()
         for i in range(forward_count):
-            Yolo.graph_forward(self.__model, noise[i], device='cpu')
+            Yolo.graph_forward(self.__model, noise[i], device=device)
         et = perf_counter()
         forwarding_time = ((et - st) / forward_count) * 1000.0
-        print(f'model forwarding time : {forwarding_time:.2f} ms')
+        print(f'model forwarding time with {device} : {forwarding_time:.2f} ms')
 
     def __burn_in_train(self):
         @tf.function
@@ -301,7 +299,7 @@ class Yolo:
                     elif iteration_count == int(self.__iterations * 0.9):
                         lr *= 0.1
                     # if iteration_count > int(self.__iterations * 0.8) and iteration_count % 10000 == 0:
-                    if iteration_count % 2000 == 0:
+                    if iteration_count % 1000 == 0:
                         self.__save_model(iteration_count=iteration_count, use_map_checkpoint=self.__map_checkpoint)
                 elif self.__lr_policy == 'constant':
                     if iteration_count % 10000 == 0:
@@ -374,7 +372,7 @@ class Yolo:
                 all_image_paths[i] = all_image_paths[i].replace('\n', '')
         else:
             all_image_paths = glob(f'{image_path}/**/*.jpg', recursive=True)
-        random.shuffle(all_image_paths)
+        np.random.shuffle(all_image_paths)
         num_train_images = int(len(all_image_paths) * (1.0 - validation_split))
         image_paths = all_image_paths[:num_train_images]
         validation_image_paths = all_image_paths[num_train_images:]
@@ -400,7 +398,7 @@ class Yolo:
         return y_pred
 
     @staticmethod
-    def predict(model, img, confidence_threshold=0.25, nms_iou_threshold=0.45, device='cpu'):
+    def predict(model, img, device, confidence_threshold=0.25, nms_iou_threshold=0.45):
         """
         Detect object in image using trained YOLO model.
         :param img: (width, height, channel) formatted image to be predicted.
@@ -423,7 +421,7 @@ class Yolo:
 
         x = np.asarray(img).reshape((1,) + input_shape).astype('float32') / 255.0
         y = Yolo.graph_forward(model, x, device=device)
-        y = np.asarray(y)
+        y = np.array(y)
         if num_output_layers == 1:
             y = [y]
 
@@ -529,7 +527,7 @@ class Yolo:
         cap.release()
         cv2.destroyAllWindows()
 
-    def predict_images(self, dataset='validation', device='cpu'):
+    def predict_images(self, dataset='validation'):
         """
         Equal to the evaluate function. image paths are required.
         """
@@ -543,7 +541,7 @@ class Yolo:
         for path in image_paths:
             raw = cv2.imdecode(np.fromfile(path, np.uint8), cv2.IMREAD_COLOR)
             x = cv2.cvtColor(raw, cv2.COLOR_BGR2GRAY) if self.__model.input.shape[-1] == 1 else raw.copy()
-            res = Yolo.predict(self.__model, x, device=device)
+            res = Yolo.predict(self.__model, x, device='cpu')
             boxed_image = self.bounding_box(raw, res)
             cv2.imshow('res', boxed_image)
             key = cv2.waitKey(0)
@@ -567,11 +565,11 @@ class Yolo:
         if cur_time - self.__live_view_previous_time > 0.5:
             self.__live_view_previous_time = cur_time
             if np.random.uniform() > 0.5:
-                img_path = random.choice(self.__train_image_paths)
+                img_path = np.random.choice(self.__train_image_paths)
             else:
-                img_path = random.choice(self.__validation_image_paths)
+                img_path = np.random.choice(self.__validation_image_paths)
             img, raw_bgr, _ = GeneratorFlow.load_img(img_path, self.__model.input.shape[-1])
-            res = Yolo.predict(self.__model, img)
+            res = Yolo.predict(self.__model, img, device='cpu')
             boxed_image = self.bounding_box(raw_bgr, res)
             cv2.imshow('training view', boxed_image)
             cv2.waitKey(1)
