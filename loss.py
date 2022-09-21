@@ -169,11 +169,12 @@ def __classification_loss(y_true, y_pred):
     if K.equal(obj_count, K.constant(0.0)):
         return 0.0
 
-    class_true = K.clip(y_true[:, :, :, 5:], 0.1, 0.9)
+    # class_true = K.clip(y_true[:, :, :, 5:], 0.1, 0.9)
+    class_true = y_true[:, :, :, 5:]
     class_pred = y_pred[:, :, :, 5:]
     # loss = K.binary_crossentropy(class_true, class_pred)
-    #loss = focal_loss(class_true, class_pred)
-    loss = __abs_log_loss(class_true, class_pred)
+    loss = focal_loss(class_true, class_pred)
+    # loss = __abs_log_loss(class_true, class_pred)
     loss = K.sum(loss, axis=-1) * obj_true
     loss = K.mean(loss, axis=0)
     loss = K.sum(loss)
@@ -192,7 +193,7 @@ def confidence_with_bbox_loss(y_true, y_pred):
     return __confidence_loss(y_true, y_pred) + __bbox_loss(y_true, y_pred)
 
 
-def yolo_loss(y_true, y_pred, ignore_threshold=0.8):
+def yolo_loss(y_true, y_pred, ignore_threshold=0.9):
     y_pred = convert_to_tensor_v2(y_pred)
     y_true = K.cast(y_true, y_pred.dtype)
     return __confidence_loss(y_true, y_pred) + __bbox_loss(y_true, y_pred, ignore_threshold=ignore_threshold) + __classification_loss(y_true, y_pred)
