@@ -36,11 +36,11 @@ class Model:
         return cls.__new__(cls)
 
     def build(self):
-        # return self.lpd_20ms()
+        return self.lpd_24ms()
         # return self.lpd_11ms()
         # return self.lpd_crop()
         # return self.lcd()
-        return self.lightnet_illusion()
+        # return self.lightnet_illusion()
         # return self.lightnet_alpha()
         # return self.lightnet_beta()
         # return self.lightnet_gamma()
@@ -51,7 +51,7 @@ class Model:
         # return self.vgg_16()
         # return self.darknet_19()
 
-    def lpd_20ms(self):  # (352, 640, 1) cv2 20ms (16x 8x)
+    def lpd_24ms(self):  # (352, 640, 1) cv2 20ms (16x 8x)
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
         x = self.conv_block(input_layer, 16, 3, bn=False, activation='relu')
         x = self.max_pool(x)
