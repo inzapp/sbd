@@ -245,7 +245,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
             box_count_in_real_data += len(self.convert_to_boxes(lines))
 
         y_true_obj_count = 0  # obj count in train tensor(y_true)
-        for batch_x, batch_y in tqdm(self):
+        for _, batch_y in tqdm(self):
             if self.num_output_layers == 1:
                 batch_y = [batch_y]
             max_area = 0
@@ -287,7 +287,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
                     'w': w,
                     'h': h,
                     'area': w * h})
-            else:
+            elif not class_index in boxes[same_box_index]['class_indexes']:
                 boxes[same_box_index]['class_indexes'].append(class_index)
         return boxes
 
