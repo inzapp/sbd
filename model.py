@@ -36,8 +36,8 @@ class Model:
         return cls.__new__(cls)
 
     def build(self):
-        return self.lpd_24ms()
-        # return self.lpd_11ms()
+        # return self.lpd_v1()
+        return self.lpd_v2()
         # return self.lpd_crop()
         # return self.lcd()
         # return self.lightnet_illusion()
@@ -51,39 +51,8 @@ class Model:
         # return self.vgg_16()
         # return self.darknet_19()
 
-    def lpd_24ms(self):  # (352, 640, 1) cv2 20ms (16x 8x)
-        input_layer = tf.keras.layers.Input(shape=self.input_shape)
-        x = self.conv_block(input_layer, 16, 3, bn=False, activation='relu')
-        x = self.max_pool(x)
-
-        x = self.drop_filter(x, self.drop_rate)
-        x = self.conv_block(x, 16, 3, bn=False, activation='relu')
-        x = self.max_pool(x)
-
-        x = self.drop_filter(x, self.drop_rate)
-        x = self.conv_block(x, 32, 3, bn=False, activation='relu')
-        x = self.drop_filter(x, self.drop_rate)
-        x = self.conv_block(x, 32, 3, bn=False, activation='relu')
-        x = self.max_pool(x)
-
-        x = self.drop_filter(x, self.drop_rate)
-        x = self.csp_block(x, 128, 3, first_depth_n_convs=1, second_depth_n_convs=4, bn=False, activation='relu', inner_activation='relu')
-        x = self.max_pool(x)
-        f1 = x
-
-        x = self.drop_filter(x, self.drop_rate)
-        x = self.csp_block(x, 256, 3, first_depth_n_convs=1, second_depth_n_convs=4, bn=False, activation='relu', inner_activation='relu')
-        x = self.max_pool(x)
-
-        x = self.drop_filter(x, self.drop_rate)
-        x = self.csp_block(x, 512, 3, first_depth_n_convs=1, second_depth_n_convs=4, bn=False, activation='relu', inner_activation='relu')
-        f2 = x
-
-        x = self.feature_pyramid_network([f1, f2], 256, bn=False, activation='relu')
-        y = self.detection_layer(x)
-        return tf.keras.models.Model(input_layer, y)
-
-    def lpd_11ms(self):  # (368, 640, 1) cv2 12ms
+    # (368, 640, 1) cv2 12ms
+    def lpd_v1(self):
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
         x = self.conv_block(input_layer, 8, 3, bn=False, activation='relu')
         x = self.max_pool(x)
@@ -122,7 +91,41 @@ class Model:
         y = self.detection_layer(x, 'sbd_output')
         return tf.keras.models.Model(input_layer, y)
 
-    def lpd_crop(self):  # (320, 320, 1) cv2 12ms
+    # (352, 640, 1) cv2 20ms (16x 8x)
+    def lpd_v2(self):
+        input_layer = tf.keras.layers.Input(shape=self.input_shape)
+        x = self.conv_block(input_layer, 16, 3, bn=False, activation='relu')
+        x = self.max_pool(x)
+
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.conv_block(x, 16, 3, bn=False, activation='relu')
+        x = self.max_pool(x)
+
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.conv_block(x, 32, 3, bn=False, activation='relu')
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.conv_block(x, 32, 3, bn=False, activation='relu')
+        x = self.max_pool(x)
+
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.csp_block(x, 128, 3, first_depth_n_convs=1, second_depth_n_convs=4, bn=False, activation='relu', inner_activation='relu')
+        x = self.max_pool(x)
+        f1 = x
+
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.csp_block(x, 256, 3, first_depth_n_convs=1, second_depth_n_convs=4, bn=False, activation='relu', inner_activation='relu')
+        x = self.max_pool(x)
+
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.csp_block(x, 512, 3, first_depth_n_convs=1, second_depth_n_convs=4, bn=False, activation='relu', inner_activation='relu')
+        f2 = x
+
+        x = self.feature_pyramid_network([f1, f2], 256, bn=False, activation='relu')
+        y = self.detection_layer(x)
+        return tf.keras.models.Model(input_layer, y)
+
+    # (320, 320, 1) cv2 12ms
+    def lpd_crop(self):
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
         x = self.conv_block(input_layer, 8, 3, bn=False, activation='relu')
         x = self.max_pool(x)
