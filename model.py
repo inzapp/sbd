@@ -538,52 +538,6 @@ class Model:
         x = self.conv_block(x, input_filters, 1, bn=bn, activation='sigmoid')
         return tf.keras.layers.Multiply()([x, input_layer])
 
-    def path_aggregation_network(self, l_high, l_medium, l_low, f_high, f_medium, f_low, bn, activation, return_layers=False):
-        ret = []
-        x = l_low
-        if f_low != f_medium:
-            x = self.conv_block(x, f_medium, 1, bn=bn, activation=activation)
-        x = self.upsampling(x)
-        x = self.add([x, l_medium])
-        x = self.conv_block(x, f_medium, 3, bn=bn, activation=activation)
-        l_medium = x
-
-        if f_medium != f_high:
-            x = self.conv_block(x, f_high, 1, bn=bn, activation=activation)
-        x = self.upsampling(x)
-        x = self.add([x, l_high])
-        x = self.conv_block(x, f_high, 3, bn=bn, activation=activation)
-        l_high = x
-
-        x = self.max_pool(x)
-        if f_high != f_medium:
-            x = self.conv_block(x, f_medium, 1, bn=bn, activation=activation)
-        x = self.add([x, l_medium])
-        x = self.conv_block(x, f_medium, 3, bn=bn, activation=activation)
-        l_medium = x
-
-        x = self.max_pool(x)
-        if f_medium != f_low:
-            x = self.conv_block(x, f_low, 1, bn=bn, activation=activation)
-        x = self.add([x, l_low])
-        x = self.conv_block(x, f_low, 3, bn=bn, activation=activation)
-        l_low = x
-
-        if f_low != f_medium:
-            x = self.conv_block(x, f_medium, 1, bn=bn, activation=activation)
-        x = self.upsampling(x)
-        x = self.add([x, l_medium])
-        x = self.conv_block(x, f_medium, 3, bn=bn, activation=activation)
-        l_medium = x
-
-        if f_medium != f_high:
-            x = self.conv_block(x, f_high, 1, bn=bn, activation=activation)
-        x = self.upsampling(x)
-        x = self.add([x, l_high])
-        x = self.conv_block(x, f_high, 3, bn=bn, activation=activation)
-        l_high = x
-        return l_high, l_medium, l_low if return_layers else x
-
     def feature_pyramid_network(self, layers, filters, bn, activation, return_layers=False):
         layers = list(reversed(layers))
         if type(filters) == list:
