@@ -62,9 +62,13 @@ def make_predictions_csv(model, image_paths):
     from yolo import Yolo
     print('predictions csv creation start')
     global g_predictions_csv_name
+    fs = []
+    pool = ThreadPoolExecutor(8)
+    for path in image_paths:
+        fs.append(pool.submit(GeneratorFlow.load_img, path, model.input_shape[-1]))
     csv = 'ImageID,LabelName,Conf,XMin,XMax,YMin,YMax\n'
-    for path in tqdm(image_paths):
-        img, _, _ = GeneratorFlow.load_img(path, model.input_shape[-1])
+    for f in tqdm(fs):
+        img, _, path = f.result()
         boxes = Yolo.predict(model, img, confidence_threshold=0.005, nms_iou_threshold=g_nms_iou_threshold, device='gpu')
         csv += convert_boxes_to_csv_lines(path, boxes)
     with open(g_predictions_csv_name, 'wt') as f:
