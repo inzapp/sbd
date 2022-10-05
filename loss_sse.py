@@ -22,7 +22,7 @@ from keras import backend as K
 from tensorflow.python.framework.ops import convert_to_tensor_v2
 
 
-def __confidence_loss(y_true, y_pred, ignore_threshold=1.0):
+def __confidence_loss(y_true, y_pred, ignore_threshold):
     obj_true = y_true[:, :, :, 0]
     obj_pred = y_pred[:, :, :, 0]
     loss = tf.square(obj_true - obj_pred) * tf.where(obj_true * obj_pred > ignore_threshold, 0.0, 1.0)
@@ -59,19 +59,19 @@ def __classification_loss(y_true, y_pred):
     return loss
 
 
-def confidence_loss(y_true, y_pred):
+def confidence_loss(y_true, y_pred, ignore_threshold):
     y_pred = convert_to_tensor_v2(y_pred)
     y_true = K.cast(y_true, y_pred.dtype)
     return __confidence_loss(y_true, y_pred)
 
 
-def confidence_with_bbox_loss(y_true, y_pred):
+def confidence_with_bbox_loss(y_true, y_pred, ignore_threshold):
     y_pred = convert_to_tensor_v2(y_pred)
     y_true = K.cast(y_true, y_pred.dtype)
     return __confidence_loss(y_true, y_pred) + __bbox_loss(y_true, y_pred)
 
 
-def yolo_loss(y_true, y_pred, ignore_threshold=1.0):
+def yolo_loss(y_true, y_pred, ignore_threshold):
     y_pred = convert_to_tensor_v2(y_pred)
     y_true = K.cast(y_true, y_pred.dtype)
-    return __confidence_loss(y_true, y_pred, ignore_threshold=1.0) + __bbox_loss(y_true, y_pred) + __classification_loss(y_true, y_pred)
+    return __confidence_loss(y_true, y_pred, ignore_threshold) + __bbox_loss(y_true, y_pred) + __classification_loss(y_true, y_pred)

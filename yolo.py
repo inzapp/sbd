@@ -171,86 +171,76 @@ class Yolo:
             self.__curriculum_train()
         self.__train()
 
-    def __burn_in_train(self):
-        @tf.function
-        def compute_gradient(model, optimizer, x, y_true, lr, num_output_layers, ignore_threshold):
-            with tf.GradientTape() as tape:
-                loss = 0.0
-                y_pred = model(x, training=True)
-                if num_output_layers == 1:
-                    loss = yolo_loss(y_true, y_pred, ignore_threshold=ignore_threshold)
-                else:
-                    for i in range(num_output_layers):
-                        loss += yolo_loss(y_true[i], y_pred[i], ignore_threshold=ignore_threshold)
-                lr = tf.cast(lr, dtype=loss.dtype)
-                gradients = tape.gradient(loss * lr, model.trainable_variables)
-            optimizer.apply_gradients(zip(gradients, model.trainable_variables))
-            return loss
+    def compute_gradient(self, model, optimizer, loss_function, x, y_true, lr, num_output_layers, is_sgd, ignore_threshold):
+        with tf.GradientTape() as tape:
+            loss = 0.0
+            y_pred = model(x, training=True)
+            if num_output_layers == 1:
+                loss = loss_function(y_true, y_pred, ignore_threshold)
+            else:
+                for i in range(num_output_layers):
+                    loss += loss_function(y_true[i], y_pred[i], ignore_threshold)
+            reduced_loss = loss * tf.cast(lr, dtype=loss.dtype) if is_sgd else loss
+            gradients = tape.gradient(reduced_loss, model.trainable_variables)
+        optimizer.apply_gradients(zip(gradients, model.trainable_variables))
+        return loss
 
+    def __refresh_model_and_optimizer(self, model):
+        sleep(0.2)
+        model.save('model.h5', include_optimizer=False)
+        sleep(0.2)
+        model = tf.keras.models.load_model('model.h5', compile=False)
         optimizer = self.__get_optimizer('sgd')
+        return model, optimizer
+
+    def __burn_in_train(self):
         iteration_count = 0
-        lr = 0.0
+        compute_gradient_tf = tf.function(self.compute_gradient)
+        self.__model, optimizer = self.__refresh_model_and_optimizer(self.__model)
+        b_sgd = optimizer.__str__().lower().find('sgd') > -1
         while True:
             for batch_x, batch_y in self.__train_data_generator.flow():
                 iteration_count += 1
                 lr = self.__update_burn_in_lr(iteration_count=iteration_count)
-                loss = compute_gradient(self.__model, optimizer, batch_x, batch_y, tf.constant(lr), self.num_output_layers, self.__ignore_threshold)
+                loss = compute_gradient_tf(self.__model, optimizer, yolo_loss, batch_x, batch_y, tf.constant(lr), self.num_output_layers, b_sgd, self.__ignore_threshold)
                 print(f'\r[burn in iteration count : {iteration_count:6d}] loss => {loss:.4f}', end='')
                 if iteration_count == self.__burn_in:
                     print()
                     return
 
     def __curriculum_train(self):
-        sleep(0.5)
-        self.__model = tf.keras.models.load_model('model.h5', compile=False)
-        tmp_model_name = f'{time()}.h5'
-        for loss in [confidence_loss, confidence_with_bbox_loss]:
-            optimizer = self.__get_optimizer(self.__optimizer)
-            self.__model.compile(optimizer=optimizer, loss=loss)
+        loss_functions = [confidence_loss, confidence_with_bbox_loss]
+        compute_gradients = [tf.function(self.compute_gradient) for _ in range(len(loss_functions))]
+        for i in range(len(loss_functions)):
             iteration_count = 0
+            self.__model, optimizer = self.__refresh_model_and_optimizer(self.__model)
+            b_sgd = optimizer.__str__().lower().find('sgd') > -1
             while True:
                 for batch_x, batch_y in self.__train_data_generator.flow():
                     iteration_count += 1
-                    logs = self.__model.train_on_batch(batch_x, batch_y, return_dict=True)
-                    print(f'\r[curriculum iteration count : {iteration_count:6d}] loss => {logs["loss"]:.4f}', end='')
+                    loss = compute_gradients[i](self.__model, optimizer, loss_functions[i], batch_x, batch_y, tf.constant(self.__lr), self.num_output_layers, b_sgd, self.__ignore_threshold)
+                    print(f'\r[curriculum iteration count : {iteration_count:6d}] loss => {loss:.4f}', end='')
                     if iteration_count == self.__curriculum_iterations:
                         print()
-                        self.__model.save(tmp_model_name, include_optimizer=False)
-                        sleep(0.5)
-                        self.__model = tf.keras.models.load_model(tmp_model_name, compile=False)
-                        sleep(0.5)
-                        os.remove(tmp_model_name)
-                        return
+                        break
+                if iteration_count == self.__curriculum_iterations:
+                    break
 
     def __train(self):
-        @tf.function
-        def compute_gradient(model, optimizer, x, y_true, lr, num_output_layers, is_sgd):
-            with tf.GradientTape() as tape:
-                loss = 0.0
-                y_pred = model(x, training=True)
-                if num_output_layers == 1:
-                    loss = yolo_loss(y_true, y_pred)
-                else:
-                    for i in range(num_output_layers):
-                        loss += yolo_loss(y_true[i], y_pred[i])
-                if is_sgd:
-                    loss *= tf.cast(lr, dtype=loss.dtype)
-                gradients = tape.gradient(loss, model.trainable_variables)
-            optimizer.apply_gradients(zip(gradients, model.trainable_variables))
-            return loss
-
         lr = self.__lr
         cosine_save = True
         iteration_count = 0
+        self.__model, _ = self.__refresh_model_and_optimizer(self.__model)
         optimizer = self.__get_optimizer(self.__optimizer)
         b_sgd = optimizer.__str__().lower().find('sgd') > -1
+        compute_gradient_tf = tf.function(self.compute_gradient)
         while True:
             for batch_x, batch_y in self.__train_data_generator.flow():
                 if self.__lr_policy == 'cosine':
                     lr = self.__update_cosine_lr()
                     if lr == self.__lr:
                         cosine_save = True
-                loss = compute_gradient(self.__model, optimizer, batch_x, batch_y, tf.constant(lr), self.num_output_layers, b_sgd)
+                loss = compute_gradient_tf(self.__model, optimizer, yolo_loss, batch_x, batch_y, tf.constant(lr), self.num_output_layers, b_sgd, self.__ignore_threshold)
                 iteration_count += 1
                 print(f'\r[iteration count : {iteration_count:6d}] loss => {loss:.4f}', end='')
                 if self.__training_view:

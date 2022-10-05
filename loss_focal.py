@@ -144,7 +144,7 @@ def __bbox_loss_xywh(y_true, y_pred):
     return xy_loss + wh_loss
 
 
-def __bbox_loss_iou(y_true, y_pred, ignore_threshold=0.8):
+def __bbox_loss_iou(y_true, y_pred, ignore_threshold):
     obj_true = y_true[:, :, :, 0]
     obj_count = K.cast_to_floatx(K.sum(obj_true))
     if K.equal(obj_count, K.constant(0.0)):
@@ -158,7 +158,7 @@ def __bbox_loss_iou(y_true, y_pred, ignore_threshold=0.8):
     return loss + diou_factor
 
 
-def __bbox_loss(y_true, y_pred, ignore_threshold=0.8):
+def __bbox_loss(y_true, y_pred, ignore_threshold):
     return __bbox_loss_iou(y_true, y_pred, ignore_threshold=ignore_threshold)
     # return __bbox_loss_xywh(y_true, y_pred)
 
@@ -181,19 +181,19 @@ def __classification_loss(y_true, y_pred):
     return loss
 
 
-def confidence_loss(y_true, y_pred):
+def confidence_loss(y_true, y_pred, ignore_threshold):
     y_pred = convert_to_tensor_v2(y_pred)
     y_true = K.cast(y_true, y_pred.dtype)
     return __confidence_loss(y_true, y_pred)
 
 
-def confidence_with_bbox_loss(y_true, y_pred):
+def confidence_with_bbox_loss(y_true, y_pred, ignore_threshold):
     y_pred = convert_to_tensor_v2(y_pred)
     y_true = K.cast(y_true, y_pred.dtype)
-    return __confidence_loss(y_true, y_pred) + __bbox_loss(y_true, y_pred)
+    return __confidence_loss(y_true, y_pred) + __bbox_loss(y_true, y_pred, ignore_threshold)
 
 
-def yolo_loss(y_true, y_pred, ignore_threshold=0.9):
+def yolo_loss(y_true, y_pred, ignore_threshold):
     y_pred = convert_to_tensor_v2(y_pred)
     y_true = K.cast(y_true, y_pred.dtype)
-    return __confidence_loss(y_true, y_pred) + __bbox_loss(y_true, y_pred, ignore_threshold=ignore_threshold) + __classification_loss(y_true, y_pred)
+    return __confidence_loss(y_true, y_pred) + __bbox_loss(y_true, y_pred, ignore_threshold) + __classification_loss(y_true, y_pred)
