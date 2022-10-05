@@ -26,6 +26,7 @@ import tensorflow as tf
 from cv2 import cv2
 from tensorflow.keras.mixed_precision import experimental as mixed_precision
 
+from util import ModelUtil
 from box_colors import colors
 from generator import YoloDataGenerator
 from generator import GeneratorFlow
@@ -53,7 +54,6 @@ class Yolo:
                  optimizer='sgd',
                  lr_policy='step',
                  use_layers=[],
-                 test_only=False,
                  training_view=False,
                  map_checkpoint=False,
                  mixed_float16_training=False,
@@ -80,9 +80,12 @@ class Yolo:
         self.max_map, self.max_f1, self.max_map_iou_hm, self.max_f1_iou_hm = 0.0, 0.0, 0.0, 0.0
         Yolo.g_use_layers = use_layers
 
+        self.__input_width, self.__input_height, self.__input_channel = ModelUtil.get_width_height_channel_from_input_shape(input_shape)
+        ModelUtil.set_channel_order(input_shape)
+
         if class_names_file_path == '':
             class_names_file_path = f'{train_image_path}/classes.txt'
-        self.__class_names, self.__num_classes = self.__init_class_names(class_names_file_path)
+        self.__class_names, self.__num_classes = ModelUtil.init_class_names(class_names_file_path)
 
         if pretrained_model_path != '':
             if os.path.exists(pretrained_model_path) and os.path.isfile(pretrained_model_path):
@@ -101,14 +104,8 @@ class Yolo:
         else:
             self.num_output_layers = len(self.__model.output_shape)
 
-        if validation_image_path != '':
-            self.__train_image_paths, _ = self.__init_image_paths(train_image_path)
-            self.__validation_image_paths, _ = self.__init_image_paths(validation_image_path)
-        elif validation_split > 0.0:
-            self.__train_image_paths, self.__validation_image_paths = self.__init_image_paths(train_image_path, validation_split=validation_split)
-
-        if test_only:
-            return
+        self.__train_image_paths = ModelUtil.init_image_paths(train_image_path)
+        self.__validation_image_paths = ModelUtil.init_image_paths(validation_image_path)
 
         self.__train_data_generator = YoloDataGenerator(
             image_paths=self.__train_image_paths,
@@ -124,24 +121,17 @@ class Yolo:
             image_paths=self.__train_image_paths,
             input_shape=input_shape,
             output_shape=self.__model.output_shape,
-            batch_size=self.__get_zero_mod_batch_size(len(self.__train_image_paths)))
+            batch_size=ModelUtil.get_zero_mod_batch_size(len(self.__train_image_paths)))
         self.__validation_data_generator_for_check = YoloDataGenerator(
             image_paths=self.__validation_image_paths,
             input_shape=input_shape,
             output_shape=self.__model.output_shape,
-            batch_size=self.__get_zero_mod_batch_size(len(self.__validation_image_paths)))
+            batch_size=ModelUtil.get_zero_mod_batch_size(len(self.__validation_image_paths)))
 
         self.__live_loss_plot = None
         if self.__mixed_float16_training:
             mixed_precision.set_policy(mixed_precision.Policy('mixed_float16'))
         os.makedirs(f'{self.__checkpoints}', exist_ok=True)
-
-    def __get_zero_mod_batch_size(self, size):
-        zero_mod_batch_size = 1
-        for i in range(1, 256, 1):
-            if size % i == 0:
-                zero_mod_batch_size = i
-        return zero_mod_batch_size
 
     def __get_optimizer(self, optimizer_str):
         if optimizer_str == 'sgd':
@@ -156,9 +146,9 @@ class Yolo:
         return optimizer
 
     def fit(self):
-        gflops = get_flops(self.__model, batch_size=1) * 1e-9
-        self.__model.summary()
+        gflops = ModelUtil.get_gflops(self.__model)
         self.__model.save('model.h5', include_optimizer=False)
+        self.__model.summary()
         print(f'\nGFLOPs : {gflops:.4f}')
         print(f'\ntrain on {len(self.__train_image_paths)} samples.')
         print(f'validate on {len(self.__validation_image_paths)} samples.')
@@ -170,8 +160,9 @@ class Yolo:
         print('\nnot assigned bbox counting in train tensor...')
         self.__train_data_generator_for_check.flow().print_not_trained_box_count()
         print('\nstart test forward for checking forwarding time.')
-        self.__check_forwarding_time(device='cpu')
-        self.__check_forwarding_time(device='gpu')
+        ModelUtil.check_forwarding_time(self.__model, device='gpu')
+        if tf.keras.backend.image_data_format() == 'channels_last':  # default max pool 2d layer is run on gpu only
+            ModelUtil.check_forwarding_time(self.__model, device='cpu')
 
         print('\nstart training')
         if self.__burn_in > 0 and self.__optimizer == 'sgd':
@@ -179,30 +170,6 @@ class Yolo:
         if self.__curriculum_iterations > 0:
             self.__curriculum_train()
         self.__train()
-
-    @staticmethod
-    @tf.function
-    def graph_forward(model, x, device):
-        with tf.device(f'/{device}:0'):
-            return model(x, training=False)
-
-    def __check_forwarding_time(self, device):
-        input_shape = self.__model.input_shape[1:]
-        mul = 1
-        for val in input_shape:
-            mul *= val
-
-        forward_count = 32
-        noise = np.random.uniform(0.0, 1.0, mul * forward_count)
-        noise = np.asarray(noise).reshape((forward_count, 1) + input_shape).astype('float32')
-        Yolo.graph_forward(self.__model, noise[0], device=device)  # only first forward is slow, skip first forward in check forwarding time
-
-        st = perf_counter()
-        for i in range(forward_count):
-            Yolo.graph_forward(self.__model, noise[i], device=device)
-        et = perf_counter()
-        forwarding_time = ((et - st) / forward_count) * 1000.0
-        print(f'model forwarding time with {device} : {forwarding_time:.2f} ms')
 
     def __burn_in_train(self):
         @tf.function
@@ -298,8 +265,9 @@ class Yolo:
                         lr *= 0.1
                     elif iteration_count == int(self.__iterations * 0.9):
                         lr *= 0.1
-                    # if iteration_count > int(self.__iterations * 0.8) and iteration_count % 10000 == 0:
-                    if iteration_count % 1000 == 0:
+                    if iteration_count > int(self.__iterations * 0.5) and iteration_count % 10000 == 0:
+                    # if iteration_count % 1000 == 0:
+                    # if iteration_count == self.__iterations:
                         self.__save_model(iteration_count=iteration_count, use_map_checkpoint=self.__map_checkpoint)
                 elif self.__lr_policy == 'constant':
                     if iteration_count % 10000 == 0:
@@ -326,31 +294,6 @@ class Yolo:
         self.__cycle_step += 1
         return lr
 
-    @staticmethod
-    def __harmonic_mean(a, b):
-        return (2.0 * a * b) / (a + b + 1e-5)
-
-    def __is_better_than_before(self, mean_ap, f1_score, tp_iou):
-        better_than_before = False
-        if mean_ap > self.max_map:
-            self.max_map = mean_ap
-            better_than_before = True
-
-        if f1_score > self.max_f1:
-            self.max_f1 = f1_score
-            better_than_before = True
-
-        map_iou_hm = self.__harmonic_mean(mean_ap, tp_iou)
-        if map_iou_hm > self.max_map_iou_hm:
-            self.max_map_iou_hm = map_iou_hm
-            better_than_before = True
-
-        f1_iou_hm = self.__harmonic_mean(f1_score, tp_iou)
-        if f1_iou_hm > self.max_f1_iou_hm:
-            self.max_f1_iou_hm = f1_iou_hm
-            better_than_before = True
-        return better_than_before
-
     def __save_model(self, iteration_count, use_map_checkpoint=True):
         print('\n')
         ul = str(Yolo.g_use_layers) if len(Yolo.g_use_layers) > 0 else 'all'
@@ -364,40 +307,6 @@ class Yolo:
             self.__model.save(f'{self.__checkpoints}/model_{iteration_count}_iter_ul_{ul}.h5', include_optimizer=False)
 
     @staticmethod
-    def __init_image_paths(image_path, validation_split=0.0):
-        if image_path.endswith('.txt'):
-            with open(image_path, 'rt') as f:
-                all_image_paths = f.readlines()
-            for i in range(len(all_image_paths)):
-                all_image_paths[i] = all_image_paths[i].replace('\n', '')
-        else:
-            all_image_paths = glob(f'{image_path}/**/*.jpg', recursive=True)
-        np.random.shuffle(all_image_paths)
-        num_train_images = int(len(all_image_paths) * (1.0 - validation_split))
-        image_paths = all_image_paths[:num_train_images]
-        validation_image_paths = all_image_paths[num_train_images:]
-        return image_paths, validation_image_paths
-
-    @staticmethod
-    def nms(y_pred, nms_iou_threshold):
-        y_pred = sorted(y_pred, key=lambda x: x['confidence'], reverse=True)
-        for i in range(len(y_pred) - 1):
-            if y_pred[i]['discard']:
-                continue
-            for j in range(i + 1, len(y_pred)):
-                if y_pred[j]['discard'] or y_pred[i]['class'] != y_pred[j]['class']:
-                    continue
-                if Yolo.iou(y_pred[i]['bbox'], y_pred[j]['bbox']) > nms_iou_threshold:
-                    y_pred[j]['discard'] = True
-
-        y_pred_copy = np.asarray(y_pred.copy())
-        y_pred = []
-        for i in range(len(y_pred_copy)):
-            if not y_pred_copy[i]['discard']:
-                y_pred.append(y_pred_copy[i])
-        return y_pred
-
-    @staticmethod
     def predict(model, img, device, confidence_threshold=0.25, nms_iou_threshold=0.45):
         """
         Detect object in image using trained YOLO model.
@@ -409,23 +318,23 @@ class Yolo:
         """
         raw_width, raw_height = img.shape[1], img.shape[0]
         input_shape = model.input_shape[1:]
+        input_width, input_height, _ = ModelUtil.get_width_height_channel_from_input_shape(input_shape)
         output_shape = model.output_shape
         num_output_layers = 1 if type(output_shape) == tuple else len(output_shape)
         if num_output_layers == 1:
             output_shape = [output_shape]
 
-        if img.shape[1] > input_shape[1] or img.shape[0] > input_shape[0]:
-            img = cv2.resize(img, (input_shape[1], input_shape[0]), interpolation=cv2.INTER_AREA)
-        else:
-            img = cv2.resize(img, (input_shape[1], input_shape[0]), interpolation=cv2.INTER_LINEAR)
-
-        x = np.asarray(img).reshape((1,) + input_shape).astype('float32') / 255.0
-        y = Yolo.graph_forward(model, x, device=device)
+        img = ModelUtil.resize(img, (input_width, input_height))
+        x = ModelUtil.preprocess(img)
+        x = np.reshape(x, (1,) + input_shape)
+        y = ModelUtil.graph_forward(model, x, device)
         y = np.array(y)
         if num_output_layers == 1:
             y = [y]
 
+        bbox_count = 0
         y_pred = []
+        image_data_format = tf.keras.backend.image_data_format()
         for layer_index in range(num_output_layers):
             if len(Yolo.g_use_layers) > 0 and layer_index not in Yolo.g_use_layers:
                 continue
@@ -449,10 +358,16 @@ class Yolo:
                     if confidence < confidence_threshold:
                         continue
 
-                    cx_f = (j + y[layer_index][0][i][j][1]) / float(cols)
-                    cy_f = (i + y[layer_index][0][i][j][2]) / float(rows)
-                    w = y[layer_index][0][i][j][3]
-                    h = y[layer_index][0][i][j][4]
+                    if image_data_format == 'channels_first':
+                        cx_f = (j + y[layer_index][0][1][i][j]) / float(cols)
+                        cy_f = (i + y[layer_index][0][2][i][j]) / float(rows)
+                        w = y[layer_index][0][3][i][j]
+                        h = y[layer_index][0][4][i][j]
+                    else:
+                        cx_f = (j + y[layer_index][0][i][j][1]) / float(cols)
+                        cy_f = (i + y[layer_index][0][i][j][2]) / float(rows)
+                        w = y[layer_index][0][i][j][3]
+                        h = y[layer_index][0][i][j][4]
                     cx_f, cy_f, w, h = np.clip(np.array([cx_f, cy_f, w, h]), 0.0, 1.0)
 
                     x_min_f = cx_f - (w * 0.5)
@@ -470,8 +385,9 @@ class Yolo:
                         'bbox_norm': [x_min_f, y_min_f, x_max_f, y_max_f],
                         'class': class_index - 5,
                         'discard': False})
-
-        y_pred = Yolo.nms(y_pred, nms_iou_threshold)
+                    bbox_count += 1
+        y_pred = ModelUtil.nms(y_pred, nms_iou_threshold)
+        # print(f' detected box count, nms box count : [{bbox_count}, {len(y_pred)}]')
         return y_pred
 
     def bounding_box(self, img, yolo_res, font_scale=0.4):
@@ -493,7 +409,7 @@ class Yolo:
             else:
                 class_name = self.__class_names[class_index].replace('\n', '')
             label_background_color = colors[class_index]
-            label_font_color = (0, 0, 0) if self.__is_background_color_bright(label_background_color) else (255, 255, 255)
+            label_font_color = (0, 0, 0) if ModelUtil.is_background_color_bright(label_background_color) else (255, 255, 255)
             label_text = f'{class_name}({int(cur_res["confidence"] * 100.0)}%)'
             x1, y1, x2, y2 = cur_res['bbox_norm']
             x1 = int(x1 * img_width)
@@ -518,7 +434,7 @@ class Yolo:
                 break
             x = cv2.cvtColor(raw, cv2.COLOR_BGR2GRAY) if self.__model.input.shape[-1] == 1 else raw.copy()
             res = Yolo.predict(self.__model, x, device='gpu')
-            # raw = cv2.resize(raw, (640, 384), interpolation=cv2.INTER_AREA)
+            # raw = cv2.resize(raw, (1280, 720), interpolation=cv2.INTER_AREA)
             boxed_image = self.bounding_box(raw, res)
             cv2.imshow('video', boxed_image)
             key = cv2.waitKey(1)
@@ -531,6 +447,7 @@ class Yolo:
         """
         Equal to the evaluate function. image paths are required.
         """
+        input_width, input_height, input_channel = ModelUtil.get_width_height_channel_from_input_shape(self.__model.input_shape[1:])
         if dataset == 'train':
             image_paths = self.__train_image_paths
         elif dataset == 'validation':
@@ -539,10 +456,9 @@ class Yolo:
             print(f'invalid dataset : [{dataset}]')
             return
         for path in image_paths:
-            raw = cv2.imdecode(np.fromfile(path, np.uint8), cv2.IMREAD_COLOR)
-            x = cv2.cvtColor(raw, cv2.COLOR_BGR2GRAY) if self.__model.input.shape[-1] == 1 else raw.copy()
-            res = Yolo.predict(self.__model, x, device='cpu')
-            boxed_image = self.bounding_box(raw, res)
+            raw, raw_bgr, _ = ModelUtil.load_img(path, input_channel)
+            res = Yolo.predict(self.__model, raw, device='cpu')
+            boxed_image = self.bounding_box(raw_bgr, res)
             cv2.imshow('res', boxed_image)
             key = cv2.waitKey(0)
             if key == 27:
@@ -568,56 +484,9 @@ class Yolo:
                 img_path = np.random.choice(self.__train_image_paths)
             else:
                 img_path = np.random.choice(self.__validation_image_paths)
-            img, raw_bgr, _ = GeneratorFlow.load_img(img_path, self.__model.input.shape[-1])
-            res = Yolo.predict(self.__model, img, device='cpu')
-            boxed_image = self.bounding_box(raw_bgr, res)
+            img, raw_bgr, _ = ModelUtil.load_img(img_path, self.__input_channel)
+            boxes = Yolo.predict(self.__model, img, device='cpu')
+            boxed_image = self.bounding_box(raw_bgr, boxes)
             cv2.imshow('training view', boxed_image)
             cv2.waitKey(1)
 
-    @staticmethod
-    def __init_class_names(class_names_file_path):
-        """
-        Init YOLO label from classes.txt file.
-        If the class file is not found, it is replaced by class index and displayed.
-        """
-        if os.path.exists(class_names_file_path) and os.path.isfile(class_names_file_path):
-            with open(class_names_file_path, 'rt') as classes_file:
-                class_names = [s.replace('\n', '') for s in classes_file.readlines()]
-                num_classes = len(class_names)
-            return class_names, num_classes
-        else:
-            print(f'class names file dose not exist : {class_names_file_path}')
-            print('class file does not exist. the class name will be replaced by the class index and displayed.')
-            return [], 0
-
-    @staticmethod
-    def iou(a, b):
-        """
-        Intersection of union function.
-        :param a: [x_min, y_min, x_max, y_max] format box a
-        :param b: [x_min, y_min, x_max, y_max] format box b
-        """
-        a_x_min, a_y_min, a_x_max, a_y_max = a
-        b_x_min, b_y_min, b_x_max, b_y_max = b
-        intersection_width = min(a_x_max, b_x_max) - max(a_x_min, b_x_min)
-        intersection_height = min(a_y_max, b_y_max) - max(a_y_min, b_y_min)
-        if intersection_width <= 0 or intersection_height <= 0:
-            return 0.0
-        intersection_area = intersection_width * intersection_height
-        a_area = abs((a_x_max - a_x_min) * (a_y_max - a_y_min))
-        b_area = abs((b_x_max - b_x_min) * (b_y_max - b_y_min))
-        union_area = a_area + b_area - intersection_area
-        return intersection_area / (float(union_area) + 1e-5)
-
-    @staticmethod
-    def __is_background_color_bright(bgr):
-        """
-        Determine whether the color is bright or not.
-        :param bgr: bgr scalar tuple.
-        :return: true if parameter color is bright and false if not.
-        """
-        tmp = np.zeros((1, 1), dtype=np.uint8)
-        tmp = cv2.cvtColor(tmp, cv2.COLOR_GRAY2BGR)
-        cv2.rectangle(tmp, (0, 0), (1, 1), bgr, -1)
-        tmp = cv2.cvtColor(tmp, cv2.COLOR_BGR2GRAY)
-        return tmp[0][0] > 127

@@ -26,6 +26,7 @@ import cv2
 import numpy as np
 import tensorflow as tf
 from tqdm import tqdm
+from util import ModelUtil
 
 
 class YoloDataGenerator:
@@ -66,14 +67,12 @@ class GeneratorFlow(tf.keras.utils.Sequence):
     def __init__(self, image_paths, input_shape, output_shapes, batch_size):
         self.image_paths = image_paths
         self.input_shape = input_shape
+        self.input_width, self.input_height, self.input_channel = ModelUtil.get_width_height_channel_from_input_shape(input_shape)
         self.output_shapes = output_shapes
         if type(self.output_shapes) == tuple:
             self.output_shapes = [self.output_shapes]
         self.batch_size = batch_size
         self.num_output_layers = len(self.output_shapes)
-        self.virtual_anchor_ws = []
-        self.virtual_anchor_hs = []
-        self.label_obj_count = 0  # obj count in real label txt
         self.batch_index = 0
         self.pool = ThreadPoolExecutor(8)
 
@@ -87,62 +86,6 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         Number of total iteration.
         """
         return int(np.floor(len(self.image_paths) / self.batch_size))
-
-    @staticmethod
-    def iou(a, b):
-        """
-        Intersection of union function.
-        :param a: [x_min, y_min, x_max, y_max] format box a
-        :param b: [x_min, y_min, x_max, y_max] format box b
-        """
-        a_x_min, a_y_min, a_x_max, a_y_max = a
-        b_x_min, b_y_min, b_x_max, b_y_max = b
-        intersection_width = min(a_x_max, b_x_max) - max(a_x_min, b_x_min)
-        intersection_height = min(a_y_max, b_y_max) - max(a_y_min, b_y_min)
-        if intersection_width <= 0 or intersection_height <= 0:
-            return 0.0
-        intersection_area = intersection_width * intersection_height
-        a_area = abs((a_x_max - a_x_min) * (a_y_max - a_y_min))
-        b_area = abs((b_x_max - b_x_min) * (b_y_max - b_y_min))
-        union_area = a_area + b_area - intersection_area
-        return intersection_area / (float(union_area) + 1e-5)
-
-    def get_iou_with_index(self, box, virtual_anchor_ws, virtual_anchor_hs):
-        cx, cy, w, h = box
-        x1 = cx - w * 0.5
-        y1 = cy - h * 0.5
-        x2 = cx + w * 0.5
-        y2 = cy + h * 0.5
-        true_box = [x1, y1, x2, y2]
-        res = []
-        for i in range(self.num_output_layers):
-            x1 = cx - virtual_anchor_ws[i] * 0.5
-            y1 = cy - virtual_anchor_hs[i] * 0.5
-            x2 = cx + virtual_anchor_ws[i] * 0.5
-            y2 = cy + virtual_anchor_hs[i] * 0.5
-            virtual_anchor_box = [x1, y1, x2, y2]
-            iou = self.iou(true_box, virtual_anchor_box)
-            res.append({'index': i, 'iou': iou})
-        return sorted(res, key=lambda x: x['iou'], reverse=True)
-
-    def get_layer_indexes_threshold(self, box, virtual_anchor_ws, virtual_anchor_hs, threshold=0.6):
-        res = self.get_iou_with_index(box, virtual_anchor_ws, virtual_anchor_hs)
-        indexes = [res[0]['index']]
-        for i in range(1, len(res)):
-            if res[i]['iou'] >= threshold:
-                indexes.append(res[i]['index'])
-        return indexes
-
-    def get_best_iou_with_index(self, box, virtual_anchor_ws, virtual_anchor_hs):
-        res = self.get_iou_with_index(box, virtual_anchor_ws, virtual_anchor_hs)
-        return res[0]['iou'], res[0]['index']
-
-    def iou_with_clustered_wh(self, boxes, virtual_anchor_ws, virtual_anchor_hs):
-        iou_sum = 0.0
-        for true_box in boxes:
-            best_iou, _ = self.get_best_iou_with_index(true_box, virtual_anchor_ws, virtual_anchor_hs)
-            iou_sum += best_iou
-        return iou_sum / float(len(boxes))
 
     def load_label(self, label_path):
         with open(label_path, 'rt') as f:
@@ -162,56 +105,6 @@ class GeneratorFlow(tf.keras.utils.Sequence):
             return True
         else:
             return False
-
-    def cluster_wh(self):
-        fs = []
-        for path in self.image_paths:
-            fs.append(self.pool.submit(self.load_label, f'{path[:-4]}.txt'))
-
-        num_classes = self.output_shapes[0][-1] - 5
-        invalid_label_paths = set()
-        boxes, ws, hs = [], [], []
-        for f in tqdm(fs):
-            lines, label_path = f.result()
-            for line in lines:
-                class_index, cx, cy, w, h = list(map(float, line.split()))
-                if self.is_invalid_label(label_path, [class_index, cx, cy, w, h], num_classes):
-                    invalid_label_paths.add(label_path)
-                boxes.append([cx, cy, w, h])
-                ws.append(w)
-                hs.append(h)
-                self.label_obj_count += 1
-
-        if len(invalid_label_paths) > 0:
-            for label_path in list(invalid_label_paths):
-                print(label_path)
-            print('\ninvalid label exists fix it')
-            exit(0)
-
-        ws = np.asarray(ws).reshape((1, len(ws))).astype('float32')
-        hs = np.asarray(hs).reshape((1, len(hs))).astype('float32')
-
-        num_cluster = self.num_output_layers
-        criteria = (cv2.TERM_CRITERIA_EPS, -1, 1e-4)
-        width_compactness, _, ws = cv2.kmeans(ws, num_cluster, None, criteria, 100, cv2.KMEANS_RANDOM_CENTERS)
-        width_compactness /= float(len(self.image_paths))
-        print(f'width compactness  : {width_compactness:.7f}')
-        height_compactness, _, hs = cv2.kmeans(hs, num_cluster, None, criteria, 100, cv2.KMEANS_RANDOM_CENTERS)
-        height_compactness /= float(len(self.image_paths))
-        print(f'height compactness : {height_compactness:.7f}')
-
-        self.virtual_anchor_ws = sorted(np.asarray(ws).reshape(-1))
-        self.virtual_anchor_hs = sorted(np.asarray(hs).reshape(-1))
-
-        print(f'clustered  widths : ', end='')
-        for i in range(num_cluster):
-            print(f'{self.virtual_anchor_ws[i]:.4f} ', end='')
-        print()
-        print(f'clustered heights : ', end='')
-        for i in range(num_cluster):
-            print(f'{self.virtual_anchor_hs[i]:.4f} ', end='')
-        print()
-        print(f'avg IoU : {self.iou_with_clustered_wh(boxes, self.virtual_anchor_ws, self.virtual_anchor_hs):.4f}')
 
     def check_invalid_label(self):
         num_classes = self.output_shapes[0][-1] - 5
@@ -244,6 +137,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
             lines, _ = f.result()
             box_count_in_real_data += len(self.convert_to_boxes(lines))
 
+        image_data_format = tf.keras.backend.image_data_format()
         y_true_obj_count = 0  # obj count in train tensor(y_true)
         for _, batch_y in tqdm(self):
             if self.num_output_layers == 1:
@@ -251,11 +145,17 @@ class GeneratorFlow(tf.keras.utils.Sequence):
             max_area = 0
             max_area_index = -1
             for i in range(self.num_output_layers):
-                cur_area = np.sum(np.ones_like(batch_y[i][:, :, :, 0], dtype=np.float32))
+                if image_data_format == 'channels_first':
+                    cur_area = np.sum(np.ones_like(batch_y[i][:, 0, :, :], dtype=np.float32))
+                else:
+                    cur_area = np.sum(np.ones_like(batch_y[i][:, :, :, 0], dtype=np.float32))
                 if cur_area > max_area:
                     max_area = cur_area
                     max_area_index = i
-            y_true_obj_count += np.sum(batch_y[max_area_index][:, :, :, 0])
+            if image_data_format == 'channels_first':
+                y_true_obj_count += np.sum(batch_y[max_area_index][:, 0, :, :])
+            else:
+                y_true_obj_count += np.sum(batch_y[max_area_index][:, :, :, 0])
         y_true_obj_count = int(y_true_obj_count)
         not_trained_obj_count = box_count_in_real_data - y_true_obj_count
         not_trained_obj_rate = not_trained_obj_count / box_count_in_real_data * 100.0
@@ -263,8 +163,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         print(f'train tensor obj count : {y_true_obj_count}')
         print(f'not trained  obj count : {not_trained_obj_count} ({not_trained_obj_rate:.2f}%)')
 
-    @staticmethod
-    def convert_to_boxes(label_lines):
+    def convert_to_boxes(self, label_lines):
         def get_same_box_index(boxes, cx, cy, w, h):
             box_str = f'{cx}_{cy}_{w}_{h}'
             for i in range(len(boxes)):
@@ -307,15 +206,12 @@ class GeneratorFlow(tf.keras.utils.Sequence):
             for i in range(self.num_output_layers):
                 batch_y.append([])
             for path in self.get_next_batch_image_paths():
-                fs.append(self.pool.submit(self.load_img, path, self.input_shape[-1]))
+                fs.append(self.pool.submit(ModelUtil.load_img, path, self.input_channel))
             for f in fs:
-                x, _, cur_img_path = f.result()
-                x = self.random_blur(x)
-                if x.shape[1] > self.input_shape[1] or x.shape[0] > self.input_shape[0]:
-                    x = cv2.resize(x, (self.input_shape[1], self.input_shape[0]), interpolation=cv2.INTER_AREA)
-                else:
-                    x = cv2.resize(x, (self.input_shape[1], self.input_shape[0]), interpolation=cv2.INTER_LINEAR)
-                x = np.asarray(x).reshape(self.input_shape).astype('float32') / 255.0
+                img, _, cur_img_path = f.result()
+                img = self.random_blur(img)
+                img = ModelUtil.resize(img, (self.input_width, self.input_height))
+                x = ModelUtil.preprocess(img)
                 batch_x.append(x)
 
                 with open(f'{cur_img_path[:-4]}.txt', mode='rt') as file:
@@ -341,21 +237,31 @@ class GeneratorFlow(tf.keras.utils.Sequence):
                         if self.num_output_layers > 3:
                             for i in range(self.num_output_layers - 3):
                                 layer_mapping_boxes.append(small_last_boxes)
-                    
-                for output_layer_index in range(self.num_output_layers):
-                    output_rows = float(self.output_shapes[output_layer_index][1])
-                    output_cols = float(self.output_shapes[output_layer_index][2])
-                    for b in layer_mapping_boxes[output_layer_index]:
+
+                image_data_format = tf.keras.backend.image_data_format()
+                for i in range(self.num_output_layers):
+                    output_rows = float(self.output_shapes[i][1])
+                    output_cols = float(self.output_shapes[i][2])
+                    for b in layer_mapping_boxes[i]:
                         class_indexes, cx, cy, w, h = b['class_indexes'], b['cx'], b['cy'], b['w'], b['h']
                         center_row = int(cy * output_rows)
                         center_col = int(cx * output_cols)
-                        y[output_layer_index][center_row][center_col][0] = 1.0
-                        y[output_layer_index][center_row][center_col][1] = (cx - float(center_col) / output_cols) / (1.0 / output_cols)
-                        y[output_layer_index][center_row][center_col][2] = (cy - float(center_row) / output_rows) / (1.0 / output_rows)
-                        y[output_layer_index][center_row][center_col][3] = w
-                        y[output_layer_index][center_row][center_col][4] = h
-                        for class_index in class_indexes:
-                            y[output_layer_index][center_row][center_col][class_index+5] = 1.0
+                        if image_data_format == 'channels_first':
+                            y[i][0][center_row][center_col] = 1.0
+                            y[i][1][center_row][center_col] = (cx - float(center_col) / output_cols) / (1.0 / output_cols)
+                            y[i][2][center_row][center_col] = (cy - float(center_row) / output_rows) / (1.0 / output_rows)
+                            y[i][3][center_row][center_col] = w
+                            y[i][4][center_row][center_col] = h
+                            for class_index in class_indexes:
+                                y[i][class_index+5][center_row][center_col] = 1.0
+                        else:
+                            y[i][center_row][center_col][0] = 1.0
+                            y[i][center_row][center_col][1] = (cx - float(center_col) / output_cols) / (1.0 / output_cols)
+                            y[i][center_row][center_col][2] = (cy - float(center_row) / output_rows) / (1.0 / output_rows)
+                            y[i][center_row][center_col][3] = w
+                            y[i][center_row][center_col][4] = h
+                            for class_index in class_indexes:
+                                y[i][center_row][center_col][class_index+5] = 1.0
 
                 for i in range(self.num_output_layers):
                     batch_y[i].append(y[i])
@@ -381,15 +287,6 @@ class GeneratorFlow(tf.keras.utils.Sequence):
             else:
                 img = cv2.blur(img, (2, 2))
         return img
-
-    @staticmethod
-    def load_img(path, channel):
-        color_mode = cv2.IMREAD_COLOR if channel == 3 else cv2.IMREAD_GRAYSCALE
-        img = cv2.imdecode(np.fromfile(path, dtype=np.uint8), color_mode)
-        raw_bgr = img
-        if color_mode == cv2.IMREAD_COLOR:
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  # rb swap
-        return img, raw_bgr, path
 
     def random_adjust(self, img):
         adjust_opts = ['saturation', 'brightness', 'contrast', 'noise']
