@@ -33,7 +33,7 @@ def __abs_log_loss(y_true, y_pred):
     return -K.log((1.0 + K.epsilon()) - K.abs(y_true - y_pred))
 
 
-def focal_loss(y_true, y_pred, alpha=0.25, gamma=2.0):
+def focal_loss(y_true, y_pred, alpha=0.25, gamma=1.5):
     p_t = tf.where(K.equal(y_true, 1.0), y_pred, 1.0 - y_pred)
     alpha_factor = K.ones_like(y_true) * alpha
     alpha_t = tf.where(K.equal(y_true, 1.0), alpha_factor, 1.0 - alpha_factor)
