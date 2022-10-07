@@ -158,7 +158,7 @@ class Yolo:
         print('\ninvalid label check in validation data...')
         self.__validation_data_generator_for_check.flow().check_invalid_label()
         print('\nnot assigned bbox counting in train tensor...')
-        self.__train_data_generator_for_check.flow().print_not_trained_box_count()
+        self.__train_data_generator_for_check.flow().calculate_best_possible_recall()
         print('\nstart test forward for checking forwarding time.')
         ModelUtil.check_forwarding_time(self.__model, device='gpu')
         if tf.keras.backend.image_data_format() == 'channels_last':  # default max pool 2d layer is run on gpu only
@@ -249,7 +249,7 @@ class Yolo:
                 print(f'\r[iteration count : {iteration_count:6d}] loss => {loss:.4f}', end='')
                 if self.__training_view:
                     self.__training_view_function()
-                # if iteration_count > int(self.__iterations * 0.5) and iteration_count % 10000 == 0:
+                # if iteration_count >= int(self.__iterations * 0.5) and iteration_count % 10000 == 0:
                 # if iteration_count == self.__iterations:
                 if iteration_count % 1000 == 0:
                     self.__save_model(iteration_count=iteration_count, use_map_checkpoint=self.__map_checkpoint)

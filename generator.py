@@ -126,7 +126,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
             exit(0)
         print('invalid label not found')
 
-    def print_not_trained_box_count(self):
+    def calculate_best_possible_recall(self):
         num_classes = self.output_shapes[0][-1] - 5
         box_count_in_real_data = 0
         fs = []
@@ -159,9 +159,11 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         y_true_obj_count = int(y_true_obj_count)
         not_trained_obj_count = box_count_in_real_data - y_true_obj_count
         not_trained_obj_rate = not_trained_obj_count / box_count_in_real_data * 100.0
+        best_possible_recall = y_true_obj_count / float(box_count_in_real_data)
         print(f'ground truth obj count : {box_count_in_real_data}')
         print(f'train tensor obj count : {y_true_obj_count}')
         print(f'not trained  obj count : {not_trained_obj_count} ({not_trained_obj_rate:.2f}%)')
+        print(f'best possible recall   : {best_possible_recall:.4f}')
 
     def convert_to_boxes(self, label_lines):
         def get_same_box_index(boxes, cx, cy, w, h):
