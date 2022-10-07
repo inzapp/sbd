@@ -264,4 +264,4 @@ def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_th
     print(f'mAP@{int(iou_threshold * 100)} : {mean_ap:.4f}')
     print(f'TP_IOU@{int(iou_threshold * 100)} : {tp_iou:.4f}')
     print(f'TP_Confidence : {confidence:.4f}')
-    return mean_ap, f1, tp_iou, total_tp, total_fp, total_obj_count - total_tp
+    return mean_ap, f1, tp_iou, total_tp, total_fp, total_obj_count - total_tp, confidence
