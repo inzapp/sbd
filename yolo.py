@@ -218,7 +218,7 @@ class Yolo:
             while True:
                 for batch_x, batch_y in self.__train_data_generator.flow():
                     iteration_count += 1
-                    lr_scheduler.schedule_step_decay(optimizer, iteration_count, burn_in=self.__burn_in)
+                    lr_scheduler.schedule_step_decay(optimizer, iteration_count, burn_in=0)
                     loss = compute_gradients[i](self.__model, optimizer, loss_functions[i], batch_x, batch_y, self.num_output_layers, self.__ignore_threshold)
                     print(f'\r[curriculum iteration count : {iteration_count:6d}] loss => {loss:.4f}', end='')
                     if iteration_count == curriculum_iterations:
@@ -262,8 +262,8 @@ class Yolo:
         ul = str(Yolo.g_use_layers) if len(Yolo.g_use_layers) > 0 else 'all'
         if use_map_checkpoint:
             self.__model.save('model.h5', include_optimizer=False)
-            mean_ap, f1_score, tp_iou, tp, fp, fn = calc_mean_average_precision(self.__model, self.__validation_image_paths)
-            self.__model.save(f'{self.__checkpoints}/model_{iteration_count}_iter_mAP_{mean_ap:.4f}_f1_{f1_score:.4f}_tp_iou_{tp_iou:.4f}_tp_{tp}_fp_{fp}_fn_{fn}_ul_{ul}.h5', include_optimizer=False)
+            mean_ap, f1_score, tp_iou, tp, fp, fn, confidence = calc_mean_average_precision(self.__model, self.__validation_image_paths)
+            self.__model.save(f'{self.__checkpoints}/model_{iteration_count}_iter_mAP_{mean_ap:.4f}_f1_{f1_score:.4f}_tp_iou_{tp_iou:.4f}_tp_{tp}_fp_{fp}_fn_{fn}_conf_{confidence:.4f}_ul_{ul}.h5', include_optimizer=False)
             self.__model.save(f'model_last_ul_{ul}.h5', include_optimizer=False)
         else:
             self.__model.save(f'{self.__checkpoints}/model_{iteration_count}_iter_ul_{ul}.h5', include_optimizer=False)

@@ -12,15 +12,18 @@ def main():
             iou = float(sp[9])
             tp = int(sp[11])
             fp = int(sp[13])
+            confidence = float(sp[17])
             arr.append({
-                'rank' : 0,
-                'name' : path,
-                'mAP' : mAP,
-                'f1' : f1,
-                'iou' : iou,
-                'tp' : tp,
-                'fp' : fp})
+                'rank': 0,
+                'name': path,
+                'mAP': mAP,
+                'f1': f1,
+                'iou': iou,
+                'tp': tp,
+                'fp': fp,
+                'confidence' : confidence})
 
+    arr = sorted(arr, key=lambda x: x['confidence'], reverse=True)
     arr = sorted(arr, key=lambda x: x['iou'], reverse=True)
     arr = sorted(arr, key=lambda x: x['mAP'], reverse=True)
     arr = sorted(arr, key=lambda x: x['f1'], reverse=True)
