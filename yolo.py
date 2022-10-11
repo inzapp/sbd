@@ -166,7 +166,10 @@ class Yolo:
 
         print('\nstart training')
         if self.__burn_in > 0:
-            self.__burn_in_train()
+            if self.__lr_policy == 'one_cycle':
+                print('skip burn in training due to one cycle lr policy')
+            else:
+                self.__burn_in_train()
         if self.__curriculum_iterations > 0:
             self.__curriculum_train()
         self.__train()
@@ -249,9 +252,9 @@ class Yolo:
                 print(f'\r[iteration count : {iteration_count:6d}] loss => {loss:.4f}', end='')
                 if self.__training_view:
                     self.__training_view_function()
-                # if iteration_count >= int(self.__iterations * 0.5) and iteration_count % 10000 == 0:
+                if iteration_count >= int(self.__iterations * 0.5) and iteration_count % 1000 == 0:
                 # if iteration_count == self.__iterations:
-                if iteration_count % 1000 == 0:
+                # if iteration_count % 1000 == 0:
                     self.__save_model(iteration_count=iteration_count, use_map_checkpoint=self.__map_checkpoint)
                 if iteration_count == self.__iterations:
                     print('\n\ntrain end successfully')
