@@ -8,23 +8,19 @@ import tensorflow as tf
 from cv2 import cv2
 from tqdm import tqdm
 
+from yolo import Yolo
+from util import ModelUtil
+
+
 os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
-
-g_confidence_threshold = 0.9
-g_nms_iou_threshold = 0.45
-
-
-def load_img_with_path(image_path, color_mode, input_size, input_shape):
-    img = cv2.imdecode(np.fromfile(image_path, np.uint8), color_mode)
-    return img, image_path
+g_confidence_threshold = 0.5
 
 
 def auto_label(model_path, image_path, origin_classes_txt_path):
-    from yolo import Yolo
     model = tf.keras.models.load_model(model_path, compile=False)
     input_shape = model.input_shape[1:]
-    input_size = (input_shape[1], input_shape[0])
-    color_mode = cv2.IMREAD_GRAYSCALE if input_shape[-1] == 1 else cv2.IMREAD_COLOR
+    w, h, channel = ModelUtil.get_width_height_channel_from_input_shape(input_shape)
+    color_mode = cv2.IMREAD_GRAYSCALE if channel == 1 else cv2.IMREAD_COLOR
 
     image_paths = glob(f'{image_path}/*.jpg')
     classes_txt_path = f'{image_path}/classes.txt'
@@ -36,11 +32,17 @@ def auto_label(model_path, image_path, origin_classes_txt_path):
     pool = ThreadPoolExecutor(8)
     fs = []
     for path in image_paths:
-        fs.append(pool.submit(load_img_with_path, path, color_mode, input_size, input_shape))
+        fs.append(pool.submit(ModelUtil.load_img, path, channel))
+
+    device = 'cpu'
+    for d in tf.config.list_physical_devices():
+        if str(d).find('GPU') > -1:
+            device = 'gpu'
+            break
 
     for f in tqdm(fs):
-        img, path = f.result()
-        res = Yolo.predict(model, img)
+        raw, _, path = f.result()
+        res = Yolo.predict(model, raw, device, confidence_threshold=g_confidence_threshold)
         label_content = ''
         for i in range(len(res)):
             class_index = res[i]['class']
@@ -56,12 +58,13 @@ def auto_label(model_path, image_path, origin_classes_txt_path):
 
 
 def main():
-    model_path = r'C:\inz\git\yolo-lab\checkpoints\model_7000_iter_mAP_1.0000_f1_1.0000_tp_iou_0.9181_tp_52_fp_0_fn_0_ul_all.h5'
-    origin_classes_txt_path = r'C:\inz\tmp\square_set\classes.txt'
-    img_path = r'C:\inz\tmp\square_set'
+    model_path = r'C:\inz\git\yolo-lab\checkpoints\model_3000_iter_mAP_1.0000_f1_1.0000_iou_0.8663_tp_104_fp_0_fn_0_conf_0.8196_ul_all.h5'
+    origin_classes_txt_path = r'C:\inz\train_data\loon\validation_copy\classes.txt'
+    img_path = r'C:\inz\train_data\loon\validation_copy'
     auto_label(model_path, img_path, origin_classes_txt_path)
 
 
 if __name__ == '__main__':
     with tf.device('/cpu:0'):
         main()
+
