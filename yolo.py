@@ -18,8 +18,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 import os
-from glob import glob
-from time import time, sleep, perf_counter
+from time import time, sleep
 
 import numpy as np
 import tensorflow as tf
@@ -29,11 +28,9 @@ from tensorflow.keras.mixed_precision import experimental as mixed_precision
 from util import ModelUtil
 from box_colors import colors
 from generator import YoloDataGenerator
-from generator import GeneratorFlow
 from loss import confidence_loss, confidence_with_bbox_loss, yolo_loss
 from mAP_calculator import calc_mean_average_precision
 from model import Model
-from keras_flops import get_flops
 from lr_scheduler import LRScheduler
 
 
