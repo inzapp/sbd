@@ -36,10 +36,12 @@ class Model:
         return cls.__new__(cls)
 
     def build(self):
+        return self.student()
+        # return self.teacher()
         # return self.lightnet_nano()
         # return self.lightnet_s()
         # return self.lightnet_m()
-        return self.lightnet_l()
+        # return self.lightnet_l()
         # return self.lightnet_x()
         # return self.lightnet_illusion()
         # return self.lpd_v1()
@@ -303,6 +305,99 @@ class Model:
         x = self.drop_filter(x, self.drop_rate)
         x = self.conv_block(x, 64, 3, activation='relu')
         x = self.conv_block(x, 64, 3, activation='relu')
+        x = self.max_pool(x)
+
+        x = self.spatial_attention_block(x, activation='relu')
+
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.conv_block(x, 256, 3, activation='relu')
+        skip_connection = x
+        x = self.conv_block(x, 128, 1, activation='relu')
+        x = self.conv_block(x, 256, 3, activation='relu')
+        x = self.conv_block(x, 128, 1, activation='relu')
+        x = self.conv_block(x, 256, 3, activation='relu')
+        x = self.conv_block(x, 128, 1, activation='relu')
+        x = self.conv_block(x, 256, 3, activation='relu')
+        x = self.conv_block(x, 128, 1, activation='relu')
+        x = self.conv_block(x, 256, 3, activation='relu')
+        x = self.add([x, skip_connection])
+        f0 = x
+        x = self.max_pool(x)
+
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.conv_block(x, 512, 3, activation='relu')
+        skip_connection = x
+        x = self.conv_block(x, 256, 1, activation='relu')
+        x = self.conv_block(x, 512, 3, activation='relu')
+        x = self.conv_block(x, 256, 1, activation='relu')
+        x = self.conv_block(x, 512, 3, activation='relu')
+        x = self.conv_block(x, 256, 1, activation='relu')
+        x = self.conv_block(x, 512, 3, activation='relu')
+        x = self.conv_block(x, 256, 1, activation='relu')
+        x = self.conv_block(x, 512, 3, activation='relu')
+        x = self.add([x, skip_connection])
+        f1 = x
+        x = self.max_pool(x)
+
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.conv_block(x, 1024, 3, activation='relu')
+        skip_connection = x
+        x = self.conv_block(x,  512, 1, activation='relu')
+        x = self.conv_block(x, 1024, 3, activation='relu')
+        x = self.conv_block(x,  512, 1, activation='relu')
+        x = self.conv_block(x, 1024, 3, activation='relu')
+        x = self.conv_block(x,  512, 1, activation='relu')
+        x = self.conv_block(x, 1024, 3, activation='relu')
+        x = self.conv_block(x,  512, 1, activation='relu')
+        x = self.conv_block(x, 1024, 3, activation='relu')
+        x = self.add([x, skip_connection])
+        f2 = x
+
+        x = self.feature_pyramid_network([f0, f1, f2], [256, 512, 1024], activation='relu')
+        y = self.detection_layer(x, 'sbd_output')
+        return tf.keras.models.Model(input_layer, y)
+
+    def student(self):
+        input_layer = tf.keras.layers.Input(shape=self.input_shape)
+        x = self.conv_block(input_layer, 4, 3, activation='relu')
+        x = self.max_pool(x)
+
+        x = self.conv_block(x, 8, 3, activation='relu')
+        x = self.max_pool(x)
+
+        x = self.conv_block(x, 16, 3, activation='relu')
+        x = self.max_pool(x)
+
+        x = self.conv_block(x, 32, 3, activation='relu')
+        f0 = x
+        x = self.max_pool(x)
+
+        x = self.conv_block(x, 64, 3, activation='relu')
+        f1 = x
+        x = self.max_pool(x)
+
+        x = self.conv_block(x, 128, 3, activation='relu')
+        f2 = x
+
+        x = self.feature_pyramid_network([f0, f1, f2], [32, 64, 128], activation='relu')
+        y = self.detection_layer(x, 'sbd_output')
+        return tf.keras.models.Model(input_layer, y)
+
+    def teacher(self):
+        input_layer = tf.keras.layers.Input(shape=self.input_shape)
+        x = self.conv_block(input_layer, 32, 3, activation='relu')
+        x = self.conv_block(input_layer, 32, 3, activation='relu')
+        x = self.max_pool(x)
+
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.conv_block(x, 64, 3, activation='relu')
+        x = self.conv_block(x, 64, 3, activation='relu')
+        x = self.max_pool(x)
+
+        x = self.drop_filter(x, self.drop_rate)
+        x = self.conv_block(x, 128, 3, activation='relu')
+        x = self.conv_block(x, 128, 3, activation='relu')
+        x = self.conv_block(x, 128, 3, activation='relu')
         x = self.max_pool(x)
 
         x = self.spatial_attention_block(x, activation='relu')
