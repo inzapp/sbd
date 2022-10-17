@@ -162,11 +162,6 @@ class Yolo:
             ModelUtil.check_forwarding_time(self.__model, device='cpu')
 
         print('\nstart training')
-        if self.__burn_in > 0:
-            if self.__lr_policy == 'one_cycle':
-                print('skip burn in training due to one cycle lr policy')
-            else:
-                self.__burn_in_train()
         if self.__curriculum_iterations > 0:
             self.__curriculum_train()
         self.__train()
@@ -192,39 +187,23 @@ class Yolo:
         optimizer = self.__get_optimizer(optimizer_str)
         return model, optimizer
 
-    def __burn_in_train(self):
-        iteration_count = 0
-        compute_gradient_tf = tf.function(self.compute_gradient)
-        self.__model, optimizer = self.__refresh_model_and_optimizer(self.__model, 'sgd')
-        lr_scheduler = LRScheduler(iterations=self.__burn_in, lr=self.__lr)
-        while True:
-            for batch_x, batch_y in self.__train_data_generator.flow():
-                iteration_count += 1
-                lr_scheduler.schedule_step_decay(optimizer, iteration_count, burn_in=self.__burn_in)
-                loss = compute_gradient_tf(self.__model, optimizer, yolo_loss, batch_x, batch_y, self.num_output_layers, self.__ignore_threshold)
-                print(f'\r[burn in iteration count : {iteration_count:6d}] loss => {loss:.4f}', end='')
-                if iteration_count == self.__burn_in:
-                    print()
-                    return
-
     def __curriculum_train(self):
         loss_functions = [confidence_loss, confidence_with_bbox_loss]
         compute_gradients = [tf.function(self.compute_gradient) for _ in range(len(loss_functions))]
-        curriculum_iterations = self.__curriculum_iterations + (self.__burn_in // 2)
-        lr_scheduler = LRScheduler(iterations=curriculum_iterations, lr=self.__lr)
+        lr_scheduler = LRScheduler(iterations=self.__curriculum_iterations, lr=self.__lr)
         for i in range(len(loss_functions)):
             iteration_count = 0
             self.__model, optimizer = self.__refresh_model_and_optimizer(self.__model, 'sgd')
             while True:
                 for batch_x, batch_y in self.__train_data_generator.flow():
                     iteration_count += 1
-                    lr_scheduler.schedule_step_decay(optimizer, iteration_count, burn_in=0)
+                    lr_scheduler.update(optimizer, iteration_count, self.__burn_in, 'onecycle')
                     loss = compute_gradients[i](self.__model, optimizer, loss_functions[i], batch_x, batch_y, self.num_output_layers, self.__ignore_threshold)
                     print(f'\r[curriculum iteration count : {iteration_count:6d}] loss => {loss:.4f}', end='')
-                    if iteration_count == curriculum_iterations:
+                    if iteration_count == self.__curriculum_iterations:
                         print()
                         break
-                if iteration_count == curriculum_iterations:
+                if iteration_count == self.__curriculum_iterations:
                     break
 
     def __train(self):
@@ -234,25 +213,20 @@ class Yolo:
         lr_scheduler = LRScheduler(iterations=self.__iterations, lr=self.__lr)
         while True:
             for batch_x, batch_y in self.__train_data_generator.flow():
-                if self.__lr_policy == 'step':
-                    lr_schedule_function = lr_scheduler.schedule_step_decay(optimizer, iteration_count, burn_in=self.__burn_in)
-                elif self.__lr_policy == 'cosine':
-                    lr_schedule_function = lr_scheduler.schedule_cosine_warm_restart(optimizer, iteration_count, burn_in=self.__burn_in)
-                elif self.__lr_policy == 'one_cycle':
-                    lr_schedule_function = lr_scheduler.schedule_one_cycle(optimizer, iteration_count)
-                else:
-                    print(f'{self.__lr_policy} is invalid lr policy')
-                    return
-
+                lr_scheduler.update(optimizer, iteration_count, self.__burn_in, self.__lr_policy)
                 loss = compute_gradient_tf(self.__model, optimizer, yolo_loss, batch_x, batch_y, self.num_output_layers, self.__ignore_threshold)
                 iteration_count += 1
                 print(f'\r[iteration count : {iteration_count:6d}] loss => {loss:.4f}', end='')
                 if self.__training_view:
                     self.__training_view_function()
-                if iteration_count >= int(self.__iterations * 0.5) and iteration_count % 1000 == 0:
-                # if iteration_count == self.__iterations:
-                # if iteration_count % 1000 == 0:
-                    self.__save_model(iteration_count=iteration_count, use_map_checkpoint=self.__map_checkpoint)
+                if self.__map_checkpoint:
+                    if iteration_count >= int(self.__iterations * 0.5) and iteration_count % 10000 == 0:
+                    # if iteration_count == self.__iterations:
+                    # if iteration_count % 1000 == 0:
+                        self.__save_model(iteration_count=iteration_count, use_map_checkpoint=self.__map_checkpoint)
+                else:
+                    if iteration_count % 10000 == 0:
+                        self.__save_model(iteration_count=iteration_count, use_map_checkpoint=self.__map_checkpoint)
                 if iteration_count == self.__iterations:
                     print('\n\ntrain end successfully')
                     return
@@ -420,6 +394,7 @@ class Yolo:
         for path in image_paths:
             raw, raw_bgr, _ = ModelUtil.load_img(path, input_channel)
             res = Yolo.predict(self.__model, raw, device='cpu')
+            # raw_bgr = cv2.resize(raw_bgr, (1280, 720), interpolation=cv2.INTER_AREA)
             boxed_image = self.bounding_box(raw_bgr, res)
             cv2.imshow('res', boxed_image)
             key = cv2.waitKey(0)
