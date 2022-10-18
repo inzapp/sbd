@@ -154,7 +154,7 @@ class Yolo:
         self.__train_data_generator_for_check.flow().check_invalid_label()
         print('\ninvalid label check in validation data...')
         self.__validation_data_generator_for_check.flow().check_invalid_label()
-        print('\nnot assigned bbox counting in train tensor...')
+        print('\ncalculate BPR(Best Possible Recall)...')
         self.__train_data_generator_for_check.flow().calculate_best_possible_recall()
         print('\nstart test forward for checking forwarding time.')
         ModelUtil.check_forwarding_time(self.__model, device='gpu')
@@ -217,7 +217,7 @@ class Yolo:
                 loss = compute_gradient_tf(self.__model, optimizer, yolo_loss, batch_x, batch_y, self.num_output_layers, self.__ignore_threshold)
                 iteration_count += 1
                 print(f'\r[iteration count : {iteration_count:6d}] loss => {loss:.4f}', end='')
-                if self.__training_view:
+                if self.__training_view and iteration_count > self.__burn_in:
                     self.__training_view_function()
                 if self.__map_checkpoint:
                     if iteration_count >= int(self.__iterations * 0.5) and iteration_count % 10000 == 0:
@@ -394,7 +394,7 @@ class Yolo:
         for path in image_paths:
             raw, raw_bgr, _ = ModelUtil.load_img(path, input_channel)
             res = Yolo.predict(self.__model, raw, device='cpu')
-            # raw_bgr = cv2.resize(raw_bgr, (1280, 720), interpolation=cv2.INTER_AREA)
+            raw_bgr = cv2.resize(raw_bgr, (input_width, input_height), interpolation=cv2.INTER_AREA)
             boxed_image = self.bounding_box(raw_bgr, res)
             cv2.imshow('res', boxed_image)
             key = cv2.waitKey(0)

@@ -156,10 +156,12 @@ class GeneratorFlow(tf.keras.utils.Sequence):
                 y_true_obj_count += np.sum(batch_y[max_area_index][:, 0, :, :])
             else:
                 y_true_obj_count += np.sum(batch_y[max_area_index][:, :, :, 0])
+        avg_obj_count_per_image = box_count_in_real_data / float(len(self.image_paths))
         y_true_obj_count = int(y_true_obj_count)
         not_trained_obj_count = box_count_in_real_data - y_true_obj_count
         not_trained_obj_rate = not_trained_obj_count / box_count_in_real_data * 100.0
         best_possible_recall = y_true_obj_count / float(box_count_in_real_data)
+        print(f'\naverage obj count per image : {avg_obj_count_per_image:.4f}\n')
         print(f'ground truth obj count : {box_count_in_real_data}')
         print(f'train tensor obj count : {y_true_obj_count}')
         print(f'not trained  obj count : {not_trained_obj_count} ({not_trained_obj_rate:.2f}%)')
