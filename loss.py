@@ -22,13 +22,13 @@ from keras import backend as K
 from tensorflow.python.framework.ops import convert_to_tensor_v2
 
 
-def __ale(y_true, y_pred, eps=1e-7):
-    return -tf.math.log((1.0 + eps) - tf.abs(y_true - y_pred))
-
-
 def __focal_ale(y_true, y_pred, eps=1e-7):
     abs_error = tf.abs(y_true - y_pred)
     return -tf.math.log((1.0 + eps) - abs_error) * abs_error
+
+
+def __ale(y_true, y_pred, eps=1e-7):
+    return -tf.math.log((1.0 + eps) - tf.abs(y_true - y_pred))
 
 
 def __confidence_loss(y_true, y_pred):
@@ -114,10 +114,10 @@ def __bbox_loss(y_true, y_pred, ignore_threshold):
     wh_loss = tf.reduce_mean(wh_loss, axis=0)
     wh_loss = tf.reduce_sum(wh_loss)
 
-    iou_loss = (1.0 - __iou(y_true, y_pred)) * obj_true
+    iou_loss = __ale(obj_true, __iou(y_true, y_pred) * obj_true)
     iou_loss = tf.reduce_mean(iou_loss, axis=0)
     iou_loss = tf.reduce_sum(iou_loss)
-    return xy_loss + wh_loss + iou_loss
+    return xy_loss + wh_loss + (iou_loss * 4.0)
 
 
 def __classification_loss(y_true, y_pred):
