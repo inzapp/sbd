@@ -78,10 +78,25 @@ class LRScheduler:
         self.__set_lr(optimizer, lr)
 
     def __schedule_one_cycle(self, optimizer, iteration_count):
-        lr = self.min_lr + 0.5 * (self.max_lr - self.min_lr) * (1.0 + np.cos(((1.0 / (self.iterations * 0.5)) * np.pi * iteration_count) + np.pi))  # up and down
-        self.__set_lr(optimizer, lr)
-        momentum = self.min_momentum + 0.5 * (self.max_momentum - self.min_momentum) * (1.0 + np.cos(((1.0 / (self.iterations * 0.5)) * np.pi * (iteration_count % self.iterations))))  # down and up
-        self.__set_momentum(optimizer, momentum)
+        warm_up = 0.1
+        min_lr = self.min_lr
+        max_lr = self.max_lr
+        min_mm = self.min_momentum
+        max_mm = self.max_momentum
+        warm_up_iterations = int(self.iterations * warm_up)
+        if iteration_count <= warm_up_iterations:
+            iterations = warm_up_iterations
+            lr = ((np.cos(((iteration_count * np.pi) / iterations) + np.pi) + 1.0) * 0.5) * (max_lr - min_lr) + min_lr  # increase only until target iterations
+            mm = ((np.cos(((iteration_count * np.pi) / iterations) +   0.0) + 1.0) * 0.5) * (max_mm - min_mm) + min_mm  # decrease only until target iterations
+            self.__set_lr(optimizer, lr)
+            self.__set_momentum(optimizer, mm)
+        else:
+            iteration_count -= warm_up_iterations + 1
+            iterations = self.iterations - warm_up_iterations
+            lr = ((np.cos(((iteration_count * np.pi) / iterations) +   0.0) + 1.0) * 0.5) * (max_lr - min_lr) + min_lr  # decrease only until target iterations
+            mm = ((np.cos(((iteration_count * np.pi) / iterations) + np.pi) + 1.0) * 0.5) * (max_mm - min_mm) + min_mm  # increase only until target iterations
+            self.__set_lr(optimizer, lr)
+            self.__set_momentum(optimizer, mm)
 
     def __schedule_cosine_warm_restart(self, optimizer, iteration_count, burn_in=1000):
         if burn_in > 0 and iteration_count <= burn_in:
