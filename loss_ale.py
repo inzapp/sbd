@@ -20,20 +20,17 @@ limitations under the License.
 import tensorflow as tf
 from keras import backend as K
 from tensorflow.python.framework.ops import convert_to_tensor_v2
+from ale import AbsoluteLogarithmicError
 
 
-def __ale(y_true, y_pred, focal=False, eps=1e-7):
-    abs_error = tf.abs(y_true - y_pred)
-    loss = -tf.math.log((1.0 + eps) - abs_error)
-    if focal:
-        loss *= abs_error
-    return loss
+ale = AbsoluteLogarithmicError()
+focal_ale = AbsoluteLogarithmicError(gamma=1.0)
 
 
 def __confidence_loss(y_true, y_pred):
     obj_true = y_true[:, :, :, 0]
     obj_pred = y_pred[:, :, :, 0]
-    loss = __ale(obj_true, obj_pred, focal=True)
+    loss = focal_ale(obj_true, obj_pred)
     loss = tf.reduce_mean(loss, axis=0)
     loss = tf.reduce_sum(loss)
     return loss
@@ -100,12 +97,12 @@ def __bbox_loss(y_true, y_pred, ignore_threshold):
 
     xy_true = y_true[:, :, :, 1:3]
     xy_pred = y_pred[:, :, :, 1:3]
-    xy_loss = __ale(xy_true, xy_pred)
+    xy_loss = ale(xy_true, xy_pred)
     xy_loss = tf.reduce_sum(xy_loss, axis=-1) * obj_true
     xy_loss = tf.reduce_mean(xy_loss, axis=0)
     xy_loss = tf.reduce_sum(xy_loss)
 
-    liou_loss = __ale(obj_true, __iou(y_true, y_pred) * obj_true)
+    liou_loss = ale(obj_true, __iou(y_true, y_pred) * obj_true)
     liou_loss = tf.reduce_mean(liou_loss, axis=0)
     liou_loss = tf.reduce_sum(liou_loss)
     return xy_loss + liou_loss
@@ -119,7 +116,7 @@ def __classification_loss(y_true, y_pred):
 
     class_true = y_true[:, :, :, 5:]
     class_pred = y_pred[:, :, :, 5:]
-    loss = __ale(class_true, class_pred, focal=True)
+    loss = focal_ale(class_true, class_pred)
     loss = tf.reduce_sum(loss, axis=-1) * obj_true
     loss = tf.reduce_mean(loss, axis=0)
     loss = tf.reduce_sum(loss)
