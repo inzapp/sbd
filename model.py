@@ -36,11 +36,11 @@ class Model:
         return cls.__new__(cls)
 
     def build(self):
-        return self.student()
+        # return self.student()
         # return self.teacher()
         # return self.lightnet_nano()
         # return self.lightnet_s()
-        # return self.lightnet_m()
+        return self.lightnet_m()
         # return self.lightnet_l()
         # return self.lightnet_x()
         # return self.lightnet_illusion()
@@ -145,6 +145,7 @@ class Model:
         return tf.keras.models.Model(input_layer, y)
 
     """
+    TODO : retest
     size : 640x384x1
     GFLOPs : 14.7717
     parameters : 9,745,054
@@ -173,18 +174,10 @@ class Model:
         x = self.conv_block(x, 128, 3, activation='relu')
         x = self.conv_block(x,  64, 1, activation='relu')
         x = self.conv_block(x, 128, 3, activation='relu')
-        x = self.conv_block(x,  64, 1, activation='relu')
-        x = self.conv_block(x, 128, 3, activation='relu')
-        x = self.conv_block(x,  64, 1, activation='relu')
-        x = self.conv_block(x, 128, 3, activation='relu')
         f0 = x
         x = self.max_pool(x)
 
         x = self.drop_filter(x, self.drop_rate)
-        x = self.conv_block(x, 256, 3, activation='relu')
-        x = self.conv_block(x, 128, 1, activation='relu')
-        x = self.conv_block(x, 256, 3, activation='relu')
-        x = self.conv_block(x, 128, 1, activation='relu')
         x = self.conv_block(x, 256, 3, activation='relu')
         x = self.conv_block(x, 128, 1, activation='relu')
         x = self.conv_block(x, 256, 3, activation='relu')
@@ -199,13 +192,9 @@ class Model:
         x = self.conv_block(x, 512, 3, activation='relu')
         x = self.conv_block(x, 256, 1, activation='relu')
         x = self.conv_block(x, 512, 3, activation='relu')
-        x = self.conv_block(x, 256, 1, activation='relu')
-        x = self.conv_block(x, 512, 3, activation='relu')
-        x = self.conv_block(x, 256, 1, activation='relu')
-        x = self.conv_block(x, 512, 3, activation='relu')
         f2 = x
 
-        x = self.feature_pyramid_network([f0, f1, f2], [128, 256, 512], activation='relu')
+        x = self.path_aggregation_network([f0, f1, f2], [128, 256, 512], activation='relu')
         y = self.detection_layer(x, 'sbd_output')
         return tf.keras.models.Model(input_layer, y)
 
@@ -723,8 +712,6 @@ class Model:
         # upsampling with feature addition
         ret = [layers[0]]
         filters = list(reversed(filters))
-        # for i in range(len(layers)):
-        #     layers[i] = self.conv_block(layers[i], filters[i], 1, bn=bn, activation=activation)
         for i in range(len(layers) - 1):
             x = tf.keras.layers.UpSampling2D()(layers[i] if i == 0 else x)
             if filters[i] != filters[i+1]:
