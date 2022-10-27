@@ -25,9 +25,10 @@ from tensorflow.python.framework.ops import convert_to_tensor_v2
 def __confidence_loss(y_true, y_pred, ignore_threshold):
     obj_true = y_true[:, :, :, 0]
     obj_pred = y_pred[:, :, :, 0]
-    loss = tf.square(obj_true - obj_pred) * tf.where(obj_true * obj_pred > ignore_threshold, 0.0, 1.0)
-    loss = tf.reduce_sum(tf.reduce_mean(loss, axis=0))
-    return loss
+    loss = tf.square(obj_true - obj_pred)
+    obj_loss = tf.reduce_sum(tf.reduce_mean(loss * obj_true), axis=0)
+    background_loss = tf.reduce_sum(tf.reduce_mean(loss * (1.0 - obj_true)), axis=0)
+    return loss + (background_loss * 0.5)
 
 
 def __bbox_loss(y_true, y_pred):
@@ -75,3 +76,4 @@ def yolo_loss(y_true, y_pred, ignore_threshold):
     y_pred = convert_to_tensor_v2(y_pred)
     y_true = K.cast(y_true, y_pred.dtype)
     return __confidence_loss(y_true, y_pred, ignore_threshold) + __bbox_loss(y_true, y_pred) + __classification_loss(y_true, y_pred)
+
