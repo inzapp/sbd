@@ -169,7 +169,6 @@ class Model:
 
         x = self.drop_filter(x, self.drop_rate)
         x = self.conv_block(x, 128, 3, activation='relu')
-        skip_connection = x
         x = self.conv_block(x,  64, 1, activation='relu')
         x = self.conv_block(x, 128, 3, activation='relu')
         x = self.conv_block(x,  64, 1, activation='relu')
@@ -178,13 +177,11 @@ class Model:
         x = self.conv_block(x, 128, 3, activation='relu')
         x = self.conv_block(x,  64, 1, activation='relu')
         x = self.conv_block(x, 128, 3, activation='relu')
-        x = self.add([x, skip_connection])
         f0 = x
         x = self.max_pool(x)
 
         x = self.drop_filter(x, self.drop_rate)
         x = self.conv_block(x, 256, 3, activation='relu')
-        skip_connection = x
         x = self.conv_block(x, 128, 1, activation='relu')
         x = self.conv_block(x, 256, 3, activation='relu')
         x = self.conv_block(x, 128, 1, activation='relu')
@@ -193,13 +190,11 @@ class Model:
         x = self.conv_block(x, 256, 3, activation='relu')
         x = self.conv_block(x, 128, 1, activation='relu')
         x = self.conv_block(x, 256, 3, activation='relu')
-        x = self.add([x, skip_connection])
         f1 = x
         x = self.max_pool(x)
 
         x = self.drop_filter(x, self.drop_rate)
         x = self.conv_block(x, 512, 3, activation='relu')
-        skip_connection = x
         x = self.conv_block(x, 256, 1, activation='relu')
         x = self.conv_block(x, 512, 3, activation='relu')
         x = self.conv_block(x, 256, 1, activation='relu')
@@ -208,7 +203,6 @@ class Model:
         x = self.conv_block(x, 512, 3, activation='relu')
         x = self.conv_block(x, 256, 1, activation='relu')
         x = self.conv_block(x, 512, 3, activation='relu')
-        x = self.add([x, skip_connection])
         f2 = x
 
         x = self.feature_pyramid_network([f0, f1, f2], [128, 256, 512], activation='relu')
@@ -714,13 +708,56 @@ class Model:
             ret.append(layers[0])
         for i in range(len(layers) - 1):
             x = tf.keras.layers.UpSampling2D()(layers[i] if i == 0 else x)
-            if type(filters) == list and filters[i] != filters[i + 1]:
-                x = self.conv_block(x, filters[i + 1], 1, bn=bn, activation=activation)
-            x = self.add([x, layers[i + 1]])
-            x = self.conv_block(x, filters if type(filters) == int else filters[i + 1], 3, bn=bn, activation=activation)
+            if type(filters) == list and filters[i] != filters[i+1]:
+                x = self.conv_block(x, filters[i+1], 1, bn=bn, activation=activation)
+            x = self.add([x, layers[i+1]])
+            x = self.conv_block(x, filters if type(filters) == int else filters[i+1], 3, bn=bn, activation=activation)
             if return_layers:
                 ret.append(x)
         return list(reversed(ret)) if return_layers else x
+
+    def path_aggregation_network(self, layers, filters, activation, bn=False, return_layers=False):
+        assert type(layers) == list and type(filters) == list
+        layers = list(reversed(layers))
+
+        # upsampling with feature addition
+        ret = [layers[0]]
+        filters = list(reversed(filters))
+        # for i in range(len(layers)):
+        #     layers[i] = self.conv_block(layers[i], filters[i], 1, bn=bn, activation=activation)
+        for i in range(len(layers) - 1):
+            x = tf.keras.layers.UpSampling2D()(layers[i] if i == 0 else x)
+            if filters[i] != filters[i+1]:
+                x = self.conv_block(x, filters[i+1], 1, bn=bn, activation=activation)
+            x = self.add([x, layers[i+1]])
+            x = self.conv_block(x, filters[i+1], 3, bn=bn, activation=activation)
+            ret.append(x)
+        layers = list(reversed(ret))
+
+        # maxpool with feature addition
+        ret = [layers[0]]
+        filters = list(reversed(filters))
+        for i in range(len(layers) - 1):
+            x = tf.keras.layers.MaxPool2D()(layers[i] if i == 0 else x)
+            if filters[i] != filters[i+1]:
+                x = self.conv_block(x, filters[i+1], 1, bn=bn, activation=activation)
+            x = self.add([x, layers[i+1]])
+            x = self.conv_block(x, filters[i+1], 3, bn=bn, activation=activation)
+            ret.append(x)
+        layers = list(reversed(ret))
+
+        # upsampling with feature addition
+        ret = [layers[0]]
+        filters = list(reversed(filters))
+        for i in range(len(layers) - 1):
+            x = tf.keras.layers.UpSampling2D()(layers[i] if i == 0 else x)
+            if filters[i] != filters[i+1]:
+                x = self.conv_block(x, filters[i+1], 1, bn=bn, activation=activation)
+            x = self.add([x, layers[i+1]])
+            x = self.conv_block(x, filters[i+1], 3, bn=bn, activation=activation)
+            ret.append(x)
+        layers = list(reversed(ret))
+        return layers if return_layers else x
 
     def illusion_block(self, x, filters, depth=1, bn=False, activation='none'):
         if depth == 0:
