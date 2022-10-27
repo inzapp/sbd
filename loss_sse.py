@@ -26,9 +26,9 @@ def __confidence_loss(y_true, y_pred, ignore_threshold):
     obj_true = y_true[:, :, :, 0]
     obj_pred = y_pred[:, :, :, 0]
     loss = tf.square(obj_true - obj_pred)
-    obj_loss = tf.reduce_sum(tf.reduce_mean(loss * obj_true), axis=0)
-    background_loss = tf.reduce_sum(tf.reduce_mean(loss * (1.0 - obj_true)), axis=0)
-    return loss + (background_loss * 0.5)
+    obj_loss = tf.reduce_sum(tf.reduce_mean(loss * obj_true, axis=0))
+    background_loss = tf.reduce_sum(tf.reduce_mean(loss * (1.0 - obj_true), axis=0))
+    return obj_loss + (background_loss * 0.5)
 
 
 def __bbox_loss(y_true, y_pred):
