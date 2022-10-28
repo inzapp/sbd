@@ -38,9 +38,9 @@ class Model:
     def build(self):
         # return self.student()
         # return self.teacher()
-        # return self.lightnet_nano()
+        return self.lightnet_nano()
         # return self.lightnet_s()
-        return self.lightnet_m()
+        # return self.lightnet_m()
         # return self.lightnet_l()
         # return self.lightnet_x()
         # return self.lightnet_illusion()
@@ -641,23 +641,19 @@ class Model:
         return tf.keras.layers.Multiply()([x, input_layer])
 
     def feature_pyramid_network(self, layers, filters, activation, bn=False, return_layers=False):
+        assert type(layers) == list and type(filters) == list
         layers = list(reversed(layers))
-        if type(filters) == list:
-            filters = list(reversed(filters))
-        for i in range(len(layers)):
-            layers[i] = self.conv_block(layers[i], filters if type(filters) == int else filters[i], 1, bn=bn, activation=activation)
-        ret = []
-        if return_layers:
-            ret.append(layers[0])
+        ret = [layers[0]]
+        filters = list(reversed(filters))
         for i in range(len(layers) - 1):
             x = tf.keras.layers.UpSampling2D()(layers[i] if i == 0 else x)
-            if type(filters) == list and filters[i] != filters[i+1]:
+            if filters[i] != filters[i+1]:
                 x = self.conv_block(x, filters[i+1], 1, bn=bn, activation=activation)
             x = self.add([x, layers[i+1]])
-            x = self.conv_block(x, filters if type(filters) == int else filters[i+1], 3, bn=bn, activation=activation)
-            if return_layers:
-                ret.append(x)
-        return list(reversed(ret)) if return_layers else x
+            x = self.conv_block(x, filters[i+1], 3, bn=bn, activation=activation)
+            ret.append(x)
+        layers = list(reversed(ret))
+        return layers if return_layers else x
 
     def path_aggregation_network(self, layers, filters, activation, bn=False, return_layers=False):
         assert type(layers) == list and type(filters) == list
