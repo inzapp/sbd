@@ -51,6 +51,7 @@ class Yolo:
                  validation_image_path='',
                  optimizer='sgd',
                  lr_policy='step',
+                 model_name='model',
                  use_layers=[],
                  training_view=False,
                  map_checkpoint=False,
@@ -66,6 +67,7 @@ class Yolo:
         self.__iterations = iterations
         self.__optimizer = optimizer
         self.__lr_policy = lr_policy
+        self.__model_name = model_name
         self.__training_view = training_view
         self.__map_checkpoint = map_checkpoint
         self.__ignore_threshold = ignore_threshold
@@ -220,9 +222,10 @@ class Yolo:
                 if self.__training_view and iteration_count > self.__burn_in:
                     self.__training_view_function()
                 if self.__map_checkpoint:
-                    if iteration_count >= int(self.__iterations * 0.5) and iteration_count % 10000 == 0:
+                    if iteration_count >= int(self.__iterations * 0.2) and iteration_count % 10000 == 0:
                     # if iteration_count == self.__iterations:
                     # if iteration_count % 1000 == 0:
+                    # if iteration_count >= (self.__iterations * 0.1) and iteration_count % 5000 == 0:
                         self.__save_model(iteration_count=iteration_count, use_map_checkpoint=self.__map_checkpoint)
                 else:
                     if iteration_count % 10000 == 0:
@@ -237,10 +240,10 @@ class Yolo:
         if use_map_checkpoint:
             self.__model.save('model.h5', include_optimizer=False)
             mean_ap, f1_score, iou, tp, fp, fn, confidence = calc_mean_average_precision(self.__model, self.__validation_image_paths)
-            self.__model.save(f'{self.__checkpoints}/model_{iteration_count}_iter_mAP_{mean_ap:.4f}_f1_{f1_score:.4f}_iou_{iou:.4f}_tp_{tp}_fp_{fp}_fn_{fn}_conf_{confidence:.4f}_ul_{ul}.h5', include_optimizer=False)
-            self.__model.save(f'model_last_ul_{ul}.h5', include_optimizer=False)
+            self.__model.save(f'{self.__checkpoints}/{self.__model_name}_{iteration_count}_iter_mAP_{mean_ap:.4f}_f1_{f1_score:.4f}_iou_{iou:.4f}_tp_{tp}_fp_{fp}_fn_{fn}_conf_{confidence:.4f}_ul_{ul}.h5', include_optimizer=False)
+            self.__model.save(f'{self.__model_name}_last_ul_{ul}.h5', include_optimizer=False)
         else:
-            self.__model.save(f'{self.__checkpoints}/model_{iteration_count}_iter_ul_{ul}.h5', include_optimizer=False)
+            self.__model.save(f'{self.__checkpoints}/{self.__model_name}_{iteration_count}_iter_ul_{ul}.h5', include_optimizer=False)
 
     @staticmethod
     def predict(model, img, device, confidence_threshold=0.25, nms_iou_threshold=0.45):

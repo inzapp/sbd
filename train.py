@@ -72,7 +72,7 @@ if __name__ == '__main__':
     """
 
     Yolo(
-        # pretrained_model_path=r'checkpoints/model_10000_iter_mAP_0.8703_f1_0.9231_tp_iou_0.8650_tp_96_fp_8_fn_8.h5',
+        # pretrained_model_path=r'C:\inz\git\yolo-lab\checkpoints\model_3000_iter_mAP_1.0000_f1_1.0000_iou_0.8663_tp_104_fp_0_fn_0_conf_0.8196_ul_all.h5',
         # optimizer='sgd',
         # lr_policy='step',
         # train_image_path=r'C:\inz\train_data\loon\train',
@@ -80,34 +80,15 @@ if __name__ == '__main__':
         # class_names_file_path=r'C:\inz\train_data\loon\train\classes.txt',
         # input_shape=(128, 512, 3),
 
-        # train_image_path=r'C:\inz\train_data\200m_sequence_for_auto_label\train',
-        # validation_image_path=r'C:\inz\train_data\200m_sequence_for_auto_label\validation',
-        # class_names_file_path=r'C:\inz\train_data\200m_sequence_for_auto_label\train\classes.txt',
-        # input_shape=(384, 640, 1),
-
-        # pretrained_model_path=r'checkpoints\small_drop_filter_training\model_100000_iter_mAP_0.4574_f1_0.6522_tp_iou_0.8082.h5',
-        # train_image_path=r'list\small_train.txt',
-        # validation_image_path=r'list\small_validation.txt',
-        # class_names_file_path=r'T:\200m_big_small_detection\train_data\small\small_all\train\classes.txt',
-        # input_shape=(192, 576, 1),
-
-        # pretrained_model_path=r'checkpoints/model_1000000_iter_mAP_0.9663_f1_0.9426_tp_iou_0.8491_tp_854_fp_45_fn_59_ul_all.h5',
+        # pretrained_model_path=r'./checkpoints/model_2000_iter_mAP_0.7969_f1_0.7962_iou_0.7053_tp_705_fp_153_fn_208_conf_0.4380_ul_all.h5',
         # optimizer='sgd',
         # lr_policy='step',
         # train_image_path=r'C:\inz\train_data\lp_detection\train',
         # validation_image_path=r'C:\inz\train_data\lp_detection\validation',
         # class_names_file_path=r'C:\inz\train_data\lp_detection\train\classes.txt',
-        # input_shape=(352, 640, 1),
+        # input_shape=(384, 640, 1),
 
-        # pretrained_model_path=r'checkpoints/object_detail/head_detail/model_722000_iter_mAP_0.6116_f1_0.5790_tp_iou_0.7655_tp_1954_fp_794_fn_2048.h5',
-        # optimizer='sgd',
-        # lr_policy='cosine',
-        # train_image_path=r'list/head_crop_detection/train.txt',
-        # validation_image_path=r'list/head_crop_detection/validation.txt',
-        # class_names_file_path=r'C:\inz\train_data\head_crop_detail\train\classes.txt',
-        # input_shape=(128, 128, 1),
-
-        # pretrained_model_path=r'checkpoints/lcd_white/model_100000_iter_mAP_0.9639_f1_0.9498_tp_iou_0.8227_tp_8015_fp_439_fn_409_ul_all.h5',
+        # pretrained_model_path=r'C:\inz\git\yolo-lab\checkpoints\model_16000_iter_mAP_0.9537_f1_0.9478_iou_0.8166_tp_8060_fp_524_fn_364_conf_0.8703_ul_all.h5',
         # optimizer='sgd',
         # lr_policy='step',
         # train_image_path=r'C:\inz\train_data\lcd_white\train',
@@ -115,55 +96,60 @@ if __name__ == '__main__':
         # class_names_file_path=r'C:\inz\train_data\lcd_white\train\classes.txt',
         # input_shape=(96, 192, 1),
 
-        # pretrained_model_path=r'checkpoints/model_220000_iter_ul_all.h5',
-        optimizer='sgd',
-        lr_policy='step',
-        ignore_threshold=0.9,
-        train_image_path=r'C:\inz\train_data\new_lcd\lcd_b1\train',
-        validation_image_path=r'C:\inz\train_data\new_lcd\lcd_b1\validation',
-        class_names_file_path=r'C:\inz\train_data\new_lcd\lcd_b1\classes.txt',
-        checkpoints='checkpoints/lcd/re/test/1l_0.9',
-        input_shape=(96, 192, 1),
+        # pretrained_model_path=r'C:\inz\git\yolo-lab\checkpoints\lcd_new\b1\model_129000_iter_mAP_0.9914_f1_0.9923_tp_iou_0.8369_tp_963_fp_6_fn_9_ul_all.h5',
+        # optimizer='sgd',
+        # lr_policy='step',
+        # train_image_path=r'C:\inz\train_data\lcd_new\lcd_b1\train\raw',
+        # validation_image_path=r'C:\inz\train_data\lcd_new\lcd_b1\validation',
+        # class_names_file_path=r'C:\inz\train_data\lcd_new\lcd_b1\classes.txt',
+        # checkpoints='checkpoints',
+        # input_shape=(96, 192, 1),
 
         # pretrained_model_path=r'checkpoints/square/eps_sq_no_1conv_92000_iter_mAP_1.0000_f1_1.0000_tp_iou_0.9955_tp_52_fp_0_fn_0.h5',
-        # pretrained_model_path=r'checkpoints/model_20000_iter_ul_all.h5',
-        # pretrained_model_path=r'checkpoints/model_200000_iter_mAP_0.9996_f1_0.7317_tp_iou_0.9822_tp_30_fp_0_fn_22_ul_[0].h5',
         # optimizer='sgd',
         # lr_policy='step',
         # train_image_path=r'C:\inz\train_data\square_set',
         # validation_image_path=r'C:\inz\train_data\square_set',
         # class_names_file_path=r'C:\inz\train_data\square_set\classes.txt',
         # input_shape=(640, 640, 1),
-        # use_layers=[0],
 
-        # pretrained_model_path=r'checkpoints/model_1128000_iter_mAP_0.9649_f1_0.9358_tp_iou_0.9362_tp_10101_fp_840_fn_546.h5',
+        # pretrained_model_path=r'checkpoints/model_73000_iter_mAP_0.9730_f1_0.9592_tp_iou_0.7847_tp_764_fp_32_fn_33_ul_all.h5',
+        optimizer='sgd',
+        lr_policy='onecycle',
+        model_name='onecycle',
+        train_image_path=r'C:\inz\train_data\lp_in_car\train',
+        validation_image_path=r'C:\inz\train_data\lp_in_car\validation',
+        class_names_file_path=r'C:\inz\train_data\lp_in_car\train\classes.txt',
+        input_shape=(256, 256, 1),
+
+        # pretrained_model_path=r'C:\inz\git\yolo-lab\checkpoints\model_84000_iter_mAP_0.7477_f1_0.7655_iou_0.8646_tp_878_fp_90_fn_448_conf_0.7282_ul_all.h5',
         # optimizer='sgd',
         # lr_policy='step',
-        # train_image_path=r'C:\inz\train_data\pig_cow\train',
-        # validation_image_path=r'C:\inz\train_data\pig_cow\validation',
-        # class_names_file_path=r'C:\inz\train_data\pig_cow\classes.txt',
-        # input_shape=(352, 640, 3),
+        # train_image_path=r'C:\inz\train_data\normal_model_car\train',
+        # validation_image_path=r'C:\inz\train_data\normal_model_car\validation',
+        # class_names_file_path=r'C:\inz\train_data\normal_model_car\train\classes.txt',
+        # input_shape=(128, 256, 1),
 
-        # pretrained_model_path=r'checkpoints/model_14000_iter_mAP_0.9618_f1_0.9530_tp_iou_0.8017_tp_274_fp_10_fn_17.h5',
+        # pretrained_model_path=r'C:\inz\git\yolo-lab\checkpoints\model_100000_iter_ul_all.h5',
         # optimizer='sgd',
         # lr_policy='step',
-        # train_image_path=r'C:\inz\train_data\lp_in_car\train',
-        # validation_image_path=r'C:\inz\train_data\lp_in_car\validation',
-        # class_names_file_path=r'C:\inz\train_data\lp_in_car\train\classes.txt',
-        # input_shape=(256, 256, 3),
+        # train_image_path=r'C:\inz\train_data\normal_model_car_640x384_12_class\train',
+        # validation_image_path=r'C:\inz\train_data\normal_model_car_640x384_12_class\validation',
+        # class_names_file_path=r'C:\inz\train_data\normal_model_car_640x384_12_class\train\classes.txt',
+        # input_shape=(384, 640, 1),
 
-        lr=0.001,
+        lr=0.01,
         decay=0.0005,
         momentum=0.9,
         burn_in=1000,
         batch_size=4,
-        iterations=300000,
+        iterations=10000,
         curriculum_iterations=0,
-        training_view=False,
+        training_view=True,
         map_checkpoint=True).fit()
-        # map_checkpoint=True).predict_validation_images()
-        # map_checkpoint=True).map_validation_images()
-        # map_checkpoint=True).map_train_images()
+        # map_checkpoint=True).predict_images('validation')
+        # map_checkpoint=True).predict_video(r'P:\07. SW 개발팀\08. 개인 폴더\43. 성준영\속도측정\20220823\192.168.94.111(speed) - speed_day_2.mp4')
+        # map_checkpoint=True).calculate_map('validation')
 
     # from glob import glob
     # from random import shuffle
