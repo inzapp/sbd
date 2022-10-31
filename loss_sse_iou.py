@@ -97,7 +97,7 @@ def __bbox_loss(y_true, y_pred, ignore_threshold):
     xy_loss = tf.reduce_mean(xy_loss, axis=0)
     xy_loss = tf.reduce_sum(xy_loss)
 
-    siou_loss = tf.square(obj_true - (__iou(y_true, y_pred) * obj_true))
+    siou_loss = tf.square(obj_true - __iou(y_true, y_pred)) * obj_true
     siou_loss = tf.reduce_mean(siou_loss, axis=0)
     siou_loss = tf.reduce_sum(siou_loss)
     return (xy_loss + siou_loss) * 5.0
@@ -112,10 +112,12 @@ def __classification_loss(y_true, y_pred):
     class_true = y_true[:, :, :, 5:]
     class_pred = y_pred[:, :, :, 5:]
     loss = tf.square(class_true - class_pred)
+
+    class_weight = 1.0 / (K.cast_to_floatx(tf.shape(y_true)[-1]) - 5.0)
     loss = tf.reduce_sum(loss, axis=-1) * obj_true
     loss = tf.reduce_mean(loss, axis=0)
     loss = tf.reduce_sum(loss)
-    return loss
+    return loss * class_weight
 
 
 def confidence_loss(y_true, y_pred, ignore_threshold):
