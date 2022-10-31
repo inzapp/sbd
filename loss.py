@@ -44,7 +44,8 @@ def binary_crossentropy(y_true, y_pred):
 def focal_loss(y_true, y_pred, alpha=0.25, gamma=1.5):
     alpha_tensor = tf.ones_like(y_true) * alpha
     alpha_t = tf.where(y_true == 1.0, alpha_tensor, 1.0 - alpha_tensor)
-    cross_entropy = binary_crossentropy(y_true, y_pred)
+    # cross_entropy = binary_crossentropy(y_true, y_pred)
+    cross_entropy = __abs_log_loss(y_true, y_pred)
     pt = tf.where(y_true == 1.0, y_pred, 1.0 - y_pred)
     weight = alpha_t * tf.pow((1.0 - pt), gamma)
     loss = weight * cross_entropy
@@ -175,7 +176,8 @@ def __bbox_loss_iou(y_true, y_pred, ignore_threshold):
 
     eps = K.epsilon()
     iou, rdiou = __iou(y_true, y_pred, diou=True)
-    loss = tf.reduce_sum(tf.reduce_mean(binary_crossentropy(obj_true, iou) * obj_true, axis=0))
+    # loss = tf.reduce_sum(tf.reduce_mean(binary_crossentropy(obj_true, iou) * obj_true, axis=0))
+    loss = tf.reduce_sum(tf.reduce_mean(__abs_log_loss(obj_true, iou) * obj_true, axis=0))
     return loss + rdiou
 
 
