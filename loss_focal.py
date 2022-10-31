@@ -112,19 +112,34 @@ def __iou(y_true, y_pred, diou=False):
     union = y_true_area + y_pred_area - intersection
     iou = intersection / (union + 1e-5)
 
+    rdiou = 0.0
     if diou:
-        cxy_true = y_true[:, :, :, 1:3]
-        cxy_pred = y_pred[:, :, :, 1:3]
-        center_distance = tf.reduce_sum(tf.square(cxy_true - cxy_pred), axis=-1)
+        cx_true = y_true[:, :, :, 1]
+        cx_pred = y_pred[:, :, :, 1]
+        cy_true = y_true[:, :, :, 2]
+        cy_pred = y_pred[:, :, :, 2]
+
+        w_true  = y_true[:, :, :, 3]
+        w_pred  = y_pred[:, :, :, 3]
+        h_true  = y_true[:, :, :, 4]
+        h_pred  = y_pred[:, :, :, 4]
+
+        x1_true = cx_true - (w_true * 0.5)
+        x1_pred = cx_pred - (w_pred * 0.5)
+        y1_true = cy_true - (h_true * 0.5)
+        y1_pred = cy_pred - (h_pred * 0.5)
+
+        x2_true = cx_true + (w_true * 0.5)
+        x2_pred = cx_pred + (w_pred * 0.5)
+        y2_true = cy_true + (h_true * 0.5)
+        y2_pred = cy_pred + (h_pred * 0.5)
+
+        center_loss = tf.square(cx_true - cx_pred) + tf.square(cy_true - cy_pred)
         union_width = tf.maximum(x2_true, x2_pred) - tf.minimum(x1_true, x1_pred)
         union_height = tf.maximum(y2_true, y2_pred) - tf.minimum(y1_true, y1_pred)
-        diagonal = tf.square(union_width) + tf.square(union_height) + K.epsilon()
-        diou_factor = center_distance / diagonal
-        diou_factor = tf.reduce_mean(diou_factor, axis=0)
-        diou_factor = tf.reduce_sum(diou_factor)
-        return iou, diou_factor
-    else:
-        return iou, 0.0
+        diagonal_loss = tf.square(union_width) + tf.square(union_height) + K.epsilon()
+        rdiou = tf.reduce_sum(tf.reduce_mean(center_loss / diagonal_loss, axis=0))
+    return iou, rdiou
 
 
 def __bbox_loss_xywh(y_true, y_pred):
@@ -158,12 +173,10 @@ def __bbox_loss_iou(y_true, y_pred, ignore_threshold):
     if obj_count == tf.constant(0.0):
         return 0.0
 
-    iou, diou_factor = __iou(y_true, y_pred, diou=False)  # TODO : fix DIoU loss
-    ignore_mask = tf.where(iou > ignore_threshold, 0.0, 1.0) * obj_true
-    loss = obj_true - (iou * obj_true)
-    loss = tf.reduce_mean(loss * ignore_mask, axis=0)
-    loss = tf.reduce_sum(loss)
-    return loss + diou_factor
+    eps = K.epsilon()
+    iou, rdiou = __iou(y_true, y_pred, diou=True)
+    loss = tf.reduce_sum(tf.reduce_mean(binary_crossentropy(obj_true, iou) * obj_true, axis=0))
+    return loss + rdiou
 
 
 def __bbox_loss(y_true, y_pred, ignore_threshold):
