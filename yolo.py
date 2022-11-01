@@ -45,7 +45,6 @@ class Yolo:
                  burn_in=1000,
                  batch_size=4,
                  iterations=100000,
-                 ignore_threshold=0.9,
                  curriculum_iterations=0,
                  validation_split=0.2,
                  validation_image_path='',
@@ -70,13 +69,14 @@ class Yolo:
         self.__model_name = model_name
         self.__training_view = training_view
         self.__map_checkpoint = map_checkpoint
-        self.__ignore_threshold = ignore_threshold
         self.__curriculum_iterations = curriculum_iterations
         self.__mixed_float16_training = mixed_float16_training
         self.__live_view_previous_time = time()
         self.__checkpoints = checkpoints
         self.__cycle_step = 0
         self.__cycle_length = 2500
+        self.__background_weights = [0.5, 0.5, 0.5]
+        self.__not_class_weight = 0.5
         self.max_map, self.max_f1, self.max_map_iou_hm, self.max_f1_iou_hm = 0.0, 0.0, 0.0, 0.0
         Yolo.g_use_layers = use_layers
 
@@ -157,26 +157,28 @@ class Yolo:
         print('\ninvalid label check in validation data...')
         self.__validation_data_generator_for_check.flow().check_invalid_label()
         print('\ncalculate BPR(Best Possible Recall)...')
-        self.__train_data_generator_for_check.flow().calculate_best_possible_recall()
+        self.__background_weights, self.__not_class_weight = self.__train_data_generator_for_check.flow().calculate_best_possible_recall()
         print('\nstart test forward for checking forwarding time.')
         ModelUtil.check_forwarding_time(self.__model, device='gpu')
         if tf.keras.backend.image_data_format() == 'channels_last':  # default max pool 2d layer is run on gpu only
             ModelUtil.check_forwarding_time(self.__model, device='cpu')
 
+        print(f'\nbackground weights : {self.__background_weights}')
+        print(f'not class weight   : {self.__not_class_weight:.6f}')
         print('\nstart training')
         if self.__curriculum_iterations > 0:
             self.__curriculum_train()
         self.__train()
 
-    def compute_gradient(self, model, optimizer, loss_function, x, y_true, num_output_layers, ignore_threshold):
+    def compute_gradient(self, model, optimizer, loss_function, x, y_true, num_output_layers, background_weights, not_class_weight):
         with tf.GradientTape() as tape:
             loss = 0.0
             y_pred = model(x, training=True)
             if num_output_layers == 1:
-                loss = loss_function(y_true, y_pred, ignore_threshold)
+                loss = loss_function(y_true, y_pred, background_weights[0], not_class_weight)
             else:
                 for i in range(num_output_layers):
-                    loss += loss_function(y_true[i], y_pred[i], ignore_threshold)
+                    loss += loss_function(y_true[i], y_pred[i], background_weights[i], not_class_weight)
             gradients = tape.gradient(loss, model.trainable_variables)
         optimizer.apply_gradients(zip(gradients, model.trainable_variables))
         return loss
@@ -200,7 +202,7 @@ class Yolo:
                 for batch_x, batch_y in self.__train_data_generator.flow():
                     iteration_count += 1
                     lr_scheduler.update(optimizer, iteration_count, self.__burn_in, 'onecycle')
-                    loss = compute_gradients[i](self.__model, optimizer, loss_functions[i], batch_x, batch_y, self.num_output_layers, self.__ignore_threshold)
+                    loss = compute_gradients[i](self.__model, optimizer, loss_functions[i], batch_x, batch_y, self.num_output_layers, self.__background_weights, self.__not_class_weight)
                     print(f'\r[curriculum iteration count : {iteration_count:6d}] loss => {loss:.4f}', end='')
                     if iteration_count == self.__curriculum_iterations:
                         print()
@@ -216,15 +218,15 @@ class Yolo:
         while True:
             for batch_x, batch_y in self.__train_data_generator.flow():
                 lr_scheduler.update(optimizer, iteration_count, self.__burn_in, self.__lr_policy)
-                loss = compute_gradient_tf(self.__model, optimizer, yolo_loss, batch_x, batch_y, self.num_output_layers, self.__ignore_threshold)
+                loss = compute_gradient_tf(self.__model, optimizer, yolo_loss, batch_x, batch_y, self.num_output_layers, self.__background_weights, self.__not_class_weight)
                 iteration_count += 1
                 print(f'\r[iteration count : {iteration_count:6d}] loss => {loss:.4f}', end='')
                 if self.__training_view and iteration_count > self.__burn_in:
                     self.__training_view_function()
                 if self.__map_checkpoint:
-                    if iteration_count >= int(self.__iterations * 0.2) and iteration_count % 10000 == 0:
+                    # if iteration_count >= int(self.__iterations * 0.2) and iteration_count % 10000 == 0:
                     # if iteration_count == self.__iterations:
-                    # if iteration_count % 1000 == 0:
+                    if iteration_count % 2000 == 0:
                     # if iteration_count >= (self.__iterations * 0.1) and iteration_count % 5000 == 0:
                         self.__save_model(iteration_count=iteration_count, use_map_checkpoint=self.__map_checkpoint)
                 else:

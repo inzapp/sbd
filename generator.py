@@ -71,6 +71,10 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         self.output_shapes = output_shapes
         if type(self.output_shapes) == tuple:
             self.output_shapes = [self.output_shapes]
+        if tf.keras.backend.image_data_format() == 'channels_first':
+            self.num_classes = self.output_shapes[0][1] - 5
+        else:
+            self.num_classes = self.output_shapes[0][-1] - 5
         self.batch_size = batch_size
         self.num_output_layers = len(self.output_shapes)
         self.batch_index = 0
@@ -107,7 +111,6 @@ class GeneratorFlow(tf.keras.utils.Sequence):
             return False
 
     def check_invalid_label(self):
-        num_classes = self.output_shapes[0][-1] - 5
         fs = []
         for path in self.image_paths:
             fs.append(self.pool.submit(self.load_label, f'{path[:-4]}.txt'))
@@ -116,7 +119,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
             lines, label_path = f.result()
             for line in lines:
                 class_index, cx, cy, w, h = list(map(float, line.split()))
-                if self.is_invalid_label(label_path, [class_index, cx, cy, w, h], num_classes):
+                if self.is_invalid_label(label_path, [class_index, cx, cy, w, h], self.num_classes):
                     invalid_label_paths.add(label_path)
         if len(invalid_label_paths) > 0:
             print()
@@ -127,7 +130,6 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         print('invalid label not found')
 
     def calculate_best_possible_recall(self):
-        num_classes = self.output_shapes[0][-1] - 5
         box_count_in_real_data = 0
         fs = []
         for path in self.image_paths:
@@ -137,26 +139,37 @@ class GeneratorFlow(tf.keras.utils.Sequence):
             lines, _ = f.result()
             box_count_in_real_data += len(self.convert_to_boxes(lines))
 
+        max_area = 0
+        max_area_index = -1
+        output_layer_areas = []
         image_data_format = tf.keras.backend.image_data_format()
+        for i in range(self.num_output_layers):
+            if image_data_format == 'channels_first':
+                cur_area = np.prod(self.output_shapes[i][2:4])
+            else:
+                cur_area = np.prod(self.output_shapes[i][1:3])
+            if cur_area > max_area:
+                max_area = cur_area
+                max_area_index = i
+            output_layer_areas.append(cur_area)
+
         y_true_obj_count = 0  # obj count in train tensor(y_true)
         for _, batch_y in tqdm(self):
             if self.num_output_layers == 1:
                 batch_y = [batch_y]
-            max_area = 0
-            max_area_index = -1
-            for i in range(self.num_output_layers):
-                if image_data_format == 'channels_first':
-                    cur_area = np.sum(np.ones_like(batch_y[i][:, 0, :, :], dtype=np.float32))
-                else:
-                    cur_area = np.sum(np.ones_like(batch_y[i][:, :, :, 0], dtype=np.float32))
-                if cur_area > max_area:
-                    max_area = cur_area
-                    max_area_index = i
             if image_data_format == 'channels_first':
                 y_true_obj_count += np.sum(batch_y[max_area_index][:, 0, :, :])
             else:
                 y_true_obj_count += np.sum(batch_y[max_area_index][:, :, :, 0])
+
+        background_weights = []
         avg_obj_count_per_image = box_count_in_real_data / float(len(self.image_paths))
+        for area in output_layer_areas:
+            background_weights.append(np.sqrt(np.sqrt(avg_obj_count_per_image / float(area))))
+        background_weights = np.asarray(background_weights, dtype=np.float32)
+        np.set_printoptions(precision=6)
+        not_class_weight = np.sqrt(1.0 / float(self.num_classes)).astype('float32')
+
         y_true_obj_count = int(y_true_obj_count)
         not_trained_obj_count = box_count_in_real_data - y_true_obj_count
         not_trained_obj_rate = not_trained_obj_count / box_count_in_real_data * 100.0
@@ -166,6 +179,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         print(f'train tensor obj count : {y_true_obj_count}')
         print(f'not trained  obj count : {not_trained_obj_count} ({not_trained_obj_rate:.2f}%)')
         print(f'best possible recall   : {best_possible_recall:.4f}')
+        return background_weights, not_class_weight
 
     def convert_to_boxes(self, label_lines):
         def get_same_box_index(boxes, cx, cy, w, h):
