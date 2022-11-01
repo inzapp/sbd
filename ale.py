@@ -69,7 +69,7 @@ class AbsoluteLogarithmicError(tf.keras.losses.Loss):
         y_true = tf.clip_by_value(y_true, 0.0 + eps, 1.0 - eps)
         y_pred = tf.clip_by_value(y_pred, 0.0 + eps, 1.0 - eps)
         abs_error = tf.abs(y_true - y_pred)
-        loss = -tf.math.log(1.0 - abs_error) * tf.pow(tf.maximum(abs_error, eps), self.gamma)
+        loss = -tf.math.log((1.0 + eps) - abs_error) * tf.pow(tf.maximum(abs_error, eps), self.gamma)
         if self.reduce == 'mean':
             loss = tf.reduce_mean(loss)
         elif self.reduce == 'sum':
