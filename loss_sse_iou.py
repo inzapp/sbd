@@ -18,21 +18,20 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 import tensorflow as tf
-from keras import backend as K
 from tensorflow.python.framework.ops import convert_to_tensor_v2
 
 
-def __confidence_loss(y_true, y_pred):
+def __confidence_loss(y_true, y_pred, background_weight):
     obj_true = y_true[:, :, :, 0]
     obj_pred = y_pred[:, :, :, 0]
     loss = tf.square(obj_true - obj_pred)
     obj_loss = tf.reduce_sum(tf.reduce_mean(loss * obj_true, axis=0))
     background_loss = tf.reduce_sum(tf.reduce_mean(loss * (1.0 - obj_true), axis=0))
-    return obj_loss + (background_loss * 0.5)
+    return obj_loss + (background_loss * background_weight)
 
 
 def __iou(y_true, y_pred):
-    y_true_shape = K.cast_to_floatx(K.shape(y_true))
+    y_true_shape = tf.cast(tf.shape(y_true), y_pred.dtype)
     grid_height, grid_width = y_true_shape[1], y_true_shape[2]
 
     cx_true = y_true[:, :, :, 1]
@@ -40,12 +39,12 @@ def __iou(y_true, y_pred):
     w_true = y_true[:, :, :, 3]
     h_true = y_true[:, :, :, 4]
 
-    x_range = tf.range(grid_width, dtype=K.floatx())
-    x_offset = tf.broadcast_to(x_range, shape=K.shape(cx_true))
+    x_range = tf.range(grid_width, dtype=y_pred.dtype)
+    x_offset = tf.broadcast_to(x_range, shape=tf.shape(cx_true))
 
-    y_range = tf.range(grid_height, dtype=K.floatx())
+    y_range = tf.range(grid_height, dtype=y_pred.dtype)
     y_range = tf.reshape(y_range, shape=(1, grid_height, 1))
-    y_offset = tf.broadcast_to(y_range, shape=K.shape(cy_true))
+    y_offset = tf.broadcast_to(y_range, shape=tf.shape(cy_true))
 
     cx_true = x_offset + (cx_true * 1.0 / grid_width)
     cy_true = y_offset + (cy_true * 1.0 / grid_height)
@@ -68,13 +67,13 @@ def __iou(y_true, y_pred):
     x2_pred = cx_pred + w_pred / 2.0
     y2_pred = cy_pred + h_pred / 2.0
 
-    min_x2 = K.minimum(x2_true, x2_pred)
-    max_x1 = K.maximum(x1_true, x1_pred)
-    min_y2 = K.minimum(y2_true, y2_pred)
-    max_y1 = K.maximum(y1_true, y1_pred)
+    min_x2 = tf.minimum(x2_true, x2_pred)
+    max_x1 = tf.maximum(x1_true, x1_pred)
+    min_y2 = tf.minimum(y2_true, y2_pred)
+    max_y1 = tf.maximum(y1_true, y1_pred)
 
-    intersection_width = K.maximum(min_x2 - max_x1, 0.0)
-    intersection_height = K.maximum(min_y2 - max_y1, 0.0)
+    intersection_width = tf.maximum(min_x2 - max_x1, 0.0)
+    intersection_height = tf.maximum(min_y2 - max_y1, 0.0)
     intersection = intersection_width * intersection_height
 
     y_true_area = w_true * h_true
@@ -84,9 +83,9 @@ def __iou(y_true, y_pred):
     return iou
 
 
-def __bbox_loss(y_true, y_pred, ignore_threshold):
+def __bbox_loss(y_true, y_pred):
     obj_true = y_true[:, :, :, 0]
-    obj_count = K.cast_to_floatx(tf.reduce_sum(obj_true))
+    obj_count = tf.cast(tf.reduce_sum(obj_true), y_pred.dtype)
     if obj_count == tf.constant(0.0):
         return 0.0
 
@@ -103,37 +102,35 @@ def __bbox_loss(y_true, y_pred, ignore_threshold):
     return (xy_loss + siou_loss) * 5.0
 
 
-def __classification_loss(y_true, y_pred):
+def __classification_loss(y_true, y_pred, not_class_weight):
     obj_true = y_true[:, :, :, 0]
-    obj_count = K.cast_to_floatx(tf.reduce_sum(obj_true))
-    if obj_count == tf.constant(0.0):
+    obj_count = tf.cast(tf.reduce_sum(obj_true), y_pred.dtype)
+    if tf.equal(obj_count, tf.constant(0.0)):
         return 0.0
 
     class_true = y_true[:, :, :, 5:]
     class_pred = y_pred[:, :, :, 5:]
     loss = tf.square(class_true - class_pred)
-
-    class_weight = 1.0 / (K.cast_to_floatx(tf.shape(y_true)[-1]) - 5.0)
-    loss = tf.reduce_sum(loss, axis=-1) * obj_true
-    loss = tf.reduce_mean(loss, axis=0)
-    loss = tf.reduce_sum(loss)
-    return loss * class_weight
+    class_true_loss = loss * class_true
+    class_false_loss = loss * (1.0 - class_true) * not_class_weight
+    loss = tf.reduce_sum(tf.reduce_mean(tf.reduce_sum(class_true_loss + class_false_loss, axis=-1) * obj_true, axis=0))
+    return loss
 
 
-def confidence_loss(y_true, y_pred, ignore_threshold):
+def confidence_loss(y_true, y_pred, background_weight):
     y_pred = convert_to_tensor_v2(y_pred)
     y_true = tf.cast(y_true, y_pred.dtype)
-    return __confidence_loss(y_true, y_pred)
+    return __confidence_loss(y_true, y_pred, background_weight)
 
 
-def confidence_with_bbox_loss(y_true, y_pred, ignore_threshold):
+def confidence_with_bbox_loss(y_true, y_pred, background_weight):
     y_pred = convert_to_tensor_v2(y_pred)
     y_true = tf.cast(y_true, y_pred.dtype)
-    return __confidence_loss(y_true, y_pred) + __bbox_loss(y_true, y_pred, ignore_threshold)
+    return __confidence_loss(y_true, y_pred, background_weight) + __bbox_loss(y_true, y_pred)
 
 
-def yolo_loss(y_true, y_pred, ignore_threshold):
+def yolo_loss(y_true, y_pred, background_weight, not_class_weight):
     y_pred = convert_to_tensor_v2(y_pred)
     y_true = tf.cast(y_true, y_pred.dtype)
-    return __confidence_loss(y_true, y_pred) + __bbox_loss(y_true, y_pred, ignore_threshold) + __classification_loss(y_true, y_pred)
+    return __confidence_loss(y_true, y_pred, background_weight) + __bbox_loss(y_true, y_pred) + __classification_loss(y_true, y_pred, not_class_weight)
 
