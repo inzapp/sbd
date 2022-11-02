@@ -156,7 +156,7 @@ class Yolo:
             obj_gamma_arg_type = type(self.__obj_gamma_arg)
             num_output_layers = len(self.__model.output_shape) if type(self.__model.output_shape) is list else 1
             if obj_gamma_arg_type is float:
-                self.__obj_gammas = [self.__obj_gamma_arg for _ in range(len(num_output_layers))]
+                self.__obj_gammas = [self.__obj_gamma_arg for _ in range(num_output_layers)]
             elif obj_gamma_arg_type is list:
                 if len(self.__obj_gamma_arg) == num_output_layers:
                     self.__obj_gammas = self.__obj_gamma_arg
