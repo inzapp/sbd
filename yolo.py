@@ -51,8 +51,8 @@ class Yolo:
                  optimizer='sgd',
                  lr_policy='step',
                  model_name='model',
-                 obj_gamma_arg='auto',
-                 cls_gamma_arg='auto',
+                 obj_gamma='auto',
+                 cls_gamma='auto',
                  use_layers=[],
                  training_view=False,
                  map_checkpoint=False,
@@ -77,8 +77,8 @@ class Yolo:
         self.__checkpoints = checkpoints
         self.__cycle_step = 0
         self.__cycle_length = 2500
-        self.__obj_gamma_arg = obj_gamma_arg
-        self.__cls_gamma_arg = cls_gamma_arg
+        self.__obj_gamma_arg = obj_gamma
+        self.__cls_gamma_arg = cls_gamma
         self.__obj_gammas = None
         self.__cls_gamma = None
         self.max_map, self.max_f1, self.max_map_iou_hm, self.max_f1_iou_hm = 0.0, 0.0, 0.0, 0.0
