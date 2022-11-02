@@ -57,10 +57,8 @@ def focal_loss(y_true, y_pred, alpha=0.25, gamma=1.5):
 def __confidence_loss(y_true, y_pred):
     obj_true = y_true[:, :, :, 0]
     obj_pred = y_pred[:, :, :, 0]
-    # loss = binary_crossentropy(obj_true, obj_pred)
     loss = focal_loss(obj_true, obj_pred)
-    loss = tf.reduce_mean(loss, axis=0)
-    loss = tf.reduce_sum(loss)
+    loss = tf.reduce_sum(tf.reduce_mean(loss, axis=0))
     return loss
 
 
@@ -154,19 +152,15 @@ def __bbox_loss_xywh(y_true, y_pred):
     # weight_mask = ((obj_true * 1.05) - (__iou(y_true, y_pred) * obj_true)) * 5.0
     xy_true = y_true[:, :, :, 1:3]
     xy_pred = y_pred[:, :, :, 1:3]
-    xy_loss = ale(xy_true, xy_pred)
-    xy_loss = tf.reduce_sum(xy_loss, axis=-1) * obj_true
-    xy_loss = tf.reduce_mean(xy_loss, axis=0)
-    xy_loss = tf.reduce_sum(xy_loss)
+    xy_loss = tf.square(xy_true - xy_pred)
+    xy_loss = tf.reduce_sum(tf.reduce_mean(tf.reduce_sum(xy_loss, axis=-1) * obj_true, axis=0))
 
     eps = tf.keras.backend.epsilon()
     wh_true = tf.sqrt(y_true[:, :, :, 3:5] + eps)
     wh_pred = tf.sqrt(y_pred[:, :, :, 3:5] + eps)
-    wh_loss = ale(wh_true, wh_pred)
-    wh_loss = tf.reduce_sum(wh_loss, axis=-1) * obj_true
-    wh_loss = tf.reduce_mean(wh_loss, axis=0)
-    wh_loss = tf.reduce_sum(wh_loss)
-    return xy_loss + wh_loss
+    wh_loss = tf.square(wh_true - wh_pred)
+    wh_loss = tf.reduce_sum(tf.reduce_mean(tf.reduce_sum(wh_loss, axis=-1) * obj_true, axis=0))
+    return (xy_loss + wh_loss) * 5.0
 
 
 def __bbox_loss_iou(y_true, y_pred):
@@ -175,16 +169,19 @@ def __bbox_loss_iou(y_true, y_pred):
     if obj_count == tf.constant(0.0):
         return 0.0
 
-    eps = tf.keras.backend.epsilon()
-    iou, rdiou = __iou(y_true, y_pred, diou=True)
-    # loss = tf.reduce_sum(tf.reduce_mean(binary_crossentropy(obj_true, iou) * obj_true, axis=0))
-    loss = tf.reduce_sum(tf.reduce_mean(__abs_log_loss(obj_true, iou) * obj_true, axis=0))
-    return loss + rdiou
+    xy_true = y_true[:, :, :, 1:3]
+    xy_pred = y_pred[:, :, :, 1:3]
+    xy_loss = tf.square(xy_true - xy_pred)
+    xy_loss = tf.reduce_sum(tf.reduce_mean(tf.reduce_sum(xy_loss, axis=-1) * obj_true, axis=0))
+
+    iou, rdiou = __iou(y_true, y_pred, diou=False)
+    iou_loss = tf.reduce_sum(tf.reduce_mean((obj_true - iou) * obj_true, axis=0))
+    return xy_loss + iou_loss
 
 
 def __bbox_loss(y_true, y_pred):
-    # return __bbox_loss_iou(y_true, y_pred)
-    return __bbox_loss_xywh(y_true, y_pred)
+    return __bbox_loss_iou(y_true, y_pred)
+    # return __bbox_loss_xywh(y_true, y_pred)
 
 
 def __classification_loss(y_true, y_pred):
@@ -196,12 +193,8 @@ def __classification_loss(y_true, y_pred):
     # class_true = tf.clip_by_value(y_true[:, :, :, 5:], 0.1, 0.9)
     class_true = y_true[:, :, :, 5:]
     class_pred = y_pred[:, :, :, 5:]
-    # loss = binary_crossentropy(class_true, class_pred)
     loss = focal_loss(class_true, class_pred)
-    # loss = __abs_log_loss(class_true, class_pred)
-    loss = tf.reduce_sum(loss, axis=-1) * obj_true
-    loss = tf.reduce_mean(loss, axis=0)
-    loss = tf.reduce_sum(loss)
+    loss = tf.reduce_sum(tf.reduce_mean(tf.reduce_sum(loss, axis=-1) * obj_true, axis=0))
     return loss
 
 
