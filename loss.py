@@ -39,15 +39,15 @@ from ale import AbsoluteLogarithmicError
 # cls_focal_ale = AbsoluteLogarithmicError(gamma=1.041392)
 
 # normal 60class
-obj_focal_ale = AbsoluteLogarithmicError(gamma=2.361947)
-cls_focal_ale = AbsoluteLogarithmicError(gamma=1.770852)
+# obj_focal_ale = AbsoluteLogarithmicError(gamma=2.361947)
+# cls_focal_ale = AbsoluteLogarithmicError(gamma=1.770852)
 
 
 
-def __confidence_loss(y_true, y_pred):
+def __confidence_loss(y_true, y_pred, obj_gamma):
     obj_true = y_true[:, :, :, 0]
     obj_pred = y_pred[:, :, :, 0]
-    loss = obj_focal_ale(obj_true, obj_pred)
+    loss = AbsoluteLogarithmicError(gamma=obj_gamma)(obj_true, obj_pred)
     loss = tf.reduce_sum(tf.reduce_mean(loss, axis=0))
     return loss
 
@@ -125,7 +125,7 @@ def __bbox_loss(y_true, y_pred):
     return iou_loss + rdiou
 
 
-def __classification_loss(y_true, y_pred):
+def __classification_loss(y_true, y_pred, cls_gamma):
     obj_true = y_true[:, :, :, 0]
     obj_count = tf.cast(tf.reduce_sum(obj_true), y_pred.dtype)
     if obj_count == tf.constant(0.0):
@@ -133,25 +133,25 @@ def __classification_loss(y_true, y_pred):
 
     class_true = y_true[:, :, :, 5:]
     class_pred = y_pred[:, :, :, 5:]
-    loss = cls_focal_ale(class_true, class_pred)
+    loss = AbsoluteLogarithmicError(gamma=cls_gamma)(class_true, class_pred)
     loss = tf.reduce_sum(tf.reduce_mean(tf.reduce_sum(loss, axis=-1) * obj_true, axis=0))
     return loss
 
 
-def confidence_loss(y_true, y_pred, background_weight):
+def confidence_loss(y_true, y_pred, obj_gamma):
     y_pred = convert_to_tensor_v2(y_pred)
     y_true = tf.cast(y_true, y_pred.dtype)
-    return __confidence_loss(y_true, y_pred)
+    return __confidence_loss(y_true, y_pred, obj_gamma)
 
 
-def confidence_with_bbox_loss(y_true, y_pred, background_weight):
+def confidence_with_bbox_loss(y_true, y_pred, obj_gamma):
     y_pred = convert_to_tensor_v2(y_pred)
     y_true = tf.cast(y_true, y_pred.dtype)
-    return __confidence_loss(y_true, y_pred) + __bbox_loss(y_true, y_pred)
+    return __confidence_loss(y_true, y_pred, obj_gamma) + __bbox_loss(y_true, y_pred)
 
 
-def yolo_loss(y_true, y_pred, background_weight, not_class_weight):
+def yolo_loss(y_true, y_pred, obj_gamma, cls_gamma):
     y_pred = convert_to_tensor_v2(y_pred)
     y_true = tf.cast(y_true, y_pred.dtype)
-    return __confidence_loss(y_true, y_pred) + __bbox_loss(y_true, y_pred) + __classification_loss(y_true, y_pred)
+    return __confidence_loss(y_true, y_pred, obj_gamma) + __bbox_loss(y_true, y_pred) + __classification_loss(y_true, y_pred, cls_gamma)
 

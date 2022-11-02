@@ -129,6 +129,10 @@ class GeneratorFlow(tf.keras.utils.Sequence):
             exit(0)
         print('invalid label not found')
 
+    def calculate_gamma(self, obj_count, size):
+        from math import log10
+        return max(-log10((obj_count / size) / (((size - obj_count) / size) + 1e-7)), 0.0)
+
     def calculate_best_possible_recall(self):
         box_count_in_real_data = 0
         fs = []
@@ -162,13 +166,12 @@ class GeneratorFlow(tf.keras.utils.Sequence):
             else:
                 y_true_obj_count += np.sum(batch_y[max_area_index][:, :, :, 0])
 
-        background_weights = []
+        obj_gammas = []
         avg_obj_count_per_image = box_count_in_real_data / float(len(self.image_paths))
         for area in output_layer_areas:
-            background_weights.append(np.sqrt(np.sqrt(avg_obj_count_per_image / float(area))))
-        background_weights = np.asarray(background_weights, dtype=np.float32)
-        np.set_printoptions(precision=6)
-        not_class_weight = np.sqrt(1.0 / float(self.num_classes)).astype('float32')
+            obj_gammas.append(self.calculate_gamma(avg_obj_count_per_image, float(area)))
+        obj_gammas = np.asarray(obj_gammas, dtype=np.float32)
+        cls_gamma = self.calculate_gamma(1, float(self.num_classes))
 
         y_true_obj_count = int(y_true_obj_count)
         not_trained_obj_count = box_count_in_real_data - y_true_obj_count
@@ -179,7 +182,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         print(f'train tensor obj count : {y_true_obj_count}')
         print(f'not trained  obj count : {not_trained_obj_count} ({not_trained_obj_rate:.2f}%)')
         print(f'best possible recall   : {best_possible_recall:.4f}')
-        return background_weights, not_class_weight
+        return obj_gammas, cls_gamma
 
     def convert_to_boxes(self, label_lines):
         def get_same_box_index(boxes, cx, cy, w, h):
