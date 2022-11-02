@@ -115,25 +115,25 @@ def __iou(y_true, y_pred, diou=False):
 
     rdiou = 0.0
     if diou:
-        cx_true = y_true[:, :, :, 1]
-        cx_pred = y_pred[:, :, :, 1]
-        cy_true = y_true[:, :, :, 2]
-        cy_pred = y_pred[:, :, :, 2]
+        # cx_true = y_true[:, :, :, 1]
+        # cx_pred = y_pred[:, :, :, 1]
+        # cy_true = y_true[:, :, :, 2]
+        # cy_pred = y_pred[:, :, :, 2]
 
-        w_true  = y_true[:, :, :, 3]
-        w_pred  = y_pred[:, :, :, 3]
-        h_true  = y_true[:, :, :, 4]
-        h_pred  = y_pred[:, :, :, 4]
+        # w_true  = y_true[:, :, :, 3]
+        # w_pred  = y_pred[:, :, :, 3]
+        # h_true  = y_true[:, :, :, 4]
+        # h_pred  = y_pred[:, :, :, 4]
 
-        x1_true = cx_true - (w_true * 0.5)
-        x1_pred = cx_pred - (w_pred * 0.5)
-        y1_true = cy_true - (h_true * 0.5)
-        y1_pred = cy_pred - (h_pred * 0.5)
+        # x1_true = cx_true - (w_true * 0.5)
+        # x1_pred = cx_pred - (w_pred * 0.5)
+        # y1_true = cy_true - (h_true * 0.5)
+        # y1_pred = cy_pred - (h_pred * 0.5)
 
-        x2_true = cx_true + (w_true * 0.5)
-        x2_pred = cx_pred + (w_pred * 0.5)
-        y2_true = cy_true + (h_true * 0.5)
-        y2_pred = cy_pred + (h_pred * 0.5)
+        # x2_true = cx_true + (w_true * 0.5)
+        # x2_pred = cx_pred + (w_pred * 0.5)
+        # y2_true = cy_true + (h_true * 0.5)
+        # y2_pred = cy_pred + (h_pred * 0.5)
 
         center_loss = tf.square(cx_true - cx_pred) + tf.square(cy_true - cy_pred)
         union_width = tf.maximum(x2_true, x2_pred) - tf.minimum(x1_true, x1_pred)
@@ -169,14 +169,9 @@ def __bbox_loss_iou(y_true, y_pred):
     if obj_count == tf.constant(0.0):
         return 0.0
 
-    xy_true = y_true[:, :, :, 1:3]
-    xy_pred = y_pred[:, :, :, 1:3]
-    xy_loss = tf.square(xy_true - xy_pred)
-    xy_loss = tf.reduce_sum(tf.reduce_mean(tf.reduce_sum(xy_loss, axis=-1) * obj_true, axis=0))
-
-    iou, rdiou = __iou(y_true, y_pred, diou=False)
+    iou, rdiou = __iou(y_true, y_pred, diou=True)
     iou_loss = tf.reduce_sum(tf.reduce_mean((obj_true - iou) * obj_true, axis=0))
-    return xy_loss + iou_loss
+    return iou_loss + rdiou
 
 
 def __bbox_loss(y_true, y_pred):
