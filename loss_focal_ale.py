@@ -119,7 +119,7 @@ def __bbox_loss(y_true, y_pred):
     if obj_count == tf.constant(0.0):
         return 0.0
 
-    iou, rdiou = __iou(y_true, y_pred)
+    iou, rdiou = __iou(y_true, y_pred, True)
     iou_loss = obj_true - iou
     iou_loss = tf.reduce_sum(tf.reduce_mean(iou_loss * obj_true, axis=0))
     return iou_loss + rdiou
