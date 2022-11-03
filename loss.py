@@ -22,32 +22,35 @@ from tensorflow.python.framework.ops import convert_to_tensor_v2
 from ale import AbsoluteLogarithmicError
 
 
-# loon
-# obj_focal_ale = AbsoluteLogarithmicError(gamma=2.406540)
-# cls_focal_ale = AbsoluteLogarithmicError(gamma=0.477121)
-
-# lp in car
-# obj_focal_ale = AbsoluteLogarithmicError(gamma=3.009875)
-# cls_focal_ale = AbsoluteLogarithmicError(gamma=0.0)
-
-# lcd_white
-# obj_focal_ale = AbsoluteLogarithmicError(gamma=1.544068)
-# cls_focal_ale = AbsoluteLogarithmicError(gamma=0.0)
-
-# normal 12class
-# obj_focal_ale = AbsoluteLogarithmicError(gamma=2.633933)
-# cls_focal_ale = AbsoluteLogarithmicError(gamma=1.041392)
-
-# normal 60class
-# obj_focal_ale = AbsoluteLogarithmicError(gamma=2.361947)
-# cls_focal_ale = AbsoluteLogarithmicError(gamma=1.770852)
+def __smooth(y_true, alpha, true_only=False):
+    if true_only:
+        return tf.clip_by_value(y_true, 0.0, 1.0 - alpha)
+    else:
+        return tf.clip_by_value(y_true, 0.0 + alpha, 1.0 - alpha)
 
 
+def binary_crossentropy(y_true, y_pred):
+    eps = tf.keras.backend.epsilon()
+    y_pred = tf.clip_by_value(y_pred, eps, 1.0 - eps)
+    loss = y_true * tf.math.log(y_pred + eps)
+    loss += (1.0 - y_true) * tf.math.log(1.0 - y_pred + eps)
+    return -loss
 
-def __confidence_loss(y_true, y_pred, obj_gamma):
+
+def focal_loss(y_true, y_pred, alpha=0.25, gamma=1.0):
+    alpha_tensor = tf.ones_like(y_true) * alpha
+    alpha_t = tf.where(y_true == 1.0, alpha_tensor, 1.0 - alpha_tensor)
+    cross_entropy = binary_crossentropy(y_true, y_pred)
+    pt = tf.where(y_true == 1.0, y_pred, 1.0 - y_pred)
+    weight = alpha_t * tf.pow((1.0 - pt), gamma)
+    loss = weight * cross_entropy
+    return loss
+
+
+def __confidence_loss(y_true, y_pred, focal_gamma):
     obj_true = y_true[:, :, :, 0]
     obj_pred = y_pred[:, :, :, 0]
-    loss = AbsoluteLogarithmicError(gamma=obj_gamma)(obj_true, obj_pred)
+    loss = focal_loss(obj_true, obj_pred, gamma=focal_gamma)
     loss = tf.reduce_sum(tf.reduce_mean(loss, axis=0))
     return loss
 
@@ -113,45 +116,70 @@ def __iou(y_true, y_pred, diou=False):
     return iou, rdiou
 
 
-def __bbox_loss(y_true, y_pred):
+def __bbox_loss_xywh(y_true, y_pred):
     obj_true = y_true[:, :, :, 0]
     obj_count = tf.cast(tf.reduce_sum(obj_true), y_pred.dtype)
     if obj_count == tf.constant(0.0):
         return 0.0
 
-    iou, rdiou = __iou(y_true, y_pred, True)
-    iou_loss = obj_true - iou
-    iou_loss = tf.reduce_sum(tf.reduce_mean(iou_loss * obj_true, axis=0))
+    # weight_mask = ((obj_true * 1.05) - (__iou(y_true, y_pred) * obj_true)) * 5.0
+    xy_true = y_true[:, :, :, 1:3]
+    xy_pred = y_pred[:, :, :, 1:3]
+    xy_loss = tf.square(xy_true - xy_pred)
+    xy_loss = tf.reduce_sum(tf.reduce_mean(tf.reduce_sum(xy_loss, axis=-1) * obj_true, axis=0))
+
+    eps = tf.keras.backend.epsilon()
+    wh_true = tf.sqrt(y_true[:, :, :, 3:5] + eps)
+    wh_pred = tf.sqrt(y_pred[:, :, :, 3:5] + eps)
+    wh_loss = tf.square(wh_true - wh_pred)
+    wh_loss = tf.reduce_sum(tf.reduce_mean(tf.reduce_sum(wh_loss, axis=-1) * obj_true, axis=0))
+    return (xy_loss + wh_loss) * 5.0
+
+
+def __bbox_loss_iou(y_true, y_pred):
+    obj_true = y_true[:, :, :, 0]
+    obj_count = tf.cast(tf.reduce_sum(obj_true), y_pred.dtype)
+    if obj_count == tf.constant(0.0):
+        return 0.0
+
+    iou, rdiou = __iou(y_true, y_pred, diou=True)
+    iou_loss = tf.reduce_sum(tf.reduce_mean((obj_true - iou) * obj_true, axis=0))
     return iou_loss + rdiou
 
 
-def __classification_loss(y_true, y_pred, cls_gamma):
+def __bbox_loss(y_true, y_pred):
+    return __bbox_loss_iou(y_true, y_pred)
+    # return __bbox_loss_xywh(y_true, y_pred)
+
+
+def __classification_loss(y_true, y_pred, focal_gamma):
     obj_true = y_true[:, :, :, 0]
     obj_count = tf.cast(tf.reduce_sum(obj_true), y_pred.dtype)
     if obj_count == tf.constant(0.0):
         return 0.0
 
+    # class_true = tf.clip_by_value(y_true[:, :, :, 5:], 0.1, 0.9)
     class_true = y_true[:, :, :, 5:]
     class_pred = y_pred[:, :, :, 5:]
-    loss = AbsoluteLogarithmicError(gamma=cls_gamma)(class_true, class_pred)
+    loss = focal_loss(class_true, class_pred, gamma=focal_gamma)
     loss = tf.reduce_sum(tf.reduce_mean(tf.reduce_sum(loss, axis=-1) * obj_true, axis=0))
     return loss
 
 
-def confidence_loss(y_true, y_pred, obj_gamma):
+def confidence_loss(y_true, y_pred, focal_gamma):
     y_pred = convert_to_tensor_v2(y_pred)
     y_true = tf.cast(y_true, y_pred.dtype)
-    return __confidence_loss(y_true, y_pred, obj_gamma)
+    return __confidence_loss(y_true, y_pred, focal_gamma)
 
 
-def confidence_with_bbox_loss(y_true, y_pred, obj_gamma):
+def confidence_with_bbox_loss(y_true, y_pred, focal_gamma):
     y_pred = convert_to_tensor_v2(y_pred)
     y_true = tf.cast(y_true, y_pred.dtype)
-    return __confidence_loss(y_true, y_pred, obj_gamma) + __bbox_loss(y_true, y_pred)
+    return __confidence_loss(y_true, y_pred, focal_gamma) + __bbox_loss(y_true, y_pred)
 
 
-def yolo_loss(y_true, y_pred, obj_gamma, cls_gamma):
+def yolo_loss(y_true, y_pred, focal_gamma):
     y_pred = convert_to_tensor_v2(y_pred)
     y_true = tf.cast(y_true, y_pred.dtype)
-    return __confidence_loss(y_true, y_pred, obj_gamma) + __bbox_loss(y_true, y_pred) + __classification_loss(y_true, y_pred, cls_gamma)
+    return __confidence_loss(y_true, y_pred, focal_gamma) + __bbox_loss(y_true, y_pred) + __classification_loss(y_true, y_pred, focal_gamma)
 

@@ -51,8 +51,7 @@ class Yolo:
                  optimizer='sgd',
                  lr_policy='step',
                  model_name='model',
-                 obj_gamma='auto',
-                 cls_gamma='auto',
+                 focal_gamma='auto',
                  use_layers=[],
                  training_view=False,
                  map_checkpoint=False,
@@ -77,10 +76,8 @@ class Yolo:
         self.__checkpoints = checkpoints
         self.__cycle_step = 0
         self.__cycle_length = 2500
-        self.__obj_gamma_arg = obj_gamma
-        self.__cls_gamma_arg = cls_gamma
-        self.__obj_gammas = None
-        self.__cls_gamma = None
+        self.__focal_gamma_arg = focal_gamma
+        self.__focal_gammas = None
         self.max_map, self.max_f1, self.max_map_iou_hm, self.max_f1_iou_hm = 0.0, 0.0, 0.0, 0.0
         Yolo.g_use_layers = use_layers
 
@@ -149,33 +146,20 @@ class Yolo:
             optimiaer = None
         return optimizer
 
-    def __set_gamma(self, auto_calculated_obj_gammas, auto_calculated_cls_gamma):
-        if self.__obj_gamma_arg == 'auto':
-            self.__obj_gammas = auto_calculated_obj_gammas
-        else:
-            obj_gamma_arg_type = type(self.__obj_gamma_arg)
-            num_output_layers = len(self.__model.output_shape) if type(self.__model.output_shape) is list else 1
-            if obj_gamma_arg_type is float:
-                self.__obj_gammas = [self.__obj_gamma_arg for _ in range(num_output_layers)]
-            elif obj_gamma_arg_type is list:
-                if len(self.__obj_gamma_arg) == num_output_layers:
-                    self.__obj_gammas = self.__obj_gamma_arg
-                else:
-                    print(f'list length of obj_gamma is must be equal with models output layer count {num_output_layers}')
-                    return False
+    def __set_gamma(self):
+        obj_gamma_arg_type = type(self.__focal_gamma_arg)
+        num_output_layers = len(self.__model.output_shape) if type(self.__model.output_shape) is list else 1
+        if obj_gamma_arg_type is float:
+            self.__focal_gammas = [self.__focal_gamma_arg for _ in range(num_output_layers)]
+        elif obj_gamma_arg_type is list:
+            if len(self.__focal_gamma_arg) == num_output_layers:
+                self.__focal_gammas = self.__focal_gamma_arg
             else:
-                print(f'invalid type ({obj_gamma_arg_type}) of obj_gamma. type must be float or list, use \'auto\' for auto calculated gamma')
+                print(f'list length of focal_gamma is must be equal with models output layer count {num_output_layers}')
                 return False
-
-        if self.__cls_gamma_arg == 'auto':
-            self.__cls_gamma = auto_calculated_cls_gamma
         else:
-            cls_gamma_arg_type = type(self.__cls_gamma_arg)
-            if cls_gamma_arg_type is float:
-                self.__cls_gamma = self.__cls_gamma_arg
-            else:
-                print(f'invalid type ({cls_gamma_arg_type}) of cls_gamma. type must be float. use \'auto\' for auto calculated gamma')
-                return False
+            print(f'invalid type ({obj_gamma_arg_type}) of focal_gamma. type must be float or list')
+            return False
         return True
 
     def fit(self):
@@ -191,30 +175,29 @@ class Yolo:
         print('\ninvalid label check in validation data...')
         self.__validation_data_generator_for_check.flow().check_invalid_label()
         print('\ncalculate BPR(Best Possible Recall)...')
-        auto_calculated_obj_gammas, auto_calculated_cls_gamma = self.__train_data_generator_for_check.flow().calculate_best_possible_recall()
-        if not self.__set_gamma(auto_calculated_obj_gammas, auto_calculated_cls_gamma):
+        self.__train_data_generator_for_check.flow().calculate_best_possible_recall()
+        if not self.__set_gamma():
             return
         print('\nstart test forward for checking forwarding time.')
         ModelUtil.check_forwarding_time(self.__model, device='gpu')
         if tf.keras.backend.image_data_format() == 'channels_last':  # default max pool 2d layer is run on gpu only
             ModelUtil.check_forwarding_time(self.__model, device='cpu')
 
-        print(f'\nobj_gammas : {self.__obj_gammas}')
-        print(f'cls_gamma  : {self.__cls_gamma:.6f}')
+        print(f'\nfocal_gamma : {self.__focal_gammas}')
         print('\nstart training')
         if self.__curriculum_iterations > 0:
             self.__curriculum_train()
         self.__train()
 
-    def compute_gradient(self, model, optimizer, loss_function, x, y_true, num_output_layers, obj_gammas, cls_gamma):
+    def compute_gradient(self, model, optimizer, loss_function, x, y_true, num_output_layers, gammas):
         with tf.GradientTape() as tape:
             loss = 0.0
             y_pred = model(x, training=True)
             if num_output_layers == 1:
-                loss = loss_function(y_true, y_pred, obj_gammas[0], cls_gamma)
+                loss = loss_function(y_true, y_pred, gammas[0])
             else:
                 for i in range(num_output_layers):
-                    loss += loss_function(y_true[i], y_pred[i], obj_gammas[i], cls_gamma)
+                    loss += loss_function(y_true[i], y_pred[i], gammas[i])
             gradients = tape.gradient(loss, model.trainable_variables)
         optimizer.apply_gradients(zip(gradients, model.trainable_variables))
         return loss
@@ -238,7 +221,7 @@ class Yolo:
                 for batch_x, batch_y in self.__train_data_generator.flow():
                     iteration_count += 1
                     lr_scheduler.update(optimizer, iteration_count, self.__burn_in, 'onecycle')
-                    loss = compute_gradients[i](self.__model, optimizer, loss_functions[i], batch_x, batch_y, self.num_output_layers, self.__obj_gammas, self.__cls_gamma)
+                    loss = compute_gradients[i](self.__model, optimizer, loss_functions[i], batch_x, batch_y, self.num_output_layers, self.__focal_gammas)
                     print(f'\r[curriculum iteration count : {iteration_count:6d}] loss => {loss:.4f}', end='')
                     if iteration_count == self.__curriculum_iterations:
                         print()
@@ -254,13 +237,13 @@ class Yolo:
         while True:
             for batch_x, batch_y in self.__train_data_generator.flow():
                 lr_scheduler.update(optimizer, iteration_count, self.__burn_in, self.__lr_policy)
-                loss = compute_gradient_tf(self.__model, optimizer, yolo_loss, batch_x, batch_y, self.num_output_layers, self.__obj_gammas, self.__cls_gamma)
+                loss = compute_gradient_tf(self.__model, optimizer, yolo_loss, batch_x, batch_y, self.num_output_layers, self.__focal_gammas)
                 iteration_count += 1
                 print(f'\r[iteration count : {iteration_count:6d}] loss => {loss:.4f}', end='')
                 if self.__training_view and iteration_count > self.__burn_in:
                     self.__training_view_function()
                 if self.__map_checkpoint:
-                    # if iteration_count >= int(self.__iterations * 0.2) and iteration_count % 10000 == 0:
+                    # if iteration_count >= int(self.__iterations * 0.5) and iteration_count % 10000 == 0:
                     # if iteration_count == self.__iterations:
                     if iteration_count % 2000 == 0:
                     # if iteration_count >= (self.__iterations * 0.1) and iteration_count % 5000 == 0:
