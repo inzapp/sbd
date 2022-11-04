@@ -19,7 +19,6 @@ limitations under the License.
 """
 import tensorflow as tf
 from tensorflow.python.framework.ops import convert_to_tensor_v2
-from ale import AbsoluteLogarithmicError
 
 
 def __smooth(y_true, alpha, true_only=False):
