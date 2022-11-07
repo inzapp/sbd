@@ -174,6 +174,8 @@ class Yolo:
         self.__train_data_generator_for_check.flow().check_invalid_label()
         print('\ninvalid label check in validation data...')
         self.__validation_data_generator_for_check.flow().check_invalid_label()
+        print('\ncalculate virtual anchor...')
+        self.__train_data_generator.flow().calculate_virtual_anchor()
         print('\ncalculate BPR(Best Possible Recall)...')
         self.__train_data_generator_for_check.flow().calculate_best_possible_recall()
         if not self.__set_gamma():
@@ -245,7 +247,7 @@ class Yolo:
                 if self.__map_checkpoint:
                     # if iteration_count >= int(self.__iterations * 0.5) and iteration_count % 10000 == 0:
                     # if iteration_count == self.__iterations:
-                    if iteration_count % 2000 == 0:
+                    if iteration_count % 1000 == 0:
                     # if iteration_count >= (self.__iterations * 0.1) and iteration_count % 5000 == 0:
                         self.__save_model(iteration_count=iteration_count, use_map_checkpoint=self.__map_checkpoint)
                 else:

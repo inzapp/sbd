@@ -77,6 +77,8 @@ class GeneratorFlow(tf.keras.utils.Sequence):
             self.num_classes = self.output_shapes[0][-1] - 5
         self.batch_size = batch_size
         self.num_output_layers = len(self.output_shapes)
+        self.virtual_anchor_ws = []
+        self.virtual_anchor_hs = []
         self.batch_index = 0
         self.pool = ThreadPoolExecutor(8)
 
@@ -129,6 +131,77 @@ class GeneratorFlow(tf.keras.utils.Sequence):
             exit(0)
         print('invalid label not found')
 
+    def get_best_iou_layer_indexes(self, box):
+        cx, cy, w, h = box
+        x1 = cx - (w * 0.5)
+        y1 = cy - (h * 0.5)
+        x2 = cx + (w * 0.5)
+        y2 = cy + (h * 0.5)
+        labeled_box = [x1, y1, x2, y2]
+        best_iou_layer_indexes = []
+        for i in range(len(self.virtual_anchor_ws)):
+            w = self.virtual_anchor_ws[i]
+            h = self.virtual_anchor_hs[i]
+            x1 = cx - (w * 0.5)
+            y1 = cy - (h * 0.5)
+            x2 = cx + (w * 0.5)
+            y2 = cy + (h * 0.5)
+            virtual_anchor_box = [x1, y1, x2, y2]
+            iou = ModelUtil.iou(labeled_box, virtual_anchor_box)
+            best_iou_layer_indexes.append([i, iou])
+        return sorted(best_iou_layer_indexes, key=lambda x: x[1], reverse=True)
+
+    def get_avg_iou_with_virtual_anchor(self, labeled_boxes):
+        best_iou_sum = 0.0
+        for box in labeled_boxes:
+            best_iou_layer_indexes = self.get_best_iou_layer_indexes(box)
+            best_iou = best_iou_layer_indexes[0][1]
+            best_iou_sum += best_iou
+        avg_iou = best_iou_sum / float(len(labeled_boxes))
+        return avg_iou
+
+    def calculate_virtual_anchor(self):
+        fs = []
+        for path in self.image_paths:
+            fs.append(self.pool.submit(self.load_label, f'{path[:-4]}.txt'))
+
+        labeled_boxes, ws, hs = [], [], []
+        for f in tqdm(fs):
+            lines, label_path = f.result()
+            for line in lines:
+                class_index, cx, cy, w, h = list(map(float, line.split()))
+                labeled_boxes.append([cx, cy, w, h])
+                ws.append(w)
+                hs.append(h)
+
+        ws = np.asarray(ws).reshape((1, len(ws))).astype('float32')
+        hs = np.asarray(hs).reshape((1, len(hs))).astype('float32')
+
+        num_cluster = self.num_output_layers
+        criteria = (cv2.TERM_CRITERIA_EPS, -1, 1e-4)
+        width_compactness, _, clustered_ws = cv2.kmeans(ws, num_cluster, None, criteria, 100, cv2.KMEANS_RANDOM_CENTERS)
+        width_compactness /= float(len(self.image_paths))
+        print(f'width compactness  : {width_compactness:.7f}')
+        height_compactness, _, clustered_hs = cv2.kmeans(hs, num_cluster, None, criteria, 100, cv2.KMEANS_RANDOM_CENTERS)
+        height_compactness /= float(len(self.image_paths))
+        print(f'height compactness : {height_compactness:.7f}')
+
+        self.virtual_anchor_ws = sorted(np.asarray(clustered_ws).reshape(-1))
+        self.virtual_anchor_hs = sorted(np.asarray(clustered_hs).reshape(-1))
+
+        print(f'virtual anchor : ', end='')
+        for i in range(num_cluster):
+            anchor_w = self.virtual_anchor_ws[i]
+            anchor_h = self.virtual_anchor_hs[i]
+            if i == 0:
+                print(f'{anchor_w:.4f}, {anchor_h:.4f}', end='')
+            else:
+                print(f', {anchor_w:.4f}, {anchor_h:.4f}', end='')
+        print()
+
+        avg_iou_with_virtual_anchor = self.get_avg_iou_with_virtual_anchor(labeled_boxes)
+        print(f'average IoU with virtual anchor : {avg_iou_with_virtual_anchor:.4f}')
+
     def calculate_best_possible_recall(self):
         box_count_in_real_data = 0
         fs = []
@@ -174,31 +247,31 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         print(f'best possible recall   : {best_possible_recall:.4f}')
 
     def convert_to_boxes(self, label_lines):
-        def get_same_box_index(boxes, cx, cy, w, h):
+        def get_same_box_index(labeled_boxes, cx, cy, w, h):
             box_str = f'{cx}_{cy}_{w}_{h}'
-            for i in range(len(boxes)):
-                box_cx, box_cy, box_w, box_h = boxes[i]['cx'], boxes[i]['cy'], boxes[i]['w'], boxes[i]['h']
+            for i in range(len(labeled_boxes)):
+                box_cx, box_cy, box_w, box_h = labeled_boxes[i]['cx'], labeled_boxes[i]['cy'], labeled_boxes[i]['w'], labeled_boxes[i]['h']
                 cur_box_str = f'{box_cx}_{box_cy}_{box_w}_{box_h}'
                 if cur_box_str == box_str:
                     return i
             return -1
 
-        boxes = []
+        labeled_boxes = []
         for line in label_lines:
             class_index, cx, cy, w, h = list(map(float, line.split(' ')))
             class_index = int(class_index)
-            same_box_index = get_same_box_index(boxes, cx, cy, w, h)
+            same_box_index = get_same_box_index(labeled_boxes, cx, cy, w, h)
             if same_box_index == -1:
-                boxes.append({
+                labeled_boxes.append({
                     'class_indexes': [class_index],
                     'cx': cx,
                     'cy': cy,
                     'w': w,
                     'h': h,
                     'area': w * h})
-            elif not class_index in boxes[same_box_index]['class_indexes']:
-                boxes[same_box_index]['class_indexes'].append(class_index)
-        return boxes
+            elif not class_index in labeled_boxes[same_box_index]['class_indexes']:
+                labeled_boxes[same_box_index]['class_indexes'].append(class_index)
+        return labeled_boxes
 
     def sort_middle_last(self, big_last_boxes, small_last_boxes):
         middle_index = int(len(big_last_boxes) / 2)
@@ -226,52 +299,50 @@ class GeneratorFlow(tf.keras.utils.Sequence):
 
                 with open(f'{cur_img_path[:-4]}.txt', mode='rt') as file:
                     label_lines = file.readlines()
-                boxes = self.convert_to_boxes(label_lines)
-                np.random.shuffle(boxes)
+                labeled_boxes = self.convert_to_boxes(label_lines)
+                np.random.shuffle(labeled_boxes)
 
                 y = []
                 for i in range(self.num_output_layers):
                     y.append(np.zeros(shape=tuple(self.output_shapes[i][1:]), dtype=np.float32))
 
-                layer_mapping_boxes = None
-                if self.num_output_layers == 1:
-                    layer_mapping_boxes = [boxes]
-                else:
-                    big_last_boxes = sorted(boxes, key=lambda __x: __x['area'], reverse=False)
-                    small_last_boxes = sorted(boxes, key=lambda __x: __x['area'], reverse=True)
-                    middle_last_boxes = self.sort_middle_last(big_last_boxes, small_last_boxes)
-                    if self.num_output_layers == 2:
-                        layer_mapping_boxes = [big_last_boxes, middle_last_boxes]
-                    else:
-                        layer_mapping_boxes = [big_last_boxes, middle_last_boxes, small_last_boxes]
-                        if self.num_output_layers > 3:
-                            for i in range(self.num_output_layers - 3):
-                                layer_mapping_boxes.append(small_last_boxes)
-
                 image_data_format = tf.keras.backend.image_data_format()
-                for i in range(self.num_output_layers):
-                    output_rows = float(self.output_shapes[i][1])
-                    output_cols = float(self.output_shapes[i][2])
-                    for b in layer_mapping_boxes[i]:
-                        class_indexes, cx, cy, w, h = b['class_indexes'], b['cx'], b['cy'], b['w'], b['h']
+                for b in labeled_boxes:
+                    class_indexes, cx, cy, w, h = b['class_indexes'], b['cx'], b['cy'], b['w'], b['h']
+                    best_iou_layer_indexes = self.get_best_iou_layer_indexes([cx, cy, w, h])
+                    is_box_allocated = False
+                    for i, layer_iou in best_iou_layer_indexes:
+                        if is_box_allocated and layer_iou < 0.6:
+                            break
+                        output_rows = float(self.output_shapes[i][1])
+                        output_cols = float(self.output_shapes[i][2])
                         center_row = int(cy * output_rows)
                         center_col = int(cx * output_cols)
+                        cx_grid_scale = (cx - float(center_col) / output_cols) / (1.0 / output_cols)
+                        cy_grid_scale = (cy - float(center_row) / output_rows) / (1.0 / output_rows)
                         if image_data_format == 'channels_first':
+                            if y[i][0][center_row][center_col] == 1.0:  # if box is already in the tensor
+                                continue
                             y[i][0][center_row][center_col] = 1.0
-                            y[i][1][center_row][center_col] = (cx - float(center_col) / output_cols) / (1.0 / output_cols)
-                            y[i][2][center_row][center_col] = (cy - float(center_row) / output_rows) / (1.0 / output_rows)
+                            y[i][1][center_row][center_col] = cx_grid_scale
+                            y[i][2][center_row][center_col] = cy_grid_scale
                             y[i][3][center_row][center_col] = w
                             y[i][4][center_row][center_col] = h
                             for class_index in class_indexes:
                                 y[i][class_index+5][center_row][center_col] = 1.0
                         else:
+                            if y[i][center_row][center_col][0] == 1.0:  # if box is already in the tensor
+                                continue
                             y[i][center_row][center_col][0] = 1.0
-                            y[i][center_row][center_col][1] = (cx - float(center_col) / output_cols) / (1.0 / output_cols)
-                            y[i][center_row][center_col][2] = (cy - float(center_row) / output_rows) / (1.0 / output_rows)
+                            y[i][center_row][center_col][1] = cx_grid_scale
+                            y[i][center_row][center_col][2] = cy_grid_scale
                             y[i][center_row][center_col][3] = w
                             y[i][center_row][center_col][4] = h
                             for class_index in class_indexes:
                                 y[i][center_row][center_col][class_index+5] = 1.0
+                        is_box_allocated = True
+                        # if layer_iou < 0.5:
+                        #     print(f'[warning] box allocated in low iou layer : [{i}, {layer_iou:.4f}]')
 
                 for i in range(self.num_output_layers):
                     batch_y[i].append(y[i])
