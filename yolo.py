@@ -247,7 +247,7 @@ class Yolo:
                 if self.__map_checkpoint:
                     # if iteration_count >= int(self.__iterations * 0.5) and iteration_count % 10000 == 0:
                     # if iteration_count == self.__iterations:
-                    if iteration_count % 1000 == 0:
+                    if iteration_count % 2000 == 0:
                     # if iteration_count >= (self.__iterations * 0.1) and iteration_count % 5000 == 0:
                         self.__save_model(iteration_count=iteration_count, use_map_checkpoint=self.__map_checkpoint)
                 else:
@@ -302,52 +302,50 @@ class Yolo:
                 continue
             rows = output_shape[layer_index][1]
             cols = output_shape[layer_index][2]
-            for i in range(rows):
-                for j in range(cols):
-                    confidence = y[layer_index][0][i][j][0]
-                    if confidence < confidence_threshold:
-                        continue
+            cur_layer_output = y[layer_index][0]
+            over_confidence_indexes = np.argwhere(cur_layer_output[:, :, 0] > confidence_threshold)
+            for i, j in over_confidence_indexes:
+                confidence = cur_layer_output[i][j][0]
+                class_index = -1
+                class_score = 0.0
+                for cur_channel_index in range(5, output_shape[layer_index][3]):
+                    cur_class_score = cur_layer_output[i][j][cur_channel_index]
+                    if class_score < cur_class_score:
+                        class_index = cur_channel_index
+                        class_score = cur_class_score
 
-                    class_index = -1
-                    class_score = 0.0
-                    for cur_channel_index in range(5, output_shape[layer_index][3]):
-                        cur_class_score = y[layer_index][0][i][j][cur_channel_index]
-                        if class_score < cur_class_score:
-                            class_index = cur_channel_index
-                            class_score = cur_class_score
+                confidence *= class_score
+                if confidence < confidence_threshold:
+                    continue
 
-                    confidence *= class_score
-                    if confidence < confidence_threshold:
-                        continue
+                if image_data_format == 'channels_first':
+                    cx_f = (j + cur_layer_output[1][i][j]) / float(cols)
+                    cy_f = (i + cur_layer_output[2][i][j]) / float(rows)
+                    w = cur_layer_output[3][i][j]
+                    h = cur_layer_output[4][i][j]
+                else:
+                    cx_f = (j + cur_layer_output[i][j][1]) / float(cols)
+                    cy_f = (i + cur_layer_output[i][j][2]) / float(rows)
+                    w = cur_layer_output[i][j][3]
+                    h = cur_layer_output[i][j][4]
+                cx_f, cy_f, w, h = np.clip(np.array([cx_f, cy_f, w, h]), 0.0, 1.0)
 
-                    if image_data_format == 'channels_first':
-                        cx_f = (j + y[layer_index][0][1][i][j]) / float(cols)
-                        cy_f = (i + y[layer_index][0][2][i][j]) / float(rows)
-                        w = y[layer_index][0][3][i][j]
-                        h = y[layer_index][0][4][i][j]
-                    else:
-                        cx_f = (j + y[layer_index][0][i][j][1]) / float(cols)
-                        cy_f = (i + y[layer_index][0][i][j][2]) / float(rows)
-                        w = y[layer_index][0][i][j][3]
-                        h = y[layer_index][0][i][j][4]
-                    cx_f, cy_f, w, h = np.clip(np.array([cx_f, cy_f, w, h]), 0.0, 1.0)
-
-                    x_min_f = cx_f - (w * 0.5)
-                    y_min_f = cy_f - (h * 0.5)
-                    x_max_f = cx_f + (w * 0.5)
-                    y_max_f = cy_f + (h * 0.5)
-                    x_min_f, y_min_f, x_max_f, y_max_f = np.clip(np.array([x_min_f, y_min_f, x_max_f, y_max_f]), 0.0, 1.0)
-                    x_min = int(x_min_f * raw_width)
-                    y_min = int(y_min_f * raw_height)
-                    x_max = int(x_max_f * raw_width)
-                    y_max = int(y_max_f * raw_height)
-                    y_pred.append({
-                        'confidence': confidence,
-                        'bbox': [x_min, y_min, x_max, y_max],
-                        'bbox_norm': [x_min_f, y_min_f, x_max_f, y_max_f],
-                        'class': class_index - 5,
-                        'discard': False})
-                    bbox_count += 1
+                x_min_f = cx_f - (w * 0.5)
+                y_min_f = cy_f - (h * 0.5)
+                x_max_f = cx_f + (w * 0.5)
+                y_max_f = cy_f + (h * 0.5)
+                x_min_f, y_min_f, x_max_f, y_max_f = np.clip(np.array([x_min_f, y_min_f, x_max_f, y_max_f]), 0.0, 1.0)
+                x_min = int(x_min_f * raw_width)
+                y_min = int(y_min_f * raw_height)
+                x_max = int(x_max_f * raw_width)
+                y_max = int(y_max_f * raw_height)
+                y_pred.append({
+                    'confidence': confidence,
+                    'bbox': [x_min, y_min, x_max, y_max],
+                    'bbox_norm': [x_min_f, y_min_f, x_max_f, y_max_f],
+                    'class': class_index - 5,
+                    'discard': False})
+                bbox_count += 1
         y_pred = ModelUtil.nms(y_pred, nms_iou_threshold)
         # print(f' detected box count, nms box count : [{bbox_count}, {len(y_pred)}]')
         return y_pred
