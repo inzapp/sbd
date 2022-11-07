@@ -30,7 +30,7 @@ from util import ModelUtil
 
 
 class YoloDataGenerator:
-    def __init__(self, image_paths, input_shape, output_shape, batch_size):
+    def __init__(self, image_paths, input_shape, output_shape, batch_size, multi_classification_at_same_box):
         """
         :param input_shape:
             (height, width, channel) format of model input size
@@ -42,7 +42,7 @@ class YoloDataGenerator:
         :param batch_size:
             Batch size of training.
         """
-        self.generator_flow = GeneratorFlow(image_paths, input_shape, output_shape, batch_size)
+        self.generator_flow = GeneratorFlow(image_paths, input_shape, output_shape, batch_size, multi_classification_at_same_box)
 
     @classmethod
     def empty(cls):
@@ -64,7 +64,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
     Usage:
         generator_flow = GeneratorFlow(image_paths=image_paths)
     """
-    def __init__(self, image_paths, input_shape, output_shapes, batch_size):
+    def __init__(self, image_paths, input_shape, output_shapes, batch_size, multi_classification_at_same_box):
         self.image_paths = image_paths
         self.input_shape = input_shape
         self.input_width, self.input_height, self.input_channel = ModelUtil.get_width_height_channel_from_input_shape(input_shape)
@@ -77,6 +77,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
             self.num_classes = self.output_shapes[0][-1] - 5
         self.batch_size = batch_size
         self.num_output_layers = len(self.output_shapes)
+        self.multi_classification_at_same_box = multi_classification_at_same_box
         self.virtual_anchor_ws = []
         self.virtual_anchor_hs = []
         self.batch_index = 0
@@ -229,12 +230,13 @@ class GeneratorFlow(tf.keras.utils.Sequence):
 
     def convert_to_boxes(self, label_lines):
         def get_same_box_index(labeled_boxes, cx, cy, w, h):
-            box_str = f'{cx}_{cy}_{w}_{h}'
-            for i in range(len(labeled_boxes)):
-                box_cx, box_cy, box_w, box_h = labeled_boxes[i]['cx'], labeled_boxes[i]['cy'], labeled_boxes[i]['w'], labeled_boxes[i]['h']
-                cur_box_str = f'{box_cx}_{box_cy}_{box_w}_{box_h}'
-                if cur_box_str == box_str:
-                    return i
+            if self.multi_classification_at_same_box:
+                box_str = f'{cx}_{cy}_{w}_{h}'
+                for i in range(len(labeled_boxes)):
+                    box_cx, box_cy, box_w, box_h = labeled_boxes[i]['cx'], labeled_boxes[i]['cy'], labeled_boxes[i]['w'], labeled_boxes[i]['h']
+                    cur_box_str = f'{box_cx}_{box_cy}_{box_w}_{box_h}'
+                    if cur_box_str == box_str:
+                        return i
             return -1
 
         labeled_boxes = []
@@ -254,6 +256,65 @@ class GeneratorFlow(tf.keras.utils.Sequence):
                 labeled_boxes[same_box_index]['class_indexes'].append(class_index)
         return labeled_boxes
 
+    def get_nearby_grids(self, confidence_channel, rows, cols, row, col, cx_grid, cy_grid, cx_raw, cy_raw, w, h, self_grid_only=False):
+        nearby_cells = []
+        if self_grid_only:
+            positions = [[0, 0, 'c']]
+        else:
+            positions = [[-1, -1, 'lt'], [-1, 0, 't'], [-1, 1, 'rt'], [0, -1, 'l'], [0, 1, 'r'], [1, -1, 'lb'], [1, 0, 'b'], [1, 1, 'rb']]
+        for offset_y, offset_x, name in positions:
+            if (0 <= row + offset_y < rows) and (0 <= col + offset_x < cols):
+                if name == 'lt':
+                    cx_nearby_grid = 1.0
+                    cy_nearby_grid = 1.0
+                elif name == 't':
+                    cx_nearby_grid = cx_grid
+                    cy_nearby_grid = 1.0
+                elif name == 'rt':
+                    cx_nearby_grid = 0.0
+                    cy_nearby_grid = 1.0
+                elif name == 'l':
+                    cx_nearby_grid = 1.0
+                    cy_nearby_grid = cy_grid
+                elif name == 'c':
+                    cx_nearby_grid = cx_grid
+                    cy_nearby_grid = cy_grid
+                elif name == 'r':
+                    cx_nearby_grid = 0.0
+                    cy_nearby_grid = cy_grid
+                elif name == 'lb':
+                    cx_nearby_grid = 1.0
+                    cy_nearby_grid = 0.0
+                elif name == 'b':
+                    cx_nearby_grid = cx_grid
+                    cy_nearby_grid = 0.0
+                elif name == 'rb':
+                    cx_nearby_grid = 0.0
+                    cy_nearby_grid = 0.0
+
+                box_origin = [
+                    cx_raw - (w * 0.5),
+                    cy_raw - (h * 0.5),
+                    cx_raw + (w * 0.5),
+                    cy_raw + (h * 0.5)]
+
+                cx_nearby_raw = (float(col + offset_x) + cx_nearby_grid) / float(cols)
+                cy_nearby_raw = (float(row + offset_y) + cy_nearby_grid) / float(rows)
+                box_nearby = [
+                    cx_nearby_raw - (w * 0.5),
+                    cy_nearby_raw - (h * 0.5),
+                    cx_nearby_raw + (w * 0.5),
+                    cy_nearby_raw + (h * 0.5)]
+
+                iou = ModelUtil.iou(box_origin, box_nearby)
+                nearby_cells.append({
+                    'offset_y': offset_y,
+                    'offset_x': offset_x,
+                    'cx_grid': cx_nearby_grid,
+                    'cy_grid': cy_nearby_grid,
+                    'iou': iou})
+        return sorted(nearby_cells, key=lambda x: x['iou'], reverse=True)
+
     def build_batch_tensor(self, labeled_boxes):
         y = []
         for i in range(self.num_output_layers):
@@ -261,41 +322,84 @@ class GeneratorFlow(tf.keras.utils.Sequence):
 
         allocated_count = 0
         image_data_format = tf.keras.backend.image_data_format()
-        for b in labeled_boxes:
-            class_indexes, cx, cy, w, h = b['class_indexes'], b['cx'], b['cy'], b['w'], b['h']
-            best_iou_layer_indexes = self.get_best_iou_layer_indexes([cx, cy, w, h])
-            is_box_allocated = False
-            for i, layer_iou in best_iou_layer_indexes:
-                if is_box_allocated and layer_iou < 0.6:
-                    break
-                output_rows = float(self.output_shapes[i][1])
-                output_cols = float(self.output_shapes[i][2])
-                center_row = int(cy * output_rows)
-                center_col = int(cx * output_cols)
-                cx_grid_scale = (cx - float(center_col) / output_cols) / (1.0 / output_cols)
-                cy_grid_scale = (cy - float(center_row) / output_rows) / (1.0 / output_rows)
-                if image_data_format == 'channels_first':
-                    if y[i][0][center_row][center_col] == 1.0:  # if box is already in the tensor
-                        continue
-                    y[i][0][center_row][center_col] = 1.0
-                    y[i][1][center_row][center_col] = cx_grid_scale
-                    y[i][2][center_row][center_col] = cy_grid_scale
-                    y[i][3][center_row][center_col] = w
-                    y[i][4][center_row][center_col] = h
-                    for class_index in class_indexes:
-                        y[i][class_index+5][center_row][center_col] = 1.0
-                else:
-                    if y[i][center_row][center_col][0] == 1.0:  # if box is already in the tensor
-                        continue
-                    y[i][center_row][center_col][0] = 1.0
-                    y[i][center_row][center_col][1] = cx_grid_scale
-                    y[i][center_row][center_col][2] = cy_grid_scale
-                    y[i][center_row][center_col][3] = w
-                    y[i][center_row][center_col][4] = h
-                    for class_index in class_indexes:
-                        y[i][center_row][center_col][class_index+5] = 1.0
-                is_box_allocated = True
-                allocated_count += 1
+        for allocation_index in range(2):  # 0: allocate objects in label only, 1: allocate objects to nearby grids
+            for b in labeled_boxes:
+                class_indexes, cx, cy, w, h = b['class_indexes'], b['cx'], b['cy'], b['w'], b['h']
+                best_iou_layer_indexes = self.get_best_iou_layer_indexes([cx, cy, w, h])
+                is_box_allocated = False
+                for i, layer_iou in best_iou_layer_indexes:
+                    if is_box_allocated and layer_iou < 0.6:
+                        break
+                    output_rows = float(self.output_shapes[i][1])
+                    output_cols = float(self.output_shapes[i][2])
+                    center_row = int(cy * output_rows)
+                    center_col = int(cx * output_cols)
+                    cx_grid_scale = (cx - float(center_col) / output_cols) / (1.0 / output_cols)
+                    cy_grid_scale = (cy - float(center_row) / output_rows) / (1.0 / output_rows)
+                    if image_data_format == 'channels_first':
+                        nearby_grids = self.get_nearby_grids(
+                            confidence_channel=y[i][0, :, :],
+                            rows=output_rows,
+                            cols=output_cols,
+                            row=center_row,
+                            col=center_col,
+                            cx_grid=cx_grid_scale,
+                            cy_grid=cy_grid_scale,
+                            cx_raw=cx,
+                            cy_raw=cy,
+                            w=w,
+                            h=h,
+                            self_grid_only=allocation_index == 0)
+                        for grid in nearby_grids:
+                            if grid['iou'] < 0.8:
+                                break
+                            offset_y = grid['offset_y']
+                            offset_x = grid['offset_x']
+                            cx_grid = grid['cx_grid']
+                            cy_grid = grid['cy_grid']
+                            if allocation_index == 0 and y[i][0][center_row+offset_y][center_col+offset_x] == 1.0:  # if box is already in the tensor
+                                break
+                            y[i][0][center_row+offset_y][center_col+offset_x] = 1.0
+                            y[i][1][center_row+offset_y][center_col+offset_x] = cx_grid
+                            y[i][2][center_row+offset_y][center_col+offset_x] = cy_grid
+                            y[i][3][center_row+offset_y][center_col+offset_x] = w
+                            y[i][4][center_row+offset_y][center_col+offset_x] = h
+                            for class_index in class_indexes:
+                                y[i][class_index+5][center_row][center_col] = 1.0
+                            is_box_allocated = True
+                            allocated_count += 1
+                    else:
+                        nearby_grids = self.get_nearby_grids(
+                            confidence_channel=y[i][:, :, 0],
+                            rows=output_rows,
+                            cols=output_cols,
+                            row=center_row,
+                            col=center_col,
+                            cx_grid=cx_grid_scale,
+                            cy_grid=cy_grid_scale,
+                            cx_raw=cx,
+                            cy_raw=cy,
+                            w=w,
+                            h=h,
+                            self_grid_only=allocation_index == 0)
+                        for grid in nearby_grids:
+                            if grid['iou'] < 0.8:
+                                break
+                            offset_y = grid['offset_y']
+                            offset_x = grid['offset_x']
+                            cx_grid = grid['cx_grid']
+                            cy_grid = grid['cy_grid']
+                            if allocation_index == 0 and y[i][center_row+offset_y][center_col+offset_x][0] == 1.0:  # if box is already in the tensor
+                                break
+                            y[i][center_row+offset_y][center_col+offset_x][0] = 1.0
+                            y[i][center_row+offset_y][center_col+offset_x][1] = cx_grid
+                            y[i][center_row+offset_y][center_col+offset_x][2] = cy_grid
+                            y[i][center_row+offset_y][center_col+offset_x][3] = w
+                            y[i][center_row+offset_y][center_col+offset_x][4] = h
+                            for class_index in class_indexes:
+                                y[i][center_row][center_col][class_index+5] = 1.0
+                            is_box_allocated = True
+                            allocated_count += 1
         return y, allocated_count
             
     def __getitem__(self, index):

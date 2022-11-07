@@ -56,6 +56,7 @@ class Yolo:
                  training_view=False,
                  map_checkpoint=False,
                  mixed_float16_training=False,
+                 multi_classification_at_same_box=False,
                  pretrained_model_path='',
                  class_names_file_path='',
                  checkpoints='checkpoints'):
@@ -112,22 +113,26 @@ class Yolo:
             image_paths=self.__train_image_paths,
             input_shape=input_shape,
             output_shape=self.__model.output_shape,
-            batch_size=batch_size)
+            batch_size=batch_size,
+            multi_classification_at_same_box=multi_classification_at_same_box)
         self.__validation_data_generator = YoloDataGenerator(
             image_paths=self.__validation_image_paths,
             input_shape=input_shape,
             output_shape=self.__model.output_shape,
-            batch_size=batch_size)
+            batch_size=batch_size,
+            multi_classification_at_same_box=multi_classification_at_same_box)
         self.__train_data_generator_for_check = YoloDataGenerator(
             image_paths=self.__train_image_paths,
             input_shape=input_shape,
             output_shape=self.__model.output_shape,
-            batch_size=ModelUtil.get_zero_mod_batch_size(len(self.__train_image_paths)))
+            batch_size=ModelUtil.get_zero_mod_batch_size(len(self.__train_image_paths)),
+            multi_classification_at_same_box=multi_classification_at_same_box)
         self.__validation_data_generator_for_check = YoloDataGenerator(
             image_paths=self.__validation_image_paths,
             input_shape=input_shape,
             output_shape=self.__model.output_shape,
-            batch_size=ModelUtil.get_zero_mod_batch_size(len(self.__validation_image_paths)))
+            batch_size=ModelUtil.get_zero_mod_batch_size(len(self.__validation_image_paths)),
+            multi_classification_at_same_box=multi_classification_at_same_box)
 
         self.__live_loss_plot = None
         if self.__mixed_float16_training:
@@ -247,8 +252,9 @@ class Yolo:
                 if self.__map_checkpoint:
                     # if iteration_count >= int(self.__iterations * 0.5) and iteration_count % 10000 == 0:
                     # if iteration_count == self.__iterations:
-                    if iteration_count % 2000 == 0:
+                    if iteration_count % 1000 == 0:
                     # if iteration_count >= (self.__iterations * 0.1) and iteration_count % 5000 == 0:
+                        self.__save_model(iteration_count=iteration_count, use_map_checkpoint=False)
                         self.__save_model(iteration_count=iteration_count, use_map_checkpoint=self.__map_checkpoint)
                 else:
                     if iteration_count % 10000 == 0:
@@ -257,7 +263,7 @@ class Yolo:
                     print('\n\ntrain end successfully')
                     return
 
-    def __save_model(self, iteration_count, use_map_checkpoint=True):
+    def __save_model(self, iteration_count, use_map_checkpoint):
         print('\n')
         ul = str(Yolo.g_use_layers) if len(Yolo.g_use_layers) > 0 else 'all'
         if use_map_checkpoint:
