@@ -220,11 +220,14 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         avg_obj_count_per_image = box_count_in_real_data / float(len(self.image_paths))
         y_true_obj_count = int(y_true_obj_count)
         not_trained_obj_count = box_count_in_real_data - (box_count_in_real_data if y_true_obj_count > box_count_in_real_data else y_true_obj_count)
+        trained_obj_rate = y_true_obj_count / box_count_in_real_data * 100.0
         not_trained_obj_rate = not_trained_obj_count / box_count_in_real_data * 100.0
         best_possible_recall = y_true_obj_count / float(box_count_in_real_data)
+        if best_possible_recall > 1.0:
+            best_possible_recall = 1.0
         print(f'\naverage obj count per image : {avg_obj_count_per_image:.4f}\n')
         print(f'ground truth obj count : {box_count_in_real_data}')
-        print(f'train tensor obj count : {y_true_obj_count}')
+        print(f'train tensor obj count : {y_true_obj_count} ({trained_obj_rate:.2f}%)')
         print(f'not trained  obj count : {not_trained_obj_count} ({not_trained_obj_rate:.2f}%)')
         print(f'best possible recall   : {best_possible_recall:.4f}')
 
@@ -256,12 +259,13 @@ class GeneratorFlow(tf.keras.utils.Sequence):
                 labeled_boxes[same_box_index]['class_indexes'].append(class_index)
         return labeled_boxes
 
-    def get_nearby_grids(self, confidence_channel, rows, cols, row, col, cx_grid, cy_grid, cx_raw, cy_raw, w, h, self_grid_only=False):
+    def get_nearby_grids(self, confidence_channel, rows, cols, row, col, cx_grid, cy_grid, cx_raw, cy_raw, w, h):
         nearby_cells = []
-        if self_grid_only:
-            positions = [[0, 0, 'c']]
-        else:
-            positions = [[-1, -1, 'lt'], [-1, 0, 't'], [-1, 1, 'rt'], [0, -1, 'l'], [0, 1, 'r'], [1, -1, 'lb'], [1, 0, 'b'], [1, 1, 'rb']]
+        # if self_grid_only:
+        #     positions = [[0, 0, 'c']]
+        # else:
+        #     positions = [[-1, -1, 'lt'], [-1, 0, 't'], [-1, 1, 'rt'], [0, -1, 'l'], [0, 1, 'r'], [1, -1, 'lb'], [1, 0, 'b'], [1, 1, 'rb']]
+        positions = [[-1, -1, 'lt'], [-1, 0, 't'], [-1, 1, 'rt'], [0, -1, 'l'], [0, 0, 'c'], [0, 1, 'r'], [1, -1, 'lb'], [1, 0, 'b'], [1, 1, 'rb']]
         for offset_y, offset_x, name in positions:
             if (0 <= row + offset_y < rows) and (0 <= col + offset_x < cols):
                 if name == 'lt':
@@ -322,43 +326,40 @@ class GeneratorFlow(tf.keras.utils.Sequence):
 
         allocated_count = 0
         image_data_format = tf.keras.backend.image_data_format()
-        for allocation_index in range(2):  # 0: allocate objects in label only, 1: allocate objects to nearby grids
-            for b in labeled_boxes:
-                class_indexes, cx, cy, w, h = b['class_indexes'], b['cx'], b['cy'], b['w'], b['h']
-                best_iou_layer_indexes = self.get_best_iou_layer_indexes([cx, cy, w, h])
-                is_box_allocated = False
-                for i, layer_iou in best_iou_layer_indexes:
-                    if is_box_allocated and layer_iou < 0.6:
-                        break
-                    output_rows = float(self.output_shapes[i][1])
-                    output_cols = float(self.output_shapes[i][2])
-                    center_row = int(cy * output_rows)
-                    center_col = int(cx * output_cols)
-                    cx_grid_scale = (cx - float(center_col) / output_cols) / (1.0 / output_cols)
-                    cy_grid_scale = (cy - float(center_row) / output_rows) / (1.0 / output_rows)
-                    if image_data_format == 'channels_first':
-                        nearby_grids = self.get_nearby_grids(
-                            confidence_channel=y[i][0, :, :],
-                            rows=output_rows,
-                            cols=output_cols,
-                            row=center_row,
-                            col=center_col,
-                            cx_grid=cx_grid_scale,
-                            cy_grid=cy_grid_scale,
-                            cx_raw=cx,
-                            cy_raw=cy,
-                            w=w,
-                            h=h,
-                            self_grid_only=allocation_index == 0)
-                        for grid in nearby_grids:
-                            if grid['iou'] < 0.8:
-                                break
-                            offset_y = grid['offset_y']
-                            offset_x = grid['offset_x']
-                            cx_grid = grid['cx_grid']
-                            cy_grid = grid['cy_grid']
-                            if allocation_index == 0 and y[i][0][center_row+offset_y][center_col+offset_x] == 1.0:  # if box is already in the tensor
-                                break
+        for b in labeled_boxes:
+            class_indexes, cx, cy, w, h = b['class_indexes'], b['cx'], b['cy'], b['w'], b['h']
+            best_iou_layer_indexes = self.get_best_iou_layer_indexes([cx, cy, w, h])
+            is_box_allocated = False
+            for i, layer_iou in best_iou_layer_indexes:
+                if is_box_allocated and layer_iou < 0.6:
+                    break
+                output_rows = float(self.output_shapes[i][1])
+                output_cols = float(self.output_shapes[i][2])
+                center_row = int(cy * output_rows)
+                center_col = int(cx * output_cols)
+                cx_grid_scale = (cx - float(center_col) / output_cols) / (1.0 / output_cols)
+                cy_grid_scale = (cy - float(center_row) / output_rows) / (1.0 / output_rows)
+                if image_data_format == 'channels_first':
+                    nearby_grids = self.get_nearby_grids(
+                        confidence_channel=y[i][0, :, :],
+                        rows=output_rows,
+                        cols=output_cols,
+                        row=center_row,
+                        col=center_col,
+                        cx_grid=cx_grid_scale,
+                        cy_grid=cy_grid_scale,
+                        cx_raw=cx,
+                        cy_raw=cy,
+                        w=w,
+                        h=h)
+                    for grid in nearby_grids:
+                        if grid['iou'] < 0.8:
+                            break
+                        offset_y = grid['offset_y']
+                        offset_x = grid['offset_x']
+                        cx_grid = grid['cx_grid']
+                        cy_grid = grid['cy_grid']
+                        if y[i][0][center_row+offset_y][center_col+offset_x] == 1.0:
                             y[i][0][center_row+offset_y][center_col+offset_x] = 1.0
                             y[i][1][center_row+offset_y][center_col+offset_x] = cx_grid
                             y[i][2][center_row+offset_y][center_col+offset_x] = cy_grid
@@ -368,29 +369,28 @@ class GeneratorFlow(tf.keras.utils.Sequence):
                                 y[i][class_index+5][center_row][center_col] = 1.0
                             is_box_allocated = True
                             allocated_count += 1
-                    else:
-                        nearby_grids = self.get_nearby_grids(
-                            confidence_channel=y[i][:, :, 0],
-                            rows=output_rows,
-                            cols=output_cols,
-                            row=center_row,
-                            col=center_col,
-                            cx_grid=cx_grid_scale,
-                            cy_grid=cy_grid_scale,
-                            cx_raw=cx,
-                            cy_raw=cy,
-                            w=w,
-                            h=h,
-                            self_grid_only=allocation_index == 0)
-                        for grid in nearby_grids:
-                            if grid['iou'] < 0.8:
-                                break
-                            offset_y = grid['offset_y']
-                            offset_x = grid['offset_x']
-                            cx_grid = grid['cx_grid']
-                            cy_grid = grid['cy_grid']
-                            if allocation_index == 0 and y[i][center_row+offset_y][center_col+offset_x][0] == 1.0:  # if box is already in the tensor
-                                break
+                            break
+                else:
+                    nearby_grids = self.get_nearby_grids(
+                        confidence_channel=y[i][:, :, 0],
+                        rows=output_rows,
+                        cols=output_cols,
+                        row=center_row,
+                        col=center_col,
+                        cx_grid=cx_grid_scale,
+                        cy_grid=cy_grid_scale,
+                        cx_raw=cx,
+                        cy_raw=cy,
+                        w=w,
+                        h=h)
+                    for grid in nearby_grids:
+                        if grid['iou'] < 0.8:
+                            break
+                        offset_y = grid['offset_y']
+                        offset_x = grid['offset_x']
+                        cx_grid = grid['cx_grid']
+                        cy_grid = grid['cy_grid']
+                        if y[i][center_row+offset_y][center_col+offset_x][0] == 0.0:
                             y[i][center_row+offset_y][center_col+offset_x][0] = 1.0
                             y[i][center_row+offset_y][center_col+offset_x][1] = cx_grid
                             y[i][center_row+offset_y][center_col+offset_x][2] = cy_grid
@@ -400,6 +400,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
                                 y[i][center_row][center_col][class_index+5] = 1.0
                             is_box_allocated = True
                             allocated_count += 1
+                            break
         return y, allocated_count
             
     def __getitem__(self, index):
