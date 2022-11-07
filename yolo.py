@@ -177,7 +177,7 @@ class Yolo:
         print('\ncalculate virtual anchor...')
         self.__train_data_generator.flow().calculate_virtual_anchor()
         print('\ncalculate BPR(Best Possible Recall)...')
-        self.__train_data_generator_for_check.flow().calculate_best_possible_recall()
+        self.__train_data_generator.flow().calculate_best_possible_recall()
         if not self.__set_gamma():
             return
         print('\nstart test forward for checking forwarding time.')

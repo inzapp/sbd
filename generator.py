@@ -203,41 +203,22 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         print(f'average IoU with virtual anchor : {avg_iou_with_virtual_anchor:.4f}')
 
     def calculate_best_possible_recall(self):
-        box_count_in_real_data = 0
         fs = []
         for path in self.image_paths:
             fs.append(self.pool.submit(self.load_label, f'{path[:-4]}.txt'))
-        invalid_label_paths = set()
+
+        y_true_obj_count = 0
+        box_count_in_real_data = 0
         for f in tqdm(fs):
-            lines, _ = f.result()
-            box_count_in_real_data += len(self.convert_to_boxes(lines))
-
-        max_area = 0
-        max_area_index = -1
-        output_layer_areas = []
-        image_data_format = tf.keras.backend.image_data_format()
-        for i in range(self.num_output_layers):
-            if image_data_format == 'channels_first':
-                cur_area = np.prod(self.output_shapes[i][2:4])
-            else:
-                cur_area = np.prod(self.output_shapes[i][1:3])
-            if cur_area > max_area:
-                max_area = cur_area
-                max_area_index = i
-            output_layer_areas.append(cur_area)
-
-        y_true_obj_count = 0  # obj count in train tensor(y_true)
-        for _, batch_y in tqdm(self):
-            if self.num_output_layers == 1:
-                batch_y = [batch_y]
-            if image_data_format == 'channels_first':
-                y_true_obj_count += np.sum(batch_y[max_area_index][:, 0, :, :])
-            else:
-                y_true_obj_count += np.sum(batch_y[max_area_index][:, :, :, 0])
+            label_lines, _ = f.result()
+            labeled_boxes = self.convert_to_boxes(label_lines)
+            box_count_in_real_data += len(labeled_boxes)
+            _, allocated_count = self.build_batch_tensor(labeled_boxes)
+            y_true_obj_count += allocated_count
 
         avg_obj_count_per_image = box_count_in_real_data / float(len(self.image_paths))
         y_true_obj_count = int(y_true_obj_count)
-        not_trained_obj_count = box_count_in_real_data - y_true_obj_count
+        not_trained_obj_count = box_count_in_real_data - (box_count_in_real_data if y_true_obj_count > box_count_in_real_data else y_true_obj_count)
         not_trained_obj_rate = not_trained_obj_count / box_count_in_real_data * 100.0
         best_possible_recall = y_true_obj_count / float(box_count_in_real_data)
         print(f'\naverage obj count per image : {avg_obj_count_per_image:.4f}\n')
@@ -273,83 +254,75 @@ class GeneratorFlow(tf.keras.utils.Sequence):
                 labeled_boxes[same_box_index]['class_indexes'].append(class_index)
         return labeled_boxes
 
-    def sort_middle_last(self, big_last_boxes, small_last_boxes):
-        middle_index = int(len(big_last_boxes) / 2)
-        middle_last_boxes = []
-        for i in range(middle_index):
-            middle_last_boxes.append(big_last_boxes[i])
-            middle_last_boxes.append(small_last_boxes[i])
-        if len(big_last_boxes) % 2 == 1:
-            middle_last_boxes.append(small_last_boxes[middle_index])
-        return middle_last_boxes
+    def build_batch_tensor(self, labeled_boxes):
+        y = []
+        for i in range(self.num_output_layers):
+            y.append(np.zeros(shape=tuple(self.output_shapes[i][1:]), dtype=np.float32))
+
+        allocated_count = 0
+        image_data_format = tf.keras.backend.image_data_format()
+        for b in labeled_boxes:
+            class_indexes, cx, cy, w, h = b['class_indexes'], b['cx'], b['cy'], b['w'], b['h']
+            best_iou_layer_indexes = self.get_best_iou_layer_indexes([cx, cy, w, h])
+            is_box_allocated = False
+            for i, layer_iou in best_iou_layer_indexes:
+                if is_box_allocated and layer_iou < 0.6:
+                    break
+                output_rows = float(self.output_shapes[i][1])
+                output_cols = float(self.output_shapes[i][2])
+                center_row = int(cy * output_rows)
+                center_col = int(cx * output_cols)
+                cx_grid_scale = (cx - float(center_col) / output_cols) / (1.0 / output_cols)
+                cy_grid_scale = (cy - float(center_row) / output_rows) / (1.0 / output_rows)
+                if image_data_format == 'channels_first':
+                    if y[i][0][center_row][center_col] == 1.0:  # if box is already in the tensor
+                        continue
+                    y[i][0][center_row][center_col] = 1.0
+                    y[i][1][center_row][center_col] = cx_grid_scale
+                    y[i][2][center_row][center_col] = cy_grid_scale
+                    y[i][3][center_row][center_col] = w
+                    y[i][4][center_row][center_col] = h
+                    for class_index in class_indexes:
+                        y[i][class_index+5][center_row][center_col] = 1.0
+                else:
+                    if y[i][center_row][center_col][0] == 1.0:  # if box is already in the tensor
+                        continue
+                    y[i][center_row][center_col][0] = 1.0
+                    y[i][center_row][center_col][1] = cx_grid_scale
+                    y[i][center_row][center_col][2] = cy_grid_scale
+                    y[i][center_row][center_col][3] = w
+                    y[i][center_row][center_col][4] = h
+                    for class_index in class_indexes:
+                        y[i][center_row][center_col][class_index+5] = 1.0
+                is_box_allocated = True
+                allocated_count += 1
+        return y, allocated_count
             
     def __getitem__(self, index):
-        while True:
-            fs, batch_x, batch_y = [], [], []
+        fs, batch_x, batch_y = [], [], []
+        for i in range(self.num_output_layers):
+            batch_y.append([])
+        for path in self.get_next_batch_image_paths():
+            fs.append(self.pool.submit(ModelUtil.load_img, path, self.input_channel))
+        for f in fs:
+            img, _, cur_img_path = f.result()
+            img = self.random_blur(img)
+            img = ModelUtil.resize(img, (self.input_width, self.input_height))
+            x = ModelUtil.preprocess(img)
+            batch_x.append(x)
+
+            with open(f'{cur_img_path[:-4]}.txt', mode='rt') as file:
+                label_lines = file.readlines()
+            labeled_boxes = self.convert_to_boxes(label_lines)
+            np.random.shuffle(labeled_boxes)
+
+            y, _ = self.build_batch_tensor(labeled_boxes)
             for i in range(self.num_output_layers):
-                batch_y.append([])
-            for path in self.get_next_batch_image_paths():
-                fs.append(self.pool.submit(ModelUtil.load_img, path, self.input_channel))
-            for f in fs:
-                img, _, cur_img_path = f.result()
-                img = self.random_blur(img)
-                img = ModelUtil.resize(img, (self.input_width, self.input_height))
-                x = ModelUtil.preprocess(img)
-                batch_x.append(x)
-
-                with open(f'{cur_img_path[:-4]}.txt', mode='rt') as file:
-                    label_lines = file.readlines()
-                labeled_boxes = self.convert_to_boxes(label_lines)
-                np.random.shuffle(labeled_boxes)
-
-                y = []
-                for i in range(self.num_output_layers):
-                    y.append(np.zeros(shape=tuple(self.output_shapes[i][1:]), dtype=np.float32))
-
-                image_data_format = tf.keras.backend.image_data_format()
-                for b in labeled_boxes:
-                    class_indexes, cx, cy, w, h = b['class_indexes'], b['cx'], b['cy'], b['w'], b['h']
-                    best_iou_layer_indexes = self.get_best_iou_layer_indexes([cx, cy, w, h])
-                    is_box_allocated = False
-                    for i, layer_iou in best_iou_layer_indexes:
-                        if is_box_allocated and layer_iou < 0.6:
-                            break
-                        output_rows = float(self.output_shapes[i][1])
-                        output_cols = float(self.output_shapes[i][2])
-                        center_row = int(cy * output_rows)
-                        center_col = int(cx * output_cols)
-                        cx_grid_scale = (cx - float(center_col) / output_cols) / (1.0 / output_cols)
-                        cy_grid_scale = (cy - float(center_row) / output_rows) / (1.0 / output_rows)
-                        if image_data_format == 'channels_first':
-                            if y[i][0][center_row][center_col] == 1.0:  # if box is already in the tensor
-                                continue
-                            y[i][0][center_row][center_col] = 1.0
-                            y[i][1][center_row][center_col] = cx_grid_scale
-                            y[i][2][center_row][center_col] = cy_grid_scale
-                            y[i][3][center_row][center_col] = w
-                            y[i][4][center_row][center_col] = h
-                            for class_index in class_indexes:
-                                y[i][class_index+5][center_row][center_col] = 1.0
-                        else:
-                            if y[i][center_row][center_col][0] == 1.0:  # if box is already in the tensor
-                                continue
-                            y[i][center_row][center_col][0] = 1.0
-                            y[i][center_row][center_col][1] = cx_grid_scale
-                            y[i][center_row][center_col][2] = cy_grid_scale
-                            y[i][center_row][center_col][3] = w
-                            y[i][center_row][center_col][4] = h
-                            for class_index in class_indexes:
-                                y[i][center_row][center_col][class_index+5] = 1.0
-                        is_box_allocated = True
-                        # if layer_iou < 0.5:
-                        #     print(f'[warning] box allocated in low iou layer : [{i}, {layer_iou:.4f}]')
-
-                for i in range(self.num_output_layers):
-                    batch_y[i].append(y[i])
-            batch_x = np.asarray(batch_x).astype('float32')
-            for i in range(self.num_output_layers):
-                batch_y[i] = np.asarray(batch_y[i]).astype('float32')
-            return batch_x, batch_y if self.num_output_layers > 1 else batch_y[0]
+                batch_y[i].append(y[i])
+        batch_x = np.asarray(batch_x).astype('float32')
+        for i in range(self.num_output_layers):
+            batch_y[i] = np.asarray(batch_y[i]).astype('float32')
+        return batch_x, batch_y if self.num_output_layers > 1 else batch_y[0]
 
     def get_next_batch_image_paths(self):
         start_index = self.batch_size * self.batch_index
