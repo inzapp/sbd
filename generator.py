@@ -83,11 +83,6 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         self.batch_index = 0
         self.pool = ThreadPoolExecutor(8)
 
-        # self.train_type = 'one_layer'
-        # from yolo import Yolo
-        # if len(Yolo.g_use_layers) > 0:
-        #     self.train_type = 'all_layer'
-
     def __len__(self):
         """
         Number of total iteration.
