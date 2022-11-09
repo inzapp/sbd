@@ -47,7 +47,7 @@ from ale import AbsoluteLogarithmicError
 def __confidence_loss(y_true, y_pred, focal_gamma):
     obj_true = y_true[:, :, :, 0]
     obj_pred = y_pred[:, :, :, 0]
-    loss = AbsoluteLogarithmicError(gamma=focal_gamma)(obj_true, obj_pred)
+    loss = AbsoluteLogarithmicError(alpha=0.25, gamma=focal_gamma)(obj_true, obj_pred)
     loss = tf.reduce_sum(tf.reduce_mean(loss, axis=0))
     return loss
 
@@ -133,7 +133,7 @@ def __classification_loss(y_true, y_pred, focal_gamma):
 
     class_true = y_true[:, :, :, 5:]
     class_pred = y_pred[:, :, :, 5:]
-    loss = AbsoluteLogarithmicError(gamma=focal_gamma)(class_true, class_pred)
+    loss = AbsoluteLogarithmicError(alpha=0.25, gamma=focal_gamma, label_smoothing=0.1)(class_true, class_pred)
     loss = tf.reduce_sum(tf.reduce_mean(tf.reduce_sum(loss, axis=-1) * obj_true, axis=0))
     return loss
 
