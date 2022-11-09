@@ -2,21 +2,21 @@ import os
 from glob import glob
 
 
-def parse(basename, sp, name):
-    return float(sp[sp.index(name)+1]) if basename.find(name) > -1 else 0.0
+def parse(raw_name, sp, name):
+    return float(sp[sp.index(name)+1]) if raw_name.find(name) > -1 else 0.0
 
 
 def main():
     arr = []
     for path in glob('*.h5'):
-        basename = os.path.basename(path)
-        sp = basename.split('_')
-        mAP  = parse(basename, sp, 'mAP')
-        f1   = parse(basename, sp, 'f1')
-        iou  = parse(basename, sp, 'iou')
-        tp   = parse(basename, sp, 'tp')
-        fp   = parse(basename, sp, 'fp')
-        conf = parse(basename, sp, 'conf')
+        raw_name = os.path.basename(path)[:-3]
+        sp = raw_name.split('_')
+        mAP  = parse(raw_name, sp, 'mAP')
+        f1   = parse(raw_name, sp, 'f1')
+        iou  = parse(raw_name, sp, 'iou')
+        tp   = parse(raw_name, sp, 'tp')
+        fp   = parse(raw_name, sp, 'fp')
+        conf = parse(raw_name, sp, 'conf')
         arr.append({
             'rank': 0,
             'name': path,
@@ -30,9 +30,9 @@ def main():
     arr = sorted(arr, key=lambda x: x['conf'], reverse=True)
     arr = sorted(arr, key=lambda x: x['iou'], reverse=True)
     arr = sorted(arr, key=lambda x: x['mAP'], reverse=True)
-    arr = sorted(arr, key=lambda x: x['f1'], reverse=True)
     arr = sorted(arr, key=lambda x: x['fp'], reverse=False)
     arr = sorted(arr, key=lambda x: x['tp'], reverse=True)
+    arr = sorted(arr, key=lambda x: x['f1'], reverse=True)
     for i in range(len(arr)):
         arr[i]['rank'] += i + 1
 
