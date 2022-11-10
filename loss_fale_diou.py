@@ -22,32 +22,10 @@ from tensorflow.python.framework.ops import convert_to_tensor_v2
 from ale import AbsoluteLogarithmicError
 
 
-# loon
-# obj_focal_ale = AbsoluteLogarithmicError(gamma=2.406540)
-# cls_focal_ale = AbsoluteLogarithmicError(gamma=0.477121)
-
-# lp in car
-# obj_focal_ale = AbsoluteLogarithmicError(gamma=3.009875)
-# cls_focal_ale = AbsoluteLogarithmicError(gamma=0.0)
-
-# lcd_white
-# obj_focal_ale = AbsoluteLogarithmicError(gamma=1.544068)
-# cls_focal_ale = AbsoluteLogarithmicError(gamma=0.0)
-
-# normal 12class
-# obj_focal_ale = AbsoluteLogarithmicError(gamma=2.633933)
-# cls_focal_ale = AbsoluteLogarithmicError(gamma=1.041392)
-
-# normal 60class
-# obj_focal_ale = AbsoluteLogarithmicError(gamma=2.361947)
-# cls_focal_ale = AbsoluteLogarithmicError(gamma=1.770852)
-
-
-
-def __confidence_loss(y_true, y_pred, focal_gamma):
+def __confidence_loss(y_true, y_pred, alpha, gamma):
     obj_true = y_true[:, :, :, 0]
     obj_pred = y_pred[:, :, :, 0]
-    loss = AbsoluteLogarithmicError(alpha=0.25, gamma=focal_gamma)(obj_true, obj_pred)
+    loss = AbsoluteLogarithmicError(alpha=alpha, gamma=gamma)(obj_true, obj_pred)
     loss = tf.reduce_sum(tf.reduce_mean(loss, axis=0))
     return loss
 
@@ -119,13 +97,13 @@ def __bbox_loss(y_true, y_pred):
     if obj_count == tf.constant(0.0):
         return 0.0
 
-    iou, rdiou = __iou(y_true, y_pred, True)
+    iou, rdiou = __iou(y_true, y_pred, diou=True)
     iou_loss = obj_true - iou
     iou_loss = tf.reduce_sum(tf.reduce_mean(iou_loss * obj_true, axis=0))
     return iou_loss + rdiou
 
 
-def __classification_loss(y_true, y_pred, focal_gamma):
+def __classification_loss(y_true, y_pred, alpha, gamma, label_smoothing):
     obj_true = y_true[:, :, :, 0]
     obj_count = tf.cast(tf.reduce_sum(obj_true), y_pred.dtype)
     if obj_count == tf.constant(0.0):
@@ -133,25 +111,25 @@ def __classification_loss(y_true, y_pred, focal_gamma):
 
     class_true = y_true[:, :, :, 5:]
     class_pred = y_pred[:, :, :, 5:]
-    loss = AbsoluteLogarithmicError(alpha=0.25, gamma=focal_gamma, label_smoothing=0.1)(class_true, class_pred)
+    loss = AbsoluteLogarithmicError(alpha=alpha, gamma=gamma, label_smoothing=label_smoothing)(class_true, class_pred)
     loss = tf.reduce_sum(tf.reduce_mean(tf.reduce_sum(loss, axis=-1) * obj_true, axis=0))
     return loss
 
 
-def confidence_loss(y_true, y_pred, focal_gamma):
+def confidence_loss(y_true, y_pred, gamma):
     y_pred = convert_to_tensor_v2(y_pred)
     y_true = tf.cast(y_true, y_pred.dtype)
-    return __confidence_loss(y_true, y_pred, focal_gamma)
+    return __confidence_loss(y_true, y_pred, alpha, gamma)
 
 
-def confidence_with_bbox_loss(y_true, y_pred, focal_gamma):
+def confidence_with_bbox_loss(y_true, y_pred, gamma):
     y_pred = convert_to_tensor_v2(y_pred)
     y_true = tf.cast(y_true, y_pred.dtype)
-    return __confidence_loss(y_true, y_pred, focal_gamma) + __bbox_loss(y_true, y_pred)
+    return __confidence_loss(y_true, y_pred, alpha, gamma) + __bbox_loss(y_true, y_pred)
 
 
-def yolo_loss(y_true, y_pred, focal_gamma):
+def yolo_loss(y_true, y_pred, alpha, gamma, label_smoothing):
     y_pred = convert_to_tensor_v2(y_pred)
     y_true = tf.cast(y_true, y_pred.dtype)
-    return __confidence_loss(y_true, y_pred, focal_gamma) + __bbox_loss(y_true, y_pred) + __classification_loss(y_true, y_pred, focal_gamma)
+    return __confidence_loss(y_true, y_pred, alpha, gamma) + __bbox_loss(y_true, y_pred) + __classification_loss(y_true, y_pred, alpha, gamma, label_smoothing)
 

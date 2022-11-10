@@ -38,11 +38,10 @@ class AbsoluteLogarithmicError(tf.keras.losses.Loss):
     Usage:
         model.compile(optimizer='sgd', loss=AbsoluteLogarithmicError())
     """
-    def __init__(self, alpha=1.0, gamma=0.0, label_smoothing=0.0, reduce='none', name='AbsoluteLogarithmicError'):
+    def __init__(self, alpha=0.5, gamma=0.0, label_smoothing=0.0, reduce='none', name='AbsoluteLogarithmicError'):
         """
         Args:
             alpha: Downweight the loss where zero value positioned in y_true tensor.
-                In case of regression, it is not recommended to use alpha parameter due to gradient imbalance.
             gamma: Same gamma parameter used in focal loss.
             label_smoothing: y_true tensor is clipped in range (label_smoothing, 1.0 - label_smoothing).
                 for example,
@@ -59,7 +58,7 @@ class AbsoluteLogarithmicError(tf.keras.losses.Loss):
         self.gamma = gamma
         self.label_smoothing = label_smoothing
         self.reduce = reduce
-        assert 0.0 <= self.alpha <= 1.0
+        assert 0.0 <= self.alpha <= 0.5
         assert self.gamma == 0.0 or self.gamma >= 1.0
         assert 0.0 <= self.label_smoothing <= 0.5
         assert self.reduce in ['none', 'mean', 'sum', 'sum_over_batch_size']
@@ -81,10 +80,10 @@ class AbsoluteLogarithmicError(tf.keras.losses.Loss):
         y_pred_clip = tf.clip_by_value(y_pred, 0.0 + eps, 1.0 - eps)
         abs_error = tf.abs(y_true_clip - y_pred_clip)
         loss = -tf.math.log((1.0 + eps) - abs_error)
-        if self.alpha < 1.0:
-            loss *= tf.where(y_true == 0.0, self.alpha, 1.0)
         if self.gamma >= 1.0:
-            loss *= tf.pow(tf.maximum(abs_error, eps), self.gamma)
+            alpha = tf.where(y_true == 0.0, self.alpha, 1.0 - self.alpha)
+            weight = alpha * tf.pow(abs_error, self.gamma)
+            loss *= weight
         if self.reduce == 'mean':
             loss = tf.reduce_mean(loss)
         elif self.reduce == 'sum':
