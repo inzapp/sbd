@@ -81,8 +81,9 @@ class AbsoluteLogarithmicError(tf.keras.losses.Loss):
         abs_error = tf.abs(y_true_clip - y_pred_clip)
         loss = -tf.math.log((1.0 + eps) - abs_error)
         if self.gamma >= 1.0:
-            alpha = tf.where(y_true == 0.0, self.alpha, 1.0 - self.alpha)
-            weight = alpha * tf.pow(abs_error, self.gamma)
+            alpha = tf.ones_like(y_true) * self.alpha
+            alpha = tf.where(y_true == 1.0, alpha, 1.0 - alpha)
+            weight = tf.pow(abs_error, self.gamma) * alpha
             loss *= weight
         if self.reduce == 'mean':
             loss = tf.reduce_mean(loss)
