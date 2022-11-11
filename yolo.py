@@ -151,7 +151,7 @@ class Yolo:
             optimizer = tf.keras.optimizers.Adam(lr=lr, beta_1=self.__momentum)
         else:
             print(f'\n\nunknown optimizer : {optimizer_str}')
-            optimiaer = None
+            optimizer = None
         return optimizer
 
     def __set_alpha_gamma(self):
