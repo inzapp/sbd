@@ -25,6 +25,7 @@ from time import sleep
 import cv2
 import numpy as np
 import tensorflow as tf
+import albumentations as A
 from tqdm import tqdm
 from util import ModelUtil
 
@@ -82,6 +83,10 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         self.virtual_anchor_hs = []
         self.batch_index = 0
         self.pool = ThreadPoolExecutor(8)
+        self.transform = A.Compose([
+            A.RandomBrightnessContrast(p=0.5, brightness_limit=0.1, contrast_limit=0.1),
+            A.GaussianBlur(p=0.5, blur_limit=(7, 7))
+        ])
 
     def __len__(self):
         """
@@ -256,10 +261,6 @@ class GeneratorFlow(tf.keras.utils.Sequence):
 
     def get_nearby_grids(self, confidence_channel, rows, cols, row, col, cx_grid, cy_grid, cx_raw, cy_raw, w, h):
         nearby_cells = []
-        # if self_grid_only:
-        #     positions = [[0, 0, 'c']]
-        # else:
-        #     positions = [[-1, -1, 'lt'], [-1, 0, 't'], [-1, 1, 'rt'], [0, -1, 'l'], [0, 1, 'r'], [1, -1, 'lb'], [1, 0, 'b'], [1, 1, 'rb']]
         positions = [[-1, -1, 'lt'], [-1, 0, 't'], [-1, 1, 'rt'], [0, -1, 'l'], [0, 0, 'c'], [0, 1, 'r'], [1, -1, 'lb'], [1, 0, 'b'], [1, 1, 'rb']]
         for offset_y, offset_x, name in positions:
             if (0 <= row + offset_y < rows) and (0 <= col + offset_x < cols):
@@ -406,7 +407,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
             fs.append(self.pool.submit(ModelUtil.load_img, path, self.input_channel))
         for f in fs:
             img, _, cur_img_path = f.result()
-            img = self.random_blur(img)
+            img = self.transform(image=img)['image']
             img = ModelUtil.resize(img, (self.input_width, self.input_height))
             x = ModelUtil.preprocess(img)
             batch_x.append(x)
@@ -433,47 +434,4 @@ class GeneratorFlow(tf.keras.utils.Sequence):
             self.batch_index = 0
             np.random.shuffle(self.image_paths)
         return batch_image_paths
-
-    def random_blur(self, img):
-        if np.random.rand() > 0.5:
-            if np.random.rand() > 0.5:
-                img = cv2.GaussianBlur(img, (3, 3), 0)
-            else:
-                img = cv2.blur(img, (2, 2))
-        return img
-
-    def random_adjust(self, img):
-        adjust_opts = ['saturation', 'brightness', 'contrast', 'noise']
-        np.random.shuffle(adjust_opts)
-        for i in range(len(adjust_opts)):
-            img = self.adjust(img, adjust_opts[i])
-        return img
-
-    def adjust(self, img, adjust_type):
-        weight = np.random.uniform(0.75, 1.25)
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-        h, s, v = cv2.split(img)
-
-        if adjust_type == 'saturation':
-            s = np.asarray(s).astype('float32') * weight
-            s = np.clip(s, 0.0, 255.0).astype('uint8')
-        elif adjust_type == 'brightness':
-            v = np.asarray(v).astype('float32') * weight
-            v = np.clip(v, 0.0, 255.0).astype('uint8')
-        elif adjust_type == 'contrast':
-            weight = np.random.uniform(0.0, 0.25)
-            criteria = np.random.uniform(84.0, 170.0)
-            v = np.asarray(v).astype('float32')
-            v += (criteria - v) * weight
-            v = np.clip(v, 0.0, 255.0).astype('uint8')
-        elif adjust_type == 'noise':
-            range_min = np.random.uniform(0.0, 25.0)
-            range_max = np.random.uniform(0.0, 25.0)
-            v = np.asarray(v).astype('float32')
-            v += np.random.uniform(-range_min, range_max, size=v.shape)
-            v = np.clip(v, 0.0, 255.0).astype('uint8')
-
-        img = cv2.merge([h, s, v])
-        img = cv2.cvtColor(img, cv2.COLOR_HSV2BGR)
-        return img
 
