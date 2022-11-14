@@ -28,30 +28,33 @@ def __smooth(y_true, alpha, true_only=False):
         return tf.clip_by_value(y_true, 0.0 + alpha, 1.0 - alpha)
 
 
-def binary_crossentropy(y_true, y_pred):
-    eps = tf.keras.backend.epsilon()
-    y_pred = tf.clip_by_value(y_pred, eps, 1.0 - eps)
-    loss = y_true * tf.math.log(y_pred + eps)
-    loss += (1.0 - y_true) * tf.math.log(1.0 - y_pred + eps)
-    return -loss
+# def binary_crossentropy(y_true, y_pred):
+#     eps = tf.keras.backend.epsilon()
+#     y_pred = tf.clip_by_value(y_pred, eps, 1.0 - eps)
+#     loss = y_true * tf.math.log(y_pred + eps)
+#     loss += (1.0 - y_true) * tf.math.log(1.0 - y_pred + eps)
+#     return -loss
 
 
-def focal_loss(y_true, y_pred, alpha=0.25, gamma=1.0):
+def binary_crossentropy(y_true, y_pred, label_smoothing):
+    return tf.keras.losses.BinaryCrossentropy(reduction='none', label_smoothing=label_smoothing)(tf.expand_dims(y_true, axis=-1), tf.expand_dims(y_pred, axis=-1))
+
+
+def focal_loss(y_true, y_pred, alpha=0.5, gamma=2.0, label_smoothing=0.0):
     alpha_tensor = tf.ones_like(y_true) * alpha
     alpha_t = tf.where(y_true == 1.0, alpha_tensor, 1.0 - alpha_tensor)
-    cross_entropy = binary_crossentropy(y_true, y_pred)
+    cross_entropy = binary_crossentropy(y_true, y_pred, label_smoothing)
     pt = tf.where(y_true == 1.0, y_pred, 1.0 - y_pred)
     weight = alpha_t * tf.pow((1.0 - pt), gamma)
     loss = weight * cross_entropy
     return loss
 
 
-def __confidence_loss(y_true, y_pred, focal_gamma):
+def __confidence_loss(y_true, y_pred, alpha, gamma):
     obj_true = y_true[:, :, :, 0]
     obj_pred = y_pred[:, :, :, 0]
-    loss = focal_loss(obj_true, obj_pred, gamma=focal_gamma)
-    loss = tf.reduce_sum(tf.reduce_mean(loss, axis=0))
-    return loss
+    loss = tf.reduce_sum(focal_loss(obj_true, obj_pred))
+    return loss / tf.cast(tf.shape(y_true)[0], dtype=y_pred.dtype)
 
 
 def __iou(y_true, y_pred, diou=False):
@@ -111,7 +114,7 @@ def __iou(y_true, y_pred, diou=False):
         union_width = tf.maximum(x2_true, x2_pred) - tf.minimum(x1_true, x1_pred)
         union_height = tf.maximum(y2_true, y2_pred) - tf.minimum(y1_true, y1_pred)
         diagonal_loss = tf.square(union_width) + tf.square(union_height) + tf.keras.backend.epsilon()
-        rdiou = tf.reduce_sum(tf.reduce_mean(center_loss / diagonal_loss, axis=0))
+        rdiou = center_loss / diagonal_loss
     return iou, rdiou
 
 
@@ -142,8 +145,8 @@ def __bbox_loss_iou(y_true, y_pred):
         return 0.0
 
     iou, rdiou = __iou(y_true, y_pred, diou=True)
-    iou_loss = tf.reduce_sum(tf.reduce_mean((obj_true - iou) * obj_true, axis=0))
-    return iou_loss + rdiou
+    loss = tf.reduce_sum((obj_true - iou + rdiou) * obj_true)
+    return loss / tf.cast(tf.shape(y_true)[0], dtype=y_pred.dtype)
 
 
 def __bbox_loss(y_true, y_pred):
@@ -151,7 +154,7 @@ def __bbox_loss(y_true, y_pred):
     # return __bbox_loss_xywh(y_true, y_pred)
 
 
-def __classification_loss(y_true, y_pred, focal_gamma):
+def __classification_loss(y_true, y_pred, alpha, gamma, label_smoothing):
     obj_true = y_true[:, :, :, 0]
     obj_count = tf.cast(tf.reduce_sum(obj_true), y_pred.dtype)
     if obj_count == tf.constant(0.0):
@@ -160,25 +163,25 @@ def __classification_loss(y_true, y_pred, focal_gamma):
     # class_true = tf.clip_by_value(y_true[:, :, :, 5:], 0.1, 0.9)
     class_true = y_true[:, :, :, 5:]
     class_pred = y_pred[:, :, :, 5:]
-    loss = focal_loss(class_true, class_pred, gamma=focal_gamma)
-    loss = tf.reduce_sum(tf.reduce_mean(tf.reduce_sum(loss, axis=-1) * obj_true, axis=0))
-    return loss
+    loss = focal_loss(class_true, class_pred, alpha, gamma, label_smoothing)
+    loss = tf.reduce_sum(tf.reduce_sum(loss, axis=-1) * obj_true)
+    return loss / tf.cast(tf.shape(y_true)[0], dtype=y_pred.dtype)
 
 
-def confidence_loss(y_true, y_pred, focal_gamma):
+def confidence_loss(y_true, y_pred, alpha, gamma):
     y_pred = convert_to_tensor_v2(y_pred)
     y_true = tf.cast(y_true, y_pred.dtype)
-    return __confidence_loss(y_true, y_pred, focal_gamma)
+    return __confidence_loss(y_true, y_pred, alpha, gamma)
 
 
-def confidence_with_bbox_loss(y_true, y_pred, focal_gamma):
+def confidence_with_bbox_loss(y_true, y_pred, alpha, gamma):
     y_pred = convert_to_tensor_v2(y_pred)
     y_true = tf.cast(y_true, y_pred.dtype)
-    return __confidence_loss(y_true, y_pred, focal_gamma) + __bbox_loss(y_true, y_pred)
+    return __confidence_loss(y_true, y_pred, gamma) + __bbox_loss(y_true, y_pred)
 
 
-def yolo_loss(y_true, y_pred, focal_gamma):
+def yolo_loss(y_true, y_pred, alpha, gamma, label_smoothing):
     y_pred = convert_to_tensor_v2(y_pred)
     y_true = tf.cast(y_true, y_pred.dtype)
-    return __confidence_loss(y_true, y_pred, focal_gamma) + __bbox_loss(y_true, y_pred) + __classification_loss(y_true, y_pred, focal_gamma)
+    return __confidence_loss(y_true, y_pred, alpha, gamma) + __bbox_loss(y_true, y_pred) + __classification_loss(y_true, y_pred, alpha, gamma, label_smoothing)
 

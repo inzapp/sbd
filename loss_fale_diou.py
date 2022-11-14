@@ -25,9 +25,9 @@ from ale import AbsoluteLogarithmicError
 def __confidence_loss(y_true, y_pred, alpha, gamma):
     obj_true = y_true[:, :, :, 0]
     obj_pred = y_pred[:, :, :, 0]
-    loss = AbsoluteLogarithmicError(alpha=alpha, gamma=gamma)(obj_true, obj_pred)
-    loss = tf.reduce_sum(tf.reduce_mean(loss, axis=0))
-    return loss
+    ale = AbsoluteLogarithmicError(alpha=alpha, gamma=gamma)
+    loss = tf.reduce_sum(ale(obj_true, obj_pred))
+    return loss / tf.cast(tf.shape(y_true)[0], dtype=y_pred.dtype)
 
 
 def __iou(y_true, y_pred, diou=False):
@@ -87,7 +87,7 @@ def __iou(y_true, y_pred, diou=False):
         union_width = tf.maximum(x2_true, x2_pred) - tf.minimum(x1_true, x1_pred)
         union_height = tf.maximum(y2_true, y2_pred) - tf.minimum(y1_true, y1_pred)
         diagonal_loss = tf.square(union_width) + tf.square(union_height) + tf.keras.backend.epsilon()
-        rdiou = tf.reduce_sum(tf.reduce_mean(center_loss / diagonal_loss, axis=0))
+        rdiou = center_loss / diagonal_loss
     return iou, rdiou
 
 
@@ -98,9 +98,8 @@ def __bbox_loss(y_true, y_pred):
         return 0.0
 
     iou, rdiou = __iou(y_true, y_pred, diou=True)
-    iou_loss = obj_true - iou
-    iou_loss = tf.reduce_sum(tf.reduce_mean(iou_loss * obj_true, axis=0))
-    return iou_loss + rdiou
+    loss = tf.reduce_sum((obj_true - iou + rdiou) * obj_true)
+    return loss / tf.cast(tf.shape(y_true)[0], dtype=y_pred.dtype)
 
 
 def __classification_loss(y_true, y_pred, alpha, gamma, label_smoothing):
@@ -111,9 +110,9 @@ def __classification_loss(y_true, y_pred, alpha, gamma, label_smoothing):
 
     class_true = y_true[:, :, :, 5:]
     class_pred = y_pred[:, :, :, 5:]
-    loss = AbsoluteLogarithmicError(alpha=alpha, gamma=gamma, label_smoothing=label_smoothing)(class_true, class_pred)
-    loss = tf.reduce_sum(tf.reduce_mean(tf.reduce_sum(loss, axis=-1) * obj_true, axis=0))
-    return loss
+    ale = AbsoluteLogarithmicError(alpha=alpha, gamma=gamma, label_smoothing=label_smoothing)
+    loss = tf.reduce_sum(tf.reduce_sum(ale(class_true, class_pred), axis=-1) * obj_true)
+    return loss / tf.cast(tf.shape(y_true)[0], dtype=y_pred.dtype)
 
 
 def confidence_loss(y_true, y_pred, gamma):
