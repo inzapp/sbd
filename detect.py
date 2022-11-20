@@ -21,5 +21,6 @@ from yolo import Yolo
 from train_config import config
 
 if __name__ == '__main__':
-    Yolo(config=config).fit()
+    config['pretrained_model_path'] = r'model_last.h5'
+    Yolo(config=config).predict_images('validation')
 

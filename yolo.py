@@ -22,8 +22,7 @@ from time import time, sleep
 
 import numpy as np
 import tensorflow as tf
-from cv2 import cv2
-from tensorflow.keras.mixed_precision import experimental as mixed_precision
+import cv2
 
 from util import ModelUtil
 from box_colors import colors
@@ -35,52 +34,32 @@ from lr_scheduler import LRScheduler
 
 
 class Yolo:
-    def __init__(self,
-                 train_image_path=None,
-                 input_shape=(256, 256, 1),
-                 lr=0.001,
-                 alpha=0.5,
-                 gamma=0.0,
-                 decay=0.0005,
-                 momentum=0.9,
-                 label_smoothing=0.0,
-                 burn_in=1000,
-                 batch_size=4,
-                 iterations=100000,
-                 curriculum_iterations=0,
-                 validation_split=0.2,
-                 validation_image_path='',
-                 optimizer='sgd',
-                 lr_policy='step',
-                 model_name='model',
-                 use_layers=[],
-                 training_view=False,
-                 map_checkpoint=False,
-                 mixed_float16_training=False,
-                 multi_classification_at_same_box=False,
-                 pretrained_model_path='',
-                 class_names_file_path='',
-                 checkpoints='checkpoints'):
-        self.__lr = lr
-        self.__alpha_arg = alpha
+    def __init__(self, config):
+        pretrained_model_path = config['pretrained_model_path']
+        input_shape = config['input_shape']
+        train_image_path = config['train_image_path']
+        validation_image_path = config['validation_image_path']
+        class_names_file_path = config['class_names_file_path']
+        multi_classification_at_same_box = config['multi_classification_at_same_box']
+        batch_size = config['batch_size']
+        self.__lr = config['lr']
+        self.__alpha_arg = config['alpha'] 
         self.__alphas = None
-        self.__gamma_arg = gamma
+        self.__gamma_arg = config['gamma']
         self.__gammas = None
-        self.__decay = decay
-        self.__momentum = momentum
-        self.__label_smoothing = label_smoothing
-        self.__burn_in = burn_in
-        self.__batch_size = batch_size
-        self.__iterations = iterations
-        self.__optimizer = optimizer
-        self.__lr_policy = lr_policy
-        self.__model_name = model_name
-        self.__training_view = training_view
-        self.__map_checkpoint = map_checkpoint
-        self.__curriculum_iterations = curriculum_iterations
-        self.__mixed_float16_training = mixed_float16_training
+        self.__decay = config['decay']
+        self.__momentum = config['momentum']
+        self.__label_smoothing = config['label_smoothing']
+        self.__burn_in = config['burn_in']
+        self.__iterations = config['iterations']
+        self.__optimizer = config['optimizer']
+        self.__lr_policy = config['lr_policy']
+        self.__model_name = config['model_name']
+        self.__training_view = config['training_view']
+        self.__map_checkpoint = config['map_checkpoint']
+        self.__curriculum_iterations = config['curriculum_iterations']
         self.__live_view_previous_time = time()
-        self.__checkpoints = checkpoints
+        self.__checkpoints = config['checkpoints']
         self.__cycle_step = 0
         self.__cycle_length = 2500
         self.max_map, self.max_f1, self.max_map_iou_hm, self.max_f1_iou_hm = 0.0, 0.0, 0.0, 0.0
@@ -88,8 +67,6 @@ class Yolo:
         self.__input_width, self.__input_height, self.__input_channel = ModelUtil.get_width_height_channel_from_input_shape(input_shape)
         ModelUtil.set_channel_order(input_shape)
 
-        if class_names_file_path == '':
-            class_names_file_path = f'{train_image_path}/classes.txt'
         self.__class_names, self.__num_classes = ModelUtil.init_class_names(class_names_file_path)
 
         if pretrained_model_path != '':
@@ -138,8 +115,6 @@ class Yolo:
             multi_classification_at_same_box=multi_classification_at_same_box)
 
         self.__live_loss_plot = None
-        if self.__mixed_float16_training:
-            mixed_precision.set_policy(mixed_precision.Policy('mixed_float16'))
         os.makedirs(f'{self.__checkpoints}', exist_ok=True)
         np.set_printoptions(precision=6)
 
@@ -270,13 +245,13 @@ class Yolo:
                 if self.__map_checkpoint:
                     # if iteration_count >= int(self.__iterations * 0.9) and iteration_count % 20000 == 0:
                     # if iteration_count == self.__iterations:
-                    if iteration_count % 2000 == 0:
+                    if iteration_count % 1000 == 0:
                     # if iteration_count >= (self.__iterations * 0.1) and iteration_count % 5000 == 0:
                         self.__save_model(iteration_count=iteration_count, use_map_checkpoint=self.__map_checkpoint)
                 else:
                     if iteration_count % 10000 == 0:
                         self.__save_model(iteration_count=iteration_count, use_map_checkpoint=self.__map_checkpoint)
-                if iteration_count % 10000 == 0:
+                if iteration_count % 1000 == 0:
                     self.__model.save('model_last.h5', include_optimizer=False)
                 if iteration_count == self.__iterations:
                     print('\n\ntrain end successfully')
@@ -291,7 +266,7 @@ class Yolo:
             self.__model.save(f'{self.__checkpoints}/{self.__model_name}_{iteration_count}_iter.h5', include_optimizer=False)
 
     @staticmethod
-    def predict(model, img, device, confidence_threshold=0.25, nms_iou_threshold=0.45):
+    def predict(model, img, device, confidence_threshold=0.25, nms_iou_threshold=0.45, verbose=False):
         """
         Detect object in image using trained YOLO model.
         :param img: (width, height, channel) formatted image to be predicted.
@@ -367,7 +342,21 @@ class Yolo:
                     'discard': False})
                 bbox_count += 1
         y_pred = ModelUtil.nms(y_pred, nms_iou_threshold)
-        # print(f' detected box count, nms box count : [{bbox_count}, {len(y_pred)}]')
+        if verbose:
+            print(f'before nms box count : {bbox_count}')
+            print(f'after  nms box count : {len(y_pred)}')
+            print()
+            for box_info in y_pred:
+                class_index = box_info['class']
+                confidence = box_info['confidence']
+                bbox = box_info['bbox']
+                bbox_norm = box_info['bbox_norm']
+                print(f'class index : {class_index}')
+                print(f'confidence : {confidence:.4f}')
+                print(f'bbox : {np.array(bbox)}')
+                print(f'bbox(normalized) : {np.array(bbox_norm)}')
+                print()
+            print()
         return y_pred
 
     def bounding_box(self, img, yolo_res, font_scale=0.4):
@@ -436,8 +425,9 @@ class Yolo:
             print(f'invalid dataset : [{dataset}]')
             return
         for path in image_paths:
+            print(f'image path : {path}')
             raw, raw_bgr, _ = ModelUtil.load_img(path, input_channel)
-            res = Yolo.predict(self.__model, raw, device='cpu')
+            res = Yolo.predict(self.__model, raw, device='cpu', verbose=True)
             raw_bgr = cv2.resize(raw_bgr, (input_width, input_height), interpolation=cv2.INTER_AREA)
             boxed_image = self.bounding_box(raw_bgr, res)
             cv2.imshow('res', boxed_image)
