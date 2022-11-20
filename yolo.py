@@ -260,8 +260,7 @@ class Yolo:
     def __save_model(self, iteration_count, use_map_checkpoint):
         print('\n')
         if use_map_checkpoint:
-            mean_ap, f1_score, iou, tp, fp, fn, confidence = calc_mean_average_precision(self.__model, self.__validation_image_paths)
-            self.__model.save(f'{self.__checkpoints}/{self.__model_name}_{iteration_count}_iter_mAP_{mean_ap:.4f}_f1_{f1_score:.4f}_iou_{iou:.4f}_tp_{tp}_fp_{fp}_fn_{fn}_conf_{confidence:.4f}.h5', include_optimizer=False)
+            self.calculate_map(dataset='validation', iteration_count=iteration_count, save_model=True)
         else:
             self.__model.save(f'{self.__checkpoints}/{self.__model_name}_{iteration_count}_iter.h5', include_optimizer=False)
 
@@ -435,14 +434,28 @@ class Yolo:
             if key == 27:
                 break
 
-    def calculate_map(self, dataset='validation'):
+    def calculate_map(self, dataset='validation', iteration_count=0, save_model=False):
         if dataset == 'train':
-            calc_mean_average_precision(self.__model, self.__train_image_paths)
+            image_paths = self.__train_image_paths
         elif dataset == 'validation':
-            calc_mean_average_precision(self.__model, self.__validation_image_paths)
+            image_paths = self.__validation_image_paths
         else:
             print(f'invalid dataset : [{dataset}]')
             return
+        mean_ap, f1_score, iou, tp, fp, fn, confidence = calc_mean_average_precision(self.__model, image_paths)
+        if save_model:
+            model_path = f'{self.__checkpoints}/'
+            model_path += f'{self.__model_name}'
+            if iteration_count > 0:
+                model_path += f'_{iteration_count}_iter'
+            model_path += f'_mAP_{mean_ap:.4f}'
+            model_path += f'_f1_{f1_score:.4f}'
+            model_path += f'_iou_{iou:.4f}'
+            model_path += f'_tp_{tp}_fp_{fp}_fn_{fn}'
+            model_path += f'_conf_{confidence:.4f}'
+            model_path += f'.h5'
+            self.__model.save(model_path, include_optimizer=False)
+            print(f'model saved to [{model_path}]')
 
     def __training_view_function(self):
         """
