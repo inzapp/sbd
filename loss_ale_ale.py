@@ -23,17 +23,14 @@ from tensorflow.python.framework.ops import convert_to_tensor_v2
 from ale import AbsoluteLogarithmicError
 
 
-ale = AbsoluteLogarithmicError()
-focal_ale = AbsoluteLogarithmicError(gamma=1.0)
-
-
-def __confidence_loss(y_true, y_pred):
+def __confidence_loss(y_true, y_pred, alpha, gamma):
     obj_true = y_true[:, :, :, 0]
     obj_pred = y_pred[:, :, :, 0]
-    loss = focal_ale(obj_true, obj_pred)
-    loss = tf.reduce_mean(loss, axis=0)
-    loss = tf.reduce_sum(loss)
-    return loss
+    loss = AbsoluteLogarithmicError(alpha=alpha, gamma=gamma)(obj_true, obj_pred)
+    positive_loss = loss * obj_true
+    negative_loss = loss * (1.0 - obj_true) * 0.25
+    loss = tf.reduce_sum(positive_loss + negative_loss)
+    return loss / tf.cast(tf.shape(y_true)[0], dtype=y_pred.dtype)
 
 
 def __iou(y_true, y_pred):
@@ -89,7 +86,7 @@ def __iou(y_true, y_pred):
     return iou
 
 
-def __bbox_loss(y_true, y_pred, ignore_threshold):
+def __bbox_loss(y_true, y_pred, alpha, gamma):
     obj_true = y_true[:, :, :, 0]
     obj_count = K.cast_to_floatx(tf.reduce_sum(obj_true))
     if obj_count == tf.constant(0.0):
@@ -97,18 +94,24 @@ def __bbox_loss(y_true, y_pred, ignore_threshold):
 
     xy_true = y_true[:, :, :, 1:3]
     xy_pred = y_pred[:, :, :, 1:3]
-    xy_loss = ale(xy_true, xy_pred)
-    xy_loss = tf.reduce_sum(xy_loss, axis=-1) * obj_true
-    xy_loss = tf.reduce_mean(xy_loss, axis=0)
-    xy_loss = tf.reduce_sum(xy_loss)
+    xy_loss = AbsoluteLogarithmicError()(xy_true, xy_pred)
+    xy_loss = tf.reduce_sum(tf.reduce_sum(xy_loss, axis=-1) * obj_true)
 
-    liou_loss = ale(obj_true, __iou(y_true, y_pred) * obj_true)
-    liou_loss = tf.reduce_mean(liou_loss, axis=0)
-    liou_loss = tf.reduce_sum(liou_loss)
-    return xy_loss + liou_loss
+    eps = tf.keras.backend.epsilon()
+    wh_true = tf.sqrt(y_true[:, :, :, 3:5] + eps)
+    wh_pred = tf.sqrt(y_pred[:, :, :, 3:5] + eps)
+    wh_loss = AbsoluteLogarithmicError()(wh_true, wh_pred)
+    wh_loss = tf.reduce_sum(tf.reduce_sum(wh_loss, axis=-1) * obj_true)
+
+    loss = xy_loss + wh_loss
+    if gamma == 0.0:
+        loss *= 5.0
+    else:
+        loss *= (1.0 - alpha)
+    return loss / tf.cast(tf.shape(y_true)[0], dtype=y_pred.dtype)
 
 
-def __classification_loss(y_true, y_pred):
+def __classification_loss(y_true, y_pred, alpha, gamma, label_smoothing):
     obj_true = y_true[:, :, :, 0]
     obj_count = K.cast_to_floatx(tf.reduce_sum(obj_true))
     if obj_count == tf.constant(0.0):
@@ -116,27 +119,25 @@ def __classification_loss(y_true, y_pred):
 
     class_true = y_true[:, :, :, 5:]
     class_pred = y_pred[:, :, :, 5:]
-    loss = focal_ale(class_true, class_pred)
-    loss = tf.reduce_sum(loss, axis=-1) * obj_true
-    loss = tf.reduce_mean(loss, axis=0)
-    loss = tf.reduce_sum(loss)
-    return loss
+    loss = AbsoluteLogarithmicError(alpha=alpha, gamma=gamma, label_smoothing=label_smoothing)(class_true, class_pred)
+    loss = tf.reduce_sum(tf.reduce_sum(loss, axis=-1) * obj_true)
+    return loss / tf.cast(tf.shape(y_true)[0], dtype=y_pred.dtype)
 
 
-def confidence_loss(y_true, y_pred, ignore_threshold):
+def confidence_loss(y_true, y_pred, alpha, gamma):
     y_pred = convert_to_tensor_v2(y_pred)
     y_true = tf.cast(y_true, y_pred.dtype)
-    return __confidence_loss(y_true, y_pred)
+    return __confidence_loss(y_true, y_pred, alpha, gamma)
 
 
-def confidence_with_bbox_loss(y_true, y_pred, ignore_threshold):
+def confidence_with_bbox_loss(y_true, y_pred, alpha, gamma):
     y_pred = convert_to_tensor_v2(y_pred)
     y_true = tf.cast(y_true, y_pred.dtype)
-    return __confidence_loss(y_true, y_pred) + __bbox_loss(y_true, y_pred, ignore_threshold)
+    return __confidence_loss(y_true, y_pred, alpha, gamma) + __bbox_loss(y_true, y_pred, alpha, gamma)
 
 
-def yolo_loss(y_true, y_pred, ignore_threshold):
+def yolo_loss(y_true, y_pred, alpha, gamma, label_smoothing):
     y_pred = convert_to_tensor_v2(y_pred)
     y_true = tf.cast(y_true, y_pred.dtype)
-    return __confidence_loss(y_true, y_pred) + __bbox_loss(y_true, y_pred, ignore_threshold) + __classification_loss(y_true, y_pred)
+    return __confidence_loss(y_true, y_pred, alpha, gamma) + __bbox_loss(y_true, y_pred, alpha, gamma) + __classification_loss(y_true, y_pred, alpha, gamma, label_smoothing)
 
