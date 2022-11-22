@@ -25,9 +25,7 @@ from ale import AbsoluteLogarithmicError
 def __confidence_loss(y_true, y_pred, alpha, gamma):
     obj_true = y_true[:, :, :, 0]
     obj_pred = y_pred[:, :, :, 0]
-    loss = AbsoluteLogarithmicError()(obj_true, obj_pred)
-    obj_count = tf.cast(tf.reduce_sum(obj_true), dtype=loss.dtype) + tf.keras.backend.epsilon()
-    obj_loss = (loss * obj_true) / obj_count
+    obj_loss = AbsoluteLogarithmicError()(obj_true, obj_pred) * obj_true
     background_loss = AbsoluteLogarithmicError(alpha=0.5, gamma=1.5)(obj_true, obj_pred) * (1.0 - obj_true) * 2.0
     loss = tf.reduce_sum(obj_loss + background_loss)
     return loss / tf.cast(tf.shape(y_true)[0], dtype=y_pred.dtype)
@@ -101,8 +99,7 @@ def __bbox_loss(y_true, y_pred, alpha, gamma):
     wh_pred = tf.sqrt(y_pred[:, :, :, 3:5] + eps)
     wh_loss = AbsoluteLogarithmicError()(wh_true, wh_pred)
 
-    loss = tf.reduce_sum(tf.reduce_sum(xy_loss + wh_loss, axis=-1) * obj_true)
-    loss = (loss / obj_count / 4.0) * 5.0
+    loss = tf.reduce_sum(tf.reduce_sum(xy_loss + wh_loss, axis=-1) * obj_true) / 4.0 * 5.0
     return loss / tf.cast(tf.shape(y_true)[0], dtype=y_pred.dtype)
 
 
@@ -116,8 +113,7 @@ def __classification_loss(y_true, y_pred, alpha, gamma, label_smoothing):
     class_pred = y_pred[:, :, :, 5:]
     loss = AbsoluteLogarithmicError(label_smoothing=label_smoothing)(class_true, class_pred)
     num_classes = tf.cast(tf.shape(y_true)[-1], dtype=loss.dtype) - 5.0
-    loss = tf.reduce_sum(tf.reduce_sum(loss, axis=-1) * obj_true)
-    loss = loss / obj_count / num_classes
+    loss = tf.reduce_sum(tf.reduce_sum(loss, axis=-1) * obj_true) / num_classes
     return loss / tf.cast(tf.shape(y_true)[0], dtype=y_pred.dtype)
 
 
