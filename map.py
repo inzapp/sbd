@@ -17,10 +17,18 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
+import argparse
+
 from yolo import Yolo
 from train_config import config
 
+
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--cpu', action='store_true', help='forward with cpu while calculating mAP')
+    parser.add_argument('--save', action='store_true', help='save another model with calculated mAP result naming')
+    parser.add_argument('--dataset', type=str, default='validation', help='dataset name for mAP calculation. train or validation')
+    args = parser.parse_args()
     config['pretrained_model_path'] = r'model_last.h5'
-    Yolo(config=config).calculate_map('validation', save_model=False)
+    Yolo(config=config).calculate_map(args.dataset, save_model=args.save, device='cpu' if args.cpu else 'auto')
 

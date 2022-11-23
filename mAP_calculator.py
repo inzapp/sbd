@@ -57,7 +57,7 @@ def convert_boxes_to_csv_lines(path, boxes):
     return csv
 
 
-def make_predictions_csv(model, image_paths):
+def make_predictions_csv(model, image_paths, device):
     from yolo import Yolo
     print('predictions csv creation start')
     global g_predictions_csv_name
@@ -69,19 +69,20 @@ def make_predictions_csv(model, image_paths):
     csv = 'ImageID,LabelName,Conf,XMin,XMax,YMin,YMax\n'
     for f in tqdm(fs):
         img, _, path = f.result()
-        boxes = Yolo.predict(model, img, confidence_threshold=0.005, nms_iou_threshold=g_nms_iou_threshold, device='gpu')
+        boxes = Yolo.predict(model, img, confidence_threshold=0.005, nms_iou_threshold=g_nms_iou_threshold, device=device)
         csv += convert_boxes_to_csv_lines(path, boxes)
     with open(g_predictions_csv_name, 'wt') as f:
         f.writelines(csv)
 
 
-def calc_mean_average_precision(model, all_image_paths):
+def calc_mean_average_precision(model, all_image_paths, device):
     global g_iou_threshold, g_confidence_threshold, g_annotations_csv_name, g_predictions_csv_name
     image_paths = all_image_paths
     make_annotations_csv(image_paths)
-    make_predictions_csv(model, image_paths)
+    make_predictions_csv(model, image_paths, device)
     return mean_average_precision_for_boxes(g_annotations_csv_name, g_predictions_csv_name, confidence_threshold_for_f1=g_confidence_threshold, iou_threshold=g_iou_threshold, verbose=True)
 
 
 if __name__ == '__main__':
     mean_average_precision_for_boxes(g_annotations_csv_name, g_predictions_csv_name, confidence_threshold_for_f1=g_confidence_threshold, iou_threshold=g_iou_threshold, verbose=True)
+

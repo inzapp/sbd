@@ -1,4 +1,3 @@
-
 """
 Authors : inzapp
 
@@ -31,6 +30,14 @@ from keras_flops import get_flops
 class ModelUtil:
     def __init__(self):
         pass
+
+    @staticmethod
+    def available_device():
+        devices = tf.config.list_physical_devices()
+        for device in devices:
+            if device.device_type.lower() == 'gpu':
+                return 'gpu'
+        return 'cpu'
 
     @staticmethod
     def init_image_paths(image_path, validation_split=0.0):

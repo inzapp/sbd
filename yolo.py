@@ -178,7 +178,8 @@ class Yolo:
         if not self.__set_alpha_gamma():
             return
         print('\nstart test forward for checking forwarding time.')
-        ModelUtil.check_forwarding_time(self.__model, device='gpu')
+        if ModelUtil.available_device() == 'gpu':
+            ModelUtil.check_forwarding_time(self.__model, device='gpu')
         if tf.keras.backend.image_data_format() == 'channels_last':  # default max pool 2d layer is run on gpu only
             ModelUtil.check_forwarding_time(self.__model, device='cpu')
 
@@ -243,9 +244,9 @@ class Yolo:
                 if self.__training_view and iteration_count > self.__burn_in:
                     self.__training_view_function()
                 if self.__map_checkpoint:
-                    # if iteration_count >= int(self.__iterations * 0.9) and iteration_count % 20000 == 0:
+                    if iteration_count >= int(self.__iterations * 0.7) and iteration_count % 20000 == 0:
                     # if iteration_count == self.__iterations:
-                    if iteration_count % 1000 == 0:
+                    # if iteration_count % 1000 == 0:
                     # if iteration_count >= (self.__iterations * 0.1) and iteration_count % 5000 == 0:
                         self.__save_model(iteration_count=iteration_count, use_map_checkpoint=self.__map_checkpoint)
                 else:
@@ -401,7 +402,7 @@ class Yolo:
             if not frame_exist:
                 break
             x = cv2.cvtColor(raw, cv2.COLOR_BGR2GRAY) if self.__model.input.shape[-1] == 1 else raw.copy()
-            res = Yolo.predict(self.__model, x, device='gpu')
+            res = Yolo.predict(self.__model, x, device='auto')
             # raw = cv2.resize(raw, (1280, 720), interpolation=cv2.INTER_AREA)
             boxed_image = self.bounding_box(raw, res)
             cv2.imshow('video', boxed_image)
@@ -434,7 +435,7 @@ class Yolo:
             if key == 27:
                 break
 
-    def calculate_map(self, dataset='validation', iteration_count=0, save_model=False):
+    def calculate_map(self, dataset='validation', iteration_count=0, save_model=False, device='auto'):
         if dataset == 'train':
             image_paths = self.__train_image_paths
         elif dataset == 'validation':
@@ -442,7 +443,8 @@ class Yolo:
         else:
             print(f'invalid dataset : [{dataset}]')
             return
-        mean_ap, f1_score, iou, tp, fp, fn, confidence = calc_mean_average_precision(self.__model, image_paths)
+        device = ModelUtil.available_device() if device == 'auto' else device
+        mean_ap, f1_score, iou, tp, fp, fn, confidence = calc_mean_average_precision(self.__model, image_paths, device=device)
         if save_model:
             model_path = f'{self.__checkpoints}/'
             model_path += f'{self.__model_name}'
