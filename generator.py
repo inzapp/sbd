@@ -84,7 +84,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         self.batch_index = 0
         self.pool = ThreadPoolExecutor(8)
         self.transform = A.Compose([
-            A.RandomBrightnessContrast(p=0.5, brightness_limit=0.1, contrast_limit=0.1),
+            A.RandomBrightnessContrast(p=0.5, brightness_limit=0.2, contrast_limit=0.3),
             A.GaussianBlur(p=0.5, blur_limit=(7, 7))
         ])
 
