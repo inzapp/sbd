@@ -136,17 +136,18 @@ def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_th
 
     print(f'\nconfidence threshold for tp, fp, fn calculate : {confidence_threshold_for_f1}')
     total_tp_iou_sum = 0.0
+    total_tp_confidence_sum = 0.0
     total_tp = 0
     total_fp = 0
     total_obj_count = 0
     average_precisions = {}
-    class_confidence_sum = 0.0
     for class_index, label in enumerate(sorted(unique_classes)):
         # Negative class
         if str(label) == 'nan':
             continue
 
         tp_ious = []
+        tp_confidences = []
         false_positives = []
         true_positives = []
         scores = []
@@ -176,6 +177,7 @@ def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_th
                     false_positives.append(1)
                     true_positives.append(0)
                     tp_ious.append(0.0)
+                    tp_confidences.append(0.0)
                     continue
 
                 overlaps = compute_overlap(np.expand_dims(np.array(d, dtype=np.float64), axis=0), annotations)
@@ -187,11 +189,13 @@ def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_th
                     true_positives.append(1)
                     detected_annotations.append(assigned_annotation)
                     tp_ious.append(max_overlap[0])
+                    tp_confidences.append(d[4])
                     # print(f'conf : {d[4]:.4f}, iou : {max_overlap[0]:.4f}')
                 else:
                     false_positives.append(1)
                     true_positives.append(0)
                     tp_ious.append(0.0)
+                    tp_confidences.append(0.0)
 
         if num_annotations == 0:
             average_precisions[label] = 0, 0
@@ -201,12 +205,7 @@ def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_th
         true_positives = np.array(true_positives)
         scores = np.array(scores)
         tp_ious = np.array(tp_ious)
-
-        if np.sum(true_positives) == 0.0:
-            tp_confidence = 0.0
-        else:
-            tp_confidence = np.sum(scores * true_positives) / np.sum(true_positives)
-        class_confidence_sum += tp_confidence
+        tp_confidences = np.array(tp_confidences)
 
         # mask
         tp_mask = np.where(scores > confidence_threshold_for_f1, 1, 0)
@@ -214,6 +213,8 @@ def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_th
         false_positives_over_threshold = false_positives * tp_mask
         tp_ious *= tp_mask
         tp_iou_sum = np.sum(tp_ious)
+        tp_confidences *= tp_mask
+        tp_confidence_sum = np.sum(tp_confidences)
 
         # sort by score
         indices = np.argsort(-scores)
@@ -229,6 +230,8 @@ def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_th
         f1 = (2.0 * p * r) / (p + r + 1e-7)
         tp_iou = tp_iou_sum / (tp + 1e-7)
         total_tp_iou_sum += tp_iou_sum
+        tp_confidence = tp_confidence_sum / (tp + 1e-7)
+        total_tp_confidence_sum += tp_confidence_sum
 
         total_obj_count += obj_count
         total_tp += tp
@@ -259,9 +262,10 @@ def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_th
     r = total_tp / (total_obj_count + 1e-7)
     f1 = (2.0 * p * r) / (p + r + 1e-7)
     tp_iou = total_tp_iou_sum / (total_tp + 1e-7)
-    confidence = class_confidence_sum / present_classes
+    tp_confidence = total_tp_confidence_sum / (total_tp + 1e-7)
     print(f'F1@{int(iou_threshold * 100)} : {f1:.4f}')
     print(f'mAP@{int(iou_threshold * 100)} : {mean_ap:.4f}')
     print(f'TP_IOU@{int(iou_threshold * 100)} : {tp_iou:.4f}')
-    print(f'TP_Confidence : {confidence:.4f}')
-    return mean_ap, f1, tp_iou, total_tp, total_fp, total_obj_count - total_tp, confidence
+    print(f'TP_Confidence : {tp_confidence:.4f}')
+    return mean_ap, f1, tp_iou, total_tp, total_fp, total_obj_count - total_tp, tp_confidence
+
