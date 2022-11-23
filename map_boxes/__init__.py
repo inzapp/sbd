@@ -7,13 +7,13 @@ Code based on: https://github.com/fizyr/keras-retinanet/blob/master/keras_retina
 
 import numpy as np
 import pandas as pd
-try:
-    import pyximport
-    pyximport.install(setup_args={"include_dirs": np.get_include()}, reload_support=False)
-    from .compute_overlap import compute_overlap
-except:
-    print("Couldn't import fast version of function compute_overlap, will use slow one. Check cython intallation")
-    from .compute_overlap_slow import compute_overlap
+# try:
+#     import pyximport
+#     pyximport.install(setup_args={"include_dirs": np.get_include()}, reload_support=False)
+#     from .compute_overlap import compute_overlap
+# except:
+#     print("Couldn't import fast version of function compute_overlap, will use slow one. Check cython intallation")
+from .compute_overlap_slow import compute_overlap
 
 
 def get_real_annotations(table):
