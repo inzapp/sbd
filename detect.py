@@ -17,10 +17,17 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
+import argparse
+
 from yolo import Yolo
 from train_config import config
 
+
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--conf', type=float, default=0.25, help='confidence threshold for detection')
+    parser.add_argument('--dataset', type=str, default='validation', help='dataset name for prediction. train or validation')
+    args = parser.parse_args()
     config['pretrained_model_path'] = r'model_last.h5'
-    Yolo(config=config).predict_images('validation')
+    Yolo(config=config).predict_images(dataset=args.dataset, confidence_threshold=args.conf)
 

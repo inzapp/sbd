@@ -412,7 +412,7 @@ class Yolo:
         cap.release()
         cv2.destroyAllWindows()
 
-    def predict_images(self, dataset='validation'):
+    def predict_images(self, dataset='validation', confidence_threshold=0.25):
         """
         Equal to the evaluate function. image paths are required.
         """
@@ -427,7 +427,7 @@ class Yolo:
         for path in image_paths:
             print(f'image path : {path}')
             raw, raw_bgr, _ = ModelUtil.load_img(path, input_channel)
-            res = Yolo.predict(self.__model, raw, device='cpu', verbose=True)
+            res = Yolo.predict(self.__model, raw, device='cpu', verbose=True, confidence_threshold=confidence_threshold)
             raw_bgr = cv2.resize(raw_bgr, (input_width, input_height), interpolation=cv2.INTER_AREA)
             boxed_image = self.bounding_box(raw_bgr, res)
             cv2.imshow('res', boxed_image)
@@ -435,7 +435,7 @@ class Yolo:
             if key == 27:
                 break
 
-    def calculate_map(self, dataset='validation', iteration_count=0, save_model=False, device='auto'):
+    def calculate_map(self, dataset='validation', iteration_count=0, save_model=False, device='auto', confidence_threshold=0.25, tp_iou_threshold=0.5):
         if dataset == 'train':
             image_paths = self.__train_image_paths
         elif dataset == 'validation':
@@ -444,7 +444,7 @@ class Yolo:
             print(f'invalid dataset : [{dataset}]')
             return
         device = ModelUtil.available_device() if device == 'auto' else device
-        mean_ap, f1_score, iou, tp, fp, fn, confidence = calc_mean_average_precision(self.__model, image_paths, device=device)
+        mean_ap, f1_score, iou, tp, fp, fn, confidence = calc_mean_average_precision(self.__model, image_paths, device=device, confidence_threshold=confidence_threshold, tp_iou_threshold=tp_iou_threshold)
         if save_model:
             model_path = f'{self.__checkpoints}/'
             model_path += f'{self.__model_name}'
