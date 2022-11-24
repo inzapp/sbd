@@ -26,8 +26,9 @@ from train_config import config
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--conf', type=float, default=0.25, help='confidence threshold for detection')
+    parser.add_argument('--model', type=str, default='model_last.h5', help='pretrained model path for detection')
     parser.add_argument('--dataset', type=str, default='validation', help='dataset name for prediction. train or validation')
     args = parser.parse_args()
-    config['pretrained_model_path'] = r'model_last.h5'
+    config['pretrained_model_path'] = args.model
     Yolo(config=config).predict_images(dataset=args.dataset, confidence_threshold=args.conf)
 

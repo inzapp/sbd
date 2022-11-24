@@ -29,8 +29,9 @@ if __name__ == '__main__':
     parser.add_argument('--save', action='store_true', help='save another model with calculated mAP result naming')
     parser.add_argument('--iou', type=float, default=0.5, help='true positive threshold for intersection over union')
     parser.add_argument('--conf', type=float, default=0.25, help='confidence threshold for detection')
+    parser.add_argument('--model', type=str, default='model_last.h5', help='pretrained model path for mAP calculation')
     parser.add_argument('--dataset', type=str, default='validation', help='dataset name for mAP calculation. train or validation')
     args = parser.parse_args()
-    config['pretrained_model_path'] = r'model_last.h5'
+    config['pretrained_model_path'] = args.model
     Yolo(config=config).calculate_map(args.dataset, save_model=args.save, device='cpu' if args.cpu else 'auto', confidence_threshold=args.conf, tp_iou_threshold=args.iou)
 
