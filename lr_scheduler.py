@@ -24,6 +24,7 @@ class LRScheduler:
     def __init__(self,
                  iterations,
                  lr,
+                 policy,
                  min_lr=0.0,
                  warm_up=0.1,
                  min_momentum=0.85,
@@ -37,7 +38,9 @@ class LRScheduler:
         assert 0.0 <= min_momentum <= 1.0
         assert 0.0 <= max_momentum <= 1.0
         assert 0.0 <= decay_step <= 1.0
+        assert policy in ['constant', 'step', 'cosine', 'onecycle']
         self.lr = lr
+        self.policy = policy
         self.min_lr = min_lr
         self.max_lr = self.lr
         self.warm_up = warm_up
@@ -49,18 +52,18 @@ class LRScheduler:
         self.decay_step = decay_step 
         self.cycle_step = 0
 
-    def update(self, optimizer, iteration_count, lr_policy):
-        if lr_policy == 'step':
+    def update(self, optimizer, iteration_count):
+        if self.policy == 'step':
             lr = self.__schedule_step_decay(optimizer, iteration_count)
-        elif lr_policy == 'cosine':
+        elif self.policy == 'cosine':
             lr = self.__schedule_cosine_warm_restart(optimizer, iteration_count)
-        elif lr_policy == 'onecycle':
+        elif self.policy == 'onecycle':
             lr = self.__schedule_one_cycle(optimizer, iteration_count)
-        elif lr_policy == 'constant':
+        elif self.policy == 'constant':
             lr = self.lr
         else:
-            print(f'{lr_policy} is invalid lr policy')
-            return None
+            print(f'{policy} is invalid lr policy.')
+            lr = None
         return lr
 
     def __set_lr(self, optimizer, lr):
@@ -127,7 +130,7 @@ class LRScheduler:
         return lr
 
 
-def plot_lr(lr_policy):
+def plot_lr(policy):
     import tensorflow as tf
     from matplotlib import pyplot as plt
     lr = 0.001
@@ -139,7 +142,7 @@ def plot_lr(lr_policy):
     lr_scheduler = LRScheduler(iterations=iterations, lr=lr, warm_up=warm_up, decay_step=decay_step)
     lrs = []
     for i in range(iterations):
-        lr = lr_scheduler.update(optimizer=optimizer, iteration_count=i, lr_policy=lr_policy)
+        lr = lr_scheduler.update(optimizer=optimizer, iteration_count=i, policy=policy)
         lrs.append(lr)
     plt.figure(figsize=(10, 6))
     plt.plot(lrs)

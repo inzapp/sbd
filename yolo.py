@@ -234,10 +234,10 @@ class Yolo:
         iteration_count = 0
         compute_gradient_tf = tf.function(self.compute_gradient)
         self.__model, optimizer = self.__refresh_model_and_optimizer(self.__model, self.__optimizer)
-        lr_scheduler = LRScheduler(iterations=self.__iterations, lr=self.__lr)
+        lr_scheduler = LRScheduler(iterations=self.__iterations, lr=self.__lr, policy=self.__lr_policy)
         while True:
             for batch_x, batch_y in self.__train_data_generator.flow():
-                lr_scheduler.update(optimizer, iteration_count, self.__lr_policy)
+                lr_scheduler.update(optimizer, iteration_count)
                 loss = compute_gradient_tf(self.__model, optimizer, yolo_loss, batch_x, batch_y, self.num_output_layers, self.__alphas, self.__gammas, self.__label_smoothing)
                 iteration_count += 1
                 print(f'\r[iteration count : {iteration_count:6d}] loss => {loss:.4f}', end='')
@@ -245,7 +245,7 @@ class Yolo:
                 if self.__training_view and warm_up_end:
                     self.__training_view_function()
                 if self.__map_checkpoint:
-                    # if iteration_count >= int(self.__iterations * 0.7) and iteration_count % 20000 == 0:
+                    # if iteration_count >= int(self.__iterations * 0.7) and iteration_count % 10000 == 0:
                     # if iteration_count == self.__iterations:
                     if iteration_count % 1000 == 0 and warm_up_end:
                     # if iteration_count >= (self.__iterations * 0.1) and iteration_count % 5000 == 0:
