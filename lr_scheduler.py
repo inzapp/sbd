@@ -29,12 +29,14 @@ class LRScheduler:
                  min_momentum=0.85,
                  max_momentum=0.95,
                  initial_cycle_length=2500,
-                 cycle_weight=2):
+                 cycle_weight=2,
+                 decay_step=0.1):
         assert 0.0 <= lr <= 1.0
         assert 0.0 <= min_lr <= 1.0
         assert 0.0 <= warm_up <= 1.0
         assert 0.0 <= min_momentum <= 1.0
         assert 0.0 <= max_momentum <= 1.0
+        assert 0.0 <= decay_step <= 1.0
         self.lr = lr
         self.min_lr = min_lr
         self.max_lr = self.lr
@@ -44,6 +46,7 @@ class LRScheduler:
         self.iterations = iterations
         self.cycle_length = initial_cycle_length
         self.cycle_weight = cycle_weight
+        self.decay_step = decay_step 
         self.cycle_step = 0
 
     def update(self, optimizer, iteration_count, lr_policy):
@@ -79,8 +82,10 @@ class LRScheduler:
         warm_up_iteration = self.iterations * self.warm_up
         if warm_up_iteration > 0 and iteration_count <= warm_up_iteration:
             lr = self.__warm_up_lr(iteration_count, warm_up_iteration)
+        elif iteration_count >= int(self.iterations * 0.9):
+            lr = self.lr * self.decay_step * self.decay_step
         elif iteration_count >= int(self.iterations * 0.8):
-            lr = self.lr * 0.1
+            lr = self.lr * self.decay_step
         else:
             lr = self.lr
         self.__set_lr(optimizer, lr)
@@ -126,11 +131,12 @@ def plot_lr(lr_policy):
     import tensorflow as tf
     from matplotlib import pyplot as plt
     lr = 0.001
-    warm_up = 0.1
+    warm_up = 0.5
+    decay_step = 0.2
     iterations = 37500
-    iterations += int(iterations * warm_up)
+    iterations = int(iterations / (1.0 - warm_up))
     optimizer = tf.keras.optimizers.SGD()
-    lr_scheduler = LRScheduler(iterations=iterations, lr=lr, warm_up=warm_up)
+    lr_scheduler = LRScheduler(iterations=iterations, lr=lr, warm_up=warm_up, decay_step=decay_step)
     lrs = []
     for i in range(iterations):
         lr = lr_scheduler.update(optimizer=optimizer, iteration_count=i, lr_policy=lr_policy)
