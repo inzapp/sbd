@@ -50,7 +50,7 @@ class Yolo:
         self.__decay = config['decay']
         self.__momentum = config['momentum']
         self.__label_smoothing = config['label_smoothing']
-        self.__burn_in = config['burn_in']
+        self.__warm_up = config['warm_up']
         self.__iterations = config['iterations']
         self.__optimizer = config['optimizer']
         self.__lr_policy = config['lr_policy']
@@ -221,7 +221,7 @@ class Yolo:
             while True:
                 for batch_x, batch_y in self.__train_data_generator.flow():
                     iteration_count += 1
-                    lr_scheduler.update(optimizer, iteration_count, self.__burn_in, 'onecycle')
+                    lr_scheduler.update(optimizer, iteration_count, self.__warm_up, 'onecycle')
                     loss = compute_gradients[i](self.__model, optimizer, loss_functions[i], batch_x, batch_y, self.num_output_layers, self.__alphas, self.__gammas, self.__label_smoothing)
                     print(f'\r[curriculum iteration count : {iteration_count:6d}] loss => {loss:.4f}', end='')
                     if iteration_count == self.__curriculum_iterations:
@@ -237,11 +237,11 @@ class Yolo:
         lr_scheduler = LRScheduler(iterations=self.__iterations, lr=self.__lr)
         while True:
             for batch_x, batch_y in self.__train_data_generator.flow():
-                lr_scheduler.update(optimizer, iteration_count, self.__burn_in, self.__lr_policy)
+                lr_scheduler.update(optimizer, iteration_count, self.__warm_up, self.__lr_policy)
                 loss = compute_gradient_tf(self.__model, optimizer, yolo_loss, batch_x, batch_y, self.num_output_layers, self.__alphas, self.__gammas, self.__label_smoothing)
                 iteration_count += 1
                 print(f'\r[iteration count : {iteration_count:6d}] loss => {loss:.4f}', end='')
-                if self.__training_view and iteration_count > self.__burn_in:
+                if self.__training_view and iteration_count > self.__warm_up:
                     self.__training_view_function()
                 if self.__map_checkpoint:
                     if iteration_count >= int(self.__iterations * 0.7) and iteration_count % 20000 == 0:
