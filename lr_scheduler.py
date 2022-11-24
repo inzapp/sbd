@@ -1,7 +1,7 @@
 """
 Authors : inzapp
 
-Github url : https://github.com/inzapp/c-yolo
+Github url : https://github.com/inzapp/lr-scheduler
 
 Copyright 2021 inzapp Authors. All Rights Reserved.
 
@@ -134,15 +134,15 @@ def plot_lr(policy):
     import tensorflow as tf
     from matplotlib import pyplot as plt
     lr = 0.001
-    warm_up = 0.5
+    warm_up = 0.1
     decay_step = 0.2
     iterations = 37500
     iterations = int(iterations / (1.0 - warm_up))
     optimizer = tf.keras.optimizers.SGD()
-    lr_scheduler = LRScheduler(iterations=iterations, lr=lr, warm_up=warm_up, decay_step=decay_step)
+    lr_scheduler = LRScheduler(iterations=iterations, lr=lr, warm_up=warm_up, decay_step=decay_step, policy=policy)
     lrs = []
     for i in range(iterations):
-        lr = lr_scheduler.update(optimizer=optimizer, iteration_count=i, policy=policy)
+        lr = lr_scheduler.update(optimizer=optimizer, iteration_count=i)
         lrs.append(lr)
     plt.figure(figsize=(10, 6))
     plt.plot(lrs)
