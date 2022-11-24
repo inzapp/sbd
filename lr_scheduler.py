@@ -41,16 +41,17 @@ class LRScheduler:
 
     def update(self, optimizer, iteration_count, burn_in, lr_policy):
         if lr_policy == 'step':
-            self.__schedule_step_decay(optimizer, iteration_count, burn_in=burn_in)
+            lr = self.__schedule_step_decay(optimizer, iteration_count, burn_in=burn_in)
         elif lr_policy == 'cosine':
-            self.__schedule_cosine_warm_restart(optimizer, iteration_count, burn_in=burn_in)
+            lr = self.__schedule_cosine_warm_restart(optimizer, iteration_count, burn_in=burn_in)
         elif lr_policy == 'onecycle':
-            self.__schedule_one_cycle(optimizer, iteration_count)
+            lr = self.__schedule_one_cycle(optimizer, iteration_count)
         elif lr_policy == 'constant':
-            pass
+            lr = self.lr
         else:
             print(f'{lr_policy} is invalid lr policy')
-            return
+            return None
+        return lr
 
     def __set_lr(self, optimizer, lr):
         optimizer.__setattr__('lr', lr)
@@ -64,19 +65,21 @@ class LRScheduler:
             optimizer.__setattr__('beta_1', momentum)
 
     def __burn_in_lr(self, iteration_count, burn_in):
+        # return ((np.cos(((iteration_count * np.pi) / burn_in) + np.pi) + 1.0) * 0.5) * self.lr  # increase only until target iterations
         return self.lr * pow(iteration_count / float(burn_in), 4)
 
     def __schedule_step_decay(self, optimizer, iteration_count, burn_in=1000):
         if burn_in > 0 and iteration_count <= burn_in:
             lr = self.__burn_in_lr(iteration_count, burn_in)
-        elif iteration_count == int(self.iterations * 0.8):
+        elif iteration_count >= int(self.iterations * 0.8):
             lr = self.lr * 0.1
         else:
             lr = self.lr
         self.__set_lr(optimizer, lr)
+        return lr
 
     def __schedule_one_cycle(self, optimizer, iteration_count):
-        warm_up = 0.1
+        warm_up = 0.3
         min_lr = self.min_lr
         max_lr = self.max_lr
         min_mm = self.min_momentum
@@ -95,6 +98,7 @@ class LRScheduler:
             mm = ((np.cos(((iteration_count * np.pi) / iterations) + np.pi) + 1.0) * 0.5) * (max_mm - min_mm) + min_mm  # increase only until target iterations
             self.__set_lr(optimizer, lr)
             self.__set_momentum(optimizer, mm)
+        return lr
 
     def __schedule_cosine_warm_restart(self, optimizer, iteration_count, burn_in=1000):
         if burn_in > 0 and iteration_count <= burn_in:
@@ -106,4 +110,32 @@ class LRScheduler:
             lr = self.min_lr + 0.5 * (self.max_lr - self.min_lr) * (1.0 + np.cos(((1.0 / self.cycle_length) * np.pi * (self.cycle_step % self.cycle_length))))  # down and down
             self.cycle_step += 1
         self.__set_lr(optimizer, lr)
+        return lr
+
+
+def plot_lr(lr_policy):
+    import tensorflow as tf
+    from matplotlib import pyplot as plt
+    lr = 0.001
+    burn_in = 5000 
+    iterations = burn_in + 37500
+    optimizer = tf.keras.optimizers.SGD()
+    lr_scheduler = LRScheduler(iterations=iterations, lr=lr)
+    lrs = []
+    for i in range(iterations):
+        lr = lr_scheduler.update(optimizer=optimizer, iteration_count=i, burn_in=burn_in, lr_policy=lr_policy)
+        lrs.append(lr)
+    plt.figure(figsize=(10, 6))
+    plt.plot(lrs)
+    plt.legend(['lr'])
+    plt.xlabel('iterations')
+    plt.tight_layout(pad=0.5)
+    plt.show()
+    
+
+if __name__ == '__main__':
+    plot_lr('constant')
+    plot_lr('step')
+    plot_lr('onecycle')
+    plot_lr('cosine')
 
