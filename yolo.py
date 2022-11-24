@@ -59,7 +59,7 @@ class Yolo:
         self.__map_checkpoint = config['map_checkpoint']
         self.__curriculum_iterations = config['curriculum_iterations']
         self.__live_view_previous_time = time()
-        self.__checkpoints = config['checkpoints']
+        self.__checkpoint_path = config['checkpoint_path']
         self.__cycle_step = 0
         self.__cycle_length = 2500
         self.max_map, self.max_f1, self.max_map_iou_hm, self.max_f1_iou_hm = 0.0, 0.0, 0.0, 0.0
@@ -115,7 +115,7 @@ class Yolo:
             multi_classification_at_same_box=multi_classification_at_same_box)
 
         self.__live_loss_plot = None
-        os.makedirs(f'{self.__checkpoints}', exist_ok=True)
+        os.makedirs(f'{self.__checkpoint_path}', exist_ok=True)
         np.set_printoptions(precision=6)
 
     def __get_optimizer(self, optimizer_str):
@@ -264,7 +264,7 @@ class Yolo:
         if use_map_checkpoint:
             self.calculate_map(dataset='validation', iteration_count=iteration_count, save_model=True)
         else:
-            self.__model.save(f'{self.__checkpoints}/{self.__model_name}_{iteration_count}_iter.h5', include_optimizer=False)
+            self.__model.save(f'{self.__checkpoint_path}/{self.__model_name}_{iteration_count}_iter.h5', include_optimizer=False)
 
     @staticmethod
     def predict(model, img, device, confidence_threshold=0.25, nms_iou_threshold=0.45, verbose=False):
@@ -447,7 +447,7 @@ class Yolo:
         device = ModelUtil.available_device() if device == 'auto' else device
         mean_ap, f1_score, iou, tp, fp, fn, confidence = calc_mean_average_precision(self.__model, image_paths, device=device, confidence_threshold=confidence_threshold, tp_iou_threshold=tp_iou_threshold)
         if save_model:
-            model_path = f'{self.__checkpoints}/'
+            model_path = f'{self.__checkpoint_path}/'
             model_path += f'{self.__model_name}'
             if iteration_count > 0:
                 model_path += f'_{iteration_count}_iter'
