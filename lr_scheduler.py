@@ -25,13 +25,20 @@ class LRScheduler:
                  iterations,
                  lr,
                  min_lr=0.0,
+                 warm_up=0.1,
                  min_momentum=0.85,
                  max_momentum=0.95,
                  initial_cycle_length=2500,
                  cycle_weight=2):
+        assert 0.0 <= lr <= 1.0
+        assert 0.0 <= min_lr <= 1.0
+        assert 0.0 <= warm_up <= 1.0
+        assert 0.0 <= min_momentum <= 1.0
+        assert 0.0 <= max_momentum <= 1.0
         self.lr = lr
         self.min_lr = min_lr
         self.max_lr = self.lr
+        self.warm_up = warm_up
         self.min_momentum = min_momentum
         self.max_momentum = max_momentum
         self.iterations = iterations
@@ -39,11 +46,11 @@ class LRScheduler:
         self.cycle_weight = cycle_weight
         self.cycle_step = 0
 
-    def update(self, optimizer, iteration_count, warm_up, lr_policy):
+    def update(self, optimizer, iteration_count, lr_policy):
         if lr_policy == 'step':
-            lr = self.__schedule_step_decay(optimizer, iteration_count, warm_up=warm_up)
+            lr = self.__schedule_step_decay(optimizer, iteration_count)
         elif lr_policy == 'cosine':
-            lr = self.__schedule_cosine_warm_restart(optimizer, iteration_count, warm_up=warm_up)
+            lr = self.__schedule_cosine_warm_restart(optimizer, iteration_count)
         elif lr_policy == 'onecycle':
             lr = self.__schedule_one_cycle(optimizer, iteration_count)
         elif lr_policy == 'constant':
@@ -65,12 +72,13 @@ class LRScheduler:
             optimizer.__setattr__('beta_1', momentum)
 
     def __warm_up_lr(self, iteration_count, warm_up):
-        # return ((np.cos(((iteration_count * np.pi) / warm_up) + np.pi) + 1.0) * 0.5) * self.lr  # cosine warm up
-        return self.lr * pow(iteration_count / float(warm_up), 4)
+        return ((np.cos(((iteration_count * np.pi) / warm_up) + np.pi) + 1.0) * 0.5) * self.lr  # cosine warm up
+        # return self.lr * pow(iteration_count / float(warm_up), 4)
 
-    def __schedule_step_decay(self, optimizer, iteration_count, warm_up=1000):
-        if warm_up > 0 and iteration_count <= warm_up:
-            lr = self.__warm_up_lr(iteration_count, warm_up)
+    def __schedule_step_decay(self, optimizer, iteration_count):
+        warm_up_iteration = self.iterations * self.warm_up
+        if warm_up_iteration > 0 and iteration_count <= warm_up_iteration:
+            lr = self.__warm_up_lr(iteration_count, warm_up_iteration)
         elif iteration_count >= int(self.iterations * 0.8):
             lr = self.lr * 0.1
         else:
@@ -100,9 +108,10 @@ class LRScheduler:
             self.__set_momentum(optimizer, mm)
         return lr
 
-    def __schedule_cosine_warm_restart(self, optimizer, iteration_count, warm_up=1000):
-        if warm_up > 0 and iteration_count <= warm_up:
-            lr = self.__warm_up_lr(iteration_count, warm_up)
+    def __schedule_cosine_warm_restart(self, optimizer, iteration_count):
+        warm_up_iteration = self.iterations * self.warm_up
+        if warm_up_iteration > 0 and iteration_count <= warm_up_iteration:
+            lr = self.__warm_up_lr(iteration_count, warm_up_iteration)
         else:
             if self.cycle_step % self.cycle_length == 0 and self.cycle_step != 0:
                 self.cycle_step = 0
@@ -117,13 +126,14 @@ def plot_lr(lr_policy):
     import tensorflow as tf
     from matplotlib import pyplot as plt
     lr = 0.001
-    warm_up = 5000 
-    iterations = warm_up + 37500
+    warm_up = 0.1
+    iterations = 37500
+    iterations += int(iterations * warm_up)
     optimizer = tf.keras.optimizers.SGD()
-    lr_scheduler = LRScheduler(iterations=iterations, lr=lr)
+    lr_scheduler = LRScheduler(iterations=iterations, lr=lr, warm_up=warm_up)
     lrs = []
     for i in range(iterations):
-        lr = lr_scheduler.update(optimizer=optimizer, iteration_count=i, warm_up=warm_up, lr_policy=lr_policy)
+        lr = lr_scheduler.update(optimizer=optimizer, iteration_count=i, lr_policy=lr_policy)
         lrs.append(lr)
     plt.figure(figsize=(10, 6))
     plt.plot(lrs)
