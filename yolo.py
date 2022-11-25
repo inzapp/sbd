@@ -245,9 +245,9 @@ class Yolo:
                 if self.__training_view and warm_up_end:
                     self.__training_view_function()
                 if self.__map_checkpoint:
-                    # if iteration_count >= int(self.__iterations * 0.7) and iteration_count % 10000 == 0:
+                    if iteration_count >= int(self.__iterations * 0.7) and iteration_count % 10000 == 0:
                     # if iteration_count == self.__iterations:
-                    if iteration_count % 1000 == 0 and warm_up_end:
+                    # if iteration_count % 1000 == 0 and warm_up_end:
                     # if iteration_count >= (self.__iterations * 0.1) and iteration_count % 5000 == 0:
                         self.__save_model(iteration_count=iteration_count, use_map_checkpoint=self.__map_checkpoint)
                 else:
@@ -436,7 +436,7 @@ class Yolo:
             if key == 27:
                 break
 
-    def calculate_map(self, dataset='validation', iteration_count=0, save_model=False, device='auto', confidence_threshold=0.25, tp_iou_threshold=0.5):
+    def calculate_map(self, dataset='validation', iteration_count=0, save_model=False, device='auto', confidence_threshold=0.25, tp_iou_threshold=0.5, cached=False):
         if dataset == 'train':
             image_paths = self.__train_image_paths
         elif dataset == 'validation':
@@ -445,7 +445,13 @@ class Yolo:
             print(f'invalid dataset : [{dataset}]')
             return
         device = ModelUtil.available_device() if device == 'auto' else device
-        mean_ap, f1_score, iou, tp, fp, fn, confidence = calc_mean_average_precision(self.__model, image_paths, device=device, confidence_threshold=confidence_threshold, tp_iou_threshold=tp_iou_threshold)
+        mean_ap, f1_score, iou, tp, fp, fn, confidence = calc_mean_average_precision(
+            model=self.__model,
+            image_paths=image_paths,
+            device=device,
+            confidence_threshold=confidence_threshold,
+            tp_iou_threshold=tp_iou_threshold,
+            cached=cached)
         if save_model:
             model_path = f'{self.__checkpoint_path}/'
             model_path += f'{self.__model_name}'
