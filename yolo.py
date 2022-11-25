@@ -462,6 +462,8 @@ class Yolo:
             model_path += f'_iou_{iou:.4f}'
             model_path += f'_tp_{tp}_fp_{fp}_fn_{fn}'
             model_path += f'_conf_{confidence:.4f}'
+            model_path += f'_confth_{confidence_threshold:.2f}'
+            model_path += f'_tpiouth_{tp_iou_threshold:.2f}'
             model_path += f'.h5'
             self.__model.save(model_path, include_optimizer=False)
             print(f'model saved to [{model_path}]')
