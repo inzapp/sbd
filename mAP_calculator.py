@@ -75,12 +75,18 @@ def make_predictions_csv(model, image_paths, device):
         f.writelines(csv)
 
 
-def calc_mean_average_precision(model, image_paths, device, confidence_threshold, tp_iou_threshold, cached):
+def calc_mean_average_precision(model, image_paths, device, confidence_threshold, tp_iou_threshold, classes_txt_path, cached):
     global g_iou_threshold, g_confidence_threshold, g_annotations_csv_name, g_predictions_csv_name
     if not cached:
         make_annotations_csv(image_paths)
         make_predictions_csv(model, image_paths, device)
-    return mean_average_precision_for_boxes(g_annotations_csv_name, g_predictions_csv_name, confidence_threshold_for_f1=confidence_threshold, iou_threshold=tp_iou_threshold, verbose=True)
+    return mean_average_precision_for_boxes(
+        ann=g_annotations_csv_name,
+        pred=g_predictions_csv_name,
+        confidence_threshold_for_f1=confidence_threshold,
+        iou_threshold=tp_iou_threshold,
+        classes_txt_path=classes_txt_path,
+        verbose=True)
 
 
 if __name__ == '__main__':

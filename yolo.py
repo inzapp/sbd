@@ -39,9 +39,9 @@ class Yolo:
         input_shape = config['input_shape']
         train_image_path = config['train_image_path']
         validation_image_path = config['validation_image_path']
-        class_names_file_path = config['class_names_file_path']
         multi_classification_at_same_box = config['multi_classification_at_same_box']
         batch_size = config['batch_size']
+        self.__class_names_file_path = config['class_names_file_path']
         self.__lr = config['lr']
         self.__alpha_arg = config['alpha'] 
         self.__alphas = None
@@ -67,8 +67,7 @@ class Yolo:
 
         self.__input_width, self.__input_height, self.__input_channel = ModelUtil.get_width_height_channel_from_input_shape(input_shape)
         ModelUtil.set_channel_order(input_shape)
-
-        self.__class_names, self.__num_classes = ModelUtil.init_class_names(class_names_file_path)
+        self.__class_names, self.__num_classes = ModelUtil.init_class_names(self.__class_names_file_path)
 
         if pretrained_model_path != '':
             if os.path.exists(pretrained_model_path) and os.path.isfile(pretrained_model_path):
@@ -465,6 +464,7 @@ class Yolo:
             device=device,
             confidence_threshold=confidence_threshold,
             tp_iou_threshold=tp_iou_threshold,
+            classes_txt_path=self.__class_names_file_path,
             cached=cached)
         if save_model:
             model_path = f'{self.__checkpoint_path}/'

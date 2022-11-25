@@ -4,7 +4,7 @@ URL: https://github.com/ZFTurbo
 
 Code based on: https://github.com/fizyr/keras-retinanet/blob/master/keras_retinanet/utils/eval.py
 """
-
+import os
 import numpy as np
 import pandas as pd
 # try:
@@ -90,15 +90,28 @@ def _compute_ap(recall, precision):
     return ap
 
 
-def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_threshold_for_f1=0.25, exclude_not_in_annotations=False, verbose=True):
+def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_threshold_for_f1=0.25, exclude_not_in_annotations=False, verbose=True, classes_txt_path=''):
     """
     :param ann: path to CSV-file with annotations or numpy array of shape (N, 6)
     :param pred: path to CSV-file with predictions (detections) or numpy array of shape (N, 7)
     :param iou_threshold: IoU between boxes which count as 'match'. Default: 0.5
     :param exclude_not_in_annotations: exclude image IDs which are not exist in annotations. Default: False
     :param verbose: print detailed run info. Default: True
+    :param classes_txt_path: class names file for show result. Default: ''
     :return: tuple, where first value is mAP and second values is dict with AP for each class.
     """
+
+    class_names = []
+    max_class_name_len = 1
+    if classes_txt_path != '':
+        if os.path.exists(classes_txt_path) and os.path.isfile(classes_txt_path):
+            with open(classes_txt_path, 'rt') as f:
+                lines = f.readlines()
+            for line in lines:
+                class_name = line.replace('\n', '')
+                if len(class_name) > max_class_name_len:
+                    max_class_name_len = len(class_name)
+                class_names.append(class_name)
 
     if isinstance(ann, str):
         valid = pd.read_csv(ann)
@@ -248,8 +261,12 @@ def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_th
         # compute average precision
         average_precision = _compute_ap(recall, precision)
         average_precisions[label] = average_precision, num_annotations
+
         if verbose:
-            print(f'class {class_index} ap : {average_precision:.4f}, obj count : {obj_count:6d}, tp : {tp:6d}, fp : {fp:6d}, fn : {fn:6d}, precision : {p:.4f}, recall : {r:.4f}, f1 : {f1:.4f}, iou : {tp_iou:.4f}, confidence : {tp_confidence:.4f}')
+            class_name = f'class {class_index}'
+            if len(class_names) >= class_index + 1:
+                class_name = class_names[class_index]
+            print(f'{class_name:{max_class_name_len}s} ap : {average_precision:.4f}, obj count : {obj_count:6d}, tp : {tp:6d}, fp : {fp:6d}, fn : {fn:6d}, precision : {p:.4f}, recall : {r:.4f}, f1 : {f1:.4f}, iou : {tp_iou:.4f}, confidence : {tp_confidence:.4f}')
 
     present_classes = 0
     precision = 0
