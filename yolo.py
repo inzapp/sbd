@@ -62,6 +62,7 @@ class Yolo:
         self.__checkpoint_path = config['checkpoint_path']
         self.__cycle_step = 0
         self.__cycle_length = 2500
+        self.__presaved_iteration_count = 0
         self.max_map, self.max_f1, self.max_map_iou_hm, self.max_f1_iou_hm = 0.0, 0.0, 0.0, 0.0
 
         self.__input_width, self.__input_height, self.__input_channel = ModelUtil.get_width_height_channel_from_input_shape(input_shape)
@@ -72,6 +73,7 @@ class Yolo:
         if pretrained_model_path != '':
             if os.path.exists(pretrained_model_path) and os.path.isfile(pretrained_model_path):
                 self.__model = tf.keras.models.load_model(pretrained_model_path, compile=False)
+                self.__presaved_iteration_count = self.__parse_presaved_iteration_count(pretrained_model_path)
                 print(f'success loading pretrained model : [{pretrained_model_path}]')
             else:
                 print(f'pretrained model not found : [{pretrained_model_path}]')
@@ -117,6 +119,18 @@ class Yolo:
         self.__live_loss_plot = None
         os.makedirs(f'{self.__checkpoint_path}', exist_ok=True)
         np.set_printoptions(precision=6)
+
+    def __parse_presaved_iteration_count(self, pretrained_model_path):
+        iteration_count = 0
+        if pretrained_model_path.find('iter') > -1:
+            sp = pretrained_model_path.split('_') 
+            for i in range(len(sp)):
+                if sp[i] == 'iter' and i > 0:
+                    try:
+                        iteration_count = int(sp[i-1])
+                    except ValueError:
+                        iteration_count = 0
+        return iteration_count
 
     def __get_optimizer(self, optimizer_str):
         lr = self.__lr if self.__lr_policy == 'constant' else 0.0
@@ -455,8 +469,8 @@ class Yolo:
         if save_model:
             model_path = f'{self.__checkpoint_path}/'
             model_path += f'{self.__model_name}'
-            if iteration_count > 0:
-                model_path += f'_{iteration_count}_iter'
+            if iteration_count + self.__presaved_iteration_count > 0:
+                model_path += f'_{iteration_count + self.__presaved_iteration_count}_iter'
             model_path += f'_mAP_{mean_ap:.4f}'
             model_path += f'_f1_{f1_score:.4f}'
             model_path += f'_iou_{iou:.4f}'
