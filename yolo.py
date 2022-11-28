@@ -247,7 +247,7 @@ class Yolo:
         iteration_count = 0
         compute_gradient_tf = tf.function(self.compute_gradient)
         self.__model, optimizer = self.__refresh_model_and_optimizer(self.__model, self.__optimizer)
-        lr_scheduler = LRScheduler(iterations=self.__iterations, lr=self.__lr, policy=self.__lr_policy)
+        lr_scheduler = LRScheduler(iterations=self.__iterations, lr=self.__lr, warm_up=self.__warm_up, policy=self.__lr_policy)
         while True:
             for batch_x, batch_y in self.__train_data_generator.flow():
                 lr_scheduler.update(optimizer, iteration_count)
