@@ -47,10 +47,11 @@ class Yolo:
         self.__alphas = None
         self.__gamma_arg = config['gamma']
         self.__gammas = None
-        self.__decay = config['decay']
+        self.__l2 = config['l2']
         self.__momentum = config['momentum']
         self.__label_smoothing = config['label_smoothing']
         self.__warm_up = config['warm_up']
+        self.__decay_step = config['decay_step']
         self.__iterations = config['iterations']
         self.__optimizer = config['optimizer']
         self.__lr_policy = config['lr_policy']
@@ -79,8 +80,8 @@ class Yolo:
                 exit(0)
         else:
             if self.__optimizer == 'adam':
-                self.__decay = 0.0
-            self.__model = Model(input_shape=input_shape, output_channel=self.__num_classes + 5, decay=self.__decay).build()
+                self.__l2 = 0.0
+            self.__model = Model(input_shape=input_shape, output_channel=self.__num_classes + 5, l2=self.__l2).build()
 
         if type(self.__model.output_shape) == tuple:
             self.num_output_layers = 1
@@ -137,6 +138,8 @@ class Yolo:
             optimizer = tf.keras.optimizers.SGD(lr=lr, momentum=self.__momentum, nesterov=True)
         elif optimizer_str == 'adam':
             optimizer = tf.keras.optimizers.Adam(lr=lr, beta_1=self.__momentum)
+        elif optimizer_str == 'rmsprop':
+            optimizer = tf.keras.optimizers.RMSprop(lr=lr)
         else:
             print(f'\n\nunknown optimizer : {optimizer_str}')
             optimizer = None
@@ -247,14 +250,14 @@ class Yolo:
         iteration_count = 0
         compute_gradient_tf = tf.function(self.compute_gradient)
         self.__model, optimizer = self.__refresh_model_and_optimizer(self.__model, self.__optimizer)
-        lr_scheduler = LRScheduler(iterations=self.__iterations, lr=self.__lr, warm_up=self.__warm_up, policy=self.__lr_policy)
+        lr_scheduler = LRScheduler(iterations=self.__iterations, lr=self.__lr, warm_up=self.__warm_up, policy=self.__lr_policy, decay_step=self.__decay_step)
         while True:
             for batch_x, batch_y in self.__train_data_generator.flow():
                 lr_scheduler.update(optimizer, iteration_count)
                 loss = compute_gradient_tf(self.__model, optimizer, yolo_loss, batch_x, batch_y, self.num_output_layers, self.__alphas, self.__gammas, self.__label_smoothing)
                 iteration_count += 1
                 print(f'\r[iteration count : {iteration_count:6d}] loss => {loss:.4f}', end='')
-                warm_up_end = iteration_count > int(self.__iterations * self.__warm_up)
+                warm_up_end = iteration_count >= int(self.__iterations * self.__warm_up)
                 if self.__training_view and warm_up_end:
                     self.__training_view_function()
                 if self.__map_checkpoint:

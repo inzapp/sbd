@@ -25,10 +25,10 @@ os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
 
 class Model:
-    def __init__(self, input_shape, output_channel, decay):
+    def __init__(self, input_shape, output_channel, l2):
         self.input_shape = input_shape
         self.output_channel = output_channel
-        self.decay = decay
+        self.l2 = l2
         self.drop_rates = [0.05, 0.1, 0.15, 0.2, 0.25]
 
     @classmethod
@@ -844,7 +844,7 @@ class Model:
             bias_initializer=tf.keras.initializers.zeros(),
             padding='same',
             use_bias=False if bn else True,
-            kernel_regularizer=tf.keras.regularizers.l2(l2=self.decay) if self.decay > 0.0 else None)(x)
+            kernel_regularizer=tf.keras.regularizers.l2(l2=self.l2) if self.l2 > 0.0 else None)(x)
         if bn:
             x = self.bn(x)
         x = self.activation(x, activation=activation)
@@ -880,7 +880,7 @@ class Model:
             bias_initializer=tf.keras.initializers.zeros(),
             padding='same',
             use_bias=False if bn else True,
-            kernel_regularizer=tf.keras.regularizers.l2(l2=self.decay) if self.decay > 0.0 else None)(x)
+            kernel_regularizer=tf.keras.regularizers.l2(l2=self.l2) if self.l2 > 0.0 else None)(x)
         # if mode == 'stack':
         #     if bn:
         #         v_conv = self.bn(v_conv)
@@ -892,7 +892,7 @@ class Model:
             bias_initializer=tf.keras.initializers.zeros(),
             padding='same',
             use_bias=False if bn else True,
-            kernel_regularizer=tf.keras.regularizers.l2(l2=self.decay) if self.decay > 0.0 else None)(v_conv if mode == 'stack' else x)
+            kernel_regularizer=tf.keras.regularizers.l2(l2=self.l2) if self.l2 > 0.0 else None)(v_conv if mode == 'stack' else x)
         if mode == 'add':
             x = tf.keras.layers.Add()([v_conv, h_conv])
         elif mode == 'concat':
@@ -918,6 +918,8 @@ class Model:
             return tf.keras.layers.Activation('tanh')(x)
         elif activation == 'relu':
             return tf.keras.layers.Activation('relu')(x)
+        elif activation == 'leaky':
+            return tf.keras.layers.LeakyReLU(alpha=0.1)(x)
         elif activation == 'silu' or activation == 'swish':
             x_sigmoid = tf.keras.layers.Activation('sigmoid')(x)
             return self.multiply([x, x_sigmoid])
