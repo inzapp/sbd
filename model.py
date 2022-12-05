@@ -24,6 +24,20 @@ import tensorflow as tf
 os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
 
+@tf.keras.utils.register_keras_serializable(package='Custom', name='WeightStandardization')
+class WeightStandardization(tf.keras.regularizers.Regularizer):
+  def __init__(self):
+      super().__init__()
+
+  def __call__(self, x):
+      x -= tf.reduce_mean(x, axis=[0, 1, 2], keepdims=True)
+      x /= tf.math.reduce_std(x, axis=[0, 1, 2], keepdims=True) + 1e-5
+      return x
+
+  def get_config(self):
+      return {}
+
+
 class Model:
     def __init__(self, input_shape, output_channel, l2):
         self.input_shape = input_shape
@@ -844,7 +858,7 @@ class Model:
             bias_initializer=tf.keras.initializers.zeros(),
             padding='same',
             use_bias=False if bn else True,
-            kernel_regularizer=tf.keras.regularizers.l2(l2=self.l2) if self.l2 > 0.0 else None)(x)
+            kernel_regularizer=self.kernel_regularizer())(x)
         if bn:
             x = self.bn(x)
         x = self.activation(x, activation=activation)
@@ -880,7 +894,7 @@ class Model:
             bias_initializer=tf.keras.initializers.zeros(),
             padding='same',
             use_bias=False if bn else True,
-            kernel_regularizer=tf.keras.regularizers.l2(l2=self.l2) if self.l2 > 0.0 else None)(x)
+            kernel_regularizer=self.kernel_regularizer())(x)
         # if mode == 'stack':
         #     if bn:
         #         v_conv = self.bn(v_conv)
@@ -892,7 +906,7 @@ class Model:
             bias_initializer=tf.keras.initializers.zeros(),
             padding='same',
             use_bias=False if bn else True,
-            kernel_regularizer=tf.keras.regularizers.l2(l2=self.l2) if self.l2 > 0.0 else None)(v_conv if mode == 'stack' else x)
+            kernel_regularizer=self.kernel_regularizer())(v_conv if mode == 'stack' else x)
         if mode == 'add':
             x = tf.keras.layers.Add()([v_conv, h_conv])
         elif mode == 'concat':
@@ -932,6 +946,10 @@ class Model:
         else:
             print(f'[FATAL] unknown activation : [{activation}]')
             exit(-1)
+
+    def kernel_regularizer(self):
+        # return tf.keras.regularizers.lw(l2=self.l2) if self.l2 > 0.0 else None
+        return WeightStandardization()
 
     @staticmethod
     def max_pool(x):
