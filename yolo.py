@@ -409,7 +409,7 @@ class Yolo:
             cv2.putText(img, label_text, (x1 + padding - 1, y1 - baseline - padding), cv2.FONT_HERSHEY_DUPLEX, fontScale=font_scale, color=label_font_color, thickness=1, lineType=cv2.LINE_AA)
         return img
 
-    def predict_video(self, video_path):
+    def predict_video(self, video_path, confidence_threshold=0.25, device='cpu'):
         """
         Equal to the evaluate function. video path is required.
         """
@@ -419,7 +419,7 @@ class Yolo:
             if not frame_exist:
                 break
             x = cv2.cvtColor(raw, cv2.COLOR_BGR2GRAY) if self.__model.input.shape[-1] == 1 else raw.copy()
-            res = Yolo.predict(self.__model, x, device='auto')
+            res = Yolo.predict(self.__model, x, device=device, confidence_threshold=confidence_threshold)
             # raw = cv2.resize(raw, (1280, 720), interpolation=cv2.INTER_AREA)
             boxed_image = self.bounding_box(raw, res)
             cv2.imshow('video', boxed_image)
@@ -429,7 +429,7 @@ class Yolo:
         cap.release()
         cv2.destroyAllWindows()
 
-    def predict_images(self, dataset='validation', confidence_threshold=0.25):
+    def predict_images(self, dataset='validation', confidence_threshold=0.25, device='cpu'):
         """
         Equal to the evaluate function. image paths are required.
         """
@@ -444,7 +444,7 @@ class Yolo:
         for path in image_paths:
             print(f'image path : {path}')
             raw, raw_bgr, _ = ModelUtil.load_img(path, input_channel)
-            res = Yolo.predict(self.__model, raw, device='cpu', verbose=True, confidence_threshold=confidence_threshold)
+            res = Yolo.predict(self.__model, raw, device=device, verbose=True, confidence_threshold=confidence_threshold)
             raw_bgr = cv2.resize(raw_bgr, (input_width, input_height), interpolation=cv2.INTER_AREA)
             boxed_image = self.bounding_box(raw_bgr, res)
             cv2.imshow('res', boxed_image)

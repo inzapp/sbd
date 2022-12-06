@@ -25,10 +25,15 @@ from train_config import config
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
+    parser.add_argument('--gpu', action='store_true', help='use gpu device for model forwarding')
     parser.add_argument('--conf', type=float, default=0.25, help='confidence threshold for detection')
     parser.add_argument('--model', type=str, default='model_last.h5', help='pretrained model path for detection')
+    parser.add_argument('--video', type=str, default='', help='video path for detection')
     parser.add_argument('--dataset', type=str, default='validation', help='dataset name for prediction. train or validation')
     args = parser.parse_args()
     config['pretrained_model_path'] = args.model
-    Yolo(config=config).predict_images(dataset=args.dataset, confidence_threshold=args.conf)
+    if args.video == '':
+        Yolo(config=config).predict_images(dataset=args.dataset, confidence_threshold=args.conf, device='gpu' if args.gpu else 'cpu')
+    else:
+        Yolo(config=config).predict_video(video=args.video, confidence_threshold=args.conf, device='gpu' if args.gpu else 'cpu')
 
