@@ -355,12 +355,14 @@ class GeneratorFlow(tf.keras.utils.Sequence):
                         offset_x = grid['offset_x']
                         cx_grid = grid['cx_grid']
                         cy_grid = grid['cy_grid']
-                        if y[i][0][center_row+offset_y][center_col+offset_x] == 0.0:
-                            y[i][0][center_row+offset_y][center_col+offset_x] = 1.0
-                            y[i][1][center_row+offset_y][center_col+offset_x] = cx_grid
-                            y[i][2][center_row+offset_y][center_col+offset_x] = cy_grid
-                            y[i][3][center_row+offset_y][center_col+offset_x] = w
-                            y[i][4][center_row+offset_y][center_col+offset_x] = h
+                        offset_center_row = center_row + offset_y
+                        offset_center_col = center_col + offset_x
+                        if y[i][0][offset_center_row][offset_center_col] == 0.0:
+                            y[i][0][offset_center_row][offset_center_col] = 1.0
+                            y[i][1][offset_center_row][offset_center_col] = cx_grid
+                            y[i][2][offset_center_row][offset_center_col] = cy_grid
+                            y[i][3][offset_center_row][offset_center_col] = w
+                            y[i][4][offset_center_row][offset_center_col] = h
                             for class_index in class_indexes:
                                 y[i][class_index+5][center_row][center_col] = 1.0
                             is_box_allocated = True
@@ -386,12 +388,14 @@ class GeneratorFlow(tf.keras.utils.Sequence):
                         offset_x = grid['offset_x']
                         cx_grid = grid['cx_grid']
                         cy_grid = grid['cy_grid']
-                        if y[i][center_row+offset_y][center_col+offset_x][0] == 0.0:
-                            y[i][center_row+offset_y][center_col+offset_x][0] = 1.0
-                            y[i][center_row+offset_y][center_col+offset_x][1] = cx_grid
-                            y[i][center_row+offset_y][center_col+offset_x][2] = cy_grid
-                            y[i][center_row+offset_y][center_col+offset_x][3] = w
-                            y[i][center_row+offset_y][center_col+offset_x][4] = h
+                        offset_center_row = center_row + offset_y
+                        offset_center_col = center_col + offset_x
+                        if y[i][offset_center_row][offset_center_col][0] == 0.0:
+                            y[i][offset_center_row][offset_center_col][0] = 1.0
+                            y[i][offset_center_row][offset_center_col][1] = cx_grid
+                            y[i][offset_center_row][offset_center_col][2] = cy_grid
+                            y[i][offset_center_row][offset_center_col][3] = w
+                            y[i][offset_center_row][offset_center_col][4] = h
                             for class_index in class_indexes:
                                 y[i][center_row][center_col][class_index+5] = 1.0
                             is_box_allocated = True
