@@ -299,7 +299,6 @@ class GeneratorFlow(tf.keras.utils.Sequence):
                     cy_raw - (h * 0.5),
                     cx_raw + (w * 0.5),
                     cy_raw + (h * 0.5)]
-
                 cx_nearby_raw = (float(col + offset_x) + cx_nearby_grid) / float(cols)
                 cy_nearby_raw = (float(row + offset_y) + cy_nearby_grid) / float(rows)
                 box_nearby = [
@@ -307,13 +306,43 @@ class GeneratorFlow(tf.keras.utils.Sequence):
                     cy_nearby_raw - (h * 0.5),
                     cx_nearby_raw + (w * 0.5),
                     cy_nearby_raw + (h * 0.5)]
-
+                box_nearby = np.clip(np.array(box_nearby), 0.0, 1.0)
                 iou = ModelUtil.iou(box_origin, box_nearby)
                 nearby_cells.append({
                     'offset_y': offset_y,
                     'offset_x': offset_x,
                     'cx_grid': cx_nearby_grid,
                     'cy_grid': cy_nearby_grid,
+                    'iou': iou})
+        return sorted(nearby_cells, key=lambda x: x['iou'], reverse=True)
+
+    def get_nearby_grids_for_mask(self, confidence_channel, rows, cols, row, col, cx_grid, cy_grid, cx_raw, cy_raw, w, h, offset_range=2):
+        assert offset_range > 0
+        nearby_cells = []
+        offset_vals = list(range(-offset_range, offset_range))
+        positions = []
+        for offset_i in offset_vals:
+            for offset_j in offset_vals:
+                positions.append([offset_i, offset_j])
+        for offset_y, offset_x in positions:
+            if (0 <= row + offset_y < rows) and (0 <= col + offset_x < cols):
+                box_origin = [
+                    cx_raw - (w * 0.5),
+                    cy_raw - (h * 0.5),
+                    cx_raw + (w * 0.5),
+                    cy_raw + (h * 0.5)]
+                cx_nearby_raw = (float(col + offset_x) + 0.5) / float(cols)
+                cy_nearby_raw = (float(row + offset_y) + 0.5) / float(rows)
+                box_nearby = [
+                    cx_nearby_raw - (w * 0.5),
+                    cy_nearby_raw - (h * 0.5),
+                    cx_nearby_raw + (w * 0.5),
+                    cy_nearby_raw + (h * 0.5)]
+                box_nearby = np.clip(np.array(box_nearby), 0.0, 1.0)
+                iou = ModelUtil.iou(box_origin, box_nearby)
+                nearby_cells.append({
+                    'offset_y': offset_y,
+                    'offset_x': offset_x,
                     'iou': iou})
         return sorted(nearby_cells, key=lambda x: x['iou'], reverse=True)
 
@@ -418,7 +447,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
                     cx_grid_scale = (cx - float(center_col) / output_cols) / (1.0 / output_cols)
                     cy_grid_scale = (cy - float(center_row) / output_rows) / (1.0 / output_rows)
                     if image_data_format == 'channels_first':
-                        nearby_grids = self.get_nearby_grids(
+                        nearby_grids = self.get_nearby_grids_for_mask(
                             confidence_channel=y[i][0, :, :],
                             rows=output_rows,
                             cols=output_cols,
@@ -435,8 +464,6 @@ class GeneratorFlow(tf.keras.utils.Sequence):
                                 break
                             offset_y = grid['offset_y']
                             offset_x = grid['offset_x']
-                            cx_grid = grid['cx_grid']
-                            cy_grid = grid['cy_grid']
                             offset_center_row = center_row + offset_y
                             offset_center_col = center_col + offset_x
                             if offset_y == 0 and offset_x == 0:  # ignore allocated object
@@ -444,7 +471,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
                             if y[i][0][offset_center_row][offset_center_col] == 0.0:
                                 mask[i][0][offset_center_row][offset_center_col] = 0.0
                     else:
-                        nearby_grids = self.get_nearby_grids(
+                        nearby_grids = self.get_nearby_grids_for_mask(
                             confidence_channel=y[i][:, :, 0],
                             rows=output_rows,
                             cols=output_cols,
@@ -461,8 +488,6 @@ class GeneratorFlow(tf.keras.utils.Sequence):
                                 break
                             offset_y = grid['offset_y']
                             offset_x = grid['offset_x']
-                            cx_grid = grid['cx_grid']
-                            cy_grid = grid['cy_grid']
                             offset_center_row = center_row + offset_y
                             offset_center_col = center_col + offset_x
                             # if y[i][offset_center_row][offset_center_col][0] == 1.0:  # debug mark object for 2
