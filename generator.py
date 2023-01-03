@@ -355,7 +355,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
                         offset_x = grid['offset_x']
                         cx_grid = grid['cx_grid']
                         cy_grid = grid['cy_grid']
-                        if y[i][0][center_row+offset_y][center_col+offset_x] == 1.0:
+                        if y[i][0][center_row+offset_y][center_col+offset_x] == 0.0:
                             y[i][0][center_row+offset_y][center_col+offset_x] = 1.0
                             y[i][1][center_row+offset_y][center_col+offset_x] = cx_grid
                             y[i][2][center_row+offset_y][center_col+offset_x] = cy_grid
