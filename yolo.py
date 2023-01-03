@@ -40,6 +40,8 @@ class Yolo:
         train_image_path = config['train_image_path']
         validation_image_path = config['validation_image_path']
         multi_classification_at_same_box = config['multi_classification_at_same_box']
+        ignore_nearby_cell = config['ignore_nearby_cell']
+        nearby_cell_ignore_threshold = config['nearby_cell_ignore_threshold']
         batch_size = config['batch_size']
         self.__class_names_file_path = config['class_names_file_path']
         self.__lr = config['lr']
@@ -96,25 +98,33 @@ class Yolo:
             input_shape=input_shape,
             output_shape=self.__model.output_shape,
             batch_size=batch_size,
-            multi_classification_at_same_box=multi_classification_at_same_box)
+            multi_classification_at_same_box=multi_classification_at_same_box,
+            ignore_nearby_cell=ignore_nearby_cell,
+            nearby_cell_ignore_threshold=nearby_cell_ignore_threshold)
         self.__validation_data_generator = YoloDataGenerator(
             image_paths=self.__validation_image_paths,
             input_shape=input_shape,
             output_shape=self.__model.output_shape,
             batch_size=batch_size,
-            multi_classification_at_same_box=multi_classification_at_same_box)
+            multi_classification_at_same_box=multi_classification_at_same_box,
+            ignore_nearby_cell=ignore_nearby_cell,
+            nearby_cell_ignore_threshold=nearby_cell_ignore_threshold)
         self.__train_data_generator_for_check = YoloDataGenerator(
             image_paths=self.__train_image_paths,
             input_shape=input_shape,
             output_shape=self.__model.output_shape,
             batch_size=ModelUtil.get_zero_mod_batch_size(len(self.__train_image_paths)),
-            multi_classification_at_same_box=multi_classification_at_same_box)
+            multi_classification_at_same_box=multi_classification_at_same_box,
+            ignore_nearby_cell=ignore_nearby_cell,
+            nearby_cell_ignore_threshold=nearby_cell_ignore_threshold)
         self.__validation_data_generator_for_check = YoloDataGenerator(
             image_paths=self.__validation_image_paths,
             input_shape=input_shape,
             output_shape=self.__model.output_shape,
             batch_size=ModelUtil.get_zero_mod_batch_size(len(self.__validation_image_paths)),
-            multi_classification_at_same_box=multi_classification_at_same_box)
+            multi_classification_at_same_box=multi_classification_at_same_box,
+            ignore_nearby_cell=ignore_nearby_cell,
+            nearby_cell_ignore_threshold=nearby_cell_ignore_threshold)
 
         self.__live_loss_plot = None
         os.makedirs(f'{self.__checkpoint_path}', exist_ok=True)
@@ -206,15 +216,15 @@ class Yolo:
             self.__curriculum_train()
         self.__train()
 
-    def compute_gradient(self, model, optimizer, loss_function, x, y_true, num_output_layers, alphas, gammas, label_smoothing):
+    def compute_gradient(self, model, optimizer, loss_function, x, y_true, mask, num_output_layers, alphas, gammas, label_smoothing):
         with tf.GradientTape() as tape:
             loss = 0.0
             y_pred = model(x, training=True)
             if num_output_layers == 1:
-                loss = loss_function(y_true, y_pred, alphas[0], gammas[0], label_smoothing)
+                loss = loss_function(y_true, y_pred, mask, alphas[0], gammas[0], label_smoothing)
             else:
                 for i in range(num_output_layers):
-                    loss += loss_function(y_true[i], y_pred[i], alphas[i], gammas[i], label_smoothing)
+                    loss += loss_function(y_true[i], y_pred[i], mask[i], alphas[i], gammas[i], label_smoothing)
             gradients = tape.gradient(loss, model.trainable_variables)
         optimizer.apply_gradients(zip(gradients, model.trainable_variables))
         return loss
@@ -252,18 +262,18 @@ class Yolo:
         self.__model, optimizer = self.__refresh_model_and_optimizer(self.__model, self.__optimizer)
         lr_scheduler = LRScheduler(iterations=self.__iterations, lr=self.__lr, warm_up=self.__warm_up, policy=self.__lr_policy, decay_step=self.__decay_step)
         while True:
-            for batch_x, batch_y in self.__train_data_generator.flow():
+            for batch_x, batch_y, mask in self.__train_data_generator.flow():
                 lr_scheduler.update(optimizer, iteration_count)
-                loss = compute_gradient_tf(self.__model, optimizer, yolo_loss, batch_x, batch_y, self.num_output_layers, self.__alphas, self.__gammas, self.__label_smoothing)
+                loss = compute_gradient_tf(self.__model, optimizer, yolo_loss, batch_x, batch_y, mask, self.num_output_layers, self.__alphas, self.__gammas, self.__label_smoothing)
                 iteration_count += 1
                 print(f'\r[iteration count : {iteration_count:6d}] loss => {loss:.4f}', end='')
                 warm_up_end = iteration_count >= int(self.__iterations * self.__warm_up)
                 if self.__training_view and warm_up_end:
                     self.__training_view_function()
                 if self.__map_checkpoint:
-                    if iteration_count >= int(self.__iterations * 0.7) and iteration_count % 10000 == 0:
+                    # if iteration_count >= int(self.__iterations * 0.7) and iteration_count % 10000 == 0:
                     # if iteration_count == self.__iterations:
-                    # if iteration_count % 1000 == 0 and warm_up_end:
+                    if iteration_count % 2000 == 0 and warm_up_end:
                     # if iteration_count >= (self.__iterations * 0.1) and iteration_count % 5000 == 0:
                         self.__save_model(iteration_count=iteration_count, use_map_checkpoint=self.__map_checkpoint)
                 else:

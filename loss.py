@@ -22,12 +22,12 @@ from tensorflow.python.framework.ops import convert_to_tensor_v2
 from ale import AbsoluteLogarithmicError
 
 
-def __confidence_loss(y_true, y_pred, alpha, gamma):
+def __confidence_loss(y_true, y_pred, mask, alpha, gamma):
     obj_true = y_true[:, :, :, 0]
     obj_pred = y_pred[:, :, :, 0]
     ale = AbsoluteLogarithmicError(alpha=alpha, gamma=gamma)
-    loss = tf.reduce_sum(ale(obj_true, obj_pred))
-    return loss / tf.cast(tf.shape(y_true)[0], dtype=y_pred.dtype)
+    loss = tf.reduce_sum(ale(obj_true, obj_pred) * mask[:, :, :, 0])
+    return loss# / tf.cast(tf.shape(y_true)[0], dtype=y_pred.dtype)
 
 
 def __iou(y_true, y_pred, diou=False):
@@ -91,18 +91,18 @@ def __iou(y_true, y_pred, diou=False):
     return iou, rdiou
 
 
-def __bbox_loss(y_true, y_pred):
+def __bbox_loss(y_true, y_pred, mask):
     obj_true = y_true[:, :, :, 0]
     obj_count = tf.cast(tf.reduce_sum(obj_true), y_pred.dtype)
     if obj_count == tf.constant(0.0):
         return 0.0
 
     iou, rdiou = __iou(y_true, y_pred, diou=True)
-    loss = tf.reduce_sum((obj_true - iou + rdiou) * obj_true)
-    return loss / tf.cast(tf.shape(y_true)[0], dtype=y_pred.dtype)
+    loss = tf.reduce_sum((obj_true - iou + rdiou) * obj_true * mask[:, :, :, 0])
+    return loss# / tf.cast(tf.shape(y_true)[0], dtype=y_pred.dtype)
 
 
-def __classification_loss(y_true, y_pred, alpha, gamma, label_smoothing):
+def __classification_loss(y_true, y_pred, mask, alpha, gamma, label_smoothing):
     obj_true = y_true[:, :, :, 0]
     obj_count = tf.cast(tf.reduce_sum(obj_true), y_pred.dtype)
     if obj_count == tf.constant(0.0):
@@ -111,24 +111,24 @@ def __classification_loss(y_true, y_pred, alpha, gamma, label_smoothing):
     class_true = y_true[:, :, :, 5:]
     class_pred = y_pred[:, :, :, 5:]
     ale = AbsoluteLogarithmicError(alpha=alpha, gamma=gamma, label_smoothing=label_smoothing)
-    loss = tf.reduce_sum(tf.reduce_sum(ale(class_true, class_pred), axis=-1) * obj_true)
-    return loss / tf.cast(tf.shape(y_true)[0], dtype=y_pred.dtype)
+    loss = tf.reduce_sum(tf.reduce_sum(ale(class_true, class_pred), axis=-1) * obj_true * mask[:, :, :, 0])
+    return loss# / tf.cast(tf.shape(y_true)[0], dtype=y_pred.dtype)
 
 
-def confidence_loss(y_true, y_pred, gamma):
+def confidence_loss(y_true, y_pred, mask, gamma):
     y_pred = convert_to_tensor_v2(y_pred)
     y_true = tf.cast(y_true, y_pred.dtype)
-    return __confidence_loss(y_true, y_pred, alpha, gamma)
+    return __confidence_loss(y_true, y_pred, mask, alpha, gamma)
 
 
-def confidence_with_bbox_loss(y_true, y_pred, gamma):
+def confidence_with_bbox_loss(y_true, y_pred, mask, gamma):
     y_pred = convert_to_tensor_v2(y_pred)
     y_true = tf.cast(y_true, y_pred.dtype)
-    return __confidence_loss(y_true, y_pred, alpha, gamma) + __bbox_loss(y_true, y_pred)
+    return __confidence_loss(y_true, y_pred, mask, alpha, gamma) + __bbox_loss(y_true, y_pred, mask)
 
 
-def yolo_loss(y_true, y_pred, alpha, gamma, label_smoothing):
+def yolo_loss(y_true, y_pred, mask, alpha, gamma, label_smoothing):
     y_pred = convert_to_tensor_v2(y_pred)
     y_true = tf.cast(y_true, y_pred.dtype)
-    return __confidence_loss(y_true, y_pred, alpha, gamma) + __bbox_loss(y_true, y_pred) + __classification_loss(y_true, y_pred, alpha, gamma, label_smoothing)
+    return __confidence_loss(y_true, y_pred, mask, alpha, gamma) + __bbox_loss(y_true, y_pred, mask) + __classification_loss(y_true, y_pred, mask, alpha, gamma, label_smoothing)
 

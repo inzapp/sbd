@@ -31,7 +31,7 @@ from util import ModelUtil
 
 
 class YoloDataGenerator:
-    def __init__(self, image_paths, input_shape, output_shape, batch_size, multi_classification_at_same_box):
+    def __init__(self, image_paths, input_shape, output_shape, batch_size, multi_classification_at_same_box, ignore_nearby_cell, nearby_cell_ignore_threshold):
         """
         :param input_shape:
             (height, width, channel) format of model input size
@@ -43,7 +43,7 @@ class YoloDataGenerator:
         :param batch_size:
             Batch size of training.
         """
-        self.generator_flow = GeneratorFlow(image_paths, input_shape, output_shape, batch_size, multi_classification_at_same_box)
+        self.generator_flow = GeneratorFlow(image_paths, input_shape, output_shape, batch_size, multi_classification_at_same_box, ignore_nearby_cell, nearby_cell_ignore_threshold)
 
     @classmethod
     def empty(cls):
@@ -65,7 +65,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
     Usage:
         generator_flow = GeneratorFlow(image_paths=image_paths)
     """
-    def __init__(self, image_paths, input_shape, output_shapes, batch_size, multi_classification_at_same_box):
+    def __init__(self, image_paths, input_shape, output_shapes, batch_size, multi_classification_at_same_box, ignore_nearby_cell, nearby_cell_ignore_threshold):
         self.image_paths = image_paths
         self.input_shape = input_shape
         self.input_width, self.input_height, self.input_channel = ModelUtil.get_width_height_channel_from_input_shape(input_shape)
@@ -79,6 +79,8 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         self.batch_size = batch_size
         self.num_output_layers = len(self.output_shapes)
         self.multi_classification_at_same_box = multi_classification_at_same_box
+        self.ignore_nearby_cell = ignore_nearby_cell
+        self.nearby_cell_ignore_threshold = nearby_cell_ignore_threshold 
         self.virtual_anchor_ws = []
         self.virtual_anchor_hs = []
         self.batch_index = 0
@@ -214,7 +216,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
             label_lines, _ = f.result()
             labeled_boxes = self.convert_to_boxes(label_lines)
             box_count_in_real_data += len(labeled_boxes)
-            _, allocated_count = self.build_batch_tensor(labeled_boxes)
+            _, _, allocated_count = self.build_batch_tensor(labeled_boxes)
             y_true_obj_count += allocated_count
 
         avg_obj_count_per_image = box_count_in_real_data / float(len(self.image_paths))
@@ -316,9 +318,10 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         return sorted(nearby_cells, key=lambda x: x['iou'], reverse=True)
 
     def build_batch_tensor(self, labeled_boxes):
-        y = []
+        y, mask = [], []
         for i in range(self.num_output_layers):
             y.append(np.zeros(shape=tuple(self.output_shapes[i][1:]), dtype=np.float32))
+            mask.append(np.ones(shape=tuple(self.output_shapes[i][1:]), dtype=np.float32))
 
         allocated_count = 0
         image_data_format = tf.keras.backend.image_data_format()
@@ -401,12 +404,86 @@ class GeneratorFlow(tf.keras.utils.Sequence):
                             is_box_allocated = True
                             allocated_count += 1
                             break
-        return y, allocated_count
+
+        # create mask after all value is allocated in train tensor
+        if self.ignore_nearby_cell:
+            for b in labeled_boxes:
+                class_indexes, cx, cy, w, h = b['class_indexes'], b['cx'], b['cy'], b['w'], b['h']
+                best_iou_layer_indexes = self.get_best_iou_layer_indexes([cx, cy, w, h])
+                for i, layer_iou in best_iou_layer_indexes:
+                    output_rows = float(self.output_shapes[i][1])
+                    output_cols = float(self.output_shapes[i][2])
+                    center_row = int(cy * output_rows)
+                    center_col = int(cx * output_cols)
+                    cx_grid_scale = (cx - float(center_col) / output_cols) / (1.0 / output_cols)
+                    cy_grid_scale = (cy - float(center_row) / output_rows) / (1.0 / output_rows)
+                    if image_data_format == 'channels_first':
+                        nearby_grids = self.get_nearby_grids(
+                            confidence_channel=y[i][0, :, :],
+                            rows=output_rows,
+                            cols=output_cols,
+                            row=center_row,
+                            col=center_col,
+                            cx_grid=cx_grid_scale,
+                            cy_grid=cy_grid_scale,
+                            cx_raw=cx,
+                            cy_raw=cy,
+                            w=w,
+                            h=h)
+                        for grid in nearby_grids:
+                            if grid['iou'] < self.nearby_cell_ignore_threshold:
+                                break
+                            offset_y = grid['offset_y']
+                            offset_x = grid['offset_x']
+                            cx_grid = grid['cx_grid']
+                            cy_grid = grid['cy_grid']
+                            offset_center_row = center_row + offset_y
+                            offset_center_col = center_col + offset_x
+                            if offset_y == 0 and offset_x == 0:  # ignore allocated object
+                                continue
+                            if y[i][0][offset_center_row][offset_center_col] == 0.0:
+                                mask[i][0][offset_center_row][offset_center_col] = 0.0
+                    else:
+                        nearby_grids = self.get_nearby_grids(
+                            confidence_channel=y[i][:, :, 0],
+                            rows=output_rows,
+                            cols=output_cols,
+                            row=center_row,
+                            col=center_col,
+                            cx_grid=cx_grid_scale,
+                            cy_grid=cy_grid_scale,
+                            cx_raw=cx,
+                            cy_raw=cy,
+                            w=w,
+                            h=h)
+                        for grid in nearby_grids:
+                            if grid['iou'] < self.nearby_cell_ignore_threshold:
+                                break
+                            offset_y = grid['offset_y']
+                            offset_x = grid['offset_x']
+                            cx_grid = grid['cx_grid']
+                            cy_grid = grid['cy_grid']
+                            offset_center_row = center_row + offset_y
+                            offset_center_col = center_col + offset_x
+                            # if y[i][offset_center_row][offset_center_col][0] == 1.0:  # debug mark object for 2
+                            #     mask[i][offset_center_row][offset_center_col][0] = 2.0
+                            if offset_y == 0 and offset_x == 0:  # ignore allocated object
+                                continue
+                            if y[i][offset_center_row][offset_center_col][0] == 0.0:
+                                mask[i][offset_center_row][offset_center_col][0] = 0.0
+
+            # for i in range(self.output_shapes[0][1]):
+            #     for j in range(self.output_shapes[0][2]):
+            #         print(f'{int(mask[0][i][j][0])} ', end='')
+            #     print()
+            # exit(0)
+        return y, mask, allocated_count
             
     def __getitem__(self, index):
-        fs, batch_x, batch_y = [], [], []
+        fs, batch_x, batch_y, batch_mask = [], [], [], []
         for i in range(self.num_output_layers):
             batch_y.append([])
+            batch_mask.append([])
         for path in self.get_next_batch_image_paths():
             fs.append(self.pool.submit(ModelUtil.load_img, path, self.input_channel))
         for f in fs:
@@ -421,13 +498,19 @@ class GeneratorFlow(tf.keras.utils.Sequence):
             labeled_boxes = self.convert_to_boxes(label_lines)
             np.random.shuffle(labeled_boxes)
 
-            y, _ = self.build_batch_tensor(labeled_boxes)
+            y, mask, _ = self.build_batch_tensor(labeled_boxes)
             for i in range(self.num_output_layers):
                 batch_y[i].append(y[i])
+                batch_mask[i].append(mask[i])
         batch_x = np.asarray(batch_x).astype('float32')
         for i in range(self.num_output_layers):
             batch_y[i] = np.asarray(batch_y[i]).astype('float32')
-        return batch_x, batch_y if self.num_output_layers > 1 else batch_y[0]
+            batch_mask[i] = np.asarray(batch_mask[i]).astype('float32')
+
+        if self.num_output_layers == 1:
+            return batch_x, batch_y[0], batch_mask[0]
+        else:
+            return batch_x, batch_y, batch_mask
 
     def get_next_batch_image_paths(self):
         start_index = self.batch_size * self.batch_index

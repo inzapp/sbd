@@ -19,14 +19,14 @@ limitations under the License.
 """
 
 config = {
-    # 'pretrained_model_path': r'',
-    # 'optimizer': 'adam',
-    # 'lr_policy': 'step',
-    # 'model_name': 'loon',
-    # 'train_image_path': r'C:\inz\train_data\loon\train',
-    # 'validation_image_path': r'C:\inz\train_data\loon\validation',
-    # 'class_names_file_path': r'C:\inz\train_data\loon\train\classes.txt',
-    # 'input_shape': (128, 512, 3),
+    'pretrained_model_path': r'',
+    'optimizer': 'adam',
+    'lr_policy': 'step',
+    'model_name': 'loon',
+    'train_image_path': r'C:\inz\train_data\loon\train',
+    'validation_image_path': r'C:\inz\train_data\loon\validation',
+    'class_names_file_path': r'C:\inz\train_data\loon\train\classes.txt',
+    'input_shape': (64, 256, 3),
 
     # 'pretrained_model_path': r'',
     # 'optimizer': 'adam',
@@ -37,14 +37,14 @@ config = {
     # 'class_names_file_path': r'C:\inz\train_data\lp_detection\train\classes.txt',
     # 'input_shape': (384, 640, 1),
 
-    'pretrained_model_path': r'',
-    'optimizer': 'sgd',
-    'lr_policy': 'step',
-    'model_name': 'lcdw',
-    'train_image_path': r'C:\inz\train_data\lcd_white\train',
-    'validation_image_path': r'C:\inz\train_data\lcd_white\validation',
-    'class_names_file_path': r'C:\inz\train_data\lcd_white\train\classes.txt',
-    'input_shape': (96, 192, 1),
+    # 'pretrained_model_path': r'',
+    # 'optimizer': 'adam',
+    # 'lr_policy': 'step',
+    # 'model_name': 'lcdw',
+    # 'train_image_path': r'C:\inz\train_data\lcd_white\train',
+    # 'validation_image_path': r'C:\inz\train_data\lcd_white\validation',
+    # 'class_names_file_path': r'C:\inz\train_data\lcd_white\train\classes.txt',
+    # 'input_shape': (96, 192, 1),
 
     # 'pretrained_model_path': r'C:\inz\git\yolo-lab\checkpoints\lcd_new\b1\model_129000_iter_mAP_0.9914_f1_0.9923_tp_iou_0.8369_tp_963_fp_6_fn_9_ul_all.h5',
     # 'optimizer': 'sgd',
@@ -89,7 +89,7 @@ config = {
     # 'model_name': 'normalsub',
     # 'train_image_path': r'C:\inz\train_data\normal_model_1028\train_subset',
     # 'validation_image_path': r'C:\inz\train_data\normal_model_1028\validation_subset',
-    # 'class_names_file_path': r'C:\inz\train_data\normal_model_1028\train\classes.txt',
+    # 'class_names_file_path': r'C:\inz\train_data\normal_model_1028\train_subset\classes.txt',
     # 'input_shape': (384, 640, 1),
 
     # 'pretrained_model_path': r'',
@@ -121,8 +121,8 @@ config = {
 
     'lr': 1e-3,
     'l2': 5e-4,
-    'warm_up': 0.5,
-    'decay_step': 0.25,
+    'warm_up': 0.1,
+    'decay_step': 0.1,
     'momentum': 0.9,
     'alpha': 0.25,
     'gamma': 2.0,
@@ -131,8 +131,10 @@ config = {
     'iterations': 10000,
     'curriculum_iterations': 0,
     'checkpoint_path': 'checkpoint',
+    'ignore_nearby_cell': True,
+    'nearby_cell_ignore_threshold': 0.6,
     'multi_classification_at_same_box': False,
     'map_checkpoint': True,
-    'training_view': False 
+    'training_view': True 
 }
 
