@@ -948,8 +948,8 @@ class Model:
             exit(-1)
 
     def kernel_regularizer(self):
-        # return tf.keras.regularizers.lw(l2=self.l2) if self.l2 > 0.0 else None
-        return WeightStandardization()
+        return tf.keras.regularizers.lw(l2=self.l2) if self.l2 > 0.0 else None
+        # return WeightStandardization()
 
     @staticmethod
     def max_pool(x):
