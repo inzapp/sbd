@@ -316,7 +316,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
                     'iou': iou})
         return sorted(nearby_cells, key=lambda x: x['iou'], reverse=True)
 
-    def get_nearby_grids_for_mask(self, confidence_channel, rows, cols, row, col, cx_grid, cy_grid, cx_raw, cy_raw, w, h, offset_range=2):
+    def get_nearby_grids_for_mask(self, confidence_channel, rows, cols, row, col, cx_grid, cy_grid, cx_raw, cy_raw, w, h, offset_range=1):
         assert offset_range > 0
         nearby_cells = []
         offset_vals = list(range(-offset_range, offset_range))
