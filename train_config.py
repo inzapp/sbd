@@ -19,15 +19,15 @@ limitations under the License.
 """
 
 config = {
-    'pretrained_model_path': r'',
-    'model_name': 'loon',
-    'model_type': 'lightnet_nano',
-    'input_shape': (128, 512, 3),
-    'train_image_path': r'C:\inz\train_data\loon\train',
-    'validation_image_path': r'C:\inz\train_data\loon\validation',
-    'class_names_file_path': r'C:\inz\train_data\loon\train\classes.txt',
-    'optimizer': 'adam',
-    'lr_policy': 'step',
+    # 'pretrained_model_path': r'',
+    # 'model_name': 'loon',
+    # 'model_type': 'lightnet_nano',
+    # 'input_shape': (128, 512, 3),
+    # 'train_image_path': r'C:\inz\train_data\loon\train',
+    # 'validation_image_path': r'C:\inz\train_data\loon\validation',
+    # 'class_names_file_path': r'C:\inz\train_data\loon\train\classes.txt',
+    # 'optimizer': 'adam',
+    # 'lr_policy': 'step',
 
     # 'pretrained_model_path': r'',
     # 'model_name': 'lpd',
@@ -69,15 +69,15 @@ config = {
     # 'optimizer': 'adam',
     # 'lr_policy': 'step',
 
-    # 'pretrained_model_path': r'',
-    # 'model_name': 'lpincar',
-    # 'model_type': 'lpr_crop',
-    # 'input_shape': (256, 256, 1),
-    # 'train_image_path': r'C:\inz\train_data\lp_in_car\train',
-    # 'validation_image_path': r'C:\inz\train_data\lp_in_car\validation',
-    # 'class_names_file_path': r'C:\inz\train_data\lp_in_car\train\classes.txt',
-    # 'optimizer': 'adam',
-    # 'lr_policy': 'step',
+    'pretrained_model_path': r'',
+    'model_name': 'lpincar',
+    'model_type': 'lpd_crop2',
+    'input_shape': (256, 256, 1),
+    'train_image_path': r'C:\inz\train_data\lp_in_car\train',
+    'validation_image_path': r'C:\inz\train_data\lp_in_car\validation',
+    'class_names_file_path': r'C:\inz\train_data\lp_in_car\train\classes.txt',
+    'optimizer': 'adam',
+    'lr_policy': 'step',
 
     # 'pretrained_model_path': r'',
     # 'model_name': 'normal',
@@ -146,6 +146,6 @@ config = {
     'nearby_cell_ignore_threshold': 0.5,
     'multi_classification_at_same_box': False,
     'map_checkpoint': True,
-    'training_view': True
+    'training_view': False
 }
 
