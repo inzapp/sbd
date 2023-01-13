@@ -62,6 +62,7 @@ class Yolo:
         self.__training_view = config['training_view']
         self.__map_checkpoint = config['map_checkpoint']
         self.__curriculum_iterations = config['curriculum_iterations']
+        self.__checkpoint_interval = config['checkpoint_interval']
         self.__live_view_previous_time = time()
         self.__checkpoint_path = config['checkpoint_path']
         self.__cycle_step = 0
@@ -269,18 +270,15 @@ class Yolo:
                 iteration_count += 1
                 print(f'\r[iteration count : {iteration_count:6d}] loss => {loss:.4f}', end='')
                 warm_up_end = iteration_count >= int(self.__iterations * self.__warm_up)
-                if self.__training_view and warm_up_end:
+                if warm_up_end and self.__training_view:
                     self.__training_view_function()
                 if self.__map_checkpoint:
-                    # if iteration_count >= int(self.__iterations * 0.7) and iteration_count % 10000 == 0:
-                    # if iteration_count == self.__iterations:
-                    if iteration_count % 1000 == 0 and warm_up_end:
-                    # if iteration_count >= (self.__iterations * 0.1) and iteration_count % 5000 == 0:
+                    if warm_up_end and iteration_count % self.__checkpoint_interval == 0 :
                         self.__save_model(iteration_count=iteration_count, use_map_checkpoint=self.__map_checkpoint)
                 else:
-                    if iteration_count % 10000 == 0:
+                    if iteration_count % self.__checkpoint_interval == 0:
                         self.__save_model(iteration_count=iteration_count, use_map_checkpoint=self.__map_checkpoint)
-                if iteration_count % 1000 == 0:
+                if iteration_count % 2000 == 0:
                     self.__model.save('model_last.h5', include_optimizer=False)
                 if iteration_count == self.__iterations:
                     print('\n\ntrain end successfully')
