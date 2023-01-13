@@ -64,7 +64,12 @@ class Model:
         return cls.__new__(cls)
 
     def build(self, model_type):
-        return self.models[model_type]()
+        try:
+            return self.models[model_type]()
+        except KeyError:
+            print(f'invalid model type => \'{model_type}\'')
+            print(f'available model types : {list(self.models.keys())}')
+            exit(-1)
 
     """
     size : 640x384x1
