@@ -20,6 +20,8 @@ limitations under the License.
 import os
 import tensorflow as tf
 
+from util import ModelUtil
+
 
 os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
@@ -67,9 +69,9 @@ class Model:
         try:
             return self.models[model_type]()
         except KeyError:
-            print(f'invalid model type => \'{model_type}\'')
-            print(f'available model types : {list(self.models.keys())}')
-            exit(-1)
+            ModelUtil.print_error_exit([
+                f'invalid model type => \'{model_type}\'',
+                f'available model types : {list(self.models.keys())}'])
 
     """
     size : 640x384x1

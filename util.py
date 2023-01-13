@@ -32,6 +32,19 @@ class ModelUtil:
         pass
 
     @staticmethod
+    def print_error_exit(msg):
+        msg_type = type(msg)
+        if msg_type is str:
+            msg = [msg]
+        msg_type = type(msg)
+        if msg_type is list:
+            for s in msg:
+                print(f'\n[ERROR] {s}')
+        else:
+            print(f'[print_error_exit] msg print failure. invalid msg type : {msg_type}')
+        exit(-1)
+
+    @staticmethod
     def available_device():
         devices = tf.config.list_physical_devices()
         for device in devices:
@@ -163,8 +176,6 @@ class ModelUtil:
                 num_classes = len(class_names)
             return class_names, num_classes
         else:
-            print(f'class names file dose not exist : {class_names_file_path}')
-            print('class file does not exist. the class name will be replaced by the class index and displayed.')
             return [], 0
 
     @staticmethod

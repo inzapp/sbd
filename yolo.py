@@ -74,15 +74,19 @@ class Yolo:
         ModelUtil.set_channel_order(input_shape)
         self.__class_names, self.__num_classes = ModelUtil.init_class_names(self.__class_names_file_path)
 
+        pretrained_model_load_success = False
         if pretrained_model_path != '':
             if os.path.exists(pretrained_model_path) and os.path.isfile(pretrained_model_path):
                 self.__model = tf.keras.models.load_model(pretrained_model_path, compile=False)
                 self.__presaved_iteration_count = self.__parse_presaved_iteration_count(pretrained_model_path)
+                pretrained_model_load_success = True
                 print(f'success loading pretrained model : [{pretrained_model_path}]')
             else:
-                print(f'pretrained model not found : [{pretrained_model_path}]')
-                exit(0)
-        else:
+                ModelUtil.print_error_exit(f'pretrained model not found. model path : {pretrained_model_path}')
+
+        if not pretrained_model_load_success:
+            if self.__num_classes == 0:
+                ModelUtil.print_error_exit(f'classes file not found. file path : {self.__class_names_file_path}')
             if self.__optimizer == 'adam':
                 self.__l2 = 0.0
             self.__model = Model(input_shape=input_shape, output_channel=self.__num_classes + 5, l2=self.__l2).build(self.__model_type)
