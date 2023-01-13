@@ -44,34 +44,34 @@ class Model:
         self.output_channel = output_channel
         self.l2 = l2
         self.drop_rates = [0.05, 0.1, 0.15, 0.2, 0.25]
+        self.models = dict()
+        self.models['lightnet_nano'] = self.lightnet_nano
+        self.models['lightnet_s'] = self.lightnet_s
+        self.models['lightnet_m'] = self.lightnet_m
+        self.models['lightnet_l'] = self.lightnet_l
+        self.models['lightnet_x'] = self.lightnet_x
+        self.models['lightnet_illusion'] = self.lightnet_illusion
+        self.models['student'] = self.student
+        self.models['teacher'] = self.teacher
+        self.models['lpd_crop'] = self.lpd_crop
+        self.models['lcd'] = self.lcd
+        self.models['normal_model'] = self.normal_model
+        self.models['lpd_v1'] = self.lpd_v1
+        self.models['lpd_v2'] = self.lpd_v2
 
     @classmethod
     def empty(cls):
         return cls.__new__(cls)
 
-    def build(self):
-        # return self.student()
-        # return self.teacher()
-        # return self.lightnet_nano()
-        return self.lightnet_s()
-        # return self.lightnet_m()
-        # return self.lightnet_l()
-        # return self.lightnet_x()
-        # return self.lightnet_illusion()
-        # return self.normal_model()
-        # return self.lpd_v1()
-        # return self.lpd_v2()
-        # return self.lpd_crop()
-        # return self.lcd()
-        # return self.vgg_16()
-        # return self.darknet_19()
+    def build(self, model_type):
+        return self.models[model_type]()
 
     """
     size : 640x384x1
     GFLOPs : 6.0208
     parameters : 5,558,438
-    forwarding time in cv2  nx8x : 12ms
-    forwarding time in cv2 16x8x : 21ms
+    forwarding time in cv22  nx8x : 12ms
+    forwarding time in cv22 16x8x : 21ms
     """
     def lightnet_nano(self):
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
@@ -110,8 +110,8 @@ class Model:
     size : 640x384x1
     GFLOPs : 10.5687
     parameters : 6,298,558
-    forwarding time in cv2  nx8x : 20ms
-    forwarding time in cv2 16x8x : 37ms
+    forwarding time in cv22  nx8x : 20ms
+    forwarding time in cv22 16x8x : 37ms
     """
     def lightnet_s(self):
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
@@ -165,8 +165,8 @@ class Model:
     size : 640x384x1
     GFLOPs : 14.7717
     parameters : 9,745,054
-    forwarding time in cv2  nx8x : 28ms
-    forwarding time in cv2 16x8x : 51ms
+    forwarding time in cv22  nx8x : 28ms
+    forwarding time in cv22 16x8x : 51ms
     """
     def lightnet_m(self):
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
@@ -221,8 +221,8 @@ class Model:
     size : 640x384x1
     GFLOPs : 29.8480
     parameters : 21,787,550
-    forwarding time in cv2  nx8x : 56ms
-    forwarding time in cv2 16x8x : 105ms
+    forwarding time in cv22  nx8x : 56ms
+    forwarding time in cv22 16x8x : 105ms
     """
     def lightnet_l(self):
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
@@ -276,8 +276,8 @@ class Model:
     size : 640x384x1
     GFLOPs : 50.8383
     parameters : 38,630,558
-    forwarding time in cv2  nx8x : 95ms
-    forwarding time in cv2 16x8x : 178ms
+    forwarding time in cv22  nx8x : 95ms
+    forwarding time in cv22 16x8x : 178ms
     """
     def lightnet_x(self):
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
@@ -438,8 +438,8 @@ class Model:
     size : 640x384x1
     GFLOPs : 37.5203
     parameters : 15,574,481
-    forwarding time in cv2  nx8x : 67ms
-    forwarding time in cv2 16x8x : 
+    forwarding time in cv22  nx8x : 67ms
+    forwarding time in cv22 16x8x : 
     """
     def normal_model(self):
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
@@ -491,8 +491,8 @@ class Model:
     size : 640x384x1
     GFLOPs : 
     parameters : 
-    forwarding time in cv2  nx8x : 
-    forwarding time in cv2 16x8x : 
+    forwarding time in cv22  nx8x : 
+    forwarding time in cv22 16x8x : 
     """
     def normal_model2(self):
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
@@ -540,7 +540,7 @@ class Model:
         y = self.detection_layer(x, 'sbd_output')
         return tf.keras.models.Model(input_layer, y)
 
-    # (368, 640, 1) cv2 12ms
+    # (368, 640, 1) cv22 12ms
     def lpd_v1(self):
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
         x = self.conv_block(input_layer, 8, 3, activation='relu')
@@ -580,7 +580,7 @@ class Model:
         y = self.detection_layer(x, 'sbd_output')
         return tf.keras.models.Model(input_layer, y)
 
-    # (352, 640, 1) cv2 20ms (16x 8x)
+    # (352, 640, 1) cv22 20ms (16x 8x)
     def lpd_v2(self):
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
         x = self.conv_block(input_layer, 16, 3, activation='relu')
@@ -610,7 +610,7 @@ class Model:
         y = self.detection_layer(x)
         return tf.keras.models.Model(input_layer, y)
 
-    # (320, 320, 1) cv2 12ms
+    # (320, 320, 1) cv22 12ms
     def lpd_crop(self):
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
         x = self.conv_block(input_layer, 8, 3, activation='relu')
@@ -675,74 +675,6 @@ class Model:
         x = self.feature_pyramid_network([f0, f1, f2], [128, 256, 512], activation='relu')
         y = self.detection_layer(x, 'sbd_output')
         return tf.keras.models.Model(input_layer, y)
-
-    def vgg_16(self):
-        input_layer = tf.keras.layers.Input(shape=self.input_shape)
-        x = self.conv_block(input_layer, 64, 3, bn=True, activation='relu')
-        x = self.conv_block(x, 64, 3, bn=True, activation='relu')
-        x = self.max_pool(x)
-
-        x = self.conv_block(x, 128, 3, bn=True, activation='relu')
-        x = self.conv_block(x, 128, 3, bn=True, activation='relu')
-        x = self.max_pool(x)
-
-        x = self.conv_block(x, 256, 3, bn=True, activation='relu')
-        x = self.conv_block(x, 256, 3, bn=True, activation='relu')
-        x = self.conv_block(x, 256, 3, bn=True, activation='relu')
-        x = self.max_pool(x)
-
-        x = self.conv_block(x, 512, 3, bn=True, activation='relu')
-        x = self.conv_block(x, 512, 3, bn=True, activation='relu')
-        x = self.conv_block(x, 512, 3, bn=True, activation='relu')
-        y1 = self.detection_layer(x, name='sbd_output_1')
-        x = self.max_pool(x)
-
-        x = self.conv_block(x, 512, 3, bn=True, activation='relu')
-        x = self.conv_block(x, 512, 3, bn=True, activation='relu')
-        x = self.conv_block(x, 512, 3, bn=True, activation='relu')
-        y2 = self.detection_layer(x, name='sbd_output_2')
-        x = self.max_pool(x)
-
-        x = self.conv_block(x, 512, 3, bn=True, activation='relu')
-        x = self.conv_block(x, 512, 3, bn=True, activation='relu')
-        x = self.conv_block(x, 512, 3, bn=True, activation='relu')
-        y3 = self.detection_layer(x, name='sbd_output_3')
-        return tf.keras.models.Model(input_layer, [y1, y2, y3])
-
-    def darknet_19(self):
-        input_layer = tf.keras.layers.Input(shape=self.input_shape)
-        x = self.conv_block(input_layer, 32, 3, bn=True, activation='relu')
-        x = self.max_pool(x)
-
-        x = self.conv_block(x, 64, 3, bn=True, activation='relu')
-        x = self.max_pool(x)
-
-        x = self.conv_block(x, 128, 3, bn=True, activation='relu')
-        x = self.conv_block(x, 64, 1, bn=True, activation='relu')
-        x = self.conv_block(x, 128, 3, bn=True, activation='relu')
-        x = self.max_pool(x)
-
-        x = self.conv_block(x, 256, 3, bn=True, activation='relu')
-        x = self.conv_block(x, 128, 1, bn=True, activation='relu')
-        x = self.conv_block(x, 256, 3, bn=True, activation='relu')
-        y1 = self.detection_layer(x, 'sbd_output_1')
-        x = self.max_pool(x)
-
-        x = self.conv_block(x, 512, 3, bn=True, activation='relu')
-        x = self.conv_block(x, 256, 1, bn=True, activation='relu')
-        x = self.conv_block(x, 512, 3, bn=True, activation='relu')
-        x = self.conv_block(x, 256, 1, bn=True, activation='relu')
-        x = self.conv_block(x, 512, 3, bn=True, activation='relu')
-        y2 = self.detection_layer(x, 'sbd_output_2')
-        x = self.max_pool(x)
-
-        x = self.conv_block(x, 1024, 3, bn=True, activation='relu')
-        x = self.conv_block(x, 512, 1, bn=True, activation='relu')
-        x = self.conv_block(x, 1024, 3, bn=True, activation='relu')
-        x = self.conv_block(x, 512, 1, bn=True, activation='relu')
-        x = self.conv_block(x, 1024, 3, bn=True, activation='relu')
-        y3 = self.detection_layer(x, 'sbd_output_3')
-        return tf.keras.models.Model(input_layer, [y1, y2, y3])
 
     def spatial_attention_block(self, x, activation, bn=False, reduction_ratio=16):
         input_layer = x
@@ -926,12 +858,8 @@ class Model:
             name=name)(x)
 
     def activation(self, x, activation='none'):
-        if activation == 'sigmoid':
-            return tf.keras.layers.Activation('sigmoid')(x)
-        elif activation == 'tanh':
-            return tf.keras.layers.Activation('tanh')(x)
-        elif activation == 'relu':
-            return tf.keras.layers.Activation('relu')(x)
+        if activation in ['relu', 'sigmoid', 'tanh']:
+            return tf.keras.layers.Activation(activation)(x)
         elif activation == 'leaky':
             return tf.keras.layers.LeakyReLU(alpha=0.1)(x)
         elif activation == 'silu' or activation == 'swish':
@@ -939,8 +867,8 @@ class Model:
             return self.multiply([x, x_sigmoid])
         elif activation == 'mish':
             x_softplus = tf.keras.layers.Activation('softplus')(x)
-            x_tanh = tf.keras.layers.Activation('tanh')(x_softplus)
-            return self.multiply([x, x_tanh])
+            softplus_tanh = tf.keras.layers.Activation('tanh')(x_softplus)
+            return self.multiply([x, softplus_tanh])
         elif activation == 'none':
             return x
         else:
@@ -948,8 +876,7 @@ class Model:
             exit(-1)
 
     def kernel_regularizer(self):
-        return tf.keras.regularizers.lw(l2=self.l2) if self.l2 > 0.0 else None
-        # return WeightStandardization()
+        return tf.keras.regularizers.l2(l2=self.l2) if self.l2 > 0.0 else None
 
     @staticmethod
     def max_pool(x):

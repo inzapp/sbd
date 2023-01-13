@@ -20,6 +20,7 @@ limitations under the License.
 
 config = {
     'pretrained_model_path': r'',
+    'model_type': 'lightnet_s',
     'optimizer': 'adam',
     'lr_policy': 'step',
     'model_name': 'loon',
@@ -29,6 +30,7 @@ config = {
     'input_shape': (64, 256, 3),
 
     # 'pretrained_model_path': r'',
+    # 'model_type': 'lightnet_s',
     # 'optimizer': 'adam',
     # 'lr_policy': 'step',
     # 'model_name': 'lpd',
@@ -38,6 +40,7 @@ config = {
     # 'input_shape': (384, 640, 1),
 
     # 'pretrained_model_path': r'',
+    # 'model_type': 'lcd',
     # 'optimizer': 'adam',
     # 'lr_policy': 'step',
     # 'model_name': 'lcdw',
@@ -47,6 +50,7 @@ config = {
     # 'input_shape': (96, 192, 1),
 
     # 'pretrained_model_path': r'C:\inz\git\yolo-lab\checkpoints\lcd_new\b1\model_129000_iter_mAP_0.9914_f1_0.9923_tp_iou_0.8369_tp_963_fp_6_fn_9_ul_all.h5',
+    # 'model_type': 'lcd',
     # 'optimizer': 'sgd',
     # 'lr_policy': 'step',
     # 'model_name': 'lcdb1',
@@ -57,6 +61,7 @@ config = {
     # 'input_shape': (96, 192, 1),
 
     # 'pretrained_model_path': r'',
+    # 'model_type': 'lightnet_s',
     # 'optimizer': 'adam',
     # 'lr_policy': 'step',
     # 'model_name': 'square',
@@ -66,6 +71,7 @@ config = {
     # 'input_shape': (640, 640, 1),
 
     # 'pretrained_model_path': r'',
+    # 'model_type': 'lightnet_s',
     # 'optimizer': 'adam',
     # 'lr_policy': 'step',
     # 'model_name': 'lpincar',
@@ -75,6 +81,7 @@ config = {
     # 'input_shape': (256, 256, 1),
 
     # 'pretrained_model_path': r'',
+    # 'model_type': 'normal_model',
     # 'optimizer': 'adam',
     # 'lr_policy': 'step',
     # 'model_name': 'normal',
@@ -84,6 +91,7 @@ config = {
     # 'input_shape': (384, 640, 1),
 
     # 'pretrained_model_path': r'',
+    # 'model_type': 'normal_model',
     # 'optimizer': 'adam',
     # 'lr_policy': 'step',
     # 'model_name': 'normalsub',
@@ -93,6 +101,7 @@ config = {
     # 'input_shape': (384, 640, 1),
 
     # 'pretrained_model_path': r'',
+    # 'model_type': 'normal_model',
     # 'optimizer': 'adam',
     # 'lr_policy': 'step',
     # 'model_name': 'normalcar',
@@ -102,6 +111,7 @@ config = {
     # 'input_shape': (128, 256, 1),
 
     # 'pretrained_model_path': r'',
+    # 'model_type': 'normal_model',
     # 'optimizer': 'adam',
     # 'lr_policy': 'step',
     # 'model_name': 'normalcarsub',
@@ -111,6 +121,7 @@ config = {
     # 'input_shape': (384, 640, 1),
 
     # 'pretrained_model_path': r'',
+    # 'model_type': 'lightnet_m',
     # 'optimizer': 'adam',
     # 'lr_policy': 'step',
     # 'model_name': 'kagglecar',
@@ -119,9 +130,9 @@ config = {
     # 'class_names_file_path': r'C:\inz\train_data\kaggle\car_detection\train\classes.txt',
     # 'input_shape': (256, 512, 1),
 
-    'lr': 1e-3,
+    'lr': 1e-4,
     'l2': 5e-4,
-    'warm_up': 0.1,
+    'warm_up': 0.5,
     'decay_step': 0.1,
     'momentum': 0.9,
     'alpha': 0.25,
@@ -131,10 +142,10 @@ config = {
     'iterations': 10000,
     'curriculum_iterations': 0,
     'checkpoint_path': 'checkpoint',
-    'ignore_nearby_cell': True,
-    'nearby_cell_ignore_threshold': 0.6,
+    'ignore_nearby_cell': False,
+    'nearby_cell_ignore_threshold': 0.5,
     'multi_classification_at_same_box': False,
     'map_checkpoint': True,
-    'training_view': True 
+    'training_view': False
 }
 

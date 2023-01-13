@@ -58,6 +58,7 @@ class Yolo:
         self.__optimizer = config['optimizer']
         self.__lr_policy = config['lr_policy']
         self.__model_name = config['model_name']
+        self.__model_type = config['model_type']
         self.__training_view = config['training_view']
         self.__map_checkpoint = config['map_checkpoint']
         self.__curriculum_iterations = config['curriculum_iterations']
@@ -83,7 +84,7 @@ class Yolo:
         else:
             if self.__optimizer == 'adam':
                 self.__l2 = 0.0
-            self.__model = Model(input_shape=input_shape, output_channel=self.__num_classes + 5, l2=self.__l2).build()
+            self.__model = Model(input_shape=input_shape, output_channel=self.__num_classes + 5, l2=self.__l2).build(self.__model_type)
 
         if type(self.__model.output_shape) == tuple:
             self.num_output_layers = 1
@@ -273,7 +274,7 @@ class Yolo:
                 if self.__map_checkpoint:
                     # if iteration_count >= int(self.__iterations * 0.7) and iteration_count % 10000 == 0:
                     # if iteration_count == self.__iterations:
-                    if iteration_count % 2000 == 0 and warm_up_end:
+                    if iteration_count % 1000 == 0 and warm_up_end:
                     # if iteration_count >= (self.__iterations * 0.1) and iteration_count % 5000 == 0:
                         self.__save_model(iteration_count=iteration_count, use_map_checkpoint=self.__map_checkpoint)
                 else:
