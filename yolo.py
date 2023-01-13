@@ -199,6 +199,10 @@ class Yolo:
         print(f'\ntrain on {len(self.__train_image_paths)} samples.')
         print(f'validate on {len(self.__validation_image_paths)} samples.')
 
+        print('\nlabel exist check in train data...')
+        self.__train_data_generator_for_check.flow().check_labels_exist()
+        print('\nlabel exist check in validation data...')
+        self.__validation_data_generator_for_check.flow().check_labels_exist()
         print('\ninvalid label check in train data...')
         self.__train_data_generator_for_check.flow().check_invalid_label()
         print('\ninvalid label check in validation data...')

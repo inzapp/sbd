@@ -22,10 +22,12 @@ from queue import Queue
 from threading import Thread
 from time import sleep
 
+import os
 import cv2
 import numpy as np
 import tensorflow as tf
 import albumentations as A
+
 from tqdm import tqdm
 from util import ModelUtil
 
@@ -96,6 +98,28 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         """
         return int(np.floor(len(self.image_paths) / self.batch_size))
 
+    def is_label_exists(self, label_path):
+        is_label_exists = False
+        if os.path.exists(label_path) and os.path.isfile(label_path):
+            is_label_exists = True
+        return is_label_exists, label_path
+
+    def check_labels_exist(self):
+        fs = []
+        for path in self.image_paths:
+            fs.append(self.pool.submit(self.is_label_exists, f'{path[:-4]}.txt'))
+        not_found_label_paths = set()
+        for f in tqdm(fs):
+            label_exists, label_path = f.result()
+            if not label_exists:
+                not_found_label_paths.add(label_path)
+        if len(not_found_label_paths) > 0:
+            print()
+            for label_path in list(not_found_label_paths):
+                print(f'label not found : {label_path}')
+            ModelUtil.print_error_exit(f'{len(not_found_label_paths)} labels not found')
+        print('label exist check success')
+
     def load_label(self, label_path):
         with open(label_path, 'rt') as f:
             lines = f.readlines()
@@ -130,9 +154,8 @@ class GeneratorFlow(tf.keras.utils.Sequence):
             print()
             for label_path in list(invalid_label_paths):
                 print(label_path)
-            print(f'\n{len(invalid_label_paths)} invalid label exists fix it')
-            exit(0)
-        print('invalid label not found')
+            ModelUtil.print_error_exit(f'{len(invalid_label_paths)} invalid label exists fix it')
+        print('invalid label check success')
 
     def get_best_iou_layer_indexes(self, box):
         cx, cy, w, h = box
