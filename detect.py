@@ -20,7 +20,7 @@ limitations under the License.
 import argparse
 
 from yolo import Yolo
-from train_config import config
+from train import config
 
 
 if __name__ == '__main__':
