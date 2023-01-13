@@ -147,11 +147,11 @@ class Yolo:
     def __get_optimizer(self, optimizer_str):
         lr = self.__lr if self.__lr_policy == 'constant' else 0.0
         if optimizer_str == 'sgd':
-            optimizer = tf.keras.optimizers.SGD(lr=lr, momentum=self.__momentum, nesterov=True)
+            optimizer = tf.keras.optimizers.SGD(learning_rate=lr, momentum=self.__momentum, nesterov=True)
         elif optimizer_str == 'adam':
-            optimizer = tf.keras.optimizers.Adam(lr=lr, beta_1=self.__momentum)
+            optimizer = tf.keras.optimizers.Adam(learning_rate=lr, beta_1=self.__momentum)
         elif optimizer_str == 'rmsprop':
-            optimizer = tf.keras.optimizers.RMSprop(lr=lr)
+            optimizer = tf.keras.optimizers.RMSprop(learning_rate=lr)
         else:
             print(f'\n\nunknown optimizer : {optimizer_str}')
             optimizer = None
