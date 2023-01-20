@@ -38,8 +38,9 @@ class ModelUtil:
             msg = [msg]
         msg_type = type(msg)
         if msg_type is list:
+            print()
             for s in msg:
-                print(f'\n[ERROR] {s}')
+                print(f'[ERROR] {s}')
         else:
             print(f'[print_error_exit] msg print failure. invalid msg type : {msg_type}')
         exit(-1)
