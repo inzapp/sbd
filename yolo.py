@@ -300,7 +300,7 @@ class Yolo:
             self.__model.save(f'{self.__checkpoint_path}/{self.__model_name}_{iteration_count}_iter.h5', include_optimizer=False)
 
     @staticmethod
-    def predict(model, img, device, confidence_threshold=0.25, nms_iou_threshold=0.45, verbose=False):
+    def predict(model, img, device, confidence_threshold=0.2, nms_iou_threshold=0.45, verbose=False):
         """
         Detect object in image using trained YOLO model.
         :param img: (width, height, channel) formatted image to be predicted.
