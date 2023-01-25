@@ -426,7 +426,7 @@ class Yolo:
             cv2.putText(img, label_text, (x1 + padding - 1, y1 - baseline - padding), cv2.FONT_HERSHEY_DUPLEX, fontScale=font_scale, color=label_font_color, thickness=1, lineType=cv2.LINE_AA)
         return img
 
-    def predict_video(self, video_path, confidence_threshold=0.25, device='cpu'):
+    def predict_video(self, video_path, confidence_threshold=0.2, device='cpu'):
         """
         Equal to the evaluate function. video path is required.
         """
@@ -446,7 +446,7 @@ class Yolo:
         cap.release()
         cv2.destroyAllWindows()
 
-    def predict_images(self, dataset='validation', confidence_threshold=0.25, device='cpu'):
+    def predict_images(self, dataset='validation', confidence_threshold=0.2, device='cpu'):
         """
         Equal to the evaluate function. image paths are required.
         """
@@ -469,7 +469,7 @@ class Yolo:
             if key == 27:
                 break
 
-    def calculate_map(self, dataset='validation', iteration_count=0, save_model=False, device='auto', confidence_threshold=0.25, tp_iou_threshold=0.5, cached=False):
+    def calculate_map(self, dataset='validation', iteration_count=0, save_model=False, device='auto', confidence_threshold=0.2, tp_iou_threshold=0.5, cached=False):
         if dataset == 'train':
             image_paths = self.__train_image_paths
         elif dataset == 'validation':
