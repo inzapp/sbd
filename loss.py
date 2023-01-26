@@ -59,6 +59,25 @@ def __iou(y_true, y_pred, diou=False):
     w_pred = tf.sqrt(y_pred[:, :, :, 3] + eps)
     h_pred = tf.sqrt(y_pred[:, :, :, 4] + eps)
 
+    # wh_range = 0.2
+    # min_val = 0.5 - (wh_range / 2.0)
+    # max_val = 0.5 + (wh_range / 2.0)
+    # min_max_diff = max_val - min_val
+    # w_true = (y_true[:, :, :, 3] * min_max_diff) + min_val
+    # h_true = (y_true[:, :, :, 4] * min_max_diff) + min_val
+    # w_pred = (y_pred[:, :, :, 3] * min_max_diff) + min_val
+    # h_pred = (y_pred[:, :, :, 4] * min_max_diff) + min_val
+
+    # eps = 0.005
+    # min_w = 0.02 + eps
+    # max_w = 0.42 - eps
+    # min_h = 0.02 + eps
+    # max_h = 0.30 - eps
+    # w_true = (y_true[:, :, :, 3] - min_w) / (max_w - min_w)
+    # h_true = (y_true[:, :, :, 4] - min_h) / (max_h - min_h)
+    # w_pred = (y_pred[:, :, :, 3] - min_w) / (max_w - min_w)
+    # h_pred = (y_pred[:, :, :, 4] - min_h) / (max_h - min_h)
+
     x1_true = cx_true - (w_true * 0.5)
     y1_true = cy_true - (h_true * 0.5)
     x2_true = cx_true + (w_true * 0.5)
