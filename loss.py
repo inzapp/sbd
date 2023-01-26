@@ -36,8 +36,6 @@ def __iou(y_true, y_pred, diou=False):
 
     cx_true = y_true[:, :, :, 1]
     cy_true = y_true[:, :, :, 2]
-    w_true = y_true[:, :, :, 3]
-    h_true = y_true[:, :, :, 4]
 
     x_range = tf.range(grid_width, dtype=y_pred.dtype)
     x_offset = tf.broadcast_to(x_range, shape=tf.shape(cx_true))
@@ -49,18 +47,22 @@ def __iou(y_true, y_pred, diou=False):
     cx_true = x_offset + (cx_true * 1.0 / grid_width)
     cy_true = y_offset + (cy_true * 1.0 / grid_height)
 
+    cx_pred = y_pred[:, :, :, 1]
+    cy_pred = y_pred[:, :, :, 2]
+
+    cx_pred = x_offset + (cx_pred * 1.0 / grid_width)
+    cy_pred = y_offset + (cy_pred * 1.0 / grid_height)
+
+    eps = tf.keras.backend.epsilon()
+    w_true = tf.sqrt(y_true[:, :, :, 3] + eps)
+    h_true = tf.sqrt(y_true[:, :, :, 4] + eps)
+    w_pred = tf.sqrt(y_pred[:, :, :, 3] + eps)
+    h_pred = tf.sqrt(y_pred[:, :, :, 4] + eps)
+
     x1_true = cx_true - (w_true * 0.5)
     y1_true = cy_true - (h_true * 0.5)
     x2_true = cx_true + (w_true * 0.5)
     y2_true = cy_true + (h_true * 0.5)
-
-    cx_pred = y_pred[:, :, :, 1]
-    cy_pred = y_pred[:, :, :, 2]
-    w_pred = y_pred[:, :, :, 3]
-    h_pred = y_pred[:, :, :, 4]
-
-    cx_pred = x_offset + (cx_pred * 1.0 / grid_width)
-    cy_pred = y_offset + (cy_pred * 1.0 / grid_height)
 
     x1_pred = cx_pred - (w_pred * 0.5)
     y1_pred = cy_pred - (h_pred * 0.5)
