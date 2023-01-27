@@ -58,26 +58,26 @@ class Model:
 
     """
     shape : (384, 640, 1)
-    GFLOPs : 6.4218
-    parameters : 4,302,566
+    GFLOPs : 5.66 
+    parameters : 4,240,742
     forwarding time in cv22  nx8x : 12ms -> need retest
     forwarding time in cv22 16x8x : 21ms -> need retest
     """
     def lightnet_nano(self):
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
-        x = self.cross_conv_block(input_layer, 16, 5, depth=1, mode='concat', activation='relu')
+        x = self.cross_conv_block(input_layer, 16, 5, depth=1, activation='relu')
         x = self.max_pool(x)
 
         x = self.dropout(x, self.drop_rates[0])
-        x = self.cross_conv_block(x, 32, 5, depth=1, mode='concat', activation='relu')
+        x = self.cross_conv_block(x, 32, 5, depth=1, activation='relu')
         x = self.max_pool(x)
 
         x = self.dropout(x, self.drop_rates[1])
-        x = self.cross_conv_block(x, 64, 3, depth=2, mode='add', activation='relu')
+        x = self.cross_conv_block(x, 64, 3, depth=2, activation='relu')
         x = self.max_pool(x)
 
         x = self.dropout(x, self.drop_rates[2])
-        x = self.cross_conv_block(x, 128, 3, depth=2, mode='add', activation='relu')
+        x = self.cross_conv_block(x, 128, 3, depth=2, activation='relu')
         x = self.max_pool(x)
 
         x = self.dropout(x, self.drop_rates[3])
@@ -95,19 +95,19 @@ class Model:
 
     """
     shape : (384, 640, 1)
-    GFLOPs : 11.1553
-    parameters : 6,349,022
+    GFLOPs : 11.08
+    parameters : 6,348,478
     forwarding time in cv22  nx8x : 20ms -> need retest
     forwarding time in cv22 16x8x : 37ms -> need retest
     """
     def lightnet_s(self):
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
         x = input_layer
-        x = self.cross_conv_block(x, 16, 5, depth=1, mode='concat', activation='relu')
+        x = self.cross_conv_block(x, 16, 5, depth=1, activation='relu')
         x = self.max_pool(x)
 
         x = self.dropout(x, self.drop_rates[0])
-        x = self.cross_conv_block(x, 32, 3, depth=1, mode='add', activation='relu')
+        x = self.cross_conv_block(x, 32, 5, depth=1, activation='relu')
         x = self.max_pool(x)
 
         x = self.dropout(x, self.drop_rates[1])
@@ -136,7 +136,7 @@ class Model:
 
     """
     shape : (384, 640, 1)
-    GFLOPs : 15.1644
+    GFLOPs : 16.12
     parameters : 10,039,902
     forwarding time in cv22  nx8x : 28ms -> need retest
     forwarding time in cv22 16x8x : 51ms -> need retest
@@ -144,11 +144,11 @@ class Model:
     def lightnet_m(self):
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
         x = input_layer
-        x = self.cross_conv_block(x, 16, 5, depth=1, mode='add', activation='relu')
+        x = self.cross_conv_block(x, 16, 5, depth=1, activation='relu')
         x = self.max_pool(x)
 
         x = self.dropout(x, self.drop_rates[0])
-        x = self.conv_block(x, 32, 3, depth=1, activation='relu')
+        x = self.conv_block(x, 32, 5, depth=1, activation='relu')
         x = self.max_pool(x)
 
         x = self.dropout(x, self.drop_rates[1])
@@ -576,13 +576,13 @@ class Model:
         x = self.conv_block(x, filters, 1, depth=1, bn=bn, activation=activation)
         return x
 
-    def cross_csp_block(self, x, filters, kernel_size, depth, mode='concat', bn=False, activation='none'):
+    def cross_csp_block(self, x, filters, kernel_size, depth, bn=False, activation='none'):
         half_filters = filters / 2
-        x_0 = self.cross_conv_block(x, half_filters, 1, depth=1, mode=mode, bn=bn, activation=activation)
-        x_1 = self.cross_conv_block(x, half_filters, 1, depth=1, mode=mode, bn=bn, activation=activation)
+        x_0 = self.cross_conv_block(x, half_filters, 1, depth=1, bn=bn, activation=activation)
+        x_1 = self.cross_conv_block(x, half_filters, 1, depth=1, bn=bn, activation=activation)
         for _ in range(depth):
-            x_0_1 = self.cross_conv_block(x_0, half_filters, 1, depth=1, mode=mode, bn=bn, activation=activation)
-            x_0_1 = self.cross_conv_block(x_0_1, half_filters, kernel_size, depth=1, mode=mode, bn=bn, activation=activation)
+            x_0_1 = self.cross_conv_block(x_0, half_filters, 1, depth=1, bn=bn, activation=activation)
+            x_0_1 = self.cross_conv_block(x_0_1, half_filters, kernel_size, depth=1, bn=bn, activation=activation)
             x_0 = self.add([x_0, x_0_1])
         x = self.concat([x_0, x_1])
         x = self.conv_block(x, filters, 1, depth=1, bn=bn, activation=activation)
@@ -608,10 +608,9 @@ class Model:
             x = conv_block_function(x, filters, kernel_size, bn, activation)
         return x
 
-    def cross_conv_block(self, x, filters, kernel_size, depth, mode='concat', bn=False, activation='none'):
-        assert mode in ['add', 'concat']
-        def cross_conv_block_function(x, filters, kernel_size, mode, bn, activation):
-            filters = filters // 2 if mode == 'concat' else filters
+    def cross_conv_block(self, x, filters, kernel_size, depth, bn=False, activation='none'):
+        def cross_conv_block_function(x, filters, kernel_size, bn, activation):
+            filters = filters // 2
             v_conv = tf.keras.layers.Conv2D(
                 filters=filters,
                 kernel_size=(kernel_size, 1),
@@ -636,15 +635,12 @@ class Model:
                 h_conv = self.bn(h_conv)
             h_conv = self.activation(h_conv, activation=activation)
 
-            if mode == 'add':
-                x = self.add([v_conv, h_conv])
-            else:
-                x = self.concat([v_conv, h_conv])
+            x = self.concat([v_conv, h_conv])
             return x
-        x = cross_conv_block_function(x, filters, kernel_size, mode, bn, activation)
+        x = cross_conv_block_function(x, filters, kernel_size, bn, activation)
         for _ in range(depth - 1):
             x = self.conv_block(x, filters // 2, 1, depth=1, bn=bn, activation=activation)
-            x = cross_conv_block_function(x, filters, kernel_size, mode, bn, activation)
+            x = cross_conv_block_function(x, filters, kernel_size, bn, activation)
         return x
 
     def detection_layer(self, x, name='sbd_output'):
