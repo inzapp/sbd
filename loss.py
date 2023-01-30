@@ -53,11 +53,16 @@ def __iou(y_true, y_pred, diou=False):
     cx_pred = x_offset + (cx_pred * 1.0 / grid_width)
     cy_pred = y_offset + (cy_pred * 1.0 / grid_height)
 
-    eps = tf.keras.backend.epsilon()
-    w_true = tf.sqrt(y_true[:, :, :, 3] + eps)
-    h_true = tf.sqrt(y_true[:, :, :, 4] + eps)
-    w_pred = tf.sqrt(y_pred[:, :, :, 3] + eps)
-    h_pred = tf.sqrt(y_pred[:, :, :, 4] + eps)
+    w_true = y_true[:, :, :, 3]
+    h_true = y_true[:, :, :, 4]
+    w_pred = y_pred[:, :, :, 3]
+    h_pred = y_pred[:, :, :, 4]
+
+    # eps = tf.keras.backend.epsilon()
+    # w_true = tf.sqrt(y_true[:, :, :, 3] + eps)
+    # h_true = tf.sqrt(y_true[:, :, :, 4] + eps)
+    # w_pred = tf.sqrt(y_pred[:, :, :, 3] + eps)
+    # h_pred = tf.sqrt(y_pred[:, :, :, 4] + eps)
 
     # wh_range = 0.2
     # min_val = 0.5 - (wh_range / 2.0)
