@@ -38,7 +38,7 @@ class LRScheduler:
                  initial_cycle_length=2500,
                  cycle_weight=2,
                  decay_step=0.1,
-                 double_step=False):
+                 double_step=True):
         assert 0.0 <= lr <= 1.0
         assert 0.0 <= min_lr <= 1.0
         assert 0.0 <= warm_up <= 1.0
