@@ -231,13 +231,18 @@ class Yolo:
             loss = 0.0
             y_pred = model(x, training=True)
             if num_output_layers == 1:
-                loss = loss_function(y_true, y_pred, mask, alphas[0], gammas[0], label_smoothing)
+                confidence_loss, bbox_loss, classification_loss = loss_function(y_true, y_pred, mask, alphas[0], gammas[0], label_smoothing)
             else:
+                confidence_loss, bbox_loss, classification_loss = 0.0, 0.0, 0.0
                 for i in range(num_output_layers):
-                    loss += loss_function(y_true[i], y_pred[i], mask[i], alphas[i], gammas[i], label_smoothing)
+                    _confidence_loss, _bbox_loss, _classification_loss = loss_function(y_true[i], y_pred[i], mask[i], alphas[i], gammas[i], label_smoothing)
+                    confidence_loss += _confidence_loss
+                    bbox_loss += _bbox_loss
+                    classification_loss += _classification_loss
+            loss = confidence_loss + bbox_loss + classification_loss
             gradients = tape.gradient(loss, model.trainable_variables)
         optimizer.apply_gradients(zip(gradients, model.trainable_variables))
-        return loss
+        return confidence_loss, bbox_loss, classification_loss
 
     def __refresh_model_and_optimizer(self, model, optimizer_str):
         sleep(0.2)
@@ -266,6 +271,14 @@ class Yolo:
                 if iteration_count == self.__curriculum_iterations:
                     break
 
+    def build_loss_str(self, iteration_count, loss_vars):
+        confidence_loss, bbox_loss, classification_loss = loss_vars
+        loss_str = f'\r[iteration_count : {iteration_count:6d}]'
+        loss_str += f' confidence_loss : {confidence_loss:>8.4f}'
+        loss_str += f', bbox_loss: {bbox_loss:>8.4f}'
+        loss_str += f', classification_loss : {classification_loss:>8.4f}'
+        return loss_str
+
     def __train(self):
         iteration_count = 0
         compute_gradient_tf = tf.function(self.compute_gradient)
@@ -274,10 +287,11 @@ class Yolo:
         while True:
             for batch_x, batch_y, mask in self.__train_data_generator.flow():
                 lr_scheduler.update(optimizer, iteration_count)
-                loss = compute_gradient_tf(self.__model, optimizer, yolo_loss, batch_x, batch_y, mask, self.num_output_layers, self.__alphas, self.__gammas, self.__label_smoothing)
+                loss_vars = compute_gradient_tf(self.__model, optimizer, yolo_loss, batch_x, batch_y, mask, self.num_output_layers, self.__alphas, self.__gammas, self.__label_smoothing)
                 iteration_count += 1
-                print(f'\r[iteration count : {iteration_count:6d}] loss => {loss:.4f}', end='')
+                print(self.build_loss_str(iteration_count, loss_vars), end='')
                 warm_up_end = iteration_count >= int(self.__iterations * self.__warm_up)
+                # warm_up_end = iteration_count >= int(self.__iterations * 0.7)
                 if warm_up_end and self.__training_view:
                     self.__training_view_function()
                 if self.__map_checkpoint:

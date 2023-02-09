@@ -156,5 +156,5 @@ def confidence_with_bbox_loss(y_true, y_pred, mask, gamma):
 def yolo_loss(y_true, y_pred, mask, alpha, gamma, label_smoothing):
     y_pred = convert_to_tensor_v2(y_pred)
     y_true = tf.cast(y_true, y_pred.dtype)
-    return __confidence_loss(y_true, y_pred, mask, alpha, gamma) + __bbox_loss(y_true, y_pred, mask) + __classification_loss(y_true, y_pred, mask, alpha, gamma, label_smoothing)
+    return __confidence_loss(y_true, y_pred, mask, alpha, gamma), __bbox_loss(y_true, y_pred, mask), __classification_loss(y_true, y_pred, mask, alpha, gamma, label_smoothing)
 
