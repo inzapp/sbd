@@ -24,7 +24,6 @@ import cv2
 import numpy as np
 import tensorflow as tf
 
-from numba import jit
 from model import Model
 from util import ModelUtil
 from box_colors import colors
@@ -314,52 +313,36 @@ class Yolo:
         else:
             self.__model.save(f'{self.__checkpoint_path}/{self.__model_name}_{iteration_count}_iter.h5', include_optimizer=False)
 
-    # @staticmethod
-    # @jit
-    # def decode_bounding_box(output_shape, y, confidence_threshold, image_data_format, raw_width, raw_height):
-    #     # max_box_count = 512
-    #     # boxes = np.zeros(shape=(max_box_count, 11), dtype=np.float32)  # [confidence, xmin, ymin, xmax, ymax, xminf, yminf, xmaxf, ymaxf, class_index, discard]
-    #     # boxes = []
-    #     rows = output_shape[1]
-    #     cols = output_shape[2]
-    #     cur_layer_output = y
-    #     over_confidence_indexes = np.argwhere(cur_layer_output[:, :, 0] > confidence_threshold)
-    #     for i, j in over_confidence_indexes:
-    #         channel_axis_vector = cur_layer_output[i, j, :]
-    #         confidence = channel_axis_vector[0]
-    #         class_scores = channel_axis_vector[5:]
-    #         class_index = np.argmax(class_scores)
-    #         class_score = class_scores[class_index]
-    #         confidence *= class_score
-    #         if confidence < confidence_threshold:
-    #             continue
-
-    #         cx_f = (j + channel_axis_vector[1]) / float(cols)
-    #         cy_f = (i + channel_axis_vector[2]) / float(rows)
-    #         w = channel_axis_vector[3]
-    #         h = channel_axis_vector[4]
-    #         cx_f, cy_f, w, h = np.clip(np.array([cx_f, cy_f, w, h]), 0.0, 1.0)
-
-    #         x_min_f = cx_f - (w * 0.5)
-    #         y_min_f = cy_f - (h * 0.5)
-    #         x_max_f = cx_f + (w * 0.5)
-    #         y_max_f = cy_f + (h * 0.5)
-    #         x_min_f, y_min_f, x_max_f, y_max_f = np.clip(np.array([x_min_f, y_min_f, x_max_f, y_max_f]), 0.0, 1.0)
-    #         x_min = int(x_min_f * raw_width)
-    #         y_min = int(y_min_f * raw_height)
-    #         x_max = int(x_max_f * raw_width)
-    #         y_max = int(y_max_f * raw_height)
-    #         # boxes.append({
-    #         #     'confidence': confidence,
-    #         #     'bbox': [x_min, y_min, x_max, y_max],
-    #         #     'bbox_norm': [x_min_f, y_min_f, x_max_f, y_max_f],
-    #         #     'class': class_index - 5,
-    #         #     'discard': False})
-    #     return 0
-
     @staticmethod
-    def decode_bounding_box(output_tensor, output_tensor_rows, output_tensor_cols, confidence_threshold):
-        boxes = []
+    def predict(model, img, device, confidence_threshold=0.2, nms_iou_threshold=0.45, verbose=False):
+        """
+        Detect object in image using trained YOLO model.
+        :param img: (width, height, channel) formatted image to be predicted.
+        :param confidence_threshold: threshold confidence score to detect object.
+        :param nms_iou_threshold: threshold to remove overlapped detection.
+        :return: dictionary array sorted by x position.
+        each dictionary has class index and bbox info: [x1, y1, x2, y2].
+        """
+        raw_width, raw_height = img.shape[1], img.shape[0]
+        input_shape = model.input_shape[1:]
+        input_width, input_height, _ = ModelUtil.get_width_height_channel_from_input_shape(input_shape)
+        output_shape = model.output_shape
+        num_output_layers = 1 if type(output_shape) == tuple else len(output_shape)
+        if num_output_layers == 1:
+            output_shape = [output_shape]
+
+        img = ModelUtil.resize(img, (input_width, input_height))
+        x = ModelUtil.preprocess(img)
+        x = np.reshape(x, (1,) + input_shape)
+        y = ModelUtil.graph_forward(model, x, device)
+        y = np.array(y)
+        if num_output_layers == 1:
+            y = [y]
+
+        output_tensor = y[0][0]
+        output_tensor_rows = output_shape[0][1]
+        output_tensor_cols = output_shape[0][2]
+
         cur_layer_output = output_tensor
         confidence_channel = output_tensor[:, :, 0]
         max_class_score_channel = np.max(output_tensor[:, :, 5:], axis=-1)
@@ -387,6 +370,7 @@ class Yolo:
         xmax = cx_channel + (w_channel * 0.5)
         ymax = cy_channel + (h_channel * 0.5)
 
+        boxes_before_nms = []
         for i, j in over_confidence_indexes:
             confidence = float(confidence_channel[i][j])
             class_index = int(max_class_index_channel[i][j])
@@ -394,53 +378,20 @@ class Yolo:
             ymin_f = float(ymin[i][j])
             xmax_f = float(xmax[i][j])
             ymax_f = float(ymax[i][j])
-            boxes.append({
+            boxes_before_nms.append({
                 'confidence': confidence,
-                # 'bbox': [x_min, y_min, x_max, y_max],
                 'bbox_norm': [xmin_f, ymin_f, xmax_f, ymax_f],
                 'class': class_index,
                 'discard': False})
-        return boxes
 
-    @staticmethod
-    def predict(model, img, device, confidence_threshold=0.2, nms_iou_threshold=0.45, verbose=False):
-        """
-        Detect object in image using trained YOLO model.
-        :param img: (width, height, channel) formatted image to be predicted.
-        :param confidence_threshold: threshold confidence score to detect object.
-        :param nms_iou_threshold: threshold to remove overlapped detection.
-        :return: dictionary array sorted by x position.
-        each dictionary has class index and bbox info: [x1, y1, x2, y2].
-        """
-        raw_width, raw_height = img.shape[1], img.shape[0]
-        input_shape = model.input_shape[1:]
-        input_width, input_height, _ = ModelUtil.get_width_height_channel_from_input_shape(input_shape)
-        output_shape = model.output_shape
-        num_output_layers = 1 if type(output_shape) == tuple else len(output_shape)
-        if num_output_layers == 1:
-            output_shape = [output_shape]
-
-        img = ModelUtil.resize(img, (input_width, input_height))
-        x = ModelUtil.preprocess(img)
-        x = np.reshape(x, (1,) + input_shape)
-        y = ModelUtil.graph_forward(model, x, device)
-        y = np.array(y)
-        if num_output_layers == 1:
-            y = [y]
-
-        bbox_count = 0
-        y_pred = []
-        image_data_format = tf.keras.backend.image_data_format()
-        boxes = Yolo.decode_bounding_box(y[0][0], output_shape[0][1], output_shape[0][2], confidence_threshold)
-        y_pred = ModelUtil.nms(boxes, nms_iou_threshold)
+        boxes = ModelUtil.nms(boxes_before_nms, nms_iou_threshold)
         if verbose:
-            print(f'before nms box count : {bbox_count}')
-            print(f'after  nms box count : {len(y_pred)}')
+            print(f'before nms box count : {len(boxes_before_nms)}')
+            print(f'after  nms box count : {len(boxes)}')
             print()
-            for box_info in y_pred:
+            for box_info in boxes:
                 class_index = box_info['class']
                 confidence = box_info['confidence']
-                # bbox = box_info['bbox']
                 bbox_norm = box_info['bbox_norm']
                 print(f'class index : {class_index}')
                 print(f'confidence : {confidence:.4f}')
@@ -448,7 +399,7 @@ class Yolo:
                 print(f'bbox(normalized) : {np.array(bbox_norm)}')
                 print()
             print()
-        return y_pred
+        return boxes
 
     def bounding_box(self, img, yolo_res, font_scale=0.4):
         """
