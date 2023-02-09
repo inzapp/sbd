@@ -103,7 +103,7 @@ class Model:
         x = self.conv_block(x, 256, 3, activation='relu')
         f2 = x
 
-        x = self.feature_pyramid_network([f0, f1, f2], [64, 128, 256], activation='relu', channel_reduction=False)
+        x = self.fpn_block([f0, f1, f2], [64, 128, 256], activation='relu', channel_reduction=False)
         y = self.detection_layer(x, 'sbd_output')
         return tf.keras.models.Model(input_layer, y)
 
@@ -143,7 +143,7 @@ class Model:
         x = self.conv_block(x, 512, 3, activation='relu')
         f2 = x
 
-        x = self.feature_pyramid_network([f0, f1, f2], [128, 256, 512], activation='relu', channel_reduction=True)
+        x = self.fpn_block([f0, f1, f2], [128, 256, 512], activation='relu', channel_reduction=True)
         y = self.detection_layer(x, 'sbd_output')
         return tf.keras.models.Model(input_layer, y)
 
@@ -183,7 +183,7 @@ class Model:
         x = self.conv_block(x, 758, 3, activation='relu')
         f2 = x
 
-        x = self.feature_pyramid_network([f0, f1, f2], [192, 384, 768], activation='relu', channel_reduction=True)
+        x = self.fpn_block([f0, f1, f2], [192, 384, 768], activation='relu', channel_reduction=True)
         y = self.detection_layer(x, 'sbd_output')
         return tf.keras.models.Model(input_layer, y)
 
@@ -223,7 +223,7 @@ class Model:
         x = self.conv_block(x, 1024, 3, activation='relu')
         f2 = x
 
-        x = self.feature_pyramid_network([f0, f1, f2], [256, 512, 1024], activation='relu', channel_reduction=True)
+        x = self.fpn_block([f0, f1, f2], [256, 512, 1024], activation='relu', channel_reduction=True)
         y = self.detection_layer(x, 'sbd_output')
         return tf.keras.models.Model(input_layer, y)
 
@@ -264,7 +264,7 @@ class Model:
         x = self.conv_block(x, 1024, 3, activation='relu')
         f2 = x
 
-        x = self.feature_pyramid_network([f0, f1, f2], [256, 512, 1024], activation='relu', channel_reduction=True)
+        x = self.fpn_block([f0, f1, f2], [256, 512, 1024], activation='relu', channel_reduction=True)
         y = self.detection_layer(x, 'sbd_output')
         return tf.keras.models.Model(input_layer, y)
 
@@ -317,7 +317,7 @@ class Model:
         x = self.conv_block(x, 512, 3, activation='relu')
         f2 = x
 
-        x = self.path_aggregation_network([f0, f1, f2], [192, 256, 512], activation='relu')
+        x = self.pa_block([f0, f1, f2], [192, 256, 512], activation='relu')
         y = self.detection_layer(x, 'sbd_output')
         return tf.keras.models.Model(input_layer, y)
 
@@ -370,7 +370,7 @@ class Model:
         x = self.conv_block(x, 512, 3, activation='relu')
         f2 = x
 
-        x = self.path_aggregation_network([f0, f1, f2], [256, 384, 512], activation='relu')
+        x = self.pa_block([f0, f1, f2], [256, 384, 512], activation='relu')
         y = self.detection_layer(x, 'sbd_output')
         return tf.keras.models.Model(input_layer, y)
 
@@ -410,7 +410,7 @@ class Model:
         x = self.conv_block(x, 256, 3, activation='relu')
         f2 = x
 
-        x = self.feature_pyramid_network([f0, f1, f2], [64, 128, 256], activation='relu')
+        x = self.fpn_block([f0, f1, f2], [64, 128, 256], activation='relu')
         y = self.detection_layer(x, 'sbd_output')
         return tf.keras.models.Model(input_layer, y)
 
@@ -440,7 +440,7 @@ class Model:
         x = self.csp_block(x, 512, 3, first_depth_n_convs=1, second_depth_n_convs=4, activation='relu', inner_activation='relu', drop_rate=self.drop_rates[4])
         f2 = x
 
-        x = self.feature_pyramid_network([f1, f2], [256, 256], activation='relu')
+        x = self.fpn_block([f1, f2], [256, 256], activation='relu')
         y = self.detection_layer(x)
         return tf.keras.models.Model(input_layer, y)
 
@@ -480,7 +480,7 @@ class Model:
         x = self.conv_block(x, 256, 3, activation='relu')
         f2 = x
 
-        x = self.feature_pyramid_network([f0, f1, f2], [64, 128, 256], activation='relu')
+        x = self.fpn_block([f0, f1, f2], [64, 128, 256], activation='relu')
         y = self.detection_layer(x, 'sbd_output')
         return tf.keras.models.Model(input_layer, y)
 
@@ -506,7 +506,7 @@ class Model:
         x = self.conv_block(x, 512, 3, activation='relu')
         f2 = x
 
-        x = self.feature_pyramid_network([f0, f1, f2], [128, 256, 512], activation='relu', additional_conv=False)
+        x = self.fpn_block([f0, f1, f2], [128, 256, 512], activation='relu', additional_conv=False)
         y = self.detection_layer(x, 'sbd_output')
         return tf.keras.models.Model(input_layer, y)
 
@@ -524,7 +524,7 @@ class Model:
         x = self.conv_block(x, input_filters, 1, bn=bn, activation='sigmoid')
         return tf.keras.layers.Multiply()([x, input_layer])
 
-    def feature_pyramid_network(self, layers, filters, activation, bn=False, return_layers=False, channel_reduction=True, additional_conv=True):
+    def fpn_block(self, layers, filters, activation, bn=False, return_layers=False, channel_reduction=True, additional_conv=True):
         assert type(layers) == list and type(filters) == list
         layers = list(reversed(layers))
         ret = [layers[0]]
@@ -542,7 +542,7 @@ class Model:
         layers = list(reversed(ret))
         return layers if return_layers else x
 
-    # def feature_pyramid_network(self, layers, filters, activation, bn=False, return_layers=False):
+    # def fpn_block(self, layers, filters, activation, bn=False, return_layers=False):
     #     assert type(layers) == list and type(filters) == list
     #     layers = list(reversed(layers))
     #     ret = [layers[0]]
@@ -557,7 +557,7 @@ class Model:
     #     layers = list(reversed(ret))
     #     return layers if return_layers else x
 
-    def path_aggregation_network(self, layers, filters, activation, bn=False, return_layers=False):
+    def pa_block(self, layers, filters, activation, bn=False, return_layers=False):
         assert type(layers) == list and type(filters) == list
         layers = list(reversed(layers))
 
