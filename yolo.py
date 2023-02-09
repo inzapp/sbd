@@ -20,17 +20,18 @@ limitations under the License.
 import os
 from time import time, sleep
 
+import cv2
 import numpy as np
 import tensorflow as tf
-import cv2
 
+from numba import jit
+from model import Model
 from util import ModelUtil
 from box_colors import colors
-from generator import YoloDataGenerator
-from loss import confidence_loss, confidence_with_bbox_loss, yolo_loss
-from mAP_calculator import calc_mean_average_precision
-from model import Model
 from lr_scheduler import LRScheduler
+from generator import YoloDataGenerator
+from mAP_calculator import calc_mean_average_precision
+from loss import confidence_loss, confidence_with_bbox_loss, yolo_loss
 
 
 class Yolo:
@@ -313,6 +314,94 @@ class Yolo:
         else:
             self.__model.save(f'{self.__checkpoint_path}/{self.__model_name}_{iteration_count}_iter.h5', include_optimizer=False)
 
+    # @staticmethod
+    # @jit
+    # def decode_bounding_box(output_shape, y, confidence_threshold, image_data_format, raw_width, raw_height):
+    #     # max_box_count = 512
+    #     # boxes = np.zeros(shape=(max_box_count, 11), dtype=np.float32)  # [confidence, xmin, ymin, xmax, ymax, xminf, yminf, xmaxf, ymaxf, class_index, discard]
+    #     # boxes = []
+    #     rows = output_shape[1]
+    #     cols = output_shape[2]
+    #     cur_layer_output = y
+    #     over_confidence_indexes = np.argwhere(cur_layer_output[:, :, 0] > confidence_threshold)
+    #     for i, j in over_confidence_indexes:
+    #         channel_axis_vector = cur_layer_output[i, j, :]
+    #         confidence = channel_axis_vector[0]
+    #         class_scores = channel_axis_vector[5:]
+    #         class_index = np.argmax(class_scores)
+    #         class_score = class_scores[class_index]
+    #         confidence *= class_score
+    #         if confidence < confidence_threshold:
+    #             continue
+
+    #         cx_f = (j + channel_axis_vector[1]) / float(cols)
+    #         cy_f = (i + channel_axis_vector[2]) / float(rows)
+    #         w = channel_axis_vector[3]
+    #         h = channel_axis_vector[4]
+    #         cx_f, cy_f, w, h = np.clip(np.array([cx_f, cy_f, w, h]), 0.0, 1.0)
+
+    #         x_min_f = cx_f - (w * 0.5)
+    #         y_min_f = cy_f - (h * 0.5)
+    #         x_max_f = cx_f + (w * 0.5)
+    #         y_max_f = cy_f + (h * 0.5)
+    #         x_min_f, y_min_f, x_max_f, y_max_f = np.clip(np.array([x_min_f, y_min_f, x_max_f, y_max_f]), 0.0, 1.0)
+    #         x_min = int(x_min_f * raw_width)
+    #         y_min = int(y_min_f * raw_height)
+    #         x_max = int(x_max_f * raw_width)
+    #         y_max = int(y_max_f * raw_height)
+    #         # boxes.append({
+    #         #     'confidence': confidence,
+    #         #     'bbox': [x_min, y_min, x_max, y_max],
+    #         #     'bbox_norm': [x_min_f, y_min_f, x_max_f, y_max_f],
+    #         #     'class': class_index - 5,
+    #         #     'discard': False})
+    #     return 0
+
+    @staticmethod
+    def decode_bounding_box(output_tensor, output_tensor_rows, output_tensor_cols, confidence_threshold):
+        boxes = []
+        cur_layer_output = output_tensor
+        confidence_channel = output_tensor[:, :, 0]
+        max_class_score_channel = np.max(output_tensor[:, :, 5:], axis=-1)
+        max_class_index_channel = np.argmax(output_tensor[:, :, 5:], axis=-1)
+        confidence_channel *= max_class_score_channel
+        over_confidence_indexes = np.argwhere(confidence_channel > confidence_threshold)
+
+        cx_channel = output_tensor[:, :, 1]
+        cy_channel = output_tensor[:, :, 2]
+        w_channel = output_tensor[:, :, 3]
+        h_channel = output_tensor[:, :, 4]
+
+        x_range = np.arange(output_tensor_cols, dtype=np.float32)
+        x_offset = np.broadcast_to(x_range, shape=cx_channel.shape)
+
+        y_range = np.arange(output_tensor_rows, dtype=np.float32)
+        y_range = np.reshape(y_range, newshape=(output_tensor_rows, 1))
+        y_offset = np.broadcast_to(y_range, shape=cy_channel.shape)
+
+        cx_channel = (x_offset + cx_channel) / output_tensor_cols
+        cy_channel = (y_offset + cy_channel) / output_tensor_rows
+
+        xmin = cx_channel - (w_channel * 0.5)
+        ymin = cy_channel - (h_channel * 0.5)
+        xmax = cx_channel + (w_channel * 0.5)
+        ymax = cy_channel + (h_channel * 0.5)
+
+        for i, j in over_confidence_indexes:
+            confidence = float(confidence_channel[i][j])
+            class_index = int(max_class_index_channel[i][j])
+            xmin_f = float(xmin[i][j])
+            ymin_f = float(ymin[i][j])
+            xmax_f = float(xmax[i][j])
+            ymax_f = float(ymax[i][j])
+            boxes.append({
+                'confidence': confidence,
+                # 'bbox': [x_min, y_min, x_max, y_max],
+                'bbox_norm': [xmin_f, ymin_f, xmax_f, ymax_f],
+                'class': class_index,
+                'discard': False})
+        return boxes
+
     @staticmethod
     def predict(model, img, device, confidence_threshold=0.2, nms_iou_threshold=0.45, verbose=False):
         """
@@ -342,54 +431,8 @@ class Yolo:
         bbox_count = 0
         y_pred = []
         image_data_format = tf.keras.backend.image_data_format()
-        for layer_index in range(num_output_layers):
-            rows = output_shape[layer_index][1]
-            cols = output_shape[layer_index][2]
-            cur_layer_output = y[layer_index][0]
-            over_confidence_indexes = np.argwhere(cur_layer_output[:, :, 0] > confidence_threshold)
-            for i, j in over_confidence_indexes:
-                confidence = cur_layer_output[i][j][0]
-                class_index = -1
-                class_score = 0.0
-                for cur_channel_index in range(5, output_shape[layer_index][3]):
-                    cur_class_score = cur_layer_output[i][j][cur_channel_index]
-                    if class_score < cur_class_score:
-                        class_index = cur_channel_index
-                        class_score = cur_class_score
-
-                confidence *= class_score
-                if confidence < confidence_threshold:
-                    continue
-
-                if image_data_format == 'channels_first':
-                    cx_f = (j + cur_layer_output[1][i][j]) / float(cols)
-                    cy_f = (i + cur_layer_output[2][i][j]) / float(rows)
-                    w = cur_layer_output[3][i][j]
-                    h = cur_layer_output[4][i][j]
-                else:
-                    cx_f = (j + cur_layer_output[i][j][1]) / float(cols)
-                    cy_f = (i + cur_layer_output[i][j][2]) / float(rows)
-                    w = cur_layer_output[i][j][3]
-                    h = cur_layer_output[i][j][4]
-                cx_f, cy_f, w, h = np.clip(np.array([cx_f, cy_f, w, h]), 0.0, 1.0)
-
-                x_min_f = cx_f - (w * 0.5)
-                y_min_f = cy_f - (h * 0.5)
-                x_max_f = cx_f + (w * 0.5)
-                y_max_f = cy_f + (h * 0.5)
-                x_min_f, y_min_f, x_max_f, y_max_f = np.clip(np.array([x_min_f, y_min_f, x_max_f, y_max_f]), 0.0, 1.0)
-                x_min = int(x_min_f * raw_width)
-                y_min = int(y_min_f * raw_height)
-                x_max = int(x_max_f * raw_width)
-                y_max = int(y_max_f * raw_height)
-                y_pred.append({
-                    'confidence': confidence,
-                    'bbox': [x_min, y_min, x_max, y_max],
-                    'bbox_norm': [x_min_f, y_min_f, x_max_f, y_max_f],
-                    'class': class_index - 5,
-                    'discard': False})
-                bbox_count += 1
-        y_pred = ModelUtil.nms(y_pred, nms_iou_threshold)
+        boxes = Yolo.decode_bounding_box(y[0][0], output_shape[0][1], output_shape[0][2], confidence_threshold)
+        y_pred = ModelUtil.nms(boxes, nms_iou_threshold)
         if verbose:
             print(f'before nms box count : {bbox_count}')
             print(f'after  nms box count : {len(y_pred)}')
@@ -397,7 +440,7 @@ class Yolo:
             for box_info in y_pred:
                 class_index = box_info['class']
                 confidence = box_info['confidence']
-                bbox = box_info['bbox']
+                # bbox = box_info['bbox']
                 bbox_norm = box_info['bbox_norm']
                 print(f'class index : {class_index}')
                 print(f'confidence : {confidence:.4f}')

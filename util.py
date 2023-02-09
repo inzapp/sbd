@@ -151,23 +151,23 @@ class ModelUtil:
         print(f'model forwarding time with {device} : {forwarding_time:.2f} ms')
 
     @staticmethod
-    def nms(y_pred, nms_iou_threshold):
-        y_pred = sorted(y_pred, key=lambda x: x['confidence'], reverse=True)
-        for i in range(len(y_pred) - 1):
-            if y_pred[i]['discard']:
+    def nms(boxes, nms_iou_threshold):
+        boxes = sorted(boxes, key=lambda x: x['confidence'], reverse=True)
+        for i in range(len(boxes) - 1):
+            if boxes[i]['discard']:
                 continue
-            for j in range(i + 1, len(y_pred)):
-                if y_pred[j]['discard'] or y_pred[i]['class'] != y_pred[j]['class']:
+            for j in range(i + 1, len(boxes)):
+                if boxes[j]['discard'] or boxes[i]['class'] != boxes[j]['class']:
                     continue
-                if ModelUtil.iou(y_pred[i]['bbox'], y_pred[j]['bbox']) > nms_iou_threshold:
-                    y_pred[j]['discard'] = True
+                if ModelUtil.iou(boxes[i]['bbox_norm'], boxes[j]['bbox_norm']) > nms_iou_threshold:
+                    boxes[j]['discard'] = True
 
-        y_pred_copy = np.asarray(y_pred.copy())
-        y_pred = []
+        y_pred_copy = np.asarray(boxes.copy())
+        boxes = []
         for i in range(len(y_pred_copy)):
             if not y_pred_copy[i]['discard']:
-                y_pred.append(y_pred_copy[i])
-        return y_pred
+                boxes.append(y_pred_copy[i])
+        return boxes
 
     @staticmethod
     def init_class_names(class_names_file_path):
