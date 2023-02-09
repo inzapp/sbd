@@ -49,6 +49,7 @@ class Model:
         self.models = dict()
         self.models['lightnet_nano'] = self.lightnet_nano
         self.models['lightnet_s'] = self.lightnet_s
+        self.models['lightnet_s_csp'] = self.lightnet_s_csp
         self.models['lightnet_m'] = self.lightnet_m
         self.models['lightnet_l'] = self.lightnet_l
         self.models['lightnet_x'] = self.lightnet_x
@@ -144,6 +145,40 @@ class Model:
         f2 = x
 
         x = self.fpn_block([f0, f1, f2], [128, 256, 512], activation='relu', channel_reduction=True)
+        y = self.detection_layer(x, 'sbd_output')
+        return tf.keras.models.Model(input_layer, y)
+
+    """
+    shape : (384, 640, 1)
+    GFLOPs : 10.2262
+    parameters : 4,725,830
+    forwarding time in cv22  nx8x : 20ms -> need retest
+    forwarding time in cv22 16x8x : 37ms -> need retest
+    """
+    def lightnet_s_csp(self):
+        input_layer = tf.keras.layers.Input(shape=self.input_shape)
+        x = self.conv_block(input_layer, 16, 3, activation='relu')
+        x = self.max_pool(x)
+
+        x = self.conv_block(x, 32, 3, activation='relu')
+        x = self.max_pool(x)
+
+        x = self.conv_block(x, 64, 3, activation='relu')
+        x = self.conv_block(x, 64, 3, activation='relu')
+        x = self.max_pool(x)
+
+        x = self.csp_block_new(x, 128, 3, depth=3, activation='relu')
+        f0 = x
+        x = self.max_pool(x)
+
+        x = self.csp_block_new(x, 256, 3, depth=3, activation='relu')
+        f1 = x
+        x = self.max_pool(x)
+
+        x = self.csp_block_new(x, 512, 3, depth=3, activation='relu')
+        f2 = x
+
+        x = self.csp_fpn_block([f0, f1, f2], [128, 256, 512], depth=3, activation='relu')
         y = self.detection_layer(x, 'sbd_output')
         return tf.keras.models.Model(input_layer, y)
 
@@ -542,6 +577,20 @@ class Model:
         layers = list(reversed(ret))
         return layers if return_layers else x
 
+    def csp_fpn_block(self, layers, filters, depth, activation, bn=False, return_layers=False):
+        assert type(layers) == list and type(filters) == list
+        layers = list(reversed(layers))
+        ret = [layers[0]]
+        filters = list(reversed(filters))
+        for i in range(len(layers) - 1):
+            x = tf.keras.layers.UpSampling2D()(layers[i] if i == 0 else x)
+            x = self.concat([x, layers[i+1]])
+            x = self.conv_block(x, filters[i+1], 1, bn=bn, activation=activation)
+            x = self.csp_block_new(x, filters[i+1], 3, depth=depth, activation=activation)
+            ret.append(x)
+        layers = list(reversed(ret))
+        return layers if return_layers else x
+
     # def fpn_block(self, layers, filters, activation, bn=False, return_layers=False):
     #     assert type(layers) == list and type(filters) == list
     #     layers = list(reversed(layers))
@@ -619,6 +668,18 @@ class Model:
         if bn:
             x = self.bn(x)
         x = self.activation(x, activation=activation)
+        x = self.conv_block(x, filters, 1, bn=bn, activation=activation)
+        return x
+
+    def csp_block_new(self, x, filters, kernel_size, depth, bn=False, activation='none'):
+        half_filters = filters / 2
+        x_0 = self.conv_block(x, half_filters, 1, bn=bn, activation=activation)
+        x_1 = self.conv_block(x, half_filters, 1, bn=bn, activation=activation)
+        for _ in range(depth):
+            x_0_1 = self.conv_block(x_0, half_filters, 1, bn=bn, activation=activation)
+            x_0_1 = self.conv_block(x_0_1, half_filters, kernel_size, bn=bn, activation=activation)
+            x_0 = self.add([x_0, x_0_1])
+        x = self.concat([x_0, x_1])
         x = self.conv_block(x, filters, 1, bn=bn, activation=activation)
         return x
 
@@ -719,7 +780,7 @@ class Model:
         return tf.keras.layers.BatchNormalization(beta_initializer=self.bias_initializer(), fused=True)(x)
 
     def kernel_initializer(self):
-        return tf.keras.initializers.he_normal()
+        return tf.keras.initializers.glorot_normal()
 
     def bias_initializer(self):
         return tf.keras.initializers.zeros()
