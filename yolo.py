@@ -71,7 +71,6 @@ class Yolo:
         self.max_map, self.max_f1, self.max_map_iou_hm, self.max_f1_iou_hm = 0.0, 0.0, 0.0, 0.0
 
         self.__input_width, self.__input_height, self.__input_channel = ModelUtil.get_width_height_channel_from_input_shape(input_shape)
-        ModelUtil.set_channel_order(input_shape)
         self.__class_names, self.__num_classes = ModelUtil.init_class_names(self.__class_names_file_path)
 
         pretrained_model_load_success = False
@@ -216,8 +215,7 @@ class Yolo:
         print('\nstart test forward for checking forwarding time.')
         if ModelUtil.available_device() == 'gpu':
             ModelUtil.check_forwarding_time(self.__model, device='gpu')
-        if tf.keras.backend.image_data_format() == 'channels_last':  # default max pool 2d layer is run on gpu only
-            ModelUtil.check_forwarding_time(self.__model, device='cpu')
+        ModelUtil.check_forwarding_time(self.__model, device='cpu')
 
         print(f'\nalpha : {self.__alphas}')
         print(f'gamma : {self.__gammas}')

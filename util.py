@@ -66,16 +66,6 @@ class ModelUtil:
         return image_paths
 
     @staticmethod
-    def set_channel_order(input_shape):
-        if input_shape[0] in [1, 3]:
-            tf.keras.backend.set_image_data_format('channels_first')
-        elif input_shape[2] in [1, 3]:
-            tf.keras.backend.set_image_data_format('channels_last')
-        else:
-            print(f'invalid input shape : {input_shape} input_shape[0] or input_shape[2] value must be 1(gray) or 3(rgb)')
-            exit(0)
-
-    @staticmethod
     def get_zero_mod_batch_size(image_paths_length):
         zero_mod_batch_size = 1
         for i in range(1, 256, 1):
@@ -108,14 +98,8 @@ class ModelUtil:
     @staticmethod
     def preprocess(img):
         x = np.asarray(img).astype('float32') / 255.0
-        if tf.keras.backend.image_data_format() == 'channels_first':
-            if len(img.shape) == 3:
-                x = x.transpose(x, (2, 0, 1))
-            else:
-                x = x.reshape((1,) + img.shape)
-        else:
-            if len(img.shape) == 1:
-                x = x.reshape(img.shape + (1,))
+        if len(img.shape) == 1:
+            x = x.reshape(img.shape + (1,))
         return x
 
     @staticmethod

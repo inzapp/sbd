@@ -74,10 +74,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         self.output_shapes = output_shapes
         if type(self.output_shapes) == tuple:
             self.output_shapes = [self.output_shapes]
-        if tf.keras.backend.image_data_format() == 'channels_first':
-            self.num_classes = self.output_shapes[0][1] - 5
-        else:
-            self.num_classes = self.output_shapes[0][-1] - 5
+        self.num_classes = self.output_shapes[0][-1] - 5
         self.batch_size = batch_size
         self.num_output_layers = len(self.output_shapes)
         self.multi_classification_at_same_box = multi_classification_at_same_box
@@ -376,7 +373,6 @@ class GeneratorFlow(tf.keras.utils.Sequence):
             mask.append(np.ones(shape=tuple(self.output_shapes[i][1:]), dtype=np.float32))
 
         allocated_count = 0
-        image_data_format = tf.keras.backend.image_data_format()
         for b in labeled_boxes:
             class_indexes, cx, cy, w, h = b['class_indexes'], b['cx'], b['cy'], b['w'], b['h']
             best_iou_layer_indexes = self.get_best_iou_layer_indexes([cx, cy, w, h])
@@ -390,72 +386,38 @@ class GeneratorFlow(tf.keras.utils.Sequence):
                 center_col = int(cx * output_cols)
                 cx_grid_scale = (cx - float(center_col) / output_cols) / (1.0 / output_cols)
                 cy_grid_scale = (cy - float(center_row) / output_rows) / (1.0 / output_rows)
-                if image_data_format == 'channels_first':
-                    nearby_grids = self.get_nearby_grids(
-                        confidence_channel=y[i][0, :, :],
-                        rows=output_rows,
-                        cols=output_cols,
-                        row=center_row,
-                        col=center_col,
-                        cx_grid=cx_grid_scale,
-                        cy_grid=cy_grid_scale,
-                        cx_raw=cx,
-                        cy_raw=cy,
-                        w=w,
-                        h=h)
-                    for grid in nearby_grids:
-                        if grid['iou'] < 0.8:
-                            break
-                        offset_y = grid['offset_y']
-                        offset_x = grid['offset_x']
-                        cx_grid = grid['cx_grid']
-                        cy_grid = grid['cy_grid']
-                        offset_center_row = center_row + offset_y
-                        offset_center_col = center_col + offset_x
-                        if y[i][0][offset_center_row][offset_center_col] == 0.0:
-                            y[i][0][offset_center_row][offset_center_col] = 1.0
-                            y[i][1][offset_center_row][offset_center_col] = cx_grid
-                            y[i][2][offset_center_row][offset_center_col] = cy_grid
-                            y[i][3][offset_center_row][offset_center_col] = w
-                            y[i][4][offset_center_row][offset_center_col] = h
-                            for class_index in class_indexes:
-                                y[i][class_index+5][center_row][center_col] = 1.0
-                            is_box_allocated = True
-                            allocated_count += 1
-                            break
-                else:
-                    nearby_grids = self.get_nearby_grids(
-                        confidence_channel=y[i][:, :, 0],
-                        rows=output_rows,
-                        cols=output_cols,
-                        row=center_row,
-                        col=center_col,
-                        cx_grid=cx_grid_scale,
-                        cy_grid=cy_grid_scale,
-                        cx_raw=cx,
-                        cy_raw=cy,
-                        w=w,
-                        h=h)
-                    for grid in nearby_grids:
-                        if grid['iou'] < 0.8:
-                            break
-                        offset_y = grid['offset_y']
-                        offset_x = grid['offset_x']
-                        cx_grid = grid['cx_grid']
-                        cy_grid = grid['cy_grid']
-                        offset_center_row = center_row + offset_y
-                        offset_center_col = center_col + offset_x
-                        if y[i][offset_center_row][offset_center_col][0] == 0.0:
-                            y[i][offset_center_row][offset_center_col][0] = 1.0
-                            y[i][offset_center_row][offset_center_col][1] = cx_grid
-                            y[i][offset_center_row][offset_center_col][2] = cy_grid
-                            y[i][offset_center_row][offset_center_col][3] = w
-                            y[i][offset_center_row][offset_center_col][4] = h
-                            for class_index in class_indexes:
-                                y[i][center_row][center_col][class_index+5] = 1.0
-                            is_box_allocated = True
-                            allocated_count += 1
-                            break
+                nearby_grids = self.get_nearby_grids(
+                    confidence_channel=y[i][:, :, 0],
+                    rows=output_rows,
+                    cols=output_cols,
+                    row=center_row,
+                    col=center_col,
+                    cx_grid=cx_grid_scale,
+                    cy_grid=cy_grid_scale,
+                    cx_raw=cx,
+                    cy_raw=cy,
+                    w=w,
+                    h=h)
+                for grid in nearby_grids:
+                    if grid['iou'] < 0.8:
+                        break
+                    offset_y = grid['offset_y']
+                    offset_x = grid['offset_x']
+                    cx_grid = grid['cx_grid']
+                    cy_grid = grid['cy_grid']
+                    offset_center_row = center_row + offset_y
+                    offset_center_col = center_col + offset_x
+                    if y[i][offset_center_row][offset_center_col][0] == 0.0:
+                        y[i][offset_center_row][offset_center_col][0] = 1.0
+                        y[i][offset_center_row][offset_center_col][1] = cx_grid
+                        y[i][offset_center_row][offset_center_col][2] = cy_grid
+                        y[i][offset_center_row][offset_center_col][3] = w
+                        y[i][offset_center_row][offset_center_col][4] = h
+                        for class_index in class_indexes:
+                            y[i][center_row][center_col][class_index+5] = 1.0
+                        is_box_allocated = True
+                        allocated_count += 1
+                        break
 
         # create mask after all value is allocated in train tensor
         if self.ignore_nearby_cell:
@@ -469,56 +431,31 @@ class GeneratorFlow(tf.keras.utils.Sequence):
                     center_col = int(cx * output_cols)
                     cx_grid_scale = (cx - float(center_col) / output_cols) / (1.0 / output_cols)
                     cy_grid_scale = (cy - float(center_row) / output_rows) / (1.0 / output_rows)
-                    if image_data_format == 'channels_first':
-                        nearby_grids = self.get_nearby_grids_for_mask(
-                            confidence_channel=y[i][0, :, :],
-                            rows=output_rows,
-                            cols=output_cols,
-                            row=center_row,
-                            col=center_col,
-                            cx_grid=cx_grid_scale,
-                            cy_grid=cy_grid_scale,
-                            cx_raw=cx,
-                            cy_raw=cy,
-                            w=w,
-                            h=h)
-                        for grid in nearby_grids:
-                            if grid['iou'] < self.nearby_cell_ignore_threshold:
-                                break
-                            offset_y = grid['offset_y']
-                            offset_x = grid['offset_x']
-                            offset_center_row = center_row + offset_y
-                            offset_center_col = center_col + offset_x
-                            if offset_y == 0 and offset_x == 0:  # ignore allocated object
-                                continue
-                            if y[i][0][offset_center_row][offset_center_col] == 0.0:
-                                mask[i][0][offset_center_row][offset_center_col] = 0.0
-                    else:
-                        nearby_grids = self.get_nearby_grids_for_mask(
-                            confidence_channel=y[i][:, :, 0],
-                            rows=output_rows,
-                            cols=output_cols,
-                            row=center_row,
-                            col=center_col,
-                            cx_grid=cx_grid_scale,
-                            cy_grid=cy_grid_scale,
-                            cx_raw=cx,
-                            cy_raw=cy,
-                            w=w,
-                            h=h)
-                        for grid in nearby_grids:
-                            if grid['iou'] < self.nearby_cell_ignore_threshold:
-                                break
-                            offset_y = grid['offset_y']
-                            offset_x = grid['offset_x']
-                            offset_center_row = center_row + offset_y
-                            offset_center_col = center_col + offset_x
-                            # if y[i][offset_center_row][offset_center_col][0] == 1.0:  # debug mark object for 2
-                            #     mask[i][offset_center_row][offset_center_col][0] = 2.0
-                            if offset_y == 0 and offset_x == 0:  # ignore allocated object
-                                continue
-                            if y[i][offset_center_row][offset_center_col][0] == 0.0:
-                                mask[i][offset_center_row][offset_center_col][0] = 0.0
+                    nearby_grids = self.get_nearby_grids_for_mask(
+                        confidence_channel=y[i][:, :, 0],
+                        rows=output_rows,
+                        cols=output_cols,
+                        row=center_row,
+                        col=center_col,
+                        cx_grid=cx_grid_scale,
+                        cy_grid=cy_grid_scale,
+                        cx_raw=cx,
+                        cy_raw=cy,
+                        w=w,
+                        h=h)
+                    for grid in nearby_grids:
+                        if grid['iou'] < self.nearby_cell_ignore_threshold:
+                            break
+                        offset_y = grid['offset_y']
+                        offset_x = grid['offset_x']
+                        offset_center_row = center_row + offset_y
+                        offset_center_col = center_col + offset_x
+                        # if y[i][offset_center_row][offset_center_col][0] == 1.0:  # debug mark object for 2
+                        #     mask[i][offset_center_row][offset_center_col][0] = 2.0
+                        if offset_y == 0 and offset_x == 0:  # ignore allocated object
+                            continue
+                        if y[i][offset_center_row][offset_center_col][0] == 0.0:
+                            mask[i][offset_center_row][offset_center_col][0] = 0.0
 
             # for i in range(self.output_shapes[0][1]):
             #     for j in range(self.output_shapes[0][2]):

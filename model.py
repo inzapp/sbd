@@ -547,10 +547,7 @@ class Model:
 
     def spatial_attention_block(self, x, activation, bn=False, reduction_ratio=16):
         input_layer = x
-        if tf.keras.backend.image_data_format() == 'channels_first':
-            input_filters = input_layer.shape[1]
-        else:
-            input_filters = input_layer.shape[-1]
+        input_filters = input_layer.shape[-1]
         reduced_channel = input_filters // reduction_ratio
         if reduced_channel < 4:
             reduced_channel = 4
