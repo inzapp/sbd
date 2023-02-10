@@ -393,7 +393,6 @@ class Yolo:
                 bbox_norm = box_info['bbox_norm']
                 print(f'class index : {class_index}')
                 print(f'confidence : {confidence:.4f}')
-                print(f'bbox : {np.array(bbox)}')
                 print(f'bbox(normalized) : {np.array(bbox_norm)}')
                 print()
             print()
