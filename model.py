@@ -51,8 +51,11 @@ class Model:
         self.models['lightnet_s'] = self.lightnet_s
         self.models['lightnet_s_csp'] = self.lightnet_s_csp
         self.models['lightnet_m'] = self.lightnet_m
+        self.models['lightnet_m_csp'] = self.lightnet_m_csp
         self.models['lightnet_l'] = self.lightnet_l
+        self.models['lightnet_l_csp'] = self.lightnet_l_csp
         self.models['lightnet_x'] = self.lightnet_x
+        self.models['lightnet_x_csp'] = self.lightnet_x_csp
         self.models['lpd_crop'] = self.lpd_crop
         self.models['lcd'] = self.lcd
         self.models['normal_model'] = self.normal_model
@@ -215,10 +218,44 @@ class Model:
 
         x = self.conv_block(x, 768, 3, activation='relu')
         x = self.conv_block(x, 384, 1, activation='relu')
-        x = self.conv_block(x, 758, 3, activation='relu')
+        x = self.conv_block(x, 768, 3, activation='relu')
         f2 = x
 
         x = self.fpn_block([f0, f1, f2], [192, 384, 768], activation='relu', channel_reduction=True)
+        y = self.detection_layer(x, 'sbd_output')
+        return tf.keras.models.Model(input_layer, y)
+
+    """
+    shape : (384, 640, 1)
+    GFLOPs : 16.5018
+    parameters : 7,378,438
+    forwarding time in cv22  nx8x : 20ms -> need retest
+    forwarding time in cv22 16x8x : 37ms -> need retest
+    """
+    def lightnet_m_csp(self):
+        input_layer = tf.keras.layers.Input(shape=self.input_shape)
+        x = self.conv_block(input_layer, 16, 3, activation='relu')
+        x = self.max_pool(x)
+
+        x = self.conv_block(x, 32, 3, activation='relu')
+        x = self.max_pool(x)
+
+        x = self.conv_block(x, 64, 3, activation='relu')
+        x = self.conv_block(x, 64, 3, activation='relu')
+        x = self.max_pool(x)
+
+        x = self.csp_block_new(x, 192, 3, depth=3, activation='relu')
+        f0 = x
+        x = self.max_pool(x)
+
+        x = self.csp_block_new(x, 384, 3, depth=4, activation='relu')
+        f1 = x
+        x = self.max_pool(x)
+
+        x = self.csp_block_new(x, 512, 3, depth=4, activation='relu')
+        f2 = x
+
+        x = self.csp_fpn_block([f0, f1, f2], [192, 384, 512], depth=3, activation='relu')
         y = self.detection_layer(x, 'sbd_output')
         return tf.keras.models.Model(input_layer, y)
 
@@ -264,6 +301,40 @@ class Model:
 
     """
     shape : (384, 640, 1)
+    GFLOPs : 29.9464
+    parameters : 11,625,542
+    forwarding time in cv22  nx8x : 20ms -> need retest
+    forwarding time in cv22 16x8x : 37ms -> need retest
+    """
+    def lightnet_l_csp(self):
+        input_layer = tf.keras.layers.Input(shape=self.input_shape)
+        x = self.conv_block(input_layer, 16, 3, activation='relu')
+        x = self.max_pool(x)
+
+        x = self.conv_block(x, 32, 3, activation='relu')
+        x = self.max_pool(x)
+
+        x = self.conv_block(x, 64, 3, activation='relu')
+        x = self.conv_block(x, 64, 3, activation='relu')
+        x = self.max_pool(x)
+
+        x = self.csp_block_new(x, 256, 3, depth=4, activation='relu')
+        f0 = x
+        x = self.max_pool(x)
+
+        x = self.csp_block_new(x, 512, 3, depth=4, activation='relu')
+        f1 = x
+        x = self.max_pool(x)
+
+        x = self.csp_block_new(x, 512, 3, depth=4, activation='relu')
+        f2 = x
+
+        x = self.csp_fpn_block([f0, f1, f2], [256, 512, 512], depth=4, activation='relu')
+        y = self.detection_layer(x, 'sbd_output')
+        return tf.keras.models.Model(input_layer, y)
+
+    """
+    shape : (384, 640, 1)
     GFLOPs : 45.2446
     parameters : 18,930,886
     forwarding time in cv22  nx8x : 95ms -> need retest
@@ -300,6 +371,40 @@ class Model:
         f2 = x
 
         x = self.fpn_block([f0, f1, f2], [256, 512, 1024], activation='relu', channel_reduction=True)
+        y = self.detection_layer(x, 'sbd_output')
+        return tf.keras.models.Model(input_layer, y)
+
+    """
+    shape : (384, 640, 1)
+    GFLOPs : 41.7350
+    parameters : 21,000,070
+    forwarding time in cv22  nx8x :
+    forwarding time in cv22 16x8x :
+    """
+    def lightnet_x_csp(self):
+        input_layer = tf.keras.layers.Input(shape=self.input_shape)
+        x = self.conv_block(input_layer, 32, 3, activation='relu')
+        x = self.max_pool(x)
+
+        x = self.conv_block(x, 64, 3, activation='relu')
+        x = self.max_pool(x)
+
+        x = self.conv_block(x, 128, 3, activation='relu')
+        x = self.conv_block(x, 128, 3, activation='relu')
+        x = self.max_pool(x)
+
+        x = self.csp_block_new(x, 256, 3, depth=4, activation='relu')
+        f0 = x
+        x = self.max_pool(x)
+
+        x = self.csp_block_new(x, 512, 3, depth=4, activation='relu')
+        f1 = x
+        x = self.max_pool(x)
+
+        x = self.csp_block_new(x, 1024, 3, depth=4, activation='relu')
+        f2 = x
+
+        x = self.csp_fpn_block([f0, f1, f2], [256, 512, 1024], depth=4, activation='relu')
         y = self.detection_layer(x, 'sbd_output')
         return tf.keras.models.Model(input_layer, y)
 
