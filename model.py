@@ -376,8 +376,8 @@ class Model:
 
     """
     shape : (384, 640, 1)
-    GFLOPs : 41.7350
-    parameters : 21,000,070
+    GFLOPs : 38.9977
+    parameters : 15,690,118
     forwarding time in cv22  nx8x :
     forwarding time in cv22 16x8x :
     """
@@ -401,10 +401,10 @@ class Model:
         f1 = x
         x = self.max_pool(x)
 
-        x = self.csp_block_new(x, 1024, 3, depth=4, activation='relu')
+        x = self.csp_block_new(x, 768, 3, depth=4, activation='relu')
         f2 = x
 
-        x = self.csp_fpn_block([f0, f1, f2], [256, 512, 1024], depth=4, activation='relu')
+        x = self.csp_fpn_block([f0, f1, f2], [256, 512, 768], depth=4, activation='relu')
         y = self.detection_layer(x, 'sbd_output')
         return tf.keras.models.Model(input_layer, y)
 
