@@ -6,4 +6,7 @@
 __pycache__/
 checkpoints/
 f1_result.txt
-cscope.out
+cscope.*
+checkpoint/
+annotations.csv
+predictions.csv
