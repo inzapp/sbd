@@ -289,18 +289,15 @@ class Yolo:
                 iteration_count += 1
                 print(self.build_loss_str(iteration_count, loss_vars), end='')
                 warm_up_end = iteration_count >= int(self.__iterations * self.__warm_up)
-                # warm_up_end = iteration_count >= int(self.__iterations * 0.7)
-                if warm_up_end and self.__training_view:
-                    self.__training_view_function()
-                if self.__map_checkpoint:
-                    if warm_up_end and iteration_count % self.__checkpoint_interval == 0 :
-                        self.__save_model(iteration_count=iteration_count, use_map_checkpoint=self.__map_checkpoint)
-                else:
-                    if iteration_count % self.__checkpoint_interval == 0:
+                if warm_up_end:
+                    if self.__training_view:
+                        self.__training_view_function()
+                    if self.__map_checkpoint and iteration_count % self.__checkpoint_interval == 0 and iteration_count < self.__iterations:
                         self.__save_model(iteration_count=iteration_count, use_map_checkpoint=self.__map_checkpoint)
                 if iteration_count % 2000 == 0:
                     self.__model.save('model_last.h5', include_optimizer=False)
                 if iteration_count == self.__iterations:
+                    self.__save_model(iteration_count=iteration_count, use_map_checkpoint=True)
                     print('\n\ntrain end successfully')
                     return
 
