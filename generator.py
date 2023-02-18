@@ -188,14 +188,27 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         for path in self.image_paths:
             fs.append(self.pool.submit(self.load_label, f'{path[:-4]}.txt'))
 
+        class_counts = np.zeros(shape=(self.num_classes,), dtype=np.int32)
         labeled_boxes, ws, hs = [], [], []
         for f in tqdm(fs):
             lines, label_path = f.result()
             for line in lines:
                 class_index, cx, cy, w, h = list(map(float, line.split()))
+                class_counts[int(class_index)] += 1
                 labeled_boxes.append([cx, cy, w, h])
                 ws.append(w)
                 hs.append(h)
+
+        total_box_count = np.sum(class_counts) + 1e-5
+        class_ratios = [class_count / total_box_count for class_count in class_counts]
+        inverse_class_ratios = [1.0 - class_ratio for class_ratio in class_ratios]
+        inverse_ratio_sum = np.sum(inverse_class_ratios) + 1e-5
+        class_weights = [inverse_class_ratio / inverse_ratio_sum for inverse_class_ratio in inverse_class_ratios]
+        print(f'\nclass weights')
+        for i in range(len(class_ratios)):
+            print(f'{class_counts[i]} : {class_weights[i]:.2f}')
+        print()
+        # exit(0)
 
         ws = np.asarray(ws).reshape((1, len(ws))).astype('float32')
         hs = np.asarray(hs).reshape((1, len(hs))).astype('float32')
