@@ -79,8 +79,8 @@ class Model:
     shape : (384, 640, 1)
     GFLOPs : 3.2095
     parameters : 1,608,294
-    forwarding time in cv22  nx8x : 12ms -> need retest
-    forwarding time in cv22 16x8x : 21ms -> need retest
+    forwarding time in CV22  nx8x : 12ms -> need retest
+    forwarding time in CV22 16x8x : 21ms -> need retest
     """
     def lightnet_nano(self):
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
@@ -114,10 +114,12 @@ class Model:
 
     """
     shape : (384, 640, 1)
-    GFLOPs : 
-    parameters : 
-    forwarding time in cv22  nx8x : 
-    forwarding time in cv22 16x8x : 
+    GFLOPs : 1.9766
+    parameters : 947,815
+    forwarding time in CV22
+        nx8x : 4.78ms
+        16x8x : 8.11ms
+        16x16x : 15.08ms
     """
     def lightnet_nano_csp(self):
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
@@ -150,8 +152,8 @@ class Model:
     shape : (384, 640, 1)
     GFLOPs : 10.2262
     parameters : 4,725,830
-    forwarding time in cv22  nx8x : 20ms -> need retest
-    forwarding time in cv22 16x8x : 37ms -> need retest
+    forwarding time in CV22  nx8x : 20ms -> need retest
+    forwarding time in CV22 16x8x : 37ms -> need retest
     """
     def lightnet_s(self):
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
@@ -188,10 +190,12 @@ class Model:
 
     """
     shape : (384, 640, 1)
-    GFLOPs : 10.2262
-    parameters : 4,725,830
-    forwarding time in cv22  nx8x : 20ms -> need retest
-    forwarding time in cv22 16x8x : 37ms -> need retest
+    GFLOPs : 7.8067
+    parameters : 3,785,159
+    forwarding time in CV22
+        nx8x : 15.28ms
+        16x8x : 28.12ms
+        16x16x : 55.61ms
     """
     def lightnet_s_csp(self):
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
@@ -224,8 +228,8 @@ class Model:
     shape : (384, 640, 1)
     GFLOPs : 19.6136
     parameters : 10,460,860
-    forwarding time in cv22  nx8x : 28ms -> need retest
-    forwarding time in cv22 16x8x : 51ms -> need retest
+    forwarding time in CV22  nx8x : 28ms -> need retest
+    forwarding time in CV22 16x8x : 51ms -> need retest
     """
     def lightnet_m(self):
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
@@ -262,10 +266,12 @@ class Model:
 
     """
     shape : (384, 640, 1)
-    GFLOPs : 16.5018
-    parameters : 7,378,438
-    forwarding time in cv22  nx8x : 20ms -> need retest
-    forwarding time in cv22 16x8x : 37ms -> need retest
+    GFLOPs : 16.0880
+    parameters : 7,113,927
+    forwarding time in CV22
+        nx8x : 29.91ms
+        16x8x : 55.85ms
+        16x16x : 111.71ms
     """
     def lightnet_m_csp(self):
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
@@ -279,27 +285,29 @@ class Model:
         x = self.conv_block(x, 64, 3, activation='relu')
         x = self.max_pool(x)
 
-        x = self.csp_block_new(x, 192, 3, depth=3, activation='relu')
+        x = self.csp_block_light(x, 192, 3, depth=4, activation='relu')
         f0 = x
         x = self.max_pool(x)
 
-        x = self.csp_block_new(x, 384, 3, depth=4, activation='relu')
+        x = self.csp_block_light(x, 384, 3, depth=4, activation='relu')
         f1 = x
         x = self.max_pool(x)
 
-        x = self.csp_block_new(x, 512, 3, depth=4, activation='relu')
+        x = self.csp_block_light(x, 512, 3, depth=4, activation='relu')
         f2 = x
 
-        x = self.csp_fpn_block([f0, f1, f2], [192, 384, 512], depth=3, activation='relu')
+        x = self.csp_fpn_block([f0, f1, f2], [192, 384, 512], depth=4, activation='relu')
         y = self.detection_layer(x, 'sbd_output')
         return tf.keras.models.Model(input_layer, y)
 
     """
     shape : (384, 640, 1)
-    GFLOPs : 32.6980
-    parameters : 18,566,470
-    forwarding time in cv22  nx8x : 56ms -> need retest
-    forwarding time in cv22 16x8x : 105ms -> need retest
+    GFLOPs : 24.6675
+    parameters : 9,319,495
+    forwarding time in CV22
+        nx8x : 
+        16x8x : 
+        16x16x : 169.54ms
     """
     def lightnet_l(self):
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
@@ -336,10 +344,12 @@ class Model:
 
     """
     shape : (384, 640, 1)
-    GFLOPs : 29.9464
-    parameters : 11,625,542
-    forwarding time in cv22  nx8x : 20ms -> need retest
-    forwarding time in cv22 16x8x : 37ms -> need retest
+    GFLOPs : 24.6675
+    parameters : 9,319,495
+    forwarding time in CV22
+        nx8x : 44.38ms
+        16x8x : 84.73ms
+        16x16x : 169.54ms
     """
     def lightnet_l_csp(self):
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
@@ -353,18 +363,18 @@ class Model:
         x = self.conv_block(x, 64, 3, activation='relu')
         x = self.max_pool(x)
 
-        x = self.csp_block_new(x, 256, 3, depth=4, activation='relu')
+        x = self.csp_block_light(x, 256, 3, depth=5, activation='relu')
         f0 = x
         x = self.max_pool(x)
 
-        x = self.csp_block_new(x, 512, 3, depth=4, activation='relu')
+        x = self.csp_block_light(x, 384, 3, depth=5, activation='relu')
         f1 = x
         x = self.max_pool(x)
 
-        x = self.csp_block_new(x, 512, 3, depth=4, activation='relu')
+        x = self.csp_block_light(x, 512, 3, depth=5, activation='relu')
         f2 = x
 
-        x = self.csp_fpn_block([f0, f1, f2], [256, 512, 512], depth=4, activation='relu')
+        x = self.csp_fpn_block([f0, f1, f2], [256, 384, 512], depth=5, activation='relu')
         y = self.detection_layer(x, 'sbd_output')
         return tf.keras.models.Model(input_layer, y)
 
@@ -372,8 +382,8 @@ class Model:
     shape : (384, 640, 1)
     GFLOPs : 45.2446
     parameters : 18,930,886
-    forwarding time in cv22  nx8x : 95ms -> need retest
-    forwarding time in cv22 16x8x : 178ms -> need retest
+    forwarding time in CV22  nx8x : 95ms -> need retest
+    forwarding time in CV22 16x8x : 178ms -> need retest
     """
     def lightnet_x(self):
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
@@ -411,10 +421,12 @@ class Model:
 
     """
     shape : (384, 640, 1)
-    GFLOPs : 38.9977
-    parameters : 15,690,118
-    forwarding time in cv22  nx8x :
-    forwarding time in cv22 16x8x :
+    GFLOPs : 46.8271
+    parameters : 14,740,679
+    forwarding time in CV22
+        nx8x : 82.97ms
+        16x8x : 160.21ms
+        16x16x : 318.20ms
     """
     def lightnet_x_csp(self):
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
@@ -422,24 +434,25 @@ class Model:
         x = self.max_pool(x)
 
         x = self.conv_block(x, 64, 3, activation='relu')
+        x = self.conv_block(x, 64, 3, activation='relu')
         x = self.max_pool(x)
 
         x = self.conv_block(x, 128, 3, activation='relu')
         x = self.conv_block(x, 128, 3, activation='relu')
         x = self.max_pool(x)
 
-        x = self.csp_block_new(x, 256, 3, depth=4, activation='relu')
+        x = self.csp_block_light(x, 256, 3, depth=6, activation='relu')
         f0 = x
         x = self.max_pool(x)
 
-        x = self.csp_block_new(x, 512, 3, depth=4, activation='relu')
+        x = self.csp_block_light(x, 512, 3, depth=6, activation='relu')
         f1 = x
         x = self.max_pool(x)
 
-        x = self.csp_block_new(x, 768, 3, depth=4, activation='relu')
+        x = self.csp_block_light(x, 512, 3, depth=6, activation='relu')
         f2 = x
 
-        x = self.csp_fpn_block([f0, f1, f2], [256, 512, 768], depth=4, activation='relu')
+        x = self.csp_fpn_block([f0, f1, f2], [256, 512, 512], depth=6, activation='relu')
         y = self.detection_layer(x, 'sbd_output')
         return tf.keras.models.Model(input_layer, y)
 
@@ -447,8 +460,8 @@ class Model:
     size : 640x384x1
     GFLOPs : 37.5203
     parameters : 15,574,481
-    forwarding time in cv22  nx8x : 67ms
-    forwarding time in cv22 16x8x : 
+    forwarding time in CV22  nx8x : 67ms
+    forwarding time in CV22 16x8x : 
     """
     def normal_model(self):
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
@@ -500,8 +513,8 @@ class Model:
     size : 640x384x1
     GFLOPs : 
     parameters : 
-    forwarding time in cv22  nx8x : 
-    forwarding time in cv22 16x8x : 
+    forwarding time in CV22  nx8x : 
+    forwarding time in CV22 16x8x : 
     """
     def normal_model2(self):
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
@@ -549,7 +562,7 @@ class Model:
         y = self.detection_layer(x, 'sbd_output')
         return tf.keras.models.Model(input_layer, y)
 
-    # (368, 640, 1) cv22 12ms
+    # (368, 640, 1) CV22 12ms
     def lpd_v1(self):
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
         x = self.conv_block(input_layer, 8, 3, activation='relu')
@@ -589,7 +602,7 @@ class Model:
         y = self.detection_layer(x, 'sbd_output')
         return tf.keras.models.Model(input_layer, y)
 
-    # (352, 640, 1) cv22 20ms (16x 8x)
+    # (352, 640, 1) CV22 20ms (16x 8x)
     def lpd_v2(self):
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
         x = self.conv_block(input_layer, 16, 3, activation='relu')
@@ -619,7 +632,7 @@ class Model:
         y = self.detection_layer(x)
         return tf.keras.models.Model(input_layer, y)
 
-    # (320, 320, 1) cv22 12ms
+    # (320, 320, 1) CV22 12ms
     def lpd_crop(self):
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
         x = self.conv_block(input_layer, 8, 3, activation='relu')
