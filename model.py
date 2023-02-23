@@ -48,6 +48,7 @@ class Model:
         self.drop_rates = [0.05, 0.1, 0.15, 0.2, 0.25]
         self.models = dict()
         self.models['lightnet_nano'] = self.lightnet_nano
+        self.models['lightnet_nano_csp'] = self.lightnet_nano_csp
         self.models['lightnet_s'] = self.lightnet_s
         self.models['lightnet_s_csp'] = self.lightnet_s_csp
         self.models['lightnet_m'] = self.lightnet_m
@@ -113,6 +114,40 @@ class Model:
 
     """
     shape : (384, 640, 1)
+    GFLOPs : 
+    parameters : 
+    forwarding time in cv22  nx8x : 
+    forwarding time in cv22 16x8x : 
+    """
+    def lightnet_nano_csp(self):
+        input_layer = tf.keras.layers.Input(shape=self.input_shape)
+        x = self.conv_block(input_layer, 8, 3, activation='relu')
+        x = self.max_pool(x)
+
+        x = self.conv_block(x, 16, 3, activation='relu')
+        x = self.max_pool(x)
+
+        x = self.conv_block(x, 32, 3, activation='relu')
+        x = self.conv_block(x, 32, 3, activation='relu')
+        x = self.max_pool(x)
+
+        x = self.csp_block_light(x, 64, 3, depth=3, activation='relu')
+        f0 = x
+        x = self.max_pool(x)
+
+        x = self.csp_block_light(x, 128, 3, depth=3, activation='relu')
+        f1 = x
+        x = self.max_pool(x)
+
+        x = self.csp_block_light(x, 256, 3, depth=3, activation='relu')
+        f2 = x
+
+        x = self.csp_fpn_block([f0, f1, f2], [64, 128, 256], depth=3, activation='relu')
+        y = self.detection_layer(x, 'sbd_output')
+        return tf.keras.models.Model(input_layer, y)
+
+    """
+    shape : (384, 640, 1)
     GFLOPs : 10.2262
     parameters : 4,725,830
     forwarding time in cv22  nx8x : 20ms -> need retest
@@ -170,15 +205,15 @@ class Model:
         x = self.conv_block(x, 64, 3, activation='relu')
         x = self.max_pool(x)
 
-        x = self.csp_block_new(x, 128, 3, depth=3, activation='relu')
+        x = self.csp_block_light(x, 128, 3, depth=3, activation='relu')
         f0 = x
         x = self.max_pool(x)
 
-        x = self.csp_block_new(x, 256, 3, depth=3, activation='relu')
+        x = self.csp_block_light(x, 256, 3, depth=3, activation='relu')
         f1 = x
         x = self.max_pool(x)
 
-        x = self.csp_block_new(x, 512, 3, depth=3, activation='relu')
+        x = self.csp_block_light(x, 512, 3, depth=3, activation='relu')
         f2 = x
 
         x = self.csp_fpn_block([f0, f1, f2], [128, 256, 512], depth=3, activation='relu')
@@ -679,16 +714,24 @@ class Model:
         layers = list(reversed(ret))
         return layers if return_layers else x
 
-    def csp_fpn_block(self, layers, filters, depth, activation, bn=False, return_layers=False):
+    def csp_fpn_block(self, layers, filters, depth, activation, bn=False, return_layers=False, mode='add'):
+        assert mode in ['add', 'concat']
         assert type(layers) == list and type(filters) == list
         layers = list(reversed(layers))
         ret = [layers[0]]
         filters = list(reversed(filters))
         for i in range(len(layers) - 1):
-            x = tf.keras.layers.UpSampling2D()(layers[i] if i == 0 else x)
-            x = self.concat([x, layers[i+1]])
-            x = self.conv_block(x, filters[i+1], 1, bn=bn, activation=activation)
-            x = self.csp_block_new(x, filters[i+1], 3, depth=depth, activation=activation)
+            x = layers[i] if i == 0 else x
+            if mode == 'add':
+                # if filters[i] != filters[i+1]:
+                x = self.conv_block(x, filters[i+1], 1, bn=bn, activation=activation)
+                x = self.upsampling(x)
+                x = self.add([x, layers[i+1]])
+            else:
+                x = self.upsampling(x)
+                x = self.concat([x, layers[i+1]])
+                x = self.conv_block(x, filters[i+1], 1, bn=bn, activation=activation)
+            x = self.csp_block_light(x, filters[i+1], 3, depth=depth, activation=activation)
             ret.append(x)
         layers = list(reversed(ret))
         return layers if return_layers else x
@@ -781,6 +824,32 @@ class Model:
             x_0_1 = self.conv_block(x_0, half_filters, 1, bn=bn, activation=activation)
             x_0_1 = self.conv_block(x_0_1, half_filters, kernel_size, bn=bn, activation=activation)
             x_0 = self.add([x_0, x_0_1])
+        x = self.concat([x_0, x_1])
+        # x = self.conv_block(x, filters, 1, bn=bn, activation=activation)
+        return x
+
+    def csp_block_light(self, x, filters, kernel_size, depth, bn=False, activation='none'):
+        half_filters = filters / 2
+        x_0 = self.conv_block(x, half_filters, 1, bn=bn, activation=activation)
+        x_1 = self.conv_block(x, half_filters, 1, bn=bn, activation=activation)
+        for _ in range(depth):
+            x_0 = self.conv_block(x_0, half_filters, kernel_size, bn=bn, activation=activation)
+        x = self.concat([x_0, x_1])
+        x = self.conv_block(x, filters, 1, bn=bn, activation=activation)
+        return x
+
+    def csp_block_light_2_depth(self, x, filters, kernel_size, depth, bn=False, activation='none'):
+        half_filters = filters // 2
+        quarter_filters = filters // 4
+        x_0 = self.conv_block(x, half_filters, 1, bn=bn, activation=activation)
+        x_1 = self.conv_block(x, half_filters, 1, bn=bn, activation=activation)
+        for _ in range(depth):
+            x_1 = self.conv_block(x_1, half_filters, kernel_size, bn=bn, activation=activation)
+        x_1_1 = self.conv_block(x_1, quarter_filters, 1, bn=bn, activation=activation)
+        for _ in range(depth):
+            x_1_1 = self.conv_block(x_1_1, quarter_filters, kernel_size, bn=bn, activation=activation)
+        x_1 = self.concat([x_1, x_1_1])
+        x_1 = self.conv_block(x_1, filters, 1, bn=bn, activation=activation)
         x = self.concat([x_0, x_1])
         x = self.conv_block(x, filters, 1, bn=bn, activation=activation)
         return x
