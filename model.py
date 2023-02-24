@@ -47,16 +47,11 @@ class Model:
         self.l2 = l2
         self.drop_rates = [0.05, 0.1, 0.15, 0.2, 0.25]
         self.models = dict()
-        self.models['lightnet_nano'] = self.lightnet_nano
-        self.models['lightnet_nano_csp'] = self.lightnet_nano_csp
-        self.models['lightnet_s'] = self.lightnet_s
-        self.models['lightnet_s_csp'] = self.lightnet_s_csp
-        self.models['lightnet_m'] = self.lightnet_m
-        self.models['lightnet_m_csp'] = self.lightnet_m_csp
-        self.models['lightnet_l'] = self.lightnet_l
-        self.models['lightnet_l_csp'] = self.lightnet_l_csp
-        self.models['lightnet_x'] = self.lightnet_x
-        self.models['lightnet_x_csp'] = self.lightnet_x_csp
+        self.models['n'] = self.n
+        self.models['s'] = self.s
+        self.models['m'] = self.m
+        self.models['l'] = self.l
+        self.models['x'] = self.x
         self.models['lpd_crop'] = self.lpd_crop
         self.models['lcd'] = self.lcd
         self.models['normal_model'] = self.normal_model
@@ -77,43 +72,6 @@ class Model:
 
     """
     shape : (384, 640, 1)
-    GFLOPs : 3.2095
-    parameters : 1,608,294
-    forwarding time in CV22  nx8x : 12ms -> need retest
-    forwarding time in CV22 16x8x : 21ms -> need retest
-    """
-    def lightnet_nano(self):
-        input_layer = tf.keras.layers.Input(shape=self.input_shape)
-        x = self.conv_block(input_layer, 8, 3, activation='relu')
-        x = self.max_pool(x)
-
-        x = self.conv_block(x, 16, 3, activation='relu')
-        x = self.max_pool(x)
-
-        x = self.conv_block(x, 32, 3, activation='relu')
-        x = self.conv_block(x, 32, 3, activation='relu')
-        x = self.max_pool(x)
-
-        x = self.conv_block(x, 64, 3, activation='relu')
-        x = self.conv_block(x, 64, 3, activation='relu')
-        f0 = x
-        x = self.max_pool(x)
-
-        x = self.conv_block(x, 128, 3, activation='relu')
-        x = self.conv_block(x, 128, 3, activation='relu')
-        f1 = x
-        x = self.max_pool(x)
-
-        x = self.conv_block(x, 256, 3, activation='relu')
-        x = self.conv_block(x, 256, 3, activation='relu')
-        f2 = x
-
-        x = self.fpn_block([f0, f1, f2], [64, 128, 256], activation='relu', channel_reduction=False)
-        y = self.detection_layer(x, 'sbd_output')
-        return tf.keras.models.Model(input_layer, y)
-
-    """
-    shape : (384, 640, 1)
     GFLOPs : 1.9766
     parameters : 947,815
     forwarding time in CV22
@@ -121,7 +79,7 @@ class Model:
         16x8x : 8.11ms
         16x16x : 15.08ms
     """
-    def lightnet_nano_csp(self):
+    def n(self):
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
         x = self.conv_block(input_layer, 8, 3, activation='relu')
         x = self.max_pool(x)
@@ -149,46 +107,6 @@ class Model:
 
     """
     shape : (384, 640, 1)
-    GFLOPs : 10.2262
-    parameters : 4,725,830
-    forwarding time in CV22  nx8x : 20ms -> need retest
-    forwarding time in CV22 16x8x : 37ms -> need retest
-    """
-    def lightnet_s(self):
-        input_layer = tf.keras.layers.Input(shape=self.input_shape)
-        x = self.conv_block(input_layer, 16, 3, activation='relu')
-        x = self.max_pool(x)
-
-        x = self.conv_block(x, 32, 3, activation='relu')
-        x = self.max_pool(x)
-
-        x = self.conv_block(x, 64, 3, activation='relu')
-        x = self.conv_block(x, 64, 3, activation='relu')
-        x = self.max_pool(x)
-
-        x = self.conv_block(x, 128, 3, activation='relu')
-        x = self.conv_block(x,  64, 1, activation='relu')
-        x = self.conv_block(x, 128, 3, activation='relu')
-        f0 = x
-        x = self.max_pool(x)
-
-        x = self.conv_block(x, 256, 3, activation='relu')
-        x = self.conv_block(x, 128, 1, activation='relu')
-        x = self.conv_block(x, 256, 3, activation='relu')
-        f1 = x
-        x = self.max_pool(x)
-
-        x = self.conv_block(x, 512, 3, activation='relu')
-        x = self.conv_block(x, 256, 1, activation='relu')
-        x = self.conv_block(x, 512, 3, activation='relu')
-        f2 = x
-
-        x = self.fpn_block([f0, f1, f2], [128, 256, 512], activation='relu', channel_reduction=True)
-        y = self.detection_layer(x, 'sbd_output')
-        return tf.keras.models.Model(input_layer, y)
-
-    """
-    shape : (384, 640, 1)
     GFLOPs : 7.8067
     parameters : 3,785,159
     forwarding time in CV22
@@ -196,7 +114,7 @@ class Model:
         16x8x : 28.12ms
         16x16x : 55.61ms
     """
-    def lightnet_s_csp(self):
+    def s(self):
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
         x = self.conv_block(input_layer, 16, 3, activation='relu')
         x = self.max_pool(x)
@@ -224,46 +142,6 @@ class Model:
 
     """
     shape : (384, 640, 1)
-    GFLOPs : 19.6136
-    parameters : 10,460,860
-    forwarding time in CV22  nx8x : 28ms -> need retest
-    forwarding time in CV22 16x8x : 51ms -> need retest
-    """
-    def lightnet_m(self):
-        input_layer = tf.keras.layers.Input(shape=self.input_shape)
-        x = self.conv_block(input_layer, 16, 3, activation='relu')
-        x = self.max_pool(x)
-
-        x = self.conv_block(x, 32, 3, activation='relu')
-        x = self.max_pool(x)
-
-        x = self.conv_block(x, 64, 3, activation='relu')
-        x = self.conv_block(x, 64, 3, activation='relu')
-        x = self.max_pool(x)
-
-        x = self.conv_block(x, 192, 3, activation='relu')
-        x = self.conv_block(x,  96, 1, activation='relu')
-        x = self.conv_block(x, 192, 3, activation='relu')
-        f0 = x
-        x = self.max_pool(x)
-
-        x = self.conv_block(x, 384, 3, activation='relu')
-        x = self.conv_block(x, 192, 1, activation='relu')
-        x = self.conv_block(x, 384, 3, activation='relu')
-        f1 = x
-        x = self.max_pool(x)
-
-        x = self.conv_block(x, 768, 3, activation='relu')
-        x = self.conv_block(x, 384, 1, activation='relu')
-        x = self.conv_block(x, 768, 3, activation='relu')
-        f2 = x
-
-        x = self.fpn_block([f0, f1, f2], [192, 384, 768], activation='relu', channel_reduction=True)
-        y = self.detection_layer(x, 'sbd_output')
-        return tf.keras.models.Model(input_layer, y)
-
-    """
-    shape : (384, 640, 1)
     GFLOPs : 16.0880
     parameters : 7,113,927
     forwarding time in CV22
@@ -271,7 +149,7 @@ class Model:
         16x8x : 55.85ms
         16x16x : 111.71ms
     """
-    def lightnet_m_csp(self):
+    def m(self):
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
         x = self.conv_block(input_layer, 16, 3, activation='relu')
         x = self.max_pool(x)
@@ -302,53 +180,11 @@ class Model:
     GFLOPs : 24.6675
     parameters : 9,319,495
     forwarding time in CV22
-        nx8x : 
-        16x8x : 
-        16x16x : 169.54ms
-    """
-    def lightnet_l(self):
-        input_layer = tf.keras.layers.Input(shape=self.input_shape)
-        x = self.conv_block(input_layer, 16, 3, activation='relu')
-        x = self.max_pool(x)
-
-        x = self.conv_block(x, 32, 3, activation='relu')
-        x = self.max_pool(x)
-
-        x = self.conv_block(x, 64, 3, activation='relu')
-        x = self.conv_block(x, 64, 3, activation='relu')
-        x = self.max_pool(x)
-
-        x = self.conv_block(x, 256, 3, activation='relu')
-        x = self.conv_block(x, 128, 1, activation='relu')
-        x = self.conv_block(x, 256, 3, activation='relu')
-        f0 = x
-        x = self.max_pool(x)
-
-        x = self.conv_block(x, 512, 3, activation='relu')
-        x = self.conv_block(x, 256, 1, activation='relu')
-        x = self.conv_block(x, 512, 3, activation='relu')
-        f1 = x
-        x = self.max_pool(x)
-
-        x = self.conv_block(x, 1024, 3, activation='relu')
-        x = self.conv_block(x,  512, 1, activation='relu')
-        x = self.conv_block(x, 1024, 3, activation='relu')
-        f2 = x
-
-        x = self.fpn_block([f0, f1, f2], [256, 512, 1024], activation='relu', channel_reduction=True)
-        y = self.detection_layer(x, 'sbd_output')
-        return tf.keras.models.Model(input_layer, y)
-
-    """
-    shape : (384, 640, 1)
-    GFLOPs : 24.6675
-    parameters : 9,319,495
-    forwarding time in CV22
         nx8x : 44.38ms
         16x8x : 84.73ms
         16x16x : 169.54ms
     """
-    def lightnet_l_csp(self):
+    def l(self):
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
         x = self.conv_block(input_layer, 16, 3, activation='relu')
         x = self.max_pool(x)
@@ -376,47 +212,6 @@ class Model:
 
     """
     shape : (384, 640, 1)
-    GFLOPs : 45.2446
-    parameters : 18,930,886
-    forwarding time in CV22  nx8x : 95ms -> need retest
-    forwarding time in CV22 16x8x : 178ms -> need retest
-    """
-    def lightnet_x(self):
-        input_layer = tf.keras.layers.Input(shape=self.input_shape)
-        x = self.conv_block(input_layer, 32, 3, activation='relu')
-        x = self.max_pool(x)
-
-        x = self.conv_block(x, 64, 3, activation='relu')
-        x = self.conv_block(x, 64, 3, activation='relu')
-        x = self.max_pool(x)
-
-        x = self.conv_block(x, 128, 3, activation='relu')
-        x = self.conv_block(x, 128, 3, activation='relu')
-        x = self.max_pool(x)
-
-        x = self.conv_block(x, 256, 3, activation='relu')
-        x = self.conv_block(x, 128, 1, activation='relu')
-        x = self.conv_block(x, 256, 3, activation='relu')
-        f0 = x
-        x = self.max_pool(x)
-
-        x = self.conv_block(x, 512, 3, activation='relu')
-        x = self.conv_block(x, 256, 1, activation='relu')
-        x = self.conv_block(x, 512, 3, activation='relu')
-        f1 = x
-        x = self.max_pool(x)
-
-        x = self.conv_block(x, 1024, 3, activation='relu')
-        x = self.conv_block(x,  512, 1, activation='relu')
-        x = self.conv_block(x, 1024, 3, activation='relu')
-        f2 = x
-
-        x = self.fpn_block([f0, f1, f2], [256, 512, 1024], activation='relu', channel_reduction=True)
-        y = self.detection_layer(x, 'sbd_output')
-        return tf.keras.models.Model(input_layer, y)
-
-    """
-    shape : (384, 640, 1)
     GFLOPs : 46.8271
     parameters : 14,740,679
     forwarding time in CV22
@@ -424,7 +219,7 @@ class Model:
         16x8x : 160.21ms
         16x16x : 318.20ms
     """
-    def lightnet_x_csp(self):
+    def x(self):
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
         x = self.conv_block(input_layer, 32, 3, activation='relu')
         x = self.max_pool(x)
@@ -501,59 +296,6 @@ class Model:
         f2 = x
 
         x = self.pa_block([f0, f1, f2], [192, 256, 512], activation='relu')
-        y = self.detection_layer(x, 'sbd_output')
-        return tf.keras.models.Model(input_layer, y)
-
-    """
-    size : 640x384x1
-    GFLOPs : 
-    parameters : 
-    forwarding time in CV22  nx8x : 
-    forwarding time in CV22 16x8x : 
-    """
-    def normal_model2(self):
-        input_layer = tf.keras.layers.Input(shape=self.input_shape)
-        x = input_layer
-        x = self.conv_block(x, 32, 3, activation='relu')
-        x = self.conv_block(x, 32, 3, activation='relu')
-        x = self.max_pool(x)
-
-        x = self.dropout(x, self.drop_rates[0])
-        x = self.conv_block(x, 64, 3, activation='relu')
-        x = self.conv_block(x, 64, 3, activation='relu')
-        x = self.max_pool(x)
-
-        x = self.dropout(x, self.drop_rates[1])
-        x = self.conv_block(x, 128, 3, activation='relu')
-        x = self.conv_block(x, 128, 3, activation='relu')
-        x = self.conv_block(x, 128, 3, activation='relu')
-        x = self.max_pool(x)
-
-        x = self.dropout(x, self.drop_rates[2])
-        x = self.conv_block(x, 256, 3, activation='relu')
-        x = self.conv_block(x, 256, 3, activation='relu')
-        x = self.conv_block(x, 256, 3, activation='relu')
-        f0 = x
-        x = self.max_pool(x)
-
-        x = self.dropout(x, self.drop_rates[3])
-        x = self.conv_block(x, 384, 3, activation='relu')
-        x = self.conv_block(x, 384, 3, activation='relu')
-        x = self.conv_block(x, 256, 1, activation='relu')
-        x = self.conv_block(x, 384, 3, activation='relu')
-        x = self.conv_block(x, 384, 3, activation='relu')
-        f1 = x
-        x = self.max_pool(x)
-
-        x = self.dropout(x, self.drop_rates[4])
-        x = self.conv_block(x, 512, 3, activation='relu')
-        x = self.conv_block(x, 512, 3, activation='relu')
-        x = self.conv_block(x, 256, 1, activation='relu')
-        x = self.conv_block(x, 512, 3, activation='relu')
-        x = self.conv_block(x, 512, 3, activation='relu')
-        f2 = x
-
-        x = self.pa_block([f0, f1, f2], [256, 384, 512], activation='relu')
         y = self.detection_layer(x, 'sbd_output')
         return tf.keras.models.Model(input_layer, y)
 
