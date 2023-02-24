@@ -142,9 +142,8 @@ class Model:
         x = self.max_pool(x)
 
         x = self.csp_block_light(x, 256, 3, depth=3, activation='relu')
-        f2 = x
 
-        x = self.csp_fpn_block([f0, f1, f2], [64, 128, 256], depth=3, activation='relu')
+        x = self.csp_fpn_block(x, [f1, f0], [128, 64], depth=3, activation='relu')
         y = self.detection_layer(x, 'sbd_output')
         return tf.keras.models.Model(input_layer, y)
 
@@ -218,9 +217,8 @@ class Model:
         x = self.max_pool(x)
 
         x = self.csp_block_light(x, 512, 3, depth=3, activation='relu')
-        f2 = x
 
-        x = self.csp_fpn_block([f0, f1, f2], [128, 256, 512], depth=3, activation='relu')
+        x = self.csp_fpn_block(x, [f1, f0], [256, 128], depth=3, activation='relu')
         y = self.detection_layer(x, 'sbd_output')
         return tf.keras.models.Model(input_layer, y)
 
@@ -294,9 +292,8 @@ class Model:
         x = self.max_pool(x)
 
         x = self.csp_block_light(x, 512, 3, depth=4, activation='relu')
-        f2 = x
 
-        x = self.csp_fpn_block([f0, f1, f2], [192, 384, 512], depth=4, activation='relu')
+        x = self.csp_fpn_block(x, [f1, f0], [384, 192], depth=4, activation='relu')
         y = self.detection_layer(x, 'sbd_output')
         return tf.keras.models.Model(input_layer, y)
 
@@ -372,9 +369,8 @@ class Model:
         x = self.max_pool(x)
 
         x = self.csp_block_light(x, 512, 3, depth=5, activation='relu')
-        f2 = x
 
-        x = self.csp_fpn_block([f0, f1, f2], [256, 384, 512], depth=5, activation='relu')
+        x = self.csp_fpn_block(x, [f1, f0], [384, 256], depth=5, activation='relu')
         y = self.detection_layer(x, 'sbd_output')
         return tf.keras.models.Model(input_layer, y)
 
@@ -450,9 +446,8 @@ class Model:
         x = self.max_pool(x)
 
         x = self.csp_block_light(x, 512, 3, depth=6, activation='relu')
-        f2 = x
 
-        x = self.csp_fpn_block([f0, f1, f2], [256, 512, 512], depth=6, activation='relu')
+        x = self.csp_fpn_block(x, [f1, f0], [512, 256], depth=6, activation='relu')
         y = self.detection_layer(x, 'sbd_output')
         return tf.keras.models.Model(input_layer, y)
 
@@ -727,24 +722,20 @@ class Model:
         layers = list(reversed(ret))
         return layers if return_layers else x
 
-    def csp_fpn_block(self, layers, filters, depth, activation, bn=False, return_layers=False, mode='add'):
+    def csp_fpn_block(self, x, layers, filters, depth, activation, bn=False, return_layers=False, mode='add'):
         assert mode in ['add', 'concat']
         assert type(layers) == list and type(filters) == list
-        layers = list(reversed(layers))
-        ret = [layers[0]]
-        filters = list(reversed(filters))
-        for i in range(len(layers) - 1):
-            x = layers[i] if i == 0 else x
+        ret = [x]
+        for i in range(len(layers)):
             if mode == 'add':
-                # if filters[i] != filters[i+1]:
-                x = self.conv_block(x, filters[i+1], 1, bn=bn, activation=activation)
+                x = self.conv_block(x, filters[i], 1, bn=bn, activation=activation)
                 x = self.upsampling(x)
-                x = self.add([x, layers[i+1]])
+                x = self.add([x, layers[i]])
             else:
                 x = self.upsampling(x)
-                x = self.concat([x, layers[i+1]])
-                x = self.conv_block(x, filters[i+1], 1, bn=bn, activation=activation)
-            x = self.csp_block_light(x, filters[i+1], 3, depth=depth, activation=activation)
+                x = self.concat([x, layers[i]])
+                x = self.conv_block(x, filters[i], 1, bn=bn, activation=activation)
+            x = self.csp_block_light(x, filters[i], 3, depth=depth, activation=activation)
             ret.append(x)
         layers = list(reversed(ret))
         return layers if return_layers else x
