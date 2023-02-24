@@ -45,7 +45,6 @@ class Model:
         self.input_shape = input_shape
         self.output_channel = output_channel
         self.l2 = l2
-        self.drop_rates = [0.05, 0.1, 0.15, 0.2, 0.25]
         self.models = dict()
         self.models['n'] = self.n
         self.models['s'] = self.s
@@ -260,25 +259,21 @@ class Model:
         x = self.conv_block(x, 24, 3, activation='relu')
         x = self.max_pool(x)
 
-        x = self.dropout(x, self.drop_rates[0])
         x = self.conv_block(x, 48, 3, activation='relu')
         x = self.conv_block(x, 48, 3, activation='relu')
         x = self.max_pool(x)
 
-        x = self.dropout(x, self.drop_rates[1])
         x = self.conv_block(x, 96, 3, activation='relu')
         x = self.conv_block(x, 96, 3, activation='relu')
         x = self.conv_block(x, 96, 3, activation='relu')
         x = self.max_pool(x)
 
-        x = self.dropout(x, self.drop_rates[2])
         x = self.conv_block(x, 192, 3, activation='relu')
         x = self.conv_block(x, 192, 3, activation='relu')
         x = self.conv_block(x, 192, 3, activation='relu')
         f0 = x
         x = self.max_pool(x)
 
-        x = self.dropout(x, self.drop_rates[3])
         x = self.conv_block(x, 256, 3, activation='relu')
         x = self.conv_block(x, 256, 3, activation='relu')
         x = self.conv_block(x, 128, 1, activation='relu')
@@ -287,7 +282,6 @@ class Model:
         f1 = x
         x = self.max_pool(x)
 
-        x = self.dropout(x, self.drop_rates[4])
         x = self.conv_block(x, 512, 3, activation='relu')
         x = self.conv_block(x, 512, 3, activation='relu')
         x = self.conv_block(x, 256, 1, activation='relu')
@@ -305,33 +299,24 @@ class Model:
         x = self.conv_block(input_layer, 8, 3, activation='relu')
         x = self.max_pool(x)
 
-        x = self.dropout(x, self.drop_rates[0])
         x = self.conv_block(x, 16, 3, activation='relu')
         x = self.max_pool(x)
 
-        x = self.dropout(x, self.drop_rates[1])
         x = self.conv_block(x, 32, 3, activation='relu')
-        x = self.dropout(x, self.drop_rates[1])
         x = self.conv_block(x, 32, 3, activation='relu')
         x = self.max_pool(x)
 
-        x = self.dropout(x, self.drop_rates[2])
         x = self.conv_block(x, 64, 3, activation='relu')
-        x = self.dropout(x, self.drop_rates[2])
         x = self.conv_block(x, 64, 3, activation='relu')
         f0 = x
         x = self.max_pool(x)
 
-        x = self.dropout(x, self.drop_rates[3])
         x = self.conv_block(x, 128, 3, activation='relu')
-        x = self.dropout(x, self.drop_rates[3])
         x = self.conv_block(x, 128, 3, activation='relu')
         f1 = x
         x = self.max_pool(x)
 
-        x = self.dropout(x, self.drop_rates[4])
         x = self.conv_block(x, 256, 3, activation='relu')
-        x = self.dropout(x, self.drop_rates[4])
         x = self.conv_block(x, 256, 3, activation='relu')
         f2 = x
 
@@ -345,24 +330,21 @@ class Model:
         x = self.conv_block(input_layer, 16, 3, activation='relu')
         x = self.max_pool(x)
 
-        x = self.dropout(x, self.drop_rates[0])
         x = self.conv_block(x, 16, 3, activation='relu')
         x = self.max_pool(x)
 
-        x = self.dropout(x, self.drop_rates[1])
         x = self.conv_block(x, 32, 3, activation='relu')
-        x = self.dropout(x, self.drop_rates[1])
         x = self.conv_block(x, 32, 3, activation='relu')
         x = self.max_pool(x)
 
-        x = self.csp_block(x, 128, 3, first_depth_n_convs=1, second_depth_n_convs=4, activation='relu', inner_activation='relu', drop_rate=self.drop_rates[2])
+        x = self.csp_block(x, 128, 3, first_depth_n_convs=1, second_depth_n_convs=4, activation='relu', inner_activation='relu')
         x = self.max_pool(x)
         f1 = x
 
-        x = self.csp_block(x, 256, 3, first_depth_n_convs=1, second_depth_n_convs=4, activation='relu', inner_activation='relu', drop_rate=self.drop_rates[3])
+        x = self.csp_block(x, 256, 3, first_depth_n_convs=1, second_depth_n_convs=4, activation='relu', inner_activation='relu')
         x = self.max_pool(x)
 
-        x = self.csp_block(x, 512, 3, first_depth_n_convs=1, second_depth_n_convs=4, activation='relu', inner_activation='relu', drop_rate=self.drop_rates[4])
+        x = self.csp_block(x, 512, 3, first_depth_n_convs=1, second_depth_n_convs=4, activation='relu', inner_activation='relu')
         f2 = x
 
         x = self.fpn_block([f1, f2], [256, 256], activation='relu')
@@ -375,33 +357,24 @@ class Model:
         x = self.conv_block(input_layer, 8, 3, activation='relu')
         x = self.max_pool(x)
 
-        x = self.dropout(x, self.drop_rates[0])
         x = self.conv_block(x, 16, 3, activation='relu')
         x = self.max_pool(x)
 
-        x = self.dropout(x, self.drop_rates[1])
         x = self.conv_block(x, 32, 3, activation='relu')
-        x = self.dropout(x, self.drop_rates[1])
         x = self.conv_block(x, 32, 3, activation='relu')
         x = self.max_pool(x)
 
-        x = self.dropout(x, self.drop_rates[2])
         x = self.conv_block(x, 64, 3, activation='relu')
-        x = self.dropout(x, self.drop_rates[2])
         x = self.conv_block(x, 64, 3, activation='relu')
         f0 = x
         x = self.max_pool(x)
 
-        x = self.dropout(x, self.drop_rates[3])
         x = self.conv_block(x, 128, 3, activation='relu')
-        x = self.dropout(x, self.drop_rates[3])
         x = self.conv_block(x, 128, 3, activation='relu')
         f1 = x
         x = self.max_pool(x)
 
-        x = self.dropout(x, self.drop_rates[4])
         x = self.conv_block(x, 256, 3, activation='relu')
-        x = self.dropout(x, self.drop_rates[4])
         x = self.conv_block(x, 256, 3, activation='relu')
         f2 = x
 
@@ -538,21 +511,23 @@ class Model:
         layers = list(reversed(ret))
         return layers if return_layers else x
 
-    def csp_block(self, x, filters, kernel_size, drop_rate, first_depth_n_convs=1, second_depth_n_convs=2, bn=False, activation='none', inner_activation='none'):
+    def csp_block(self, x, filters, kernel_size, drop_rate=0.0, first_depth_n_convs=1, second_depth_n_convs=2, bn=False, activation='none', inner_activation='none'):
         half_filters = filters / 2
         x_0 = self.conv_block(x, half_filters, 1, activation='none')
         for i in range(first_depth_n_convs):
             if i == 0:
                 x_1 = self.conv_block(x, half_filters, 1, activation=inner_activation)
             else:
-                x_1 = self.dropout(x_1, drop_rate * 0.5)
+                if drop_rate > 0.0:
+                    x_1 = self.dropout(x_1, drop_rate * 0.5)
                 x_1 = self.conv_block(x_1, half_filters, kernel_size, activation=inner_activation)
         x_1_0 = self.conv_block(x_1, half_filters, 1, activation='none')
         for i in range(second_depth_n_convs):
             if i == 0:
                 x_1_1 = self.conv_block(x_1, half_filters, 1, activation=inner_activation)
             else:
-                x_1_1 = self.dropout(x_1_1, drop_rate * 0.5)
+                if drop_rate > 0.0:
+                    x_1_1 = self.dropout(x_1_1, drop_rate * 0.5)
                 x_1_1 = self.conv_block(x_1_1, half_filters, kernel_size, activation='none' if i == second_depth_n_convs - 1 else inner_activation)
         x_1 = tf.keras.layers.Concatenate()([x_1_0, x_1_1])
         x = tf.keras.layers.Concatenate()([x_0, x_1])
