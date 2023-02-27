@@ -30,7 +30,7 @@ def __confidence_loss(y_true, y_pred, mask, alpha, gamma):
     return loss / tf.cast(tf.shape(y_true)[0], dtype=y_pred.dtype)
 
 
-def __iou(y_true, y_pred, diou=False):
+def __iou(y_true, y_pred, giou=False, diou=False):
     y_true_shape = tf.cast(tf.shape(y_true), y_pred.dtype)
     grid_height, grid_width = y_true_shape[1], y_true_shape[2]
 
@@ -104,7 +104,12 @@ def __iou(y_true, y_pred, diou=False):
 
     y_true_area = w_true * h_true
     y_pred_area = w_pred * h_pred
-    union = y_true_area + y_pred_area - intersection
+    if giou:
+        union_width = tf.maximum(x2_true, x2_pred) - tf.minimum(x1_true, x1_pred)
+        union_height = tf.maximum(y2_true, y2_pred) - tf.minimum(y1_true, y1_pred)
+        union = union_width * union_height
+    else:
+        union = y_true_area + y_pred_area - intersection
     iou = intersection / (union + 1e-5)
 
     rdiou = 0.0
@@ -123,7 +128,7 @@ def __bbox_loss(y_true, y_pred, mask):
     if obj_count == tf.constant(0.0):
         return 0.0
 
-    iou, rdiou = __iou(y_true, y_pred, diou=True)
+    iou, rdiou = __iou(y_true, y_pred, giou=True, diou=True)
     loss = tf.reduce_sum((obj_true - iou + rdiou) * obj_true * mask[:, :, :, 0])
     return loss / tf.cast(tf.shape(y_true)[0], dtype=y_pred.dtype)
 
