@@ -206,6 +206,8 @@ class Yolo:
         self.__train_data_generator_for_check.flow().check_invalid_label()
         print('\ninvalid label check in validation data...')
         self.__validation_data_generator_for_check.flow().check_invalid_label()
+        print('\ncalculate class weights...')
+        self.__train_data_generator_for_check.flow().calculate_class_weights()
         print('\ncalculate virtual anchor...')
         self.__train_data_generator.flow().calculate_virtual_anchor()
         print('\ncalculate BPR(Best Possible Recall)...')

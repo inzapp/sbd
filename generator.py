@@ -183,7 +183,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         avg_iou = best_iou_sum / float(len(labeled_boxes))
         return avg_iou
 
-    def calculate_virtual_anchor(self):
+    def calculate_class_weights(self):
         fs = []
         for path in self.image_paths:
             fs.append(self.pool.submit(self.load_label, f'{path[:-4]}.txt'))
@@ -199,16 +199,42 @@ class GeneratorFlow(tf.keras.utils.Sequence):
                 ws.append(w)
                 hs.append(h)
 
-        total_box_count = np.sum(class_counts) + 1e-5
-        class_ratios = [class_count / total_box_count for class_count in class_counts]
-        inverse_class_ratios = [1.0 - class_ratio for class_ratio in class_ratios]
-        inverse_ratio_sum = np.sum(inverse_class_ratios) + 1e-5
-        class_weights = [inverse_class_ratio / inverse_ratio_sum for inverse_class_ratio in inverse_class_ratios]
+        class_counts_over_zero = class_counts[class_counts > 0]
+        if class_counts_over_zero is None:
+            class_weights = np.ones(shape=(self.num_classes,), dtype=np.float32)
+        else:
+            min_class_count = np.min(class_counts_over_zero) + 1e-5
+            class_weights = np.asarray([min_class_count / class_count for class_count in class_counts], dtype=np.float32)
+        
+        class_weights_sum = np.sum(class_weights) + 1e-5
+        if class_weights_sum > 4.0:
+            print(class_weights)
+            print(class_weights_sum)
+            print()
+            class_weights *= (4.0 / class_weights_sum)
+
         print(f'\nclass weights')
-        for i in range(len(class_ratios)):
-            print(f'{class_counts[i]} : {class_weights[i]:.2f}')
+        for i in range(len(class_weights)):
+            print(f'class {i} : {class_counts[i]:>8}, {class_weights[i]:.2f}')
         print()
-        # exit(0)
+
+        # print(len(class_counts))
+        # print(np.sum(class_weights))
+        return class_weights
+
+    def calculate_virtual_anchor(self):
+        fs = []
+        for path in self.image_paths:
+            fs.append(self.pool.submit(self.load_label, f'{path[:-4]}.txt'))
+
+        labeled_boxes, ws, hs = [], [], []
+        for f in tqdm(fs):
+            lines, label_path = f.result()
+            for line in lines:
+                class_index, cx, cy, w, h = list(map(float, line.split()))
+                labeled_boxes.append([cx, cy, w, h])
+                ws.append(w)
+                hs.append(h)
 
         ws = np.asarray(ws).reshape((1, len(ws))).astype('float32')
         hs = np.asarray(hs).reshape((1, len(hs))).astype('float32')
