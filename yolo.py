@@ -312,7 +312,7 @@ class Yolo:
 
     @staticmethod
     @tf.function
-    def decode_bounding_box(output_tensor, confidence_threshold, nms_iou_threshold, max_box_size_per_class):
+    def decode_bounding_box(output_tensor, confidence_threshold):
         output_shape = tf.shape(output_tensor)
         rows, cols = output_shape[0], output_shape[1]
 
@@ -352,29 +352,29 @@ class Yolo:
         boxes_before_nms = tf.gather_nd(result_tensor, over_confidence_indices)
         return boxes_before_nms
 
-        # scores = boxes_before_nms[:, 0]
-        # boxes = boxes_before_nms[:, 1:]
+    @staticmethod
+    @tf.function(experimental_relax_shapes=True)
+    def tf_nms(boxes, nms_iou_threshold, num_classes, max_box_size_per_class):
+        scores = boxes[:, 0]
+        boxes = boxes[:, 1:]
 
-        # selected_indices = []
-        # num_classes = output_shape[-1] - 5
-        # for class_index in range(num_classes):
-        #     class_indices = tf.where(tf.equal(boxes[:, 4], class_index))
-        #     class_boxes = tf.gather_nd(boxes[:, :4], class_indices)
-        #     class_scores = tf.gather_nd(scores, class_indices)
-        #     nms_indices = tf.image.non_max_suppression(class_boxes, class_scores, max_output_size=max_box_size_per_class, iou_threshold=nms_iou_threshold)
-        #     selected_indices.append(tf.gather(class_indices, nms_indices))
-        # selected_indices = tf.concat(selected_indices, axis=0)
+        selected_indices = tf.TensorArray(dtype=tf.int32, size=0, dynamic_size=True)
+        for class_index in tf.range(num_classes):
+            class_indices = tf.where(tf.equal(tf.cast(boxes[:, 4], dtype=tf.int32), class_index))
+            class_indices = tf.cast(class_indices, dtype=tf.int32)  # cast to int32
+            class_boxes = tf.gather_nd(boxes[:, :4], class_indices)
+            class_scores = tf.gather_nd(scores, class_indices)
+            nms_indices = tf.image.non_max_suppression(class_boxes, class_scores, max_output_size=max_box_size_per_class, iou_threshold=nms_iou_threshold)
+            selected_indices = selected_indices.write(class_index, tf.gather(class_indices, nms_indices))
+        selected_indices = selected_indices.concat()
 
-        # selected_boxes = tf.gather(boxes, selected_indices)
-        # selected_boxes = tf.reshape(selected_boxes, (-1, 5))
-        # selected_scores = tf.gather(scores, selected_indices)
+        selected_boxes = tf.gather(boxes, selected_indices)
+        selected_boxes = tf.reshape(selected_boxes, (-1, 5))
+        selected_scores = tf.gather(scores, selected_indices)
 
-        # print(selected_boxes)
-        # print(selected_scores)
-        # exit(0)
+        boxes_after_nms = tf.concat([selected_scores, selected_boxes], axis=1)
+        return boxes_after_nms
 
-        # boxes_after_nms = tf.concat([selected_scores, selected_boxes], axis=1)
-        # return boxes_after_nms
 
     @staticmethod
     def predict(model, img, device, confidence_threshold=0.2, nms_iou_threshold=0.45, max_box_size_per_class=512, verbose=False):
@@ -390,6 +390,7 @@ class Yolo:
         input_shape = model.input_shape[1:]
         input_width, input_height, _ = ModelUtil.get_width_height_channel_from_input_shape(input_shape)
         output_shape = model.output_shape
+        num_classes = output_shape[-1] - 5 if type(output_shape) == tuple else output_shape[0][-1] - 5
         num_output_layers = 1 if type(output_shape) == tuple else len(output_shape)
         if num_output_layers == 1:
             output_shape = [output_shape]
@@ -405,7 +406,7 @@ class Yolo:
         boxes_before_nms = []
         for layer_index in range(num_output_layers):
             output_tensor = y[layer_index][0]
-            boxes_before_nms += list(Yolo.decode_bounding_box(output_tensor, confidence_threshold, nms_iou_threshold, max_box_size_per_class).numpy())
+            boxes_before_nms += list(Yolo.decode_bounding_box(output_tensor, confidence_threshold).numpy())
         box_dicts = []
         for box in boxes_before_nms:
             confidence = float(box[0])
@@ -417,6 +418,24 @@ class Yolo:
                 'class': class_index,
                 'discard': False})
         return ModelUtil.nms(box_dicts, nms_iou_threshold)
+
+        # boxes_before_nms = []
+        # for layer_index in range(num_output_layers):
+        #     output_tensor = y[layer_index][0]
+        #     boxes_before_nms += list(Yolo.decode_bounding_box(output_tensor, confidence_threshold).numpy())
+        # box_dicts = []
+        # if len(boxes_before_nms) > 0:
+        #     boxes_after_nms = Yolo.tf_nms(tf.convert_to_tensor(boxes_before_nms), nms_iou_threshold, num_classes, max_box_size_per_class)
+        #     for box in boxes_after_nms:
+        #         confidence = float(box[0])
+        #         y1, x1, y2, x2 = list(map(float, box[1:5]))
+        #         class_index = int(box[5])
+        #         box_dicts.append({
+        #             'confidence': confidence,
+        #             'bbox_norm': [x1, y1, x2, y2],
+        #             'class': class_index,
+        #             'discard': False})
+        return box_dicts
 
     # @staticmethod
     # def predict(model, img, device, confidence_threshold=0.2, nms_iou_threshold=0.45, verbose=False):
