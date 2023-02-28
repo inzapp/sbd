@@ -83,21 +83,26 @@ class Model:
         x = self.conv_block(input_layer, 8, 3, activation='relu')
         x = self.max_pool(x)
 
+        x = self.dropout(x)
         x = self.conv_block(x, 16, 3, activation='relu')
         x = self.max_pool(x)
 
+        x = self.dropout(x)
         x = self.conv_block(x, 32, 3, activation='relu')
         x = self.conv_block(x, 32, 3, activation='relu')
         x = self.max_pool(x)
 
+        x = self.dropout(x)
         x = self.csp_block_light(x, 64, 3, depth=3, activation='relu')
         f0 = x
         x = self.max_pool(x)
 
+        x = self.dropout(x)
         x = self.csp_block_light(x, 128, 3, depth=3, activation='relu')
         f1 = x
         x = self.max_pool(x)
 
+        x = self.dropout(x)
         x = self.csp_block_light(x, 256, 3, depth=3, activation='relu')
 
         x = self.csp_fpn_block(x, [f1, f0], [128, 64], depth=3, activation='relu')
@@ -118,21 +123,26 @@ class Model:
         x = self.conv_block(input_layer, 16, 3, activation='relu')
         x = self.max_pool(x)
 
+        x = self.dropout(x)
         x = self.conv_block(x, 32, 3, activation='relu')
         x = self.max_pool(x)
 
+        x = self.dropout(x)
         x = self.conv_block(x, 64, 3, activation='relu')
         x = self.conv_block(x, 64, 3, activation='relu')
         x = self.max_pool(x)
 
+        x = self.dropout(x)
         x = self.csp_block_light(x, 128, 3, depth=3, activation='relu')
         f0 = x
         x = self.max_pool(x)
 
+        x = self.dropout(x)
         x = self.csp_block_light(x, 256, 3, depth=3, activation='relu')
         f1 = x
         x = self.max_pool(x)
 
+        x = self.dropout(x)
         x = self.csp_block_light(x, 512, 3, depth=3, activation='relu')
 
         x = self.csp_fpn_block(x, [f1, f0], [256, 128], depth=3, activation='relu')
@@ -153,21 +163,26 @@ class Model:
         x = self.conv_block(input_layer, 16, 3, activation='relu')
         x = self.max_pool(x)
 
+        x = self.dropout(x)
         x = self.conv_block(x, 32, 3, activation='relu')
         x = self.max_pool(x)
 
+        x = self.dropout(x)
         x = self.conv_block(x, 64, 3, activation='relu')
         x = self.conv_block(x, 64, 3, activation='relu')
         x = self.max_pool(x)
 
+        x = self.dropout(x)
         x = self.csp_block_light(x, 192, 3, depth=4, activation='relu')
         f0 = x
         x = self.max_pool(x)
 
+        x = self.dropout(x)
         x = self.csp_block_light(x, 384, 3, depth=4, activation='relu')
         f1 = x
         x = self.max_pool(x)
 
+        x = self.dropout(x)
         x = self.csp_block_light(x, 512, 3, depth=4, activation='relu')
 
         x = self.csp_fpn_block(x, [f1, f0], [384, 192], depth=4, activation='relu')
@@ -188,21 +203,26 @@ class Model:
         x = self.conv_block(input_layer, 16, 3, activation='relu')
         x = self.max_pool(x)
 
+        x = self.dropout(x)
         x = self.conv_block(x, 32, 3, activation='relu')
         x = self.max_pool(x)
 
+        x = self.dropout(x)
         x = self.conv_block(x, 64, 3, activation='relu')
         x = self.conv_block(x, 64, 3, activation='relu')
         x = self.max_pool(x)
 
+        x = self.dropout(x)
         x = self.csp_block_light(x, 256, 3, depth=5, activation='relu')
         f0 = x
         x = self.max_pool(x)
 
+        x = self.dropout(x)
         x = self.csp_block_light(x, 384, 3, depth=5, activation='relu')
         f1 = x
         x = self.max_pool(x)
 
+        x = self.dropout(x)
         x = self.csp_block_light(x, 512, 3, depth=5, activation='relu')
 
         x = self.csp_fpn_block(x, [f1, f0], [384, 256], depth=5, activation='relu')
@@ -223,22 +243,27 @@ class Model:
         x = self.conv_block(input_layer, 32, 3, activation='relu')
         x = self.max_pool(x)
 
+        x = self.dropout(x)
         x = self.conv_block(x, 64, 3, activation='relu')
         x = self.conv_block(x, 64, 3, activation='relu')
         x = self.max_pool(x)
 
+        x = self.dropout(x)
         x = self.conv_block(x, 128, 3, activation='relu')
         x = self.conv_block(x, 128, 3, activation='relu')
         x = self.max_pool(x)
 
+        x = self.dropout(x)
         x = self.csp_block_light(x, 256, 3, depth=6, activation='relu')
         f0 = x
         x = self.max_pool(x)
 
+        x = self.dropout(x)
         x = self.csp_block_light(x, 512, 3, depth=6, activation='relu')
         f1 = x
         x = self.max_pool(x)
 
+        x = self.dropout(x)
         x = self.csp_block_light(x, 512, 3, depth=6, activation='relu')
 
         x = self.csp_fpn_block(x, [f1, f0], [512, 256], depth=6, activation='relu')
@@ -259,21 +284,25 @@ class Model:
         x = self.conv_block(x, 24, 3, activation='relu')
         x = self.max_pool(x)
 
+        x = self.dropout(x)
         x = self.conv_block(x, 48, 3, activation='relu')
         x = self.conv_block(x, 48, 3, activation='relu')
         x = self.max_pool(x)
 
+        x = self.dropout(x)
         x = self.conv_block(x, 96, 3, activation='relu')
         x = self.conv_block(x, 96, 3, activation='relu')
         x = self.conv_block(x, 96, 3, activation='relu')
         x = self.max_pool(x)
 
+        x = self.dropout(x)
         x = self.conv_block(x, 192, 3, activation='relu')
         x = self.conv_block(x, 192, 3, activation='relu')
         x = self.conv_block(x, 192, 3, activation='relu')
         f0 = x
         x = self.max_pool(x)
 
+        x = self.dropout(x)
         x = self.conv_block(x, 256, 3, activation='relu')
         x = self.conv_block(x, 256, 3, activation='relu')
         x = self.conv_block(x, 128, 1, activation='relu')
@@ -282,6 +311,7 @@ class Model:
         f1 = x
         x = self.max_pool(x)
 
+        x = self.dropout(x)
         x = self.conv_block(x, 512, 3, activation='relu')
         x = self.conv_block(x, 512, 3, activation='relu')
         x = self.conv_block(x, 256, 1, activation='relu')
@@ -701,7 +731,6 @@ class Model:
         return tf.keras.layers.Concatenate()(layers)
 
     @staticmethod
-    def dropout(x, rate):
-        return x
-        # return tf.keras.layers.Dropout(rate)(x)
+    def dropout(x):
+        return tf.keras.layers.Dropout(0.1)(x)
 
