@@ -291,13 +291,13 @@ class Yolo:
                 iteration_count += 1
                 print(self.build_loss_str(iteration_count, loss_vars), end='')
                 warm_up_end = iteration_count >= int(self.__iterations * self.__warm_up)
+                if iteration_count % 2000 == 0:
+                    self.__model.save('model_last.h5', include_optimizer=False)
                 if warm_up_end:
                     if self.__training_view:
                         self.__training_view_function()
                     if self.__map_checkpoint and iteration_count % self.__checkpoint_interval == 0 and iteration_count < self.__iterations:
                         self.__save_model(iteration_count=iteration_count, use_map_checkpoint=self.__map_checkpoint)
-                if iteration_count % 2000 == 0:
-                    self.__model.save('model_last.h5', include_optimizer=False)
                 if iteration_count == self.__iterations:
                     self.__save_model(iteration_count=iteration_count, use_map_checkpoint=True)
                     print('\n\ntrain end successfully')
@@ -311,7 +311,73 @@ class Yolo:
             self.__model.save(f'{self.__checkpoint_path}/{self.__model_name}_{iteration_count}_iter.h5', include_optimizer=False)
 
     @staticmethod
-    def predict(model, img, device, confidence_threshold=0.2, nms_iou_threshold=0.45, verbose=False):
+    @tf.function
+    def decode_bounding_box(output_tensor, confidence_threshold, nms_iou_threshold, max_box_size_per_class):
+        output_shape = tf.shape(output_tensor)
+        rows, cols = output_shape[0], output_shape[1]
+
+        confidence = output_tensor[:, :, 0]
+        max_class_score = tf.reduce_max(output_tensor[:, :, 5:], axis=-1)
+        max_class_index = tf.cast(tf.argmax(output_tensor[:, :, 5:], axis=-1), dtype=tf.float32)
+        confidence *= max_class_score
+        over_confidence_indices = tf.where(confidence > confidence_threshold)
+
+        cx = output_tensor[:, :, 1]
+        cy = output_tensor[:, :, 2]
+        w = output_tensor[:, :, 3]
+        h = output_tensor[:, :, 4]
+
+        x_range = tf.range(cols, dtype=tf.float32)
+        x_offset = tf.broadcast_to(x_range, shape=tf.shape(cx))
+
+        y_range = tf.range(rows, dtype=tf.float32)
+        y_range = tf.reshape(y_range, shape=(rows, 1))
+        y_offset = tf.broadcast_to(y_range, shape=tf.shape(cy))
+
+        cx = (x_offset + cx) / tf.cast(cols, dtype=tf.float32)
+        cy = (y_offset + cy) / tf.cast(rows, dtype=tf.float32)
+
+        xmin = cx - (w * 0.5)
+        ymin = cy - (h * 0.5)
+        xmax = cx + (w * 0.5)
+        ymax = cy + (h * 0.5)
+
+        confidence = tf.expand_dims(confidence, axis=-1)
+        xmin = tf.expand_dims(xmin, axis=-1)
+        ymin = tf.expand_dims(ymin, axis=-1)
+        xmax = tf.expand_dims(xmax, axis=-1)
+        ymax = tf.expand_dims(ymax, axis=-1)
+        max_class_index = tf.expand_dims(max_class_index, axis=-1)
+        result_tensor = tf.concat([confidence, ymin, xmin, ymax, xmax, max_class_index], axis=-1)  # box format must be [ymin, xmin, ymax, xmax] for using tf.image.non_max_suppression()
+        boxes_before_nms = tf.gather_nd(result_tensor, over_confidence_indices)
+        return boxes_before_nms
+
+        # scores = boxes_before_nms[:, 0]
+        # boxes = boxes_before_nms[:, 1:]
+
+        # selected_indices = []
+        # num_classes = output_shape[-1] - 5
+        # for class_index in range(num_classes):
+        #     class_indices = tf.where(tf.equal(boxes[:, 4], class_index))
+        #     class_boxes = tf.gather_nd(boxes[:, :4], class_indices)
+        #     class_scores = tf.gather_nd(scores, class_indices)
+        #     nms_indices = tf.image.non_max_suppression(class_boxes, class_scores, max_output_size=max_box_size_per_class, iou_threshold=nms_iou_threshold)
+        #     selected_indices.append(tf.gather(class_indices, nms_indices))
+        # selected_indices = tf.concat(selected_indices, axis=0)
+
+        # selected_boxes = tf.gather(boxes, selected_indices)
+        # selected_boxes = tf.reshape(selected_boxes, (-1, 5))
+        # selected_scores = tf.gather(scores, selected_indices)
+
+        # print(selected_boxes)
+        # print(selected_scores)
+        # exit(0)
+
+        # boxes_after_nms = tf.concat([selected_scores, selected_boxes], axis=1)
+        # return boxes_after_nms
+
+    @staticmethod
+    def predict(model, img, device, confidence_threshold=0.2, nms_iou_threshold=0.45, max_box_size_per_class=512, verbose=False):
         """
         Detect object in image using trained YOLO model.
         :param img: (width, height, channel) formatted image to be predicted.
@@ -336,72 +402,124 @@ class Yolo:
         if num_output_layers == 1:
             y = [y]
 
-        output_tensor = y[0][0]
-        output_tensor_rows = output_shape[0][1]
-        output_tensor_cols = output_shape[0][2]
-
-        cur_layer_output = output_tensor
-        confidence_channel = output_tensor[:, :, 0]
-        max_class_score_channel = np.max(output_tensor[:, :, 5:], axis=-1)
-        max_class_index_channel = np.argmax(output_tensor[:, :, 5:], axis=-1)
-        confidence_channel *= max_class_score_channel
-        over_confidence_indexes = np.argwhere(confidence_channel > confidence_threshold)
-
-        cx_channel = output_tensor[:, :, 1]
-        cy_channel = output_tensor[:, :, 2]
-        w_channel = output_tensor[:, :, 3]
-        h_channel = output_tensor[:, :, 4]
-
-        x_range = np.arange(output_tensor_cols, dtype=np.float32)
-        x_offset = np.broadcast_to(x_range, shape=cx_channel.shape)
-
-        y_range = np.arange(output_tensor_rows, dtype=np.float32)
-        y_range = np.reshape(y_range, newshape=(output_tensor_rows, 1))
-        y_offset = np.broadcast_to(y_range, shape=cy_channel.shape)
-
-        cx_channel = (x_offset + cx_channel) / output_tensor_cols
-        cy_channel = (y_offset + cy_channel) / output_tensor_rows
-
-        xmin = cx_channel - (w_channel * 0.5)
-        ymin = cy_channel - (h_channel * 0.5)
-        xmax = cx_channel + (w_channel * 0.5)
-        ymax = cy_channel + (h_channel * 0.5)
-
         boxes_before_nms = []
-        for i, j in over_confidence_indexes:
-            confidence = float(confidence_channel[i][j])
-            class_index = int(max_class_index_channel[i][j])
-            xmin_f = float(xmin[i][j])
-            ymin_f = float(ymin[i][j])
-            xmax_f = float(xmax[i][j])
-            ymax_f = float(ymax[i][j])
-            boxes_before_nms.append({
+        for layer_index in range(num_output_layers):
+            output_tensor = y[layer_index][0]
+            boxes_before_nms += list(Yolo.decode_bounding_box(output_tensor, confidence_threshold, nms_iou_threshold, max_box_size_per_class).numpy())
+        box_dicts = []
+        for box in boxes_before_nms:
+            confidence = float(box[0])
+            y1, x1, y2, x2 = list(map(float, box[1:5]))
+            class_index = int(box[5])
+            box_dicts.append({
                 'confidence': confidence,
-                'bbox_norm': [xmin_f, ymin_f, xmax_f, ymax_f],
+                'bbox_norm': [x1, y1, x2, y2],
                 'class': class_index,
                 'discard': False})
+        return ModelUtil.nms(box_dicts, nms_iou_threshold)
 
-        boxes = ModelUtil.nms(boxes_before_nms, nms_iou_threshold)
-        if verbose:
-            print(f'before nms box count : {len(boxes_before_nms)}')
-            print(f'after  nms box count : {len(boxes)}')
-            print()
-            for box_info in boxes:
-                class_index = box_info['class']
-                confidence = box_info['confidence']
-                bbox_norm = box_info['bbox_norm']
-                print(f'class index : {class_index}')
-                print(f'confidence : {confidence:.4f}')
-                print(f'bbox(normalized) : {np.array(bbox_norm)}')
-                print()
-            print()
-        return boxes
+    # @staticmethod
+    # def predict(model, img, device, confidence_threshold=0.2, nms_iou_threshold=0.45, verbose=False):
+    #     """
+    #     Detect object in image using trained YOLO model.
+    #     :param img: (width, height, channel) formatted image to be predicted.
+    #     :param confidence_threshold: threshold confidence score to detect object.
+    #     :param nms_iou_threshold: threshold to remove overlapped detection.
+    #     :return: dictionary array sorted by x position.
+    #     each dictionary has class index and bbox info: [x1, y1, x2, y2].
+    #     """
+    #     def sigmoid(x):
+    #         return 1.0 / (1.0 + np.exp(-x))
 
-    def bounding_box(self, img, yolo_res, font_scale=0.4):
+    #     raw_width, raw_height = img.shape[1], img.shape[0]
+    #     input_shape = model.input_shape[1:]
+    #     input_width, input_height, _ = ModelUtil.get_width_height_channel_from_input_shape(input_shape)
+    #     output_shape = model.output_shape
+    #     num_output_layers = 1 if type(output_shape) == tuple else len(output_shape)
+    #     if num_output_layers == 1:
+    #         output_shape = [output_shape]
+
+    #     img = ModelUtil.resize(img, (input_width, input_height))
+    #     x = ModelUtil.preprocess(img)
+    #     x = np.reshape(x, (1,) + input_shape)
+    #     y = ModelUtil.graph_forward(model, x, device)
+    #     y = np.array(y)
+    #     if num_output_layers == 1:
+    #         y = [y]
+
+    #     boxes = []
+    #     for layer_index in range(num_output_layers):
+    #         output_tensor = y[layer_index][0]
+    #         output_tensor_rows = output_shape[layer_index][1]
+    #         output_tensor_cols = output_shape[layer_index][2]
+
+    #         cur_layer_output = output_tensor
+    #         confidence_channel = output_tensor[:, :, 0]
+    #         # confidence_channel = sigmoid(output_tensor[:, :, 0])
+    #         max_class_score_channel = np.max(output_tensor[:, :, 5:], axis=-1)
+    #         max_class_index_channel = np.argmax(output_tensor[:, :, 5:], axis=-1)
+    #         confidence_channel *= max_class_score_channel
+    #         # confidence_channel *= sigmoid(max_class_score_channel)
+    #         over_confidence_indexes = np.argwhere(confidence_channel > confidence_threshold)
+
+    #         cx_channel = output_tensor[:, :, 1]
+    #         cy_channel = output_tensor[:, :, 2]
+    #         w_channel = output_tensor[:, :, 3]
+    #         h_channel = output_tensor[:, :, 4]
+
+    #         x_range = np.arange(output_tensor_cols, dtype=np.float32)
+    #         x_offset = np.broadcast_to(x_range, shape=cx_channel.shape)
+
+    #         y_range = np.arange(output_tensor_rows, dtype=np.float32)
+    #         y_range = np.reshape(y_range, newshape=(output_tensor_rows, 1))
+    #         y_offset = np.broadcast_to(y_range, shape=cy_channel.shape)
+
+    #         cx_channel = (x_offset + cx_channel) / output_tensor_cols
+    #         cy_channel = (y_offset + cy_channel) / output_tensor_rows
+
+    #         xmin = cx_channel - (w_channel * 0.5)
+    #         ymin = cy_channel - (h_channel * 0.5)
+    #         xmax = cx_channel + (w_channel * 0.5)
+    #         ymax = cy_channel + (h_channel * 0.5)
+
+    #         boxes_before_nms = []
+    #         for i, j in over_confidence_indexes:
+    #             confidence = float(confidence_channel[i][j])
+    #             class_index = int(max_class_index_channel[i][j])
+    #             xmin_f = float(xmin[i][j])
+    #             ymin_f = float(ymin[i][j])
+    #             xmax_f = float(xmax[i][j])
+    #             ymax_f = float(ymax[i][j])
+    #             boxes_before_nms.append({
+    #                 'confidence': confidence,
+    #                 'bbox_norm': [xmin_f, ymin_f, xmax_f, ymax_f],
+    #                 'class': class_index,
+    #                 'discard': False})
+
+    #         # cur_layer_boxes = ModelUtil.nms(boxes_before_nms, nms_iou_threshold)
+    #         # boxes += cur_layer_boxes
+    #         boxes += boxes_before_nms
+    #     boxes = ModelUtil.nms(boxes, nms_iou_threshold)
+    #     # if verbose:
+    #     #     print(f'before nms box count : {len(boxes_before_nms)}')
+    #     #     print(f'after  nms box count : {len(cur_layer_boxes)}')
+    #     #     print()
+    #     #     for box_info in cur_layer_boxes:
+    #     #         class_index = box_info['class']
+    #     #         confidence = box_info['confidence']
+    #     #         bbox_norm = box_info['bbox_norm']
+    #     #         print(f'class index : {class_index}')
+    #     #         print(f'confidence : {confidence:.4f}')
+    #     #         print(f'bbox(normalized) : {np.array(bbox_norm)}')
+    #     #         print()
+    #     #     print()
+    #     return boxes
+
+    def bounding_box(self, img, boxes, font_scale=0.4):
         """
         draw bounding bbox using result of YOLO.predict function.
         :param img: image to be predicted.
-        :param yolo_res: result value of YOLO.predict() function.
+        :param boxes: result value of YOLO.predict() function.
         :param font_scale: scale of font.
         :return: image of bounding boxed.
         """
@@ -409,16 +527,16 @@ class Yolo:
         if len(img.shape) == 2:
             img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
         img_height, img_width = img.shape[:2]
-        for i, cur_res in enumerate(yolo_res):
-            class_index = int(cur_res['class'])
+        for i, box in enumerate(boxes):
+            class_index = int(box['class'])
             if len(self.__class_names) == 0:
                 class_name = str(class_index)
             else:
                 class_name = self.__class_names[class_index].replace('\n', '')
             label_background_color = colors[class_index]
             label_font_color = (0, 0, 0) if ModelUtil.is_background_color_bright(label_background_color) else (255, 255, 255)
-            label_text = f'{class_name}({int(cur_res["confidence"] * 100.0)}%)'
-            x1, y1, x2, y2 = cur_res['bbox_norm']
+            label_text = f'{class_name}({int(box["confidence"] * 100.0)}%)'
+            x1, y1, x2, y2 = box['bbox_norm']
             x1 = int(x1 * img_width)
             y1 = int(y1 * img_height)
             x2 = int(x2 * img_width)
@@ -440,9 +558,9 @@ class Yolo:
             if not frame_exist:
                 break
             x = cv2.cvtColor(raw, cv2.COLOR_BGR2GRAY) if self.__model.input.shape[-1] == 1 else raw.copy()
-            res = Yolo.predict(self.__model, x, device=device, confidence_threshold=confidence_threshold)
+            boxes = Yolo.predict(self.__model, x, device=device, confidence_threshold=confidence_threshold)
             # raw = cv2.resize(raw, (1280, 720), interpolation=cv2.INTER_AREA)
-            boxed_image = self.bounding_box(raw, res)
+            boxed_image = self.bounding_box(raw, boxes)
             cv2.imshow('video', boxed_image)
             key = cv2.waitKey(1)
             if key == 27:
@@ -465,9 +583,9 @@ class Yolo:
         for path in image_paths:
             print(f'image path : {path}')
             raw, raw_bgr, _ = ModelUtil.load_img(path, input_channel)
-            res = Yolo.predict(self.__model, raw, device=device, verbose=True, confidence_threshold=confidence_threshold)
+            boxes = Yolo.predict(self.__model, raw, device=device, verbose=True, confidence_threshold=confidence_threshold)
             raw_bgr = cv2.resize(raw_bgr, (input_width, input_height), interpolation=cv2.INTER_AREA)
-            boxed_image = self.bounding_box(raw_bgr, res)
+            boxed_image = self.bounding_box(raw_bgr, boxes)
             cv2.imshow('res', boxed_image)
             key = cv2.waitKey(0)
             if key == 27:
