@@ -160,7 +160,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         y1 = cy - (h * 0.5)
         x2 = cx + (w * 0.5)
         y2 = cy + (h * 0.5)
-        labeled_box = [x1, y1, x2, y2]
+        labeled_box = np.clip(np.asarray([x1, y1, x2, y2]), 0.0, 1.0)
         best_iou_layer_indexes = []
         for i in range(len(self.virtual_anchor_ws)):
             w = self.virtual_anchor_ws[i]
@@ -169,7 +169,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
             y1 = cy - (h * 0.5)
             x2 = cx + (w * 0.5)
             y2 = cy + (h * 0.5)
-            virtual_anchor_box = [x1, y1, x2, y2]
+            virtual_anchor_box = np.clip(np.asarray([x1, y1, x2, y2]), 0.0, 1.0)
             iou = ModelUtil.iou(labeled_box, virtual_anchor_box)
             best_iou_layer_indexes.append([i, iou])
         return sorted(best_iou_layer_indexes, key=lambda x: x[1], reverse=True)
