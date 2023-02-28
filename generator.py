@@ -457,6 +457,11 @@ class GeneratorFlow(tf.keras.utils.Sequence):
                         is_box_allocated = True
                         allocated_count += 1
                         break
+        # for i in range(self.output_shapes[0][1]):
+        #     for j in range(self.output_shapes[0][2]):
+        #         print(f'{int(y[0][i][j][0])} ', end='')
+        #     print()
+        # exit(0)
 
         # create mask after all value is allocated in train tensor
         if self.ignore_nearby_cell:
