@@ -470,7 +470,7 @@ class Model:
     def csp_fpn_block(self, x, layers, filters, depth, activation, bn=False, return_layers=False, mode='add'):
         assert mode in ['add', 'concat']
         assert type(layers) == list and type(filters) == list
-        ret = [x]
+        output_layers = [x]
         for i in range(len(layers)):
             if mode == 'add':
                 x = self.conv_block(x, filters[i], 1, bn=bn, activation=activation)
@@ -481,9 +481,8 @@ class Model:
                 x = self.concat([x, layers[i]])
                 x = self.conv_block(x, filters[i], 1, bn=bn, activation=activation)
             x = self.csp_block_light(x, filters[i], 3, depth=depth, activation=activation)
-            ret.append(x)
-        layers = list(reversed(ret))
-        return layers if return_layers else x
+            output_layers.append(x)
+        return output_layers if return_layers else x
 
     # def fpn_block(self, layers, filters, activation, bn=False, return_layers=False):
     #     assert type(layers) == list and type(filters) == list
