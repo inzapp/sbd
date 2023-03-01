@@ -29,7 +29,7 @@ if __name__ == '__main__':
     parser.add_argument('--save', action='store_true', help='save another model with calculated mAP result naming')
     parser.add_argument('--cached', action='store_true', help='use pre-saved csv files for mAP calculation')
     parser.add_argument('--iou', type=float, default=0.5, help='true positive threshold for intersection over union')
-    parser.add_argument('--conf', type=float, default=0.25, help='confidence threshold for detection')
+    parser.add_argument('--conf', type=float, default=0.2, help='confidence threshold for detection')
     parser.add_argument('--model', type=str, default='model_last.h5', help='pretrained model path for mAP calculation')
     parser.add_argument('--dataset', type=str, default='validation', help='dataset name for mAP calculation. train or validation')
     args = parser.parse_args()
