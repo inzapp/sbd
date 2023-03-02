@@ -35,5 +35,5 @@ if __name__ == '__main__':
     if args.video == '':
         Yolo(config=config).predict_images(dataset=args.dataset, confidence_threshold=args.conf, device='gpu' if args.gpu else 'cpu')
     else:
-        Yolo(config=config).predict_video(video=args.video, confidence_threshold=args.conf, device='gpu' if args.gpu else 'cpu')
+        Yolo(config=config).predict_video(video_path=args.video, confidence_threshold=args.conf, device='gpu' if args.gpu else 'cpu')
 
