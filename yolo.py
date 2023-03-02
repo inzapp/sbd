@@ -534,7 +534,7 @@ class Yolo:
     #     #     print()
     #     return boxes
 
-    def bounding_box(self, img, boxes, font_scale=0.4):
+    def bounding_box(self, img, boxes, font_scale=0.4, show_class_with_score=True):
         """
         draw bounding bbox using result of YOLO.predict function.
         :param img: image to be predicted.
@@ -563,11 +563,12 @@ class Yolo:
             l_size, baseline = cv2.getTextSize(label_text, cv2.FONT_HERSHEY_DUPLEX, font_scale, 1)
             bw, bh = l_size[0] + (padding * 2), l_size[1] + (padding * 2) + baseline
             cv2.rectangle(img, (x1, y1), (x2, y2), label_background_color, 1)
-            cv2.rectangle(img, (x1 - 1, y1 - bh), (x1 - 1 + bw, y1), label_background_color, -1)
-            cv2.putText(img, label_text, (x1 + padding - 1, y1 - baseline - padding), cv2.FONT_HERSHEY_DUPLEX, fontScale=font_scale, color=label_font_color, thickness=1, lineType=cv2.LINE_AA)
+            if show_class_with_score:
+                cv2.rectangle(img, (x1 - 1, y1 - bh), (x1 - 1 + bw, y1), label_background_color, -1)
+                cv2.putText(img, label_text, (x1 + padding - 1, y1 - baseline - padding), cv2.FONT_HERSHEY_DUPLEX, fontScale=font_scale, color=label_font_color, thickness=1, lineType=cv2.LINE_AA)
         return img
 
-    def predict_video(self, video_path, confidence_threshold=0.2, device='cpu'):
+    def predict_video(self, video_path, confidence_threshold=0.2, device='cpu', show_class_with_score=True):
         """
         Equal to the evaluate function. video path is required.
         """
@@ -575,11 +576,12 @@ class Yolo:
         while True:
             frame_exist, raw = cap.read()
             if not frame_exist:
+                print('frame not exists')
                 break
             x = cv2.cvtColor(raw, cv2.COLOR_BGR2GRAY) if self.__model.input.shape[-1] == 1 else raw.copy()
             boxes = Yolo.predict(self.__model, x, device=device, confidence_threshold=confidence_threshold)
             # raw = cv2.resize(raw, (1280, 720), interpolation=cv2.INTER_AREA)
-            boxed_image = self.bounding_box(raw, boxes)
+            boxed_image = self.bounding_box(raw, boxes, show_class_with_score=show_class_with_score)
             cv2.imshow('video', boxed_image)
             key = cv2.waitKey(1)
             if key == 27:
@@ -587,7 +589,7 @@ class Yolo:
         cap.release()
         cv2.destroyAllWindows()
 
-    def predict_images(self, dataset='validation', confidence_threshold=0.2, device='cpu'):
+    def predict_images(self, dataset='validation', confidence_threshold=0.2, device='cpu', show_class_with_score=True):
         """
         Equal to the evaluate function. image paths are required.
         """
@@ -604,7 +606,7 @@ class Yolo:
             raw, raw_bgr, _ = ModelUtil.load_img(path, input_channel)
             boxes = Yolo.predict(self.__model, raw, device=device, verbose=True, confidence_threshold=confidence_threshold)
             raw_bgr = cv2.resize(raw_bgr, (input_width, input_height), interpolation=cv2.INTER_AREA)
-            boxed_image = self.bounding_box(raw_bgr, boxes)
+            boxed_image = self.bounding_box(raw_bgr, boxes, show_class_with_score=show_class_with_score)
             cv2.imshow('res', boxed_image)
             key = cv2.waitKey(0)
             if key == 27:
