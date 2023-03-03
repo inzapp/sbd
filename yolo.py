@@ -308,7 +308,7 @@ class Yolo:
         if use_map_checkpoint:
             self.calculate_map(dataset='validation', iteration_count=iteration_count, save_model=True)
         else:
-            self.__model.save(f'{self.__checkpoint_path}/{self.__model_name}_{iteration_count}_iter.h5', include_optimizer=False)
+            self.__model.save(f'{self.__checkpoint_path}/{self.__model_type}_{self.__model_name}_{iteration_count}_iter.h5', include_optimizer=False)
 
     @staticmethod
     @tf.function
@@ -374,7 +374,6 @@ class Yolo:
 
         boxes_after_nms = tf.concat([selected_scores, selected_boxes], axis=1)
         return boxes_after_nms
-
 
     @staticmethod
     def predict(model, img, device, confidence_threshold=0.2, nms_iou_threshold=0.45, max_box_size_per_class=512, verbose=False):
@@ -621,7 +620,7 @@ class Yolo:
             print(f'invalid dataset : [{dataset}]')
             return
         device = ModelUtil.available_device() if device == 'auto' else device
-        mean_ap, f1_score, iou, tp, fp, fn, confidence = calc_mean_average_precision(
+        mean_ap, f1_score, iou, tp, fp, fn, confidence, txt_content = calc_mean_average_precision(
             model=self.__model,
             image_paths=image_paths,
             device=device,
@@ -631,7 +630,7 @@ class Yolo:
             cached=cached)
         if save_model:
             model_path = f'{self.__checkpoint_path}/'
-            model_path += f'{self.__model_name}'
+            model_path += f'{self.__model_type}_{self.__model_name}'
             if iteration_count + self.__presaved_iteration_count > 0:
                 model_path += f'_{iteration_count + self.__presaved_iteration_count}_iter'
             model_path += f'_mAP_{mean_ap:.4f}'
@@ -643,6 +642,8 @@ class Yolo:
             model_path += f'_tpiouth_{tp_iou_threshold:.2f}'
             model_path += f'.h5'
             self.__model.save(model_path, include_optimizer=False)
+            with open(f'{model_path[:-3]}.txt', 'wt') as f:
+                f.write(txt_content)
             print(f'model saved to [{model_path}]')
 
     def __training_view_function(self):
