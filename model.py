@@ -48,18 +48,23 @@ class Model:
         self.models = dict()
         self.models['n1'] = self.n
         self.models['n3'] = self.n
+        self.models['n4'] = self.n
         self.models['n5'] = self.n
         self.models['s1'] = self.s
         self.models['s3'] = self.s
+        self.models['s4'] = self.s
         self.models['s5'] = self.s
         self.models['m1'] = self.m
         self.models['m3'] = self.m
+        self.models['m4'] = self.m
         self.models['m5'] = self.m
         self.models['l1'] = self.l
         self.models['l3'] = self.l
+        self.models['l4'] = self.l
         self.models['l5'] = self.l
         self.models['x1'] = self.x
         self.models['x3'] = self.x
+        self.models['x4'] = self.x
         self.models['x5'] = self.x
         self.models['lpd_crop'] = self.lpd_crop
         self.models['lcd'] = self.lcd
@@ -635,6 +640,11 @@ class Model:
         elif num_output_layers == 3:
             x.append(self.detection_layer(f0, 'sbd_output_00'))
             x.append(self.detection_layer(f1, 'sbd_output_10'))
+            x.append(self.detection_layer(f2, 'sbd_output_20'))
+        elif num_output_layers == 4:
+            x.append(self.detection_layer(f0, 'sbd_output_00'))
+            x.append(self.detection_layer(f1, 'sbd_output_10'))
+            x.append(self.detection_layer(f1, 'sbd_output_11'))
             x.append(self.detection_layer(f2, 'sbd_output_20'))
         elif num_output_layers == 5:
             x.append(self.detection_layer(f0, 'sbd_output_00'))
