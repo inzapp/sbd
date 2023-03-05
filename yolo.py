@@ -68,7 +68,6 @@ class Yolo:
         self.__cycle_step = 0
         self.__cycle_length = 2500
         self.__presaved_iteration_count = 0
-        self.max_map, self.max_f1, self.max_map_iou_hm, self.max_f1_iou_hm = 0.0, 0.0, 0.0, 0.0
 
         self.__input_width, self.__input_height, self.__input_channel = ModelUtil.get_width_height_channel_from_input_shape(input_shape)
         self.__class_names, self.__num_classes = ModelUtil.init_class_names(self.__class_names_file_path)
