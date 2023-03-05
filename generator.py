@@ -215,7 +215,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
 
         print(f'\nclass weights')
         for i in range(len(class_weights)):
-            print(f'class {i} : {class_counts[i]:>8}, {class_weights[i]:.2f}')
+            print(f'class {i:>3} : {class_counts[i]:>8}, {class_weights[i]:.2f}')
         print()
 
         # print(len(class_counts))
