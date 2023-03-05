@@ -21,15 +21,15 @@ from yolo import Yolo
 
 
 config = {
-    'pretrained_model_path': r'',
-    'model_name': 'loon',
-    'model_type': 'x1',
-    'input_shape': (128, 512, 3),
-    'train_image_path': r'C:\inz\train_data\loon\train',
-    'validation_image_path': r'C:\inz\train_data\loon\validation',
-    'class_names_file_path': r'C:\inz\train_data\loon\train\classes.txt',
-    'optimizer': 'sgd',
-    'lr_policy': 'step',
+    # 'pretrained_model_path': r'',
+    # 'model_name': 'loon',
+    # 'model_type': 'n1',
+    # 'input_shape': (128, 512, 3),
+    # 'train_image_path': r'C:\inz\train_data\loon\train',
+    # 'validation_image_path': r'C:\inz\train_data\loon\validation',
+    # 'class_names_file_path': r'C:\inz\train_data\loon\train\classes.txt',
+    # 'optimizer': 'sgd',
+    # 'lr_policy': 'step',
 
     # 'pretrained_model_path': r'',
     # 'model_name': 'lpd',
@@ -162,6 +162,16 @@ config = {
     # 'optimizer': 'sgd',
     # 'lr_policy': 'step',
 
+    'pretrained_model_path': r'',
+    'model_type': 'n1',
+    'model_name': 'normal_12cls',
+    'input_shape': (352, 640, 1),
+    'train_image_path': r'C:\inz\train_data\lp_car_detection_with_normal_640x384\train\normal',
+    'validation_image_path': r'C:\inz\train_data\lp_car_detection_with_normal_640x384\validation\normal',
+    'class_names_file_path': r'C:\inz\train_data\lp_car_detection_with_normal_640x384\train\normal\classes.txt',
+    'optimizer': 'sgd',
+    'lr_policy': 'step',
+
     'lr': 1e-3,
     'l2': 5e-4,
     'alpha': 0.25,
@@ -171,14 +181,14 @@ config = {
     'decay_step': 0.1,
     'label_smoothing': 0.0,
     'batch_size': 4,
-    'iterations': 10000,
+    'iterations': 700000,
     'curriculum_iterations': 0,
-    'checkpoint_interval': 1000,
+    'checkpoint_interval': 20000,
     'checkpoint_path': 'checkpoint',
     'ignore_nearby_cell': False,
     'nearby_cell_ignore_threshold': 0.5,
     'multi_classification_at_same_box': False,
-    'map_checkpoint': True,
+    'map_checkpoint': False,
     'training_view': False
 }
 
