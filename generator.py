@@ -204,7 +204,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
             print()
             class_weights *= (4.0 / class_weights_sum)
 
-        print(f'\nclass weights')
+        print(f'\nclass count, weight')
         for i in range(len(class_weights)):
             print(f'class {i:>3} : {class_counts[i]:>8}, {class_weights[i]:.2f}')
 
@@ -217,6 +217,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         for path in self.image_paths:
             fs.append(self.pool.submit(self.load_label, f'{path[:-4]}.txt'))
 
+        ignore_box_count = 0
         labeled_boxes, ws, hs = [], [], []
         for f in tqdm(fs):
             lines, label_path = f.result()
@@ -230,6 +231,10 @@ class GeneratorFlow(tf.keras.utils.Sequence):
                     hs.append(h)
                 if is_w_valid and is_h_valid:
                     labeled_boxes.append([cx, cy, w, h])
+                else:
+                    ignore_box_count += 1
+        if ignore_box_count > 0:
+            print(f'[Warning] Too small size (under 3x3 pixel) {ignore_box_count} box will not be trained')
 
         ws = np.asarray(ws).reshape((len(ws), 1)).astype('float32')
         hs = np.asarray(hs).reshape((len(hs), 1)).astype('float32')
@@ -418,6 +423,11 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         allocated_count = 0
         for b in labeled_boxes:
             class_indexes, cx, cy, w, h = b['class_indexes'], b['cx'], b['cy'], b['w'], b['h']
+            w_not_valid = w * self.input_shape[1] < 3.0
+            h_not_valid = h * self.input_shape[0] < 3.0
+            if w_not_valid and h_not_valid:
+                continue
+
             best_iou_layer_indexes = self.get_iou_with_virtual_anchors([cx, cy, w, h])
             is_box_allocated = False
             for i, layer_iou in best_iou_layer_indexes:
