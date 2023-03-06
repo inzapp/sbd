@@ -154,34 +154,25 @@ class GeneratorFlow(tf.keras.utils.Sequence):
             ModelUtil.print_error_exit(f'{len(invalid_label_paths)} invalid label exists fix it')
         print('invalid label check success')
 
-    def get_best_iou_layer_indexes(self, box):
+    def get_iou_with_virtual_anchors(self, box):
         cx, cy, w, h = box
         x1 = cx - (w * 0.5)
         y1 = cy - (h * 0.5)
         x2 = cx + (w * 0.5)
         y2 = cy + (h * 0.5)
         labeled_box = np.clip(np.asarray([x1, y1, x2, y2]), 0.0, 1.0)
-        best_iou_layer_indexes = []
-        for i in range(len(self.virtual_anchor_ws)):
-            w = self.virtual_anchor_ws[i]
-            h = self.virtual_anchor_hs[i]
+        iou_with_virtual_anchors = []
+        for layer_index in range(self.num_output_layers):
+            w = self.virtual_anchor_ws[layer_index]
+            h = self.virtual_anchor_hs[layer_index]
             x1 = cx - (w * 0.5)
             y1 = cy - (h * 0.5)
             x2 = cx + (w * 0.5)
             y2 = cy + (h * 0.5)
             virtual_anchor_box = np.clip(np.asarray([x1, y1, x2, y2]), 0.0, 1.0)
             iou = ModelUtil.iou(labeled_box, virtual_anchor_box)
-            best_iou_layer_indexes.append([i, iou])
-        return sorted(best_iou_layer_indexes, key=lambda x: x[1], reverse=True)
-
-    def get_avg_iou_with_virtual_anchor(self, labeled_boxes):
-        best_iou_sum = 0.0
-        for box in labeled_boxes:
-            best_iou_layer_indexes = self.get_best_iou_layer_indexes(box)
-            best_iou = best_iou_layer_indexes[0][1]
-            best_iou_sum += best_iou
-        avg_iou = best_iou_sum / float(len(labeled_boxes))
-        return avg_iou
+            iou_with_virtual_anchors.append([layer_index, iou])
+        return sorted(iou_with_virtual_anchors, key=lambda x: x[1], reverse=True)
 
     def calculate_class_weights(self):
         fs = []
@@ -216,7 +207,6 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         print(f'\nclass weights')
         for i in range(len(class_weights)):
             print(f'class {i:>3} : {class_counts[i]:>8}, {class_weights[i]:.2f}')
-        print()
 
         # print(len(class_counts))
         # print(np.sum(class_weights))
@@ -232,21 +222,29 @@ class GeneratorFlow(tf.keras.utils.Sequence):
             lines, label_path = f.result()
             for line in lines:
                 class_index, cx, cy, w, h = list(map(float, line.split()))
-                labeled_boxes.append([cx, cy, w, h])
-                ws.append(w)
-                hs.append(h)
+                is_w_valid = w * self.input_shape[1] > 3.0
+                if is_w_valid:
+                    ws.append(w)
+                is_h_valid = h * self.input_shape[0] > 3.0
+                if is_h_valid:
+                    hs.append(h)
+                if is_w_valid and is_h_valid:
+                    labeled_boxes.append([cx, cy, w, h])
 
-        ws = np.asarray(ws).reshape((1, len(ws))).astype('float32')
-        hs = np.asarray(hs).reshape((1, len(hs))).astype('float32')
+        ws = np.asarray(ws).reshape((len(ws), 1)).astype('float32')
+        hs = np.asarray(hs).reshape((len(hs), 1)).astype('float32')
 
+        max_iterations = 100
         num_cluster = self.num_output_layers
-        criteria = (cv2.TERM_CRITERIA_EPS, -1, 1e-4)
-        width_compactness, _, clustered_ws = cv2.kmeans(ws, num_cluster, None, criteria, 100, cv2.KMEANS_RANDOM_CENTERS)
-        width_compactness /= float(len(self.image_paths))
-        print(f'width compactness  : {width_compactness:.7f}')
-        height_compactness, _, clustered_hs = cv2.kmeans(hs, num_cluster, None, criteria, 100, cv2.KMEANS_RANDOM_CENTERS)
-        height_compactness /= float(len(self.image_paths))
-        print(f'height compactness : {height_compactness:.7f}')
+        criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, max_iterations, 1e-4)
+
+        print('K-means clustering start')
+        w_sse, _, clustered_ws = cv2.kmeans(ws, num_cluster, None, criteria, max_iterations, cv2.KMEANS_RANDOM_CENTERS)
+        w_mse = w_sse / (float(len(ws)) + 1e-5)
+        h_sse, _, clustered_hs = cv2.kmeans(hs, num_cluster, None, criteria, max_iterations, cv2.KMEANS_RANDOM_CENTERS)
+        h_mse = h_sse / (float(len(hs)) + 1e-5)
+        clustering_mse = (w_mse + h_mse) / 2.0
+        print(f'clustered MSE(Mean Squared Error) : {clustering_mse:.4f}')
 
         self.virtual_anchor_ws = sorted(np.asarray(clustered_ws).reshape(-1))
         self.virtual_anchor_hs = sorted(np.asarray(clustered_hs).reshape(-1))
@@ -261,7 +259,13 @@ class GeneratorFlow(tf.keras.utils.Sequence):
                 print(f', {anchor_w:.4f}, {anchor_h:.4f}', end='')
         print()
 
-        avg_iou_with_virtual_anchor = self.get_avg_iou_with_virtual_anchor(labeled_boxes)
+        print('\naverage IoU with virtual anchors')
+        best_iou_sum = 0.0
+        for box in tqdm(labeled_boxes):
+            iou_with_virtual_anchors = self.get_iou_with_virtual_anchors(box)
+            best_iou = iou_with_virtual_anchors[0][1]
+            best_iou_sum += best_iou
+        avg_iou_with_virtual_anchor = best_iou_sum / (float(len(labeled_boxes)) + 1e-5)
         print(f'average IoU with virtual anchor : {avg_iou_with_virtual_anchor:.4f}')
 
     def calculate_best_possible_recall(self):
@@ -414,7 +418,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         allocated_count = 0
         for b in labeled_boxes:
             class_indexes, cx, cy, w, h = b['class_indexes'], b['cx'], b['cy'], b['w'], b['h']
-            best_iou_layer_indexes = self.get_best_iou_layer_indexes([cx, cy, w, h])
+            best_iou_layer_indexes = self.get_iou_with_virtual_anchors([cx, cy, w, h])
             is_box_allocated = False
             for i, layer_iou in best_iou_layer_indexes:
                 if is_box_allocated and layer_iou < 0.6:
@@ -467,7 +471,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         if self.ignore_nearby_cell:
             for b in labeled_boxes:
                 class_indexes, cx, cy, w, h = b['class_indexes'], b['cx'], b['cy'], b['w'], b['h']
-                best_iou_layer_indexes = self.get_best_iou_layer_indexes([cx, cy, w, h])
+                best_iou_layer_indexes = self.get_iou_with_virtual_anchors([cx, cy, w, h])
                 for i, layer_iou in best_iou_layer_indexes:
                     output_rows = float(self.output_shapes[i][1])
                     output_cols = float(self.output_shapes[i][2])
