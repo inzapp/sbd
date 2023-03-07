@@ -223,10 +223,10 @@ class GeneratorFlow(tf.keras.utils.Sequence):
             lines, label_path = f.result()
             for line in lines:
                 class_index, cx, cy, w, h = list(map(float, line.split()))
-                is_w_valid = w * self.input_shape[1] > 3.0
+                is_w_valid = int(w * self.input_shape[1]) > 3
                 if is_w_valid:
                     ws.append(w)
-                is_h_valid = h * self.input_shape[0] > 3.0
+                is_h_valid = int(h * self.input_shape[0]) > 3
                 if is_h_valid:
                     hs.append(h)
                 if is_w_valid and is_h_valid:
@@ -423,8 +423,8 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         allocated_count = 0
         for b in labeled_boxes:
             class_indexes, cx, cy, w, h = b['class_indexes'], b['cx'], b['cy'], b['w'], b['h']
-            w_not_valid = w * self.input_shape[1] <= 3.0
-            h_not_valid = h * self.input_shape[0] <= 3.0
+            w_not_valid = int(w * self.input_shape[1]) <= 3
+            h_not_valid = int(h * self.input_shape[0]) <= 3
             if w_not_valid and h_not_valid:
                 continue
 
