@@ -18,8 +18,8 @@ from .compute_overlap_slow import compute_overlap
 
 def get_real_annotations(table):
     res = dict()
-    ids = table['ImageID'].values.astype(np.str)
-    labels = table['LabelName'].values.astype(np.str)
+    ids = list(map(str, table['ImageID'].values))
+    labels = list(map(str, table['LabelName'].values))
     xmin = table['XMin'].values.astype(np.float32)
     xmax = table['XMax'].values.astype(np.float32)
     ymin = table['YMin'].values.astype(np.float32)
@@ -40,8 +40,8 @@ def get_real_annotations(table):
 
 def get_detections(table):
     res = dict()
-    ids = table['ImageID'].values.astype(np.str)
-    labels = table['LabelName'].values.astype(np.str)
+    ids = list(map(str, table['ImageID'].values))
+    labels = list(map(str, table['LabelName'].values))
     scores = table['Conf'].values.astype(np.float32)
     xmin = table['XMin'].values.astype(np.float32)
     xmax = table['XMax'].values.astype(np.float32)
@@ -134,7 +134,7 @@ def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_th
 
     print()
     txt_content = ''
-    unique_classes = valid['LabelName'].unique().astype(np.str)
+    unique_classes = list(map(str, valid['LabelName'].unique()))
     if verbose:
         txt_content = _print(f'Unique classes: {len(unique_classes)}', txt_content)
 
