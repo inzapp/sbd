@@ -71,10 +71,6 @@ class Model:
         self.models['lpd_v1'] = self.lpd_v1
         self.models['lpd_v2'] = self.lpd_v2
 
-    @classmethod
-    def empty(cls):
-        return cls.__new__(cls)
-
     def build(self, model_type):
         try:
             return self.models[model_type](int(model_type[1]))
