@@ -220,9 +220,10 @@ class Yolo:
 
         print(f'\nalpha : {self.__alphas}')
         print(f'gamma : {self.__gammas}')
-        print('\nstart training')
         if self.__curriculum_iterations > 0:
+            print('\nstart curriculum training')
             self.__curriculum_train()
+        print('\nstart training')
         self.__train()
 
     def compute_gradient(self, model, optimizer, loss_function, x, y_true, mask, num_output_layers, alphas, gammas, label_smoothing):
@@ -238,7 +239,11 @@ class Yolo:
                     confidence_loss += _confidence_loss
                     bbox_loss += _bbox_loss
                     classification_loss += _classification_loss
-            loss = confidence_loss + bbox_loss + classification_loss
+            loss = confidence_loss
+            if bbox_loss > -1.0:
+                loss += bbox_loss
+            if classification_loss > -1.0:
+                loss += classification_loss
             gradients = tape.gradient(loss, model.trainable_variables)
         optimizer.apply_gradients(zip(gradients, model.trainable_variables))
         return confidence_loss, bbox_loss, classification_loss
@@ -251,32 +256,36 @@ class Yolo:
         optimizer = self.__get_optimizer(optimizer_str)
         return model, optimizer
 
+    def build_loss_str(self, iteration_count, loss_vars):
+        loss_str = ''
+        n_loss_vars = len(loss_vars)
+        confidence_loss, bbox_loss, classification_loss = loss_vars
+        loss_str = f'\r[iteration_count : {iteration_count:6d}]'
+        loss_str += f' confidence_loss : {confidence_loss:>8.4f}'
+        if bbox_loss > -1.0:
+            loss_str += f', bbox_loss: {bbox_loss:>8.4f}'
+        if classification_loss > -1.0:
+            loss_str += f', classification_loss : {classification_loss:>8.4f}'
+        return loss_str
+
     def __curriculum_train(self):
         loss_functions = [confidence_loss, confidence_with_bbox_loss]
         compute_gradients = [tf.function(self.compute_gradient) for _ in range(len(loss_functions))]
-        lr_scheduler = LRScheduler(iterations=self.__curriculum_iterations, lr=self.__lr)
         for i in range(len(loss_functions)):
             iteration_count = 0
             self.__model, optimizer = self.__refresh_model_and_optimizer(self.__model, 'sgd')
+            lr_scheduler = LRScheduler(iterations=self.__curriculum_iterations, lr=self.__lr, warm_up=self.__warm_up, policy='onecycle')
             while True:
-                for batch_x, batch_y in self.__train_data_generator.flow():
+                for batch_x, batch_y, mask in self.__train_data_generator.flow():
                     iteration_count += 1
-                    lr_scheduler.update(optimizer, iteration_count, 'onecycle')
-                    loss = compute_gradients[i](self.__model, optimizer, loss_functions[i], batch_x, batch_y, self.num_output_layers, self.__alphas, self.__gammas, self.__label_smoothing)
-                    print(f'\r[curriculum iteration count : {iteration_count:6d}] loss => {loss:.4f}', end='')
+                    lr_scheduler.update(optimizer, iteration_count)
+                    loss_vars = compute_gradients[i](self.__model, optimizer, loss_functions[i], batch_x, batch_y, mask, self.num_output_layers, self.__alphas, self.__gammas, self.__label_smoothing)
+                    print(self.build_loss_str(iteration_count, loss_vars), end='')
                     if iteration_count == self.__curriculum_iterations:
                         print()
                         break
                 if iteration_count == self.__curriculum_iterations:
                     break
-
-    def build_loss_str(self, iteration_count, loss_vars):
-        confidence_loss, bbox_loss, classification_loss = loss_vars
-        loss_str = f'\r[iteration_count : {iteration_count:6d}]'
-        loss_str += f' confidence_loss : {confidence_loss:>8.4f}'
-        loss_str += f', bbox_loss: {bbox_loss:>8.4f}'
-        loss_str += f', classification_loss : {classification_loss:>8.4f}'
-        return loss_str
 
     def __train(self):
         iteration_count = 0
