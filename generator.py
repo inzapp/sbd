@@ -17,61 +17,23 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-from concurrent.futures.thread import ThreadPoolExecutor
-from queue import Queue
-from threading import Thread
-from time import sleep
-
 import os
 import cv2
 import numpy as np
-import tensorflow as tf
 import albumentations as A
 
 from tqdm import tqdm
 from util import ModelUtil
+from concurrent.futures.thread import ThreadPoolExecutor
+
 
 
 class YoloDataGenerator:
     def __init__(self, image_paths, input_shape, output_shape, batch_size, multi_classification_at_same_box, ignore_nearby_cell, nearby_cell_ignore_threshold):
-        """
-        :param input_shape:
-            (height, width, channel) format of model input size
-            If the channel is 1, train with a gray image, otherwise train with a color image.
-
-        :param output_shape:
-            Output shape extracted from built model.
-
-        :param batch_size:
-            Batch size of training.
-        """
-        self.generator_flow = GeneratorFlow(image_paths, input_shape, output_shape, batch_size, multi_classification_at_same_box, ignore_nearby_cell, nearby_cell_ignore_threshold)
-
-    @classmethod
-    def empty(cls):
-        """
-        Empty class method for only initializing.
-        """
-        return cls.__new__(cls)
-
-    def flow(self):
-        """
-        Flow function to load and return the batch.
-        """
-        return self.generator_flow
-
-
-class GeneratorFlow(tf.keras.utils.Sequence):
-    """
-    Custom data generator flow for YOLO model.
-    Usage:
-        generator_flow = GeneratorFlow(image_paths=image_paths)
-    """
-    def __init__(self, image_paths, input_shape, output_shapes, batch_size, multi_classification_at_same_box, ignore_nearby_cell, nearby_cell_ignore_threshold):
         self.image_paths = image_paths
         self.input_shape = input_shape
         self.input_width, self.input_height, self.input_channel = ModelUtil.get_width_height_channel_from_input_shape(input_shape)
-        self.output_shapes = output_shapes
+        self.output_shapes = output_shape
         if type(self.output_shapes) == tuple:
             self.output_shapes = [self.output_shapes]
         self.num_classes = self.output_shapes[0][-1] - 5
@@ -90,9 +52,6 @@ class GeneratorFlow(tf.keras.utils.Sequence):
         ])
 
     def __len__(self):
-        """
-        Number of total iteration.
-        """
         return int(np.floor(len(self.image_paths) / self.batch_size))
 
     def is_label_exists(self, label_path):
@@ -284,7 +243,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
             label_lines, _ = f.result()
             labeled_boxes = self.convert_to_boxes(label_lines)
             box_count_in_real_data += len(labeled_boxes)
-            _, _, allocated_count = self.build_batch_tensor(labeled_boxes)
+            _, _, allocated_count = self.build_batch_tensor(labeled_boxes, virtual_anchor=False)
             y_true_obj_count += allocated_count
 
         avg_obj_count_per_image = box_count_in_real_data / float(len(self.image_paths))
@@ -414,7 +373,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
                     'iou': iou})
         return sorted(nearby_cells, key=lambda x: x['iou'], reverse=True)
 
-    def build_batch_tensor(self, labeled_boxes):
+    def build_batch_tensor(self, labeled_boxes, virtual_anchor):
         y, mask = [], []
         for i in range(self.num_output_layers):
             y.append(np.zeros(shape=tuple(self.output_shapes[i][1:]), dtype=np.float32))
@@ -464,6 +423,9 @@ class GeneratorFlow(tf.keras.utils.Sequence):
                         y[i][offset_center_row][offset_center_col][0] = 1.0
                         y[i][offset_center_row][offset_center_col][1] = cx_grid
                         y[i][offset_center_row][offset_center_col][2] = cy_grid
+                        if virtual_anchor:
+                            w = self.virtual_anchor_ws[i]
+                            h = self.virtual_anchor_hs[i]
                         y[i][offset_center_row][offset_center_col][3] = w
                         y[i][offset_center_row][offset_center_col][4] = h
                         for class_index in class_indexes:
@@ -522,7 +484,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
             # exit(0)
         return y, mask, allocated_count
             
-    def __getitem__(self, index):
+    def load(self, virtual_anchor=False):
         fs, batch_x, batch_y, batch_mask = [], [], [], []
         for i in range(self.num_output_layers):
             batch_y.append([])
@@ -541,7 +503,7 @@ class GeneratorFlow(tf.keras.utils.Sequence):
             labeled_boxes = self.convert_to_boxes(label_lines)
             np.random.shuffle(labeled_boxes)
 
-            y, mask, _ = self.build_batch_tensor(labeled_boxes)
+            y, mask, _ = self.build_batch_tensor(labeled_boxes, virtual_anchor)
             for i in range(self.num_output_layers):
                 batch_y[i].append(y[i])
                 batch_mask[i].append(mask[i])

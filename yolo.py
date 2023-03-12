@@ -198,19 +198,19 @@ class Yolo:
         print(f'validate on {len(self.__validation_image_paths)} samples.')
 
         print('\nlabel exist check in train data...')
-        self.__train_data_generator_for_check.flow().check_labels_exist()
+        self.__train_data_generator_for_check.check_labels_exist()
         print('\nlabel exist check in validation data...')
-        self.__validation_data_generator_for_check.flow().check_labels_exist()
+        self.__validation_data_generator_for_check.check_labels_exist()
         print('\ninvalid label check in train data...')
-        self.__train_data_generator_for_check.flow().check_invalid_label()
+        self.__train_data_generator_for_check.check_invalid_label()
         print('\ninvalid label check in validation data...')
-        self.__validation_data_generator_for_check.flow().check_invalid_label()
+        self.__validation_data_generator_for_check.check_invalid_label()
         print('\ncalculate class weights...')
-        self.__train_data_generator_for_check.flow().calculate_class_weights()
+        self.__train_data_generator_for_check.calculate_class_weights()
         print('\ncalculate virtual anchor...')
-        self.__train_data_generator.flow().calculate_virtual_anchor()
+        self.__train_data_generator.calculate_virtual_anchor()
         print('\ncalculate BPR(Best Possible Recall)...')
-        self.__train_data_generator.flow().calculate_best_possible_recall()
+        self.__train_data_generator.calculate_best_possible_recall()
         if not self.__set_alpha_gamma():
             return
         print('\nstart test forward for checking forwarding time.')
@@ -273,15 +273,19 @@ class Yolo:
         compute_gradients = [tf.function(self.compute_gradient) for _ in range(len(loss_functions))]
         for i in range(len(loss_functions)):
             iteration_count = 0
-            self.__model, optimizer = self.__refresh_model_and_optimizer(self.__model, 'sgd')
-            lr_scheduler = LRScheduler(iterations=self.__curriculum_iterations, lr=self.__lr, warm_up=self.__warm_up, policy='onecycle')
+            self.__model, optimizer = self.__refresh_model_and_optimizer(self.__model, self.__optimizer)
+            lr_scheduler = LRScheduler(iterations=self.__curriculum_iterations, lr=self.__lr, warm_up=self.__warm_up, policy=self.__lr_policy, decay_step=self.__decay_step)
             while True:
-                for batch_x, batch_y, mask in self.__train_data_generator.flow():
+                for _ in range(len(self.__train_data_generator)):
+                    batch_x, batch_y, mask = self.__train_data_generator.load(virtual_anchor=True)
                     iteration_count += 1
                     lr_scheduler.update(optimizer, iteration_count)
                     loss_vars = compute_gradients[i](self.__model, optimizer, loss_functions[i], batch_x, batch_y, mask, self.num_output_layers, self.__alphas, self.__gammas, self.__label_smoothing)
                     print(self.build_loss_str(iteration_count, loss_vars), end='')
+                    if iteration_count % 2000 == 0:
+                        self.__model.save('model_last.h5', include_optimizer=False)
                     if iteration_count == self.__curriculum_iterations:
+                        self.__model.save('model_last.h5', include_optimizer=False)
                         print()
                         break
                 if iteration_count == self.__curriculum_iterations:
@@ -293,7 +297,8 @@ class Yolo:
         self.__model, optimizer = self.__refresh_model_and_optimizer(self.__model, self.__optimizer)
         lr_scheduler = LRScheduler(iterations=self.__iterations, lr=self.__lr, warm_up=self.__warm_up, policy=self.__lr_policy, decay_step=self.__decay_step)
         while True:
-            for batch_x, batch_y, mask in self.__train_data_generator.flow():
+            for _ in range(len(self.__train_data_generator)):
+                batch_x, batch_y, mask = self.__train_data_generator.load()
                 lr_scheduler.update(optimizer, iteration_count)
                 loss_vars = compute_gradient_tf(self.__model, optimizer, yolo_loss, batch_x, batch_y, mask, self.num_output_layers, self.__alphas, self.__gammas, self.__label_smoothing)
                 iteration_count += 1
@@ -403,143 +408,41 @@ class Yolo:
             output_shape = [output_shape]
 
         img = ModelUtil.resize(img, (input_width, input_height))
-        x = ModelUtil.preprocess(img)
-        x = np.reshape(x, (1,) + input_shape)
+        x = np.reshape(ModelUtil.preprocess(img), (1,) + input_shape)
         y = ModelUtil.graph_forward(model, x, device)
         y = np.array(y)
         if num_output_layers == 1:
             y = [y]
 
-        boxes_before_nms = []
+        boxes_before_nms_list = []
         for layer_index in range(num_output_layers):
             output_tensor = y[layer_index][0]
-            boxes_before_nms += list(Yolo.decode_bounding_box(output_tensor, confidence_threshold).numpy())
-        box_dicts = []
-        for box in boxes_before_nms:
+            boxes_before_nms_list += list(Yolo.decode_bounding_box(output_tensor, confidence_threshold).numpy())
+        boxes_before_nms_dicts = []
+        for box in boxes_before_nms_list:
             confidence = float(box[0])
             y1, x1, y2, x2 = list(map(float, box[1:5]))
             class_index = int(box[5])
-            box_dicts.append({
+            boxes_before_nms_dicts.append({
                 'confidence': confidence,
                 'bbox_norm': [x1, y1, x2, y2],
                 'class': class_index,
                 'discard': False})
-        return ModelUtil.nms(box_dicts, nms_iou_threshold)
-
-        # boxes_before_nms = []
-        # for layer_index in range(num_output_layers):
-        #     output_tensor = y[layer_index][0]
-        #     boxes_before_nms += list(Yolo.decode_bounding_box(output_tensor, confidence_threshold).numpy())
-        # box_dicts = []
-        # if len(boxes_before_nms) > 0:
-        #     boxes_after_nms = Yolo.tf_nms(tf.convert_to_tensor(boxes_before_nms), nms_iou_threshold, num_classes, max_box_size_per_class)
-        #     for box in boxes_after_nms:
-        #         confidence = float(box[0])
-        #         y1, x1, y2, x2 = list(map(float, box[1:5]))
-        #         class_index = int(box[5])
-        #         box_dicts.append({
-        #             'confidence': confidence,
-        #             'bbox_norm': [x1, y1, x2, y2],
-        #             'class': class_index,
-        #             'discard': False})
-        return box_dicts
-
-    # @staticmethod
-    # def predict(model, img, device, confidence_threshold=0.2, nms_iou_threshold=0.45, verbose=False):
-    #     """
-    #     Detect object in image using trained YOLO model.
-    #     :param img: (width, height, channel) formatted image to be predicted.
-    #     :param confidence_threshold: threshold confidence score to detect object.
-    #     :param nms_iou_threshold: threshold to remove overlapped detection.
-    #     :return: dictionary array sorted by x position.
-    #     each dictionary has class index and bbox info: [x1, y1, x2, y2].
-    #     """
-    #     def sigmoid(x):
-    #         return 1.0 / (1.0 + np.exp(-x))
-
-    #     raw_width, raw_height = img.shape[1], img.shape[0]
-    #     input_shape = model.input_shape[1:]
-    #     input_width, input_height, _ = ModelUtil.get_width_height_channel_from_input_shape(input_shape)
-    #     output_shape = model.output_shape
-    #     num_output_layers = 1 if type(output_shape) == tuple else len(output_shape)
-    #     if num_output_layers == 1:
-    #         output_shape = [output_shape]
-
-    #     img = ModelUtil.resize(img, (input_width, input_height))
-    #     x = ModelUtil.preprocess(img)
-    #     x = np.reshape(x, (1,) + input_shape)
-    #     y = ModelUtil.graph_forward(model, x, device)
-    #     y = np.array(y)
-    #     if num_output_layers == 1:
-    #         y = [y]
-
-    #     boxes = []
-    #     for layer_index in range(num_output_layers):
-    #         output_tensor = y[layer_index][0]
-    #         output_tensor_rows = output_shape[layer_index][1]
-    #         output_tensor_cols = output_shape[layer_index][2]
-
-    #         cur_layer_output = output_tensor
-    #         confidence_channel = output_tensor[:, :, 0]
-    #         # confidence_channel = sigmoid(output_tensor[:, :, 0])
-    #         max_class_score_channel = np.max(output_tensor[:, :, 5:], axis=-1)
-    #         max_class_index_channel = np.argmax(output_tensor[:, :, 5:], axis=-1)
-    #         confidence_channel *= max_class_score_channel
-    #         # confidence_channel *= sigmoid(max_class_score_channel)
-    #         over_confidence_indexes = np.argwhere(confidence_channel > confidence_threshold)
-
-    #         cx_channel = output_tensor[:, :, 1]
-    #         cy_channel = output_tensor[:, :, 2]
-    #         w_channel = output_tensor[:, :, 3]
-    #         h_channel = output_tensor[:, :, 4]
-
-    #         x_range = np.arange(output_tensor_cols, dtype=np.float32)
-    #         x_offset = np.broadcast_to(x_range, shape=cx_channel.shape)
-
-    #         y_range = np.arange(output_tensor_rows, dtype=np.float32)
-    #         y_range = np.reshape(y_range, newshape=(output_tensor_rows, 1))
-    #         y_offset = np.broadcast_to(y_range, shape=cy_channel.shape)
-
-    #         cx_channel = (x_offset + cx_channel) / output_tensor_cols
-    #         cy_channel = (y_offset + cy_channel) / output_tensor_rows
-
-    #         xmin = cx_channel - (w_channel * 0.5)
-    #         ymin = cy_channel - (h_channel * 0.5)
-    #         xmax = cx_channel + (w_channel * 0.5)
-    #         ymax = cy_channel + (h_channel * 0.5)
-
-    #         boxes_before_nms = []
-    #         for i, j in over_confidence_indexes:
-    #             confidence = float(confidence_channel[i][j])
-    #             class_index = int(max_class_index_channel[i][j])
-    #             xmin_f = float(xmin[i][j])
-    #             ymin_f = float(ymin[i][j])
-    #             xmax_f = float(xmax[i][j])
-    #             ymax_f = float(ymax[i][j])
-    #             boxes_before_nms.append({
-    #                 'confidence': confidence,
-    #                 'bbox_norm': [xmin_f, ymin_f, xmax_f, ymax_f],
-    #                 'class': class_index,
-    #                 'discard': False})
-
-    #         # cur_layer_boxes = ModelUtil.nms(boxes_before_nms, nms_iou_threshold)
-    #         # boxes += cur_layer_boxes
-    #         boxes += boxes_before_nms
-    #     boxes = ModelUtil.nms(boxes, nms_iou_threshold)
-    #     # if verbose:
-    #     #     print(f'before nms box count : {len(boxes_before_nms)}')
-    #     #     print(f'after  nms box count : {len(cur_layer_boxes)}')
-    #     #     print()
-    #     #     for box_info in cur_layer_boxes:
-    #     #         class_index = box_info['class']
-    #     #         confidence = box_info['confidence']
-    #     #         bbox_norm = box_info['bbox_norm']
-    #     #         print(f'class index : {class_index}')
-    #     #         print(f'confidence : {confidence:.4f}')
-    #     #         print(f'bbox(normalized) : {np.array(bbox_norm)}')
-    #     #         print()
-    #     #     print()
-    #     return boxes
+        boxes = ModelUtil.nms(boxes_before_nms_dicts, nms_iou_threshold)
+        if verbose:
+            print(f'before nms box count : {len(boxes_before_nms_dicts)}')
+            print(f'after  nms box count : {len(boxes)}')
+            print()
+            for box_info in boxes:
+                class_index = box_info['class']
+                confidence = box_info['confidence']
+                bbox_norm = box_info['bbox_norm']
+                print(f'class index : {class_index}')
+                print(f'confidence : {confidence:.4f}')
+                print(f'bbox(normalized) : {np.array(bbox_norm)}')
+                print()
+            print()
+        return boxes
 
     def bounding_box(self, img, boxes, font_scale=0.4, show_class_with_score=True):
         """
