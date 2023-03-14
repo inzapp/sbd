@@ -243,7 +243,7 @@ class YoloDataGenerator:
             label_lines, _ = f.result()
             labeled_boxes = self.convert_to_boxes(label_lines)
             box_count_in_real_data += len(labeled_boxes)
-            _, _, allocated_count = self.build_batch_tensor(labeled_boxes, virtual_anchor=False)
+            _, _, allocated_count = self.build_batch_tensor(labeled_boxes, virtual_anchor_training=False)
             y_true_obj_count += allocated_count
 
         avg_obj_count_per_image = box_count_in_real_data / float(len(self.image_paths))
@@ -373,7 +373,7 @@ class YoloDataGenerator:
                     'iou': iou})
         return sorted(nearby_cells, key=lambda x: x['iou'], reverse=True)
 
-    def build_batch_tensor(self, labeled_boxes, virtual_anchor):
+    def build_batch_tensor(self, labeled_boxes, virtual_anchor_training):
         y, mask = [], []
         for i in range(self.num_output_layers):
             y.append(np.zeros(shape=tuple(self.output_shapes[i][1:]), dtype=np.float32))
@@ -421,13 +421,16 @@ class YoloDataGenerator:
                     offset_center_col = center_col + offset_x
                     if y[i][offset_center_row][offset_center_col][0] == 0.0:
                         y[i][offset_center_row][offset_center_col][0] = 1.0
-                        y[i][offset_center_row][offset_center_col][1] = cx_grid
-                        y[i][offset_center_row][offset_center_col][2] = cy_grid
-                        if virtual_anchor:
-                            w = self.virtual_anchor_ws[i]
-                            h = self.virtual_anchor_hs[i]
-                        y[i][offset_center_row][offset_center_col][3] = w
-                        y[i][offset_center_row][offset_center_col][4] = h
+                        if virtual_anchor_training:
+                            y[i][:, :, 1] = cx_grid
+                            y[i][:, :, 2] = cy_grid
+                            y[i][:, :, 3] = self.virtual_anchor_ws[i]
+                            y[i][:, :, 4] = self.virtual_anchor_hs[i]
+                        else:
+                            y[i][offset_center_row][offset_center_col][1] = cx_grid
+                            y[i][offset_center_row][offset_center_col][2] = cy_grid
+                            y[i][offset_center_row][offset_center_col][3] = w
+                            y[i][offset_center_row][offset_center_col][4] = h
                         for class_index in class_indexes:
                             y[i][center_row][center_col][class_index+5] = 1.0
                         is_box_allocated = True
@@ -484,7 +487,7 @@ class YoloDataGenerator:
             # exit(0)
         return y, mask, allocated_count
             
-    def load(self, virtual_anchor=False):
+    def load(self, virtual_anchor_training=False):
         fs, batch_x, batch_y, batch_mask = [], [], [], []
         for i in range(self.num_output_layers):
             batch_y.append([])
@@ -503,7 +506,7 @@ class YoloDataGenerator:
             labeled_boxes = self.convert_to_boxes(label_lines)
             np.random.shuffle(labeled_boxes)
 
-            y, mask, _ = self.build_batch_tensor(labeled_boxes, virtual_anchor)
+            y, mask, _ = self.build_batch_tensor(labeled_boxes, virtual_anchor_training)
             for i in range(self.num_output_layers):
                 batch_y[i].append(y[i])
                 batch_mask[i].append(mask[i])

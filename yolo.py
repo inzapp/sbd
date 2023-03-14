@@ -277,7 +277,7 @@ class Yolo:
             lr_scheduler = LRScheduler(iterations=self.__curriculum_iterations, lr=self.__lr, warm_up=self.__warm_up, policy=self.__lr_policy, decay_step=self.__decay_step)
             while True:
                 for _ in range(len(self.__train_data_generator)):
-                    batch_x, batch_y, mask = self.__train_data_generator.load(virtual_anchor=True)
+                    batch_x, batch_y, mask = self.__train_data_generator.load(virtual_anchor_training=True)
                     iteration_count += 1
                     lr_scheduler.update(optimizer, iteration_count)
                     loss_vars = compute_gradients[i](self.__model, optimizer, loss_functions[i], batch_x, batch_y, mask, self.num_output_layers, self.__alphas, self.__gammas, self.__label_smoothing)
