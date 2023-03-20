@@ -286,7 +286,7 @@ class YoloDataGenerator:
                     'area': w * h})
             elif not class_index in labeled_boxes[same_box_index]['class_indexes']:
                 labeled_boxes[same_box_index]['class_indexes'].append(class_index)
-        return labeled_boxes
+        return sorted(labeled_boxes, key=lambda x: x['area'], reverse=True)
 
     def get_nearby_grids(self, confidence_channel, rows, cols, row, col, cx_grid, cy_grid, cx_raw, cy_raw, w, h):
         nearby_cells = []
@@ -394,6 +394,9 @@ class YoloDataGenerator:
                     break
                 output_rows = float(self.output_shapes[i][1])
                 output_cols = float(self.output_shapes[i][2])
+                rr, cc = np.meshgrid(np.arange(output_rows), np.arange(output_cols), indexing='ij')
+                rr = np.asarray(rr).astype('float32') / np.max(rr)
+                cc = np.asarray(cc).astype('float32') / np.max(cc)
                 center_row = int(cy * output_rows)
                 center_col = int(cx * output_cols)
                 cx_grid_scale = (cx - float(center_col) / output_cols) / (1.0 / output_cols)
@@ -432,6 +435,10 @@ class YoloDataGenerator:
                             y[i][offset_center_row][offset_center_col][3] = w
                             y[i][offset_center_row][offset_center_col][4] = h
                         for class_index in class_indexes:
+                            class_channel = y[i][:, :, class_index+5]
+                            gaussian_segmentation = 1.0 - np.clip((np.abs(rr - cy) / (h * 0.5)) ** 2 + (np.abs(cc - cx) / (w * 0.5)) ** 2, 0.0, 1.0) ** 0.2
+                            segmentation_indexes = np.where(gaussian_segmentation > class_channel)
+                            class_channel[segmentation_indexes] = gaussian_segmentation[segmentation_indexes]
                             y[i][center_row][center_col][class_index+5] = 1.0
                         is_box_allocated = True
                         allocated_count += 1
@@ -441,6 +448,13 @@ class YoloDataGenerator:
         #         print(f'{int(y[0][i][j][0])} ', end='')
         #     print()
         # exit(0)
+
+        # for i in range(len(y)):
+        #     for class_index in range(self.num_classes):
+        #         cv2.imshow(f'class_{class_index}', cv2.resize(np.asarray(y[i][:, :, class_index+5] * 255.0).astype('uint8'), (0, 0), fx=8, fy=8))
+        # key = cv2.waitKey(0)
+        # if key == 27:
+        #     exit(0)
 
         # create mask after all value is allocated in train tensor
         if self.ignore_nearby_cell:
@@ -496,6 +510,7 @@ class YoloDataGenerator:
             fs.append(self.pool.submit(ModelUtil.load_img, path, self.input_channel))
         for f in fs:
             img, _, cur_img_path = f.result()
+            # cv2.imshow('img', img)
             img = self.transform(image=img)['image']
             img = ModelUtil.resize(img, (self.input_width, self.input_height))
             x = ModelUtil.preprocess(img)
