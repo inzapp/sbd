@@ -437,7 +437,8 @@ class YoloDataGenerator:
                         for class_index in class_indexes:
                             class_channel = y[i][:, :, class_index+5]
                             # gaussian_segmentation = 1.0 - np.clip((np.abs(rr - cy) / (h * 0.5)) ** 2 + (np.abs(cc - cx) / (w * 0.5)) ** 2, 0.0, 1.0) ** 0.2
-                            gaussian_segmentation = np.where(1.0 - np.clip((np.abs(rr - cy) / (h * 0.05)) ** 2 + (np.abs(cc - cx) / (w * 0.05)) ** 2, 0.0, 1.0) > 0.0, 1.0, 0.0)  # small circle
+                            gaussian_segmentation = 1.0 - np.clip((np.abs(rr - cy) / (h * 0.1)) ** 2 + (np.abs(cc - cx) / (w * 0.1)) ** 2, 0.0, 1.0) ** 0.5  # small circular segmentation
+                            # gaussian_segmentation = np.where(1.0 - np.clip((np.abs(rr - cy) / (h * 0.05)) ** 2 + (np.abs(cc - cx) / (w * 0.05)) ** 2, 0.0, 1.0) > 0.0, 1.0, 0.0)  # small circle
                             # gaussian_segmentation = np.where(1.0 - np.clip((np.abs(rr - cy) / (h * 0.5)) ** 2 + (np.abs(cc - cx) / (w * 0.5)) ** 2, 0.0, 1.0) > 0.0, 1.0, 0.0)  # circle
                             # gaussian_segmentation = np.where(1.0 - np.clip((np.abs(rr - cy) / (h * 0.5)) ** 1 + (np.abs(cc - cx) / (w * 0.5)) ** 1, 0.0, 1.0) > 0.0, 1.0, 0.0)  # diamond
                             segmentation_indexes = np.where(gaussian_segmentation > class_channel)
@@ -454,7 +455,7 @@ class YoloDataGenerator:
 
         # for i in range(len(y)):
         #     for class_index in range(self.num_classes):
-        #         cv2.imshow(f'class_{class_index}', cv2.resize(np.asarray(y[i][:, :, class_index+5] * 255.0).astype('uint8'), (0, 0), fx=1, fy=1, interpolation=cv2.INTER_LINEAR))
+        #         cv2.imshow(f'class_{class_index}', cv2.resize(np.asarray(y[i][:, :, class_index+5] * 255.0).astype('uint8'), (0, 0), fx=2, fy=2, interpolation=cv2.INTER_LINEAR))
         # key = cv2.waitKey(0)
         # if key == 27:
         #     exit(0)
