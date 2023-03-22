@@ -425,22 +425,35 @@ class YoloDataGenerator:
                     offset_center_row = center_row + offset_y
                     offset_center_col = center_col + offset_x
                     if y[i][offset_center_row][offset_center_col][0] == 0.0:
-                        y[i][offset_center_row][offset_center_col][0] = 1.0
+                        object_heatmap = 1.0 - np.clip((np.abs(rr - center_row_f) / (h * 0.1)) ** 2 + (np.abs(cc - center_col_f) / (w * 0.1)) ** 2, 0.0, 1.0) ** 0.5
+                        confidence_channel = y[i][:, :, 0]
+                        confidence_indices = np.where(object_heatmap > confidence_channel)
+                        confidence_channel[confidence_indices] = object_heatmap[confidence_indices]
+                        # y[i][offset_center_row][offset_center_col][0] = 1.0
                         if virtual_anchor_training:
                             y[i][:, :, 1] = cx_grid
                             y[i][:, :, 2] = cy_grid
                             y[i][:, :, 3] = self.virtual_anchor_ws[i]
                             y[i][:, :, 4] = self.virtual_anchor_hs[i]
                         else:
-                            y[i][offset_center_row][offset_center_col][1] = cx_grid
-                            y[i][offset_center_row][offset_center_col][2] = cy_grid
-                            y[i][offset_center_row][offset_center_col][3] = w
-                            y[i][offset_center_row][offset_center_col][4] = h
+                            # y[i][offset_center_row][offset_center_col][1] = cx_grid
+                            # y[i][offset_center_row][offset_center_col][2] = cy_grid
+                            # y[i][offset_center_row][offset_center_col][3] = w
+                            # y[i][offset_center_row][offset_center_col][4] = h
+
+                            cx_channel = y[i][:, :, 1]
+                            cy_channel = y[i][:, :, 2]
+                            w_channel = y[i][:, :, 3]
+                            h_channel = y[i][:, :, 4]
+                            
+                            cx_channel[confidence_indices] = cx_grid
+                            cy_channel[confidence_indices] = cy_grid
+                            w_channel[confidence_indices] = w
+                            h_channel[confidence_indices] = h
                         for class_index in class_indexes:
                             class_channel = y[i][:, :, class_index+5]
-                            gaussian_segmentation = 1.0 - np.clip((np.abs(rr - center_row_f) / (h * 0.1)) ** 2 + (np.abs(cc - center_col_f) / (w * 0.1)) ** 2, 0.0, 1.0) ** 0.5
-                            segmentation_indexes = np.where(gaussian_segmentation > class_channel)
-                            class_channel[segmentation_indexes] = gaussian_segmentation[segmentation_indexes]
+                            class_indices = np.where(object_heatmap > class_channel)
+                            class_channel[class_indices] = object_heatmap[class_indices]
                             # y[i][center_row][center_col][class_index+5] = 1.0
                         is_box_allocated = True
                         allocated_count += 1
@@ -452,9 +465,11 @@ class YoloDataGenerator:
         # exit(0)
 
         # for i in range(len(y)):
-        #     for class_index in range(self.num_classes):
-        #         heatmap = cv2.resize(np.asarray(y[i][:, :, class_index+5] * 255.0).astype('uint8'), (0, 0), fx=8, fy=8, interpolation=cv2.INTER_NEAREST)
-        #         cv2.imshow(f'class_{class_index}', heatmap)
+        #     heatmap = cv2.resize(np.asarray(y[i][:, :, 0] * 255.0).astype('uint8'), (0, 0), fx=8, fy=8, interpolation=cv2.INTER_NEAREST)  # confidence heatmap
+        #     cv2.imshow(f'confidence', heatmap)
+        #     # for class_index in range(self.num_classes):  # class heatmap
+        #     #     heatmap = cv2.resize(np.asarray(y[i][:, :, class_index+5] * 255.0).astype('uint8'), (0, 0), fx=8, fy=8, interpolation=cv2.INTER_NEAREST)
+        #     #     cv2.imshow(f'class_{class_index}', heatmap)
         # key = cv2.waitKey(0)
         # if key == 27:
         #     exit(0)

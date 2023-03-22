@@ -123,7 +123,7 @@ def __iou(y_true, y_pred, convex=False, diou=False):
 
 
 def __bbox_loss(y_true, y_pred, mask):
-    obj_true = y_true[:, :, :, 0]
+    obj_true = tf.where(y_true[:, :, :, 0] > 0.0, 1.0, 0.0)
     obj_count = tf.cast(tf.reduce_sum(obj_true), y_pred.dtype)
     if obj_count == tf.constant(0.0):
         return 0.0
@@ -134,7 +134,7 @@ def __bbox_loss(y_true, y_pred, mask):
 
 
 def __classification_loss(y_true, y_pred, mask, alpha, gamma, label_smoothing):
-    obj_true = y_true[:, :, :, 0]
+    obj_true = tf.where(y_true[:, :, :, 0] > 0.0, 1.0, 0.0)
     obj_count = tf.cast(tf.reduce_sum(obj_true), y_pred.dtype)
     if obj_count == tf.constant(0.0):
         return 0.0
