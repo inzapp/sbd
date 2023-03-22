@@ -141,9 +141,9 @@ def __classification_loss(y_true, y_pred, mask, alpha, gamma, label_smoothing):
 
     class_true = y_true[:, :, :, 5:]
     class_pred = y_pred[:, :, :, 5:]
-    ale = AbsoluteLogarithmicError(alpha=0.5, gamma=gamma, label_smoothing=label_smoothing)
+    ale = AbsoluteLogarithmicError(alpha=alpha, gamma=gamma, label_smoothing=label_smoothing)
     # loss = tf.reduce_sum(tf.reduce_sum(ale(class_true, class_pred), axis=-1) * obj_true * mask[:, :, :, 0])
-    loss = tf.reduce_sum(tf.reduce_sum(ale(class_true, class_pred), axis=-1))
+    loss = tf.reduce_sum(ale(class_true, class_pred))
     return loss / tf.cast(tf.shape(y_true)[0], dtype=y_pred.dtype)
 
 
