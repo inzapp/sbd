@@ -395,10 +395,12 @@ class YoloDataGenerator:
                 output_rows = float(self.output_shapes[i][1])
                 output_cols = float(self.output_shapes[i][2])
                 rr, cc = np.meshgrid(np.arange(output_rows), np.arange(output_cols), indexing='ij')
-                rr = np.asarray(rr).astype('float32') / np.max(rr)
-                cc = np.asarray(cc).astype('float32') / np.max(cc)
+                rr = np.asarray(rr).astype('float32') / (np.max(rr) + 1)
+                cc = np.asarray(cc).astype('float32') / (np.max(cc) + 1)
                 center_row = int(cy * output_rows)
                 center_col = int(cx * output_cols)
+                center_row_f = int(cy * output_rows) / output_rows
+                center_col_f = int(cx * output_cols) / output_cols
                 cx_grid_scale = (cx - float(center_col) / output_cols) / (1.0 / output_cols)
                 cy_grid_scale = (cy - float(center_row) / output_rows) / (1.0 / output_rows)
                 nearby_grids = self.get_nearby_grids(
@@ -436,14 +438,10 @@ class YoloDataGenerator:
                             y[i][offset_center_row][offset_center_col][4] = h
                         for class_index in class_indexes:
                             class_channel = y[i][:, :, class_index+5]
-                            # gaussian_segmentation = 1.0 - np.clip((np.abs(rr - cy) / (h * 0.5)) ** 2 + (np.abs(cc - cx) / (w * 0.5)) ** 2, 0.0, 1.0) ** 0.2
-                            gaussian_segmentation = 1.0 - np.clip((np.abs(rr - cy) / (h * 0.1)) ** 2 + (np.abs(cc - cx) / (w * 0.1)) ** 2, 0.0, 1.0) ** 0.5  # small circular segmentation
-                            # gaussian_segmentation = np.where(1.0 - np.clip((np.abs(rr - cy) / (h * 0.05)) ** 2 + (np.abs(cc - cx) / (w * 0.05)) ** 2, 0.0, 1.0) > 0.0, 1.0, 0.0)  # small circle
-                            # gaussian_segmentation = np.where(1.0 - np.clip((np.abs(rr - cy) / (h * 0.5)) ** 2 + (np.abs(cc - cx) / (w * 0.5)) ** 2, 0.0, 1.0) > 0.0, 1.0, 0.0)  # circle
-                            # gaussian_segmentation = np.where(1.0 - np.clip((np.abs(rr - cy) / (h * 0.5)) ** 1 + (np.abs(cc - cx) / (w * 0.5)) ** 1, 0.0, 1.0) > 0.0, 1.0, 0.0)  # diamond
+                            gaussian_segmentation = 1.0 - np.clip((np.abs(rr - center_row_f) / (h * 0.1)) ** 2 + (np.abs(cc - center_col_f) / (w * 0.1)) ** 2, 0.0, 1.0) ** 0.5
                             segmentation_indexes = np.where(gaussian_segmentation > class_channel)
                             class_channel[segmentation_indexes] = gaussian_segmentation[segmentation_indexes]
-                            y[i][center_row][center_col][class_index+5] = 1.0
+                            # y[i][center_row][center_col][class_index+5] = 1.0
                         is_box_allocated = True
                         allocated_count += 1
                         break
@@ -455,7 +453,8 @@ class YoloDataGenerator:
 
         # for i in range(len(y)):
         #     for class_index in range(self.num_classes):
-        #         cv2.imshow(f'class_{class_index}', cv2.resize(np.asarray(y[i][:, :, class_index+5] * 255.0).astype('uint8'), (0, 0), fx=2, fy=2, interpolation=cv2.INTER_LINEAR))
+        #         heatmap = cv2.resize(np.asarray(y[i][:, :, class_index+5] * 255.0).astype('uint8'), (0, 0), fx=8, fy=8, interpolation=cv2.INTER_NEAREST)
+        #         cv2.imshow(f'class_{class_index}', heatmap)
         # key = cv2.waitKey(0)
         # if key == 27:
         #     exit(0)
