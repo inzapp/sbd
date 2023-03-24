@@ -334,7 +334,10 @@ class YoloDataGenerator:
                     cx_nearby_raw + (w * 0.5),
                     cy_nearby_raw + (h * 0.5)]
                 box_nearby = np.clip(np.array(box_nearby), 0.0, 1.0)
-                iou = ModelUtil.iou(box_origin, box_nearby)
+                if name == 'c':
+                    iou = 1.0
+                else:
+                    iou = ModelUtil.iou(box_origin, box_nearby) - 1e-4  # subtract small value for give center grid to first priority
                 nearby_cells.append({
                     'offset_y': offset_y,
                     'offset_x': offset_x,
@@ -426,35 +429,46 @@ class YoloDataGenerator:
                     offset_center_col = center_col + offset_x
                     if y[i][offset_center_row][offset_center_col][0] == 0.0:
                         object_heatmap = 1.0 - np.clip((np.abs(rr - center_row_f) / (h * 0.1)) ** 2 + (np.abs(cc - center_col_f) / (w * 0.1)) ** 2, 0.0, 1.0) ** 0.5
-                        confidence_channel = y[i][:, :, 0]
-                        confidence_indices = np.where(object_heatmap > confidence_channel)
-                        confidence_channel[confidence_indices] = object_heatmap[confidence_indices]
-                        # y[i][offset_center_row][offset_center_col][0] = 1.0
+                        # confidence_channel = y[i][:, :, 0]
+                        # confidence_indices = np.where(object_heatmap > confidence_channel)
+                        # confidence_channel[confidence_indices] = object_heatmap[confidence_indices]
+
+                        object_mask = np.where(object_heatmap == 0.0, 1.0, 0.0)
+                        object_mask[offset_center_row][offset_center_col] = 1.0
+
+                        confidence_mask_channel = mask[i][:, :, 0]
+                        confidence_mask_indices = np.where(object_mask < confidence_mask_channel)
+                        confidence_mask_channel[confidence_mask_indices] = object_mask[confidence_mask_indices]
+
+                        y[i][offset_center_row][offset_center_col][0] = 1.0
                         if virtual_anchor_training:
                             y[i][:, :, 1] = cx_grid
                             y[i][:, :, 2] = cy_grid
                             y[i][:, :, 3] = self.virtual_anchor_ws[i]
                             y[i][:, :, 4] = self.virtual_anchor_hs[i]
                         else:
-                            # y[i][offset_center_row][offset_center_col][1] = cx_grid
-                            # y[i][offset_center_row][offset_center_col][2] = cy_grid
-                            # y[i][offset_center_row][offset_center_col][3] = w
-                            # y[i][offset_center_row][offset_center_col][4] = h
+                            y[i][offset_center_row][offset_center_col][1] = cx_grid
+                            y[i][offset_center_row][offset_center_col][2] = cy_grid
+                            y[i][offset_center_row][offset_center_col][3] = w
+                            y[i][offset_center_row][offset_center_col][4] = h
 
-                            cx_channel = y[i][:, :, 1]
-                            cy_channel = y[i][:, :, 2]
-                            w_channel = y[i][:, :, 3]
-                            h_channel = y[i][:, :, 4]
-                            
-                            cx_channel[confidence_indices] = cx_grid
-                            cy_channel[confidence_indices] = cy_grid
-                            w_channel[confidence_indices] = w
-                            h_channel[confidence_indices] = h
+                            # cx_channel = y[i][:, :, 1]
+                            # cy_channel = y[i][:, :, 2]
+                            # w_channel = y[i][:, :, 3]
+                            # h_channel = y[i][:, :, 4]
+                            # cx_channel[confidence_indices] = cx_grid
+                            # cy_channel[confidence_indices] = cy_grid
+                            # w_channel[confidence_indices] = w
+                            # h_channel[confidence_indices] = h
                         for class_index in class_indexes:
-                            class_channel = y[i][:, :, class_index+5]
-                            class_indices = np.where(object_heatmap > class_channel)
-                            class_channel[class_indices] = object_heatmap[class_indices]
-                            # y[i][center_row][center_col][class_index+5] = 1.0
+                            # class_channel = y[i][:, :, class_index+5]
+                            # class_indices = np.where(object_heatmap > class_channel)
+                            # class_channel[class_indices] = object_heatmap[class_indices]
+
+                            class_mask_channel = mask[i][:, :, class_index+5]
+                            class_mask_indices = np.where(object_mask < class_mask_channel)
+                            class_mask_channel[class_mask_indices] = object_mask[class_mask_indices]
+                            y[i][center_row][center_col][class_index+5] = 1.0
                         is_box_allocated = True
                         allocated_count += 1
                         break
@@ -465,11 +479,11 @@ class YoloDataGenerator:
         # exit(0)
 
         # for i in range(len(y)):
-        #     heatmap = cv2.resize(np.asarray(y[i][:, :, 0] * 255.0).astype('uint8'), (0, 0), fx=8, fy=8, interpolation=cv2.INTER_NEAREST)  # confidence heatmap
-        #     cv2.imshow(f'confidence', heatmap)
+        #     # cv2.imshow(f'confidence', cv2.resize(np.asarray(y[i][:, :, 0] * 255.0).astype('uint8'), (0, 0), fx=8, fy=8, interpolation=cv2.INTER_NEAREST))
         #     # for class_index in range(self.num_classes):  # class heatmap
-        #     #     heatmap = cv2.resize(np.asarray(y[i][:, :, class_index+5] * 255.0).astype('uint8'), (0, 0), fx=8, fy=8, interpolation=cv2.INTER_NEAREST)
-        #     #     cv2.imshow(f'class_{class_index}', heatmap)
+        #     #     cv2.imshow(f'class_{class_index}', cv2.resize(np.asarray(y[i][:, :, class_index+5] * 255.0).astype('uint8'), (0, 0), fx=8, fy=8, interpolation=cv2.INTER_NEAREST))
+
+        #     cv2.imshow(f'confidence mask', cv2.resize(np.asarray(mask[i][:, :, 0] * 255.0).astype('uint8'), (0, 0), fx=8, fy=8, interpolation=cv2.INTER_NEAREST))
         # key = cv2.waitKey(0)
         # if key == 27:
         #     exit(0)
