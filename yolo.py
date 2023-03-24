@@ -421,7 +421,7 @@ class Yolo:
         boxes_before_nms_dicts = []
         for box in boxes_before_nms_list:
             confidence = float(box[0])
-            y1, x1, y2, x2 = list(map(float, box[1:5]))
+            y1, x1, y2,x2 = np.clip(np.array(list(map(float, box[1:5]))), 0.0, 1.0)
             class_index = int(box[5])
             boxes_before_nms_dicts.append({
                 'confidence': confidence,
