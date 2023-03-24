@@ -26,7 +26,8 @@ def __confidence_loss(y_true, y_pred, mask, alpha, gamma):
     obj_true = y_true[:, :, :, 0]
     obj_pred = y_pred[:, :, :, 0]
     ale = AbsoluteLogarithmicError(alpha=alpha, gamma=gamma)
-    loss = tf.reduce_sum(ale(obj_true, obj_pred) * mask[:, :, :, 0])
+    loss = tf.reduce_sum(ale(obj_true, obj_pred))
+    # loss = tf.reduce_sum(ale(obj_true, obj_pred) * mask[:, :, :, 0])
     return loss / tf.cast(tf.shape(y_true)[0], dtype=y_pred.dtype)
 
 
@@ -154,16 +155,16 @@ def __bbox_loss(y_true, y_pred, mask):
 
 
 def __classification_loss(y_true, y_pred, mask, alpha, gamma, label_smoothing):
-    # obj_true = tf.where(y_true[:, :, :, 0] > 0.0, 1.0, 0.0)
-    # obj_count = tf.cast(tf.reduce_sum(obj_true), y_pred.dtype)
-    # if obj_count == tf.constant(0.0):
-    #     return 0.0
+    obj_true = y_true[:, :, :, 0]
+    obj_count = tf.cast(tf.reduce_sum(obj_true), y_pred.dtype)
+    if obj_count == tf.constant(0.0):
+        return 0.0
 
     class_true = y_true[:, :, :, 5:]
     class_pred = y_pred[:, :, :, 5:]
     ale = AbsoluteLogarithmicError(alpha=alpha, gamma=gamma, label_smoothing=label_smoothing)
-    loss = tf.reduce_sum(ale(class_true, class_pred) * mask[:, :, :, 5:])
-    # loss = tf.reduce_sum(tf.reduce_sum(ale(class_true, class_pred), axis=-1) * obj_true * mask[:, :, :, 0])
+    # loss = tf.reduce_sum(ale(class_true, class_pred) * mask[:, :, :, 5:])
+    loss = tf.reduce_sum(tf.reduce_sum(ale(class_true, class_pred), axis=-1) * obj_true)
     # loss = tf.reduce_sum(ale(class_true, class_pred))
     return loss / tf.cast(tf.shape(y_true)[0], dtype=y_pred.dtype)
 
