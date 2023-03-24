@@ -260,6 +260,59 @@ class YoloDataGenerator:
         print(f'not trained  obj count : {not_trained_obj_count} ({not_trained_obj_rate:.2f}%)')
         print(f'best possible recall   : {best_possible_recall:.4f}')
 
+    def random_scale(self, img, label_lines):
+        def overlay(img, overlay_img, start_x, start_y, channels):
+            img_height, img_width = img.shape[:2]
+            overlay_img_height, overlay_img_width = overlay_img.shape[:2]
+            y_slice = slice(start_y, start_y + overlay_img_height)
+            x_slice = slice(start_x, start_x + overlay_img_width)
+            if channels == 1:
+                img[y_slice, x_slice] = overlay_img[:overlay_img_height, :overlay_img_width]
+            else:
+                img[y_slice, x_slice, :] = overlay_img[:overlay_img_height, :overlay_img_width, :]
+            return img
+
+        max_scale = 0.95
+        min_scale = 0.75
+        scale = np.random.uniform() * (max_scale - min_scale) + min_scale
+        img_height, img_width = img.shape[:2]
+        channels = 1
+        if len(img.shape) == 3 and img.shape[-1] == 3:
+            channels = 3
+
+        reduced_height, reduced_width = int(img_height * scale), int(img_width * scale)
+        reduced_img = cv2.resize(img, (0, 0), fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
+        if channels == 1:
+            black = np.zeros(shape=(self.input_shape[0], self.input_shape[1]), dtype=np.uint8)
+        else:
+            black = np.zeros(shape=(self.input_shape[0], self.input_shape[1], channels), dtype=np.uint8)
+
+        start_x = np.random.randint(img_width - reduced_width)
+        start_y = np.random.randint(img_height - reduced_height)
+        scaled_img = overlay(black, reduced_img, start_x, start_y, channels)
+
+        roi_x1 = start_x / float(img_width)
+        roi_y1 = start_y / float(img_height)
+        roi_x2 = (start_x + reduced_width) / float(img_width)
+        roi_y2 = (start_y + reduced_height) / float(img_height)
+        roi_w = roi_x2 - roi_x1
+        roi_h = roi_y2 - roi_y1
+        roi = [roi_x1, roi_y1, roi_x2, roi_y2]
+
+        scaled_label_lines = []
+        for line in label_lines:
+            class_index, cx, cy, w, h = list(map(float, line.split()))
+            class_index = int(class_index)
+            cx *= roi_w
+            cy *= roi_h
+            cx += roi_x1
+            cy += roi_y1
+            w *= roi_w
+            h *= roi_h
+            cx, cy, w, h = np.clip(np.array([cx, cy, w, h]), 0.0, 1.0)
+            scaled_label_lines.append(f'{class_index} {cx:.6f} {cy:.6f} {w:.6f} {h:.6f}\n')
+        return scaled_img, scaled_label_lines
+
     def convert_to_boxes(self, label_lines):
         def get_same_box_index(labeled_boxes, cx, cy, w, h):
             if self.multi_classification_at_same_box:
@@ -543,16 +596,16 @@ class YoloDataGenerator:
         for f in fs:
             img, _, cur_img_path = f.result()
             # cv2.imshow('img', img)
-            img = self.transform(image=img)['image']
             img = ModelUtil.resize(img, (self.input_width, self.input_height))
-            x = ModelUtil.preprocess(img)
-            batch_x.append(x)
-
+            img = self.transform(image=img)['image']
             with open(f'{cur_img_path[:-4]}.txt', mode='rt') as file:
                 label_lines = file.readlines()
+            if np.random.uniform() < 0.5:
+                img, label_lines = self.random_scale(img, label_lines)
+            x = ModelUtil.preprocess(img)
+            batch_x.append(x)
             labeled_boxes = self.convert_to_boxes(label_lines)
             np.random.shuffle(labeled_boxes)
-
             y, mask, _ = self.build_batch_tensor(labeled_boxes, virtual_anchor_training)
             for i in range(self.num_output_layers):
                 batch_y[i].append(y[i])
