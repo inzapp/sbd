@@ -26,8 +26,8 @@ def __confidence_loss(y_true, y_pred, mask, alpha, gamma):
     obj_true = y_true[:, :, :, 0]
     obj_pred = y_pred[:, :, :, 0]
     ale = AbsoluteLogarithmicError(alpha=alpha, gamma=gamma)
-    loss = tf.reduce_sum(ale(obj_true, obj_pred))
-    # loss = tf.reduce_sum(ale(obj_true, obj_pred) * mask[:, :, :, 0])
+    # loss = tf.reduce_sum(ale(obj_true, obj_pred))
+    loss = tf.reduce_sum(ale(obj_true, obj_pred) * mask[:, :, :, 0])
     return loss / tf.cast(tf.shape(y_true)[0], dtype=y_pred.dtype)
 
 
@@ -35,24 +35,17 @@ def __iou(y_true, y_pred, convex=False, diou=False):
     y_true_shape = tf.cast(tf.shape(y_true), y_pred.dtype)
     grid_height, grid_width = y_true_shape[1], y_true_shape[2]
 
+    x_grid, y_grid = tf.meshgrid(tf.range(grid_width), tf.range(grid_height), indexing='xy')
+
     cx_true = y_true[:, :, :, 1]
     cy_true = y_true[:, :, :, 2]
-
-    x_range = tf.range(grid_width, dtype=y_pred.dtype)
-    x_offset = tf.broadcast_to(x_range, shape=tf.shape(cx_true))
-
-    y_range = tf.range(grid_height, dtype=y_pred.dtype)
-    y_range = tf.reshape(y_range, shape=(1, grid_height, 1))
-    y_offset = tf.broadcast_to(y_range, shape=tf.shape(cy_true))
-
-    cx_true = x_offset + (cx_true * 1.0 / grid_width)
-    cy_true = y_offset + (cy_true * 1.0 / grid_height)
-
     cx_pred = y_pred[:, :, :, 1]
     cy_pred = y_pred[:, :, :, 2]
 
-    cx_pred = x_offset + (cx_pred * 1.0 / grid_width)
-    cy_pred = y_offset + (cy_pred * 1.0 / grid_height)
+    cx_true = (x_grid + cx_true) / grid_width
+    cx_pred = (x_grid + cx_pred) / grid_width
+    cy_true = (y_grid + cy_true) / grid_height
+    cy_pred = (y_grid + cy_pred) / grid_height
 
     w_true = y_true[:, :, :, 3]
     h_true = y_true[:, :, :, 4]
@@ -103,12 +96,13 @@ def __iou(y_true, y_pred, convex=False, diou=False):
     intersection_height = tf.maximum(min_y2 - max_y1, 0.0)
     intersection = intersection_width * intersection_height
 
+    convex_width = tf.maximum(x2_true, x2_pred) - tf.minimum(x1_true, x1_pred)
+    convex_height = tf.maximum(y2_true, y2_pred) - tf.minimum(y1_true, y1_pred)
+
     y_true_area = w_true * h_true
     y_pred_area = w_pred * h_pred
     if convex:
-        union_width = tf.maximum(x2_true, x2_pred) - tf.minimum(x1_true, x1_pred)
-        union_height = tf.maximum(y2_true, y2_pred) - tf.minimum(y1_true, y1_pred)
-        union = union_width * union_height
+        union = convex_width * convex_height
     else:
         union = y_true_area + y_pred_area - intersection
     iou = intersection / (union + 1e-5)
@@ -116,9 +110,7 @@ def __iou(y_true, y_pred, convex=False, diou=False):
     rdiou = 0.0
     if diou:
         center_loss = tf.square(cx_true - cx_pred) + tf.square(cy_true - cy_pred)
-        union_width = tf.maximum(x2_true, x2_pred) - tf.minimum(x1_true, x1_pred)
-        union_height = tf.maximum(y2_true, y2_pred) - tf.minimum(y1_true, y1_pred)
-        diagonal_loss = tf.square(union_width) + tf.square(union_height) + tf.keras.backend.epsilon()
+        diagonal_loss = tf.square(convex_width) + tf.square(convex_height) + tf.keras.backend.epsilon()
         rdiou = center_loss / diagonal_loss
     return iou, rdiou
 
