@@ -29,7 +29,7 @@ from concurrent.futures.thread import ThreadPoolExecutor
 
 
 class YoloDataGenerator:
-    def __init__(self, image_paths, input_shape, output_shape, batch_size, multi_classification_at_same_box, ignore_nearby_cell, nearby_cell_ignore_threshold):
+    def __init__(self, image_paths, input_shape, output_shape, batch_size, multi_classification_at_same_box, heatmap_scale):
         self.image_paths = image_paths
         self.input_shape = input_shape
         self.input_width, self.input_height, self.input_channel = ModelUtil.get_width_height_channel_from_input_shape(input_shape)
@@ -40,8 +40,7 @@ class YoloDataGenerator:
         self.batch_size = batch_size
         self.num_output_layers = len(self.output_shapes)
         self.multi_classification_at_same_box = multi_classification_at_same_box
-        self.ignore_nearby_cell = ignore_nearby_cell
-        self.nearby_cell_ignore_threshold = nearby_cell_ignore_threshold 
+        self.heatmap_scale = heatmap_scale 
         self.virtual_anchor_ws = []
         self.virtual_anchor_hs = []
         self.batch_index = 0
@@ -399,36 +398,6 @@ class YoloDataGenerator:
                     'iou': iou})
         return sorted(nearby_cells, key=lambda x: x['iou'], reverse=True)
 
-    def get_nearby_grids_for_mask(self, confidence_channel, rows, cols, row, col, cx_grid, cy_grid, cx_raw, cy_raw, w, h, offset_range=1):
-        assert offset_range > 0
-        nearby_cells = []
-        offset_vals = list(range(-offset_range, offset_range))
-        positions = []
-        for offset_i in offset_vals:
-            for offset_j in offset_vals:
-                positions.append([offset_i, offset_j])
-        for offset_y, offset_x in positions:
-            if (0 <= row + offset_y < rows) and (0 <= col + offset_x < cols):
-                box_origin = [
-                    cx_raw - (w * 0.5),
-                    cy_raw - (h * 0.5),
-                    cx_raw + (w * 0.5),
-                    cy_raw + (h * 0.5)]
-                cx_nearby_raw = (float(col + offset_x) + 0.5) / float(cols)
-                cy_nearby_raw = (float(row + offset_y) + 0.5) / float(rows)
-                box_nearby = [
-                    cx_nearby_raw - (w * 0.5),
-                    cy_nearby_raw - (h * 0.5),
-                    cx_nearby_raw + (w * 0.5),
-                    cy_nearby_raw + (h * 0.5)]
-                box_nearby = np.clip(np.array(box_nearby), 0.0, 1.0)
-                iou = ModelUtil.iou(box_origin, box_nearby)
-                nearby_cells.append({
-                    'offset_y': offset_y,
-                    'offset_x': offset_x,
-                    'iou': iou})
-        return sorted(nearby_cells, key=lambda x: x['iou'], reverse=True)
-
     def build_batch_tensor(self, labeled_boxes, virtual_anchor_training):
         y, mask = [], []
         for i in range(self.num_output_layers):
@@ -481,7 +450,8 @@ class YoloDataGenerator:
                     offset_center_row = center_row + offset_y
                     offset_center_col = center_col + offset_x
                     if y[i][offset_center_row][offset_center_col][0] == 0.0:
-                        object_heatmap = 1.0 - np.clip((np.abs(rr - center_row_f) / (h * 0.1)) ** 2 + (np.abs(cc - center_col_f) / (w * 0.1)) ** 2, 0.0, 1.0) ** 0.5
+                        half_scale = max(self.heatmap_scale * 0.5, 1e-5)
+                        object_heatmap = 1.0 - np.clip((np.abs(rr - center_row_f) / (h * half_scale)) ** 2 + (np.abs(cc - center_col_f) / (w * half_scale)) ** 2, 0.0, 1.0) ** 0.5
                         # confidence_channel = y[i][:, :, 0]
                         # confidence_indices = np.where(object_heatmap > confidence_channel)
                         # confidence_channel[confidence_indices] = object_heatmap[confidence_indices]
@@ -492,7 +462,6 @@ class YoloDataGenerator:
                         confidence_mask_channel = mask[i][:, :, 0]
                         confidence_mask_indices = np.where(object_mask < confidence_mask_channel)
                         confidence_mask_channel[confidence_mask_indices] = object_mask[confidence_mask_indices]
-
                         y[i][offset_center_row][offset_center_col][0] = 1.0
                         if virtual_anchor_training:
                             y[i][:, :, 1] = cx_grid
@@ -517,7 +486,6 @@ class YoloDataGenerator:
                             # class_channel = y[i][:, :, class_index+5]
                             # class_indices = np.where(object_heatmap > class_channel)
                             # class_channel[class_indices] = object_heatmap[class_indices]
-
                             class_mask_channel = mask[i][:, :, class_index+5]
                             class_mask_indices = np.where(object_mask < class_mask_channel)
                             class_mask_channel[class_mask_indices] = object_mask[class_mask_indices]
@@ -540,50 +508,6 @@ class YoloDataGenerator:
         # key = cv2.waitKey(0)
         # if key == 27:
         #     exit(0)
-
-        # create mask after all value is allocated in train tensor
-        if self.ignore_nearby_cell:
-            for b in labeled_boxes:
-                class_indexes, cx, cy, w, h = b['class_indexes'], b['cx'], b['cy'], b['w'], b['h']
-                best_iou_layer_indexes = self.get_iou_with_virtual_anchors([cx, cy, w, h])
-                for i, layer_iou in best_iou_layer_indexes:
-                    output_rows = float(self.output_shapes[i][1])
-                    output_cols = float(self.output_shapes[i][2])
-                    center_row = int(cy * output_rows)
-                    center_col = int(cx * output_cols)
-                    cx_grid_scale = (cx - float(center_col) / output_cols) / (1.0 / output_cols)
-                    cy_grid_scale = (cy - float(center_row) / output_rows) / (1.0 / output_rows)
-                    nearby_grids = self.get_nearby_grids_for_mask(
-                        confidence_channel=y[i][:, :, 0],
-                        rows=output_rows,
-                        cols=output_cols,
-                        row=center_row,
-                        col=center_col,
-                        cx_grid=cx_grid_scale,
-                        cy_grid=cy_grid_scale,
-                        cx_raw=cx,
-                        cy_raw=cy,
-                        w=w,
-                        h=h)
-                    for grid in nearby_grids:
-                        if grid['iou'] < self.nearby_cell_ignore_threshold:
-                            break
-                        offset_y = grid['offset_y']
-                        offset_x = grid['offset_x']
-                        offset_center_row = center_row + offset_y
-                        offset_center_col = center_col + offset_x
-                        # if y[i][offset_center_row][offset_center_col][0] == 1.0:  # debug mark object for 2
-                        #     mask[i][offset_center_row][offset_center_col][0] = 2.0
-                        if offset_y == 0 and offset_x == 0:  # ignore allocated object
-                            continue
-                        if y[i][offset_center_row][offset_center_col][0] == 0.0:
-                            mask[i][offset_center_row][offset_center_col][0] = 0.0
-
-            # for i in range(self.output_shapes[0][1]):
-            #     for j in range(self.output_shapes[0][2]):
-            #         print(f'{int(mask[0][i][j][0])} ', end='')
-            #     print()
-            # exit(0)
         return y, mask, allocated_count
             
     def load(self, virtual_anchor_training=False):
