@@ -43,7 +43,7 @@ class YoloDataGenerator:
         self.heatmap_scale = heatmap_scale 
         self.virtual_anchor_ws = []
         self.virtual_anchor_hs = []
-        self.batch_index = 0
+        self.img_index = 0
         self.pool = ThreadPoolExecutor(8)
         self.transform = A.Compose([
             A.RandomBrightnessContrast(p=0.5, brightness_limit=0.2, contrast_limit=0.3),
@@ -515,8 +515,8 @@ class YoloDataGenerator:
         for i in range(self.num_output_layers):
             batch_y.append([])
             batch_mask.append([])
-        for path in self.get_next_batch_image_paths():
-            fs.append(self.pool.submit(ModelUtil.load_img, path, self.input_channel))
+        for _ in range(self.batch_size):
+            fs.append(self.pool.submit(ModelUtil.load_img, self.get_next_image_path(), self.input_channel))
         for f in fs:
             img, _, cur_img_path = f.result()
             # cv2.imshow('img', img)
@@ -544,13 +544,11 @@ class YoloDataGenerator:
         else:
             return batch_x, batch_y, batch_mask
 
-    def get_next_batch_image_paths(self):
-        start_index = self.batch_size * self.batch_index
-        end_index = start_index + self.batch_size
-        batch_image_paths = self.image_paths[start_index:end_index]
-        self.batch_index += 1
-        if self.batch_index == self.__len__():
-            self.batch_index = 0
+    def get_next_image_path(self):
+        path = self.image_paths[self.img_index]
+        self.img_index += 1
+        if self.img_index == len(self.image_paths):
+            self.img_index = 0
             np.random.shuffle(self.image_paths)
-        return batch_image_paths
+        return path
 
