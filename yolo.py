@@ -318,32 +318,69 @@ class Yolo:
         else:
             self.__model.save(f'{self.__checkpoint_path}/{self.__model_type}_{self.__model_name}_{iteration_count}_iter.h5', include_optimizer=False)
 
+    # @staticmethod
+    # @tf.function
+    # def decode_bounding_box(output_tensor, confidence_threshold):
+    #     output_shape = tf.shape(output_tensor)
+    #     rows, cols = output_shape[0], output_shape[1]
+
+    #     confidence = output_tensor[:, :, 0]
+    #     max_class_score = tf.reduce_max(output_tensor[:, :, 5:], axis=-1)
+    #     max_class_index = tf.cast(tf.argmax(output_tensor[:, :, 5:], axis=-1), dtype=tf.float32)
+    #     confidence *= max_class_score
+    #     over_confidence_indices = tf.where(confidence > confidence_threshold)
+
+    #     cx = output_tensor[:, :, 1]
+    #     cy = output_tensor[:, :, 2]
+    #     w = output_tensor[:, :, 3]
+    #     h = output_tensor[:, :, 4]
+
+    #     x_range = tf.range(cols, dtype=tf.float32)
+    #     x_offset = tf.broadcast_to(x_range, shape=tf.shape(cx))
+
+    #     y_range = tf.range(rows, dtype=tf.float32)
+    #     y_range = tf.reshape(y_range, shape=(rows, 1))
+    #     y_offset = tf.broadcast_to(y_range, shape=tf.shape(cy))
+
+    #     cx = (x_offset + cx) / tf.cast(cols, dtype=tf.float32)
+    #     cy = (y_offset + cy) / tf.cast(rows, dtype=tf.float32)
+
+    #     xmin = cx - (w * 0.5)
+    #     ymin = cy - (h * 0.5)
+    #     xmax = cx + (w * 0.5)
+    #     ymax = cy + (h * 0.5)
+
+    #     confidence = tf.expand_dims(confidence, axis=-1)
+    #     xmin = tf.expand_dims(xmin, axis=-1)
+    #     ymin = tf.expand_dims(ymin, axis=-1)
+    #     xmax = tf.expand_dims(xmax, axis=-1)
+    #     ymax = tf.expand_dims(ymax, axis=-1)
+    #     max_class_index = tf.expand_dims(max_class_index, axis=-1)
+    #     result_tensor = tf.concat([confidence, ymin, xmin, ymax, xmax, max_class_index], axis=-1)  # box format must be [ymin, xmin, ymax, xmax] for using tf.image.non_max_suppression()
+    #     boxes_before_nms = tf.gather_nd(result_tensor, over_confidence_indices)
+    #     return boxes_before_nms
+
     @staticmethod
     @tf.function
     def decode_bounding_box(output_tensor, confidence_threshold):
         output_shape = tf.shape(output_tensor)
         rows, cols = output_shape[0], output_shape[1]
+        rows_f, cols_f = tf.cast(rows, dtype=output_tensor.dtype), tf.cast(cols, dtype=output_tensor.dtype)
 
-        confidence = output_tensor[:, :, 0]
-        max_class_score = tf.reduce_max(output_tensor[:, :, 5:], axis=-1)
+        confidence = tf.sigmoid(output_tensor[:, :, 0])
+        max_class_score = tf.sigmoid(tf.reduce_max(output_tensor[:, :, 5:], axis=-1))
         max_class_index = tf.cast(tf.argmax(output_tensor[:, :, 5:], axis=-1), dtype=tf.float32)
         confidence *= max_class_score
         over_confidence_indices = tf.where(confidence > confidence_threshold)
 
-        cx = output_tensor[:, :, 1]
-        cy = output_tensor[:, :, 2]
-        w = output_tensor[:, :, 3]
-        h = output_tensor[:, :, 4]
+        x_grid, y_grid = tf.meshgrid(tf.range(cols), tf.range(rows), indexing='xy')
+        x_grid = tf.cast(x_grid, dtype=output_tensor.dtype)
+        y_grid = tf.cast(y_grid, dtype=output_tensor.dtype)
 
-        x_range = tf.range(cols, dtype=tf.float32)
-        x_offset = tf.broadcast_to(x_range, shape=tf.shape(cx))
-
-        y_range = tf.range(rows, dtype=tf.float32)
-        y_range = tf.reshape(y_range, shape=(rows, 1))
-        y_offset = tf.broadcast_to(y_range, shape=tf.shape(cy))
-
-        cx = (x_offset + cx) / tf.cast(cols, dtype=tf.float32)
-        cy = (y_offset + cy) / tf.cast(rows, dtype=tf.float32)
+        cx = (x_grid + output_tensor[:, :, 1]) / cols_f
+        cy = (y_grid + output_tensor[:, :, 2]) / rows_f
+        w =  output_tensor[:, :, 3] / cols_f
+        h =  output_tensor[:, :, 4] / rows_f
 
         xmin = cx - (w * 0.5)
         ymin = cy - (h * 0.5)
@@ -416,7 +453,7 @@ class Yolo:
         boxes_before_nms_dicts = []
         for box in boxes_before_nms_list:
             confidence = float(box[0])
-            y1, x1, y2,x2 = np.clip(np.array(list(map(float, box[1:5]))), 0.0, 1.0)
+            y1, x1, y2, x2 = np.clip(np.array(list(map(float, box[1:5]))), 0.0, 1.0)
             class_index = int(box[5])
             boxes_before_nms_dicts.append({
                 'confidence': confidence,

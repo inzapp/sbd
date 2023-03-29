@@ -471,8 +471,8 @@ class YoloDataGenerator:
                         else:
                             y[i][offset_center_row][offset_center_col][1] = cx_grid
                             y[i][offset_center_row][offset_center_col][2] = cy_grid
-                            y[i][offset_center_row][offset_center_col][3] = w
-                            y[i][offset_center_row][offset_center_col][4] = h
+                            y[i][offset_center_row][offset_center_col][3] = w * output_cols
+                            y[i][offset_center_row][offset_center_col][4] = h * output_rows
 
                             # cx_channel = y[i][:, :, 1]
                             # cy_channel = y[i][:, :, 2]
