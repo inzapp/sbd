@@ -656,7 +656,7 @@ class Model:
         return tf.keras.layers.Conv2D(
             filters=self.output_channel,
             kernel_size=1,
-            activation='linear',
+            activation='sigmoid',
             name=name)(x)
 
     def activation(self, x, activation='none'):

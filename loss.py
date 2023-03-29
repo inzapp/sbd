@@ -24,7 +24,7 @@ from ale import AbsoluteLogarithmicError
 
 def __confidence_loss(y_true, y_pred, mask, alpha, gamma):
     obj_true = y_true[:, :, :, 0]
-    obj_pred = tf.sigmoid(y_pred[:, :, :, 0])
+    obj_pred = y_pred[:, :, :, 0]
     ale = AbsoluteLogarithmicError(alpha=alpha, gamma=gamma)
     # loss = tf.reduce_sum(ale(obj_true, obj_pred))
     loss = tf.reduce_sum(ale(obj_true, obj_pred) * mask[:, :, :, 0])
@@ -115,33 +115,35 @@ def __iou(y_true, y_pred, convex=False, diou=False):
     return iou, rdiou
 
 
-# def __bbox_loss(y_true, y_pred, mask):
-#     obj_true = y_true[:, :, :, 0]
-#     obj_count = tf.cast(tf.reduce_sum(obj_true), y_pred.dtype)
-#     if obj_count == tf.constant(0.0):
-#         return 0.0
-# 
-#     iou, rdiou = __iou(y_true, y_pred, convex=True, diou=False)
-#     loss = tf.reduce_sum((obj_true - iou + rdiou) * obj_true)
-#     return loss / tf.cast(tf.shape(y_true)[0], dtype=y_pred.dtype)
-
-
 def __bbox_loss(y_true, y_pred, mask):
-    obj_mask = y_true[:, :, :, 0]
-    obj_count = tf.cast(tf.reduce_sum(obj_mask), y_pred.dtype)
-    if tf.equal(obj_count, tf.constant(0.0)):
+    obj_true = y_true[:, :, :, 0]
+    obj_count = tf.cast(tf.reduce_sum(obj_true), y_pred.dtype)
+    if obj_count == tf.constant(0.0):
         return 0.0
 
-    offset_true = y_true[:, :, :, 1:3]
-    offset_pred = y_pred[:, :, :, 1:3]
-    offset_loss = tf.reduce_sum(tf.reduce_sum(tf.abs(offset_true - offset_pred), axis=-1) * obj_mask)
-
-    size_true = y_true[:, :, :, 3:5]
-    size_pred = y_pred[:, :, :, 3:5]
-    size_loss = tf.reduce_sum(tf.reduce_sum(tf.abs(size_true - size_pred), axis=-1) * obj_mask)
-
-    loss = offset_loss + (size_loss * 0.1)
+    iou, rdiou = __iou(y_true, y_pred, convex=True, diou=False)
+    loss = tf.reduce_sum((obj_true - iou + rdiou) * obj_true)
     return loss / tf.cast(tf.shape(y_true)[0], dtype=y_pred.dtype)
+
+
+# def __bbox_loss(y_true, y_pred, mask):
+#     obj_mask = tf.where(y_true[:, :, :, 0] == 1.0, 1.0, 0.0)
+#     obj_count = tf.cast(tf.reduce_sum(obj_mask), y_pred.dtype)
+#     if tf.equal(obj_count, tf.constant(0.0)):
+#         return 0.0
+# 
+#     xy_true = y_true[:, :, :, 1:3]
+#     xy_pred = y_pred[:, :, :, 1:3]
+#     xy_loss = tf.reduce_sum(tf.reduce_sum(tf.abs(xy_true - xy_pred), axis=-1) * obj_mask)
+# 
+#     eps = tf.keras.backend.epsilon()
+#     wh_weight = tf.sqrt(tf.sqrt(tf.cast(tf.shape(y_true)[-1], tf.float32) - 5) * 32.0)
+#     wh_true = tf.sqrt(y_true[:, :, :, 3:5] + eps) * wh_weight
+#     wh_pred = tf.sqrt(y_pred[:, :, :, 3:5] + eps) * wh_weight
+#     wh_loss = tf.reduce_sum(tf.reduce_sum(tf.abs(wh_true - wh_pred), axis=-1) * obj_mask)
+# 
+#     loss = xy_loss + wh_loss
+#     return loss / tf.cast(tf.shape(y_true)[0], dtype=y_pred.dtype)
 
 
 def __classification_loss(y_true, y_pred, mask, alpha, gamma, label_smoothing):
@@ -151,7 +153,7 @@ def __classification_loss(y_true, y_pred, mask, alpha, gamma, label_smoothing):
         return 0.0
 
     class_true = y_true[:, :, :, 5:]
-    class_pred = tf.sigmoid(y_pred[:, :, :, 5:])
+    class_pred = y_pred[:, :, :, 5:]
     ale = AbsoluteLogarithmicError(alpha=alpha, gamma=gamma, label_smoothing=label_smoothing)
     # loss = tf.reduce_sum(ale(class_true, class_pred) * mask[:, :, :, 5:])
     loss = tf.reduce_sum(tf.reduce_sum(ale(class_true, class_pred), axis=-1) * obj_true)

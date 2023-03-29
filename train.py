@@ -21,15 +21,15 @@ from yolo import Yolo
 
 
 config = {
-    # 'pretrained_model_path': r'',
-    # 'model_name': 'loon',
-    # 'model_type': 'n1',
-    # 'input_shape': (128, 512, 3),
-    # 'train_image_path': r'C:\inz\train_data\loon\train',
-    # 'validation_image_path': r'C:\inz\train_data\loon\validation',
-    # 'class_names_file_path': r'C:\inz\train_data\loon\train\classes.txt',
-    # 'optimizer': 'sgd',
-    # 'lr_policy': 'step',
+    'pretrained_model_path': r'',
+    'model_name': 'loon',
+    'model_type': 'n1',
+    'input_shape': (128, 512, 3),
+    'train_image_path': r'C:\inz\train_data\loon\train',
+    'validation_image_path': r'C:\inz\train_data\loon\validation',
+    'class_names_file_path': r'C:\inz\train_data\loon\train\classes.txt',
+    'optimizer': 'sgd',
+    'lr_policy': 'step',
 
     # 'pretrained_model_path': r'',
     # 'model_name': 'square',
@@ -71,15 +71,15 @@ config = {
     # 'optimizer': 'sgd',
     # 'lr_policy': 'step',
 
-    'pretrained_model_path': r'',
-    'model_type': 's3',
-    'model_name': 'kagglecar',
-    'input_shape': (256, 512, 1),
-    'train_image_path': r'C:\inz\train_data\kaggle\car_detection\train',
-    'validation_image_path': r'C:\inz\train_data\kaggle\car_detection\validation',
-    'class_names_file_path': r'C:\inz\train_data\kaggle\car_detection\train\classes.txt',
-    'optimizer': 'sgd',
-    'lr_policy': 'step',
+    # 'pretrained_model_path': r'',
+    # 'model_type': 's1',
+    # 'model_name': 'kagglecar',
+    # 'input_shape': (256, 512, 1),
+    # 'train_image_path': r'C:\inz\train_data\kaggle\car_detection\train',
+    # 'validation_image_path': r'C:\inz\train_data\kaggle\car_detection\validation',
+    # 'class_names_file_path': r'C:\inz\train_data\kaggle\car_detection\train\classes.txt',
+    # 'optimizer': 'sgd',
+    # 'lr_policy': 'step',
 
     # 'pretrained_model_path': r'',
     # 'model_type': 'n1',
@@ -120,14 +120,14 @@ config = {
     'decay_step': 0.1,
     'label_smoothing': 0.0,
     'batch_size': 4,
-    'iterations': 20000,
+    'iterations': 6000,
     'curriculum_iterations': 0,
     'checkpoint_interval': 1000,
     'checkpoint_path': 'checkpoint',
-    'heatmap_scale': 0.2,
+    'heatmap_scale': 0.0,
     'multi_classification_at_same_box': False,
     'map_checkpoint': False,
-    'training_view': False 
+    'training_view': True 
 }
 
 if __name__ == '__main__':
