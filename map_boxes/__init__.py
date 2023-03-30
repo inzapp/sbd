@@ -162,9 +162,9 @@ def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_th
     total_fp = 0
     total_obj_count = 0
     average_precisions = {}
-    for class_index, label in enumerate(sorted(unique_classes)):
+    for _, class_index_str in enumerate(sorted(unique_classes, key=lambda x: int(x))):
         # Negative class
-        if str(label) == 'nan':
+        if str(class_index_str) == 'nan':
             continue
 
         tp_ious = []
@@ -178,11 +178,11 @@ def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_th
             annotations = []
             id = ann_unique[i]
             if id in all_detections:
-                if label in all_detections[id]:
-                    detections = all_detections[id][label]
+                if class_index_str in all_detections[id]:
+                    detections = all_detections[id][class_index_str]
             if id in all_annotations:
-                if label in all_annotations[id]:
-                    annotations = all_annotations[id][label]
+                if class_index_str in all_annotations[id]:
+                    annotations = all_annotations[id][class_index_str]
 
             if len(detections) == 0 and len(annotations) == 0:
                 continue
@@ -219,7 +219,7 @@ def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_th
                     tp_confidences.append(0.0)
 
         if num_annotations == 0:
-            average_precisions[label] = 0, 0
+            average_precisions[class_index_str] = 0, 0
             continue
 
         false_positives = np.array(false_positives)
@@ -268,21 +268,22 @@ def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_th
 
         # compute average precision
         average_precision = _compute_ap(recall, precision)
-        average_precisions[label] = average_precision, num_annotations
+        average_precisions[class_index_str] = average_precision, num_annotations
 
         if verbose:
-            class_name = f'class {class_index}'
+            class_index = int(class_index_str)
+            class_name = f'class {class_index_str}'
             if len(class_names) >= class_index + 1:
                 class_name = class_names[class_index]
             txt_content = _print(f'{class_name:{max_class_name_len}s} ap : {average_precision:.4f}, obj count : {obj_count:6d}, tp : {tp:6d}, fp : {fp:6d}, fn : {fn:6d}, precision : {p:.4f}, recall : {r:.4f}, f1 : {f1:.4f}, iou : {tp_iou:.4f}, confidence : {tp_confidence:.4f}', txt_content)
 
     present_classes = 0
     precision = 0
-    for label, (average_precision, num_annotations) in average_precisions.items():
+    for _, (average_precision, num_annotations) in average_precisions.items():
         if num_annotations > 0:
             present_classes += 1
             precision += average_precision
-    mean_ap = precision / present_classes
+    mean_ap = precision / (present_classes + 1e-7)
     p = total_tp / (total_tp + total_fp + 1e-7)
     r = total_tp / (total_obj_count + 1e-7)
     f1 = (2.0 * p * r) / (p + r + 1e-7)
