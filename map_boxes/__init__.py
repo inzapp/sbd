@@ -157,11 +157,13 @@ def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_th
     #     txt_content = _print('Detections length: {}'.format(len(all_detections)), txt_content)
     #     txt_content = _print('Annotations length: {}'.format(len(all_annotations)), txt_content)
 
-    txt_content = _print(f'\nconfidence threshold for tp, fp, fn calculate : {confidence_threshold_for_f1}', txt_content)
+    txt_content = _print(f'\nNMS iou threshold : {iou_threshold}', txt_content)
+    txt_content = _print(f'confidence threshold for tp, fp, fn calculate : {confidence_threshold_for_f1}', txt_content)
     total_tp_iou_sum = 0.0
     total_tp_confidence_sum = 0.0
     total_tp = 0
     total_fp = 0
+    total_fn = 0
     total_obj_count = 0
     average_precisions = {}
     for _, class_index_str in enumerate(sorted(unique_classes, key=lambda x: int(x))):
@@ -259,6 +261,7 @@ def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_th
         total_obj_count += obj_count
         total_tp += tp
         total_fp += fp
+        total_fn += fn
 
         # compute false positives and true positives
         false_positives = np.cumsum(false_positives)
@@ -291,9 +294,12 @@ def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_th
     f1 = (2.0 * p * r) / (p + r + 1e-7)
     tp_iou = total_tp_iou_sum / (total_tp + 1e-7)
     tp_confidence = total_tp_confidence_sum / (total_tp + 1e-7)
-    txt_content = _print(f'F1@{int(iou_threshold * 100)} : {f1:.4f}', txt_content)
-    txt_content = _print(f'mAP@{int(iou_threshold * 100)} : {mean_ap:.4f}', txt_content)
-    txt_content = _print(f'TP_IOU@{int(iou_threshold * 100)} : {tp_iou:.4f}', txt_content)
-    txt_content = _print(f'TP_Confidence : {tp_confidence:.4f}', txt_content)
+    if verbose:
+        class_name = f'total'
+        txt_content = _print(f'\n{class_name:{max_class_name_len}s} ap : {mean_ap:.4f}, obj count : {total_obj_count:6d}, tp : {total_tp:6d}, fp : {total_fp:6d}, fn : {total_fn:6d}, precision : {p:.4f}, recall : {r:.4f}, f1 : {f1:.4f}, iou : {tp_iou:.4f}, confidence : {tp_confidence:.4f}', txt_content)
+    # txt_content = _print(f'F1@{int(iou_threshold * 100)} : {f1:.4f}', txt_content)
+    # txt_content = _print(f'mAP@{int(iou_threshold * 100)} : {mean_ap:.4f}', txt_content)
+    # txt_content = _print(f'TP_IOU@{int(iou_threshold * 100)} : {tp_iou:.4f}', txt_content)
+    # txt_content = _print(f'TP_Confidence : {tp_confidence:.4f}', txt_content)
     return mean_ap, f1, tp_iou, total_tp, total_fp, total_obj_count - total_tp, tp_confidence, txt_content
 
