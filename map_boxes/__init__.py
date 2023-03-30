@@ -118,6 +118,8 @@ def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_th
                 if len(class_name) > max_class_name_len:
                     max_class_name_len = len(class_name)
                 class_names.append(class_name)
+    else:
+        max_class_name_len = 9
 
     if isinstance(ann, str):
         valid = pd.read_csv(ann)
