@@ -171,10 +171,14 @@ class YoloDataGenerator:
         return class_weights
 
     def calculate_virtual_anchor(self):
+        if self.num_output_layers == 1:  # one layer model doesn't need virtual anchor
+            self.virtual_anchor_ws = [0.5]
+            self.virtual_anchor_hs = [0.5]
+            return 
+
         fs = []
         for path in self.image_paths:
             fs.append(self.pool.submit(self.load_label, f'{path[:-4]}.txt'))
-
         ignore_box_count = 0
         labeled_boxes, ws, hs = [], [], []
         for f in tqdm(fs):
