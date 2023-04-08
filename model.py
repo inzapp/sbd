@@ -46,40 +46,67 @@ class Model:
         self.output_channel = output_channel
         self.l2 = l2
         self.models = dict()
-        self.models['n1'] = self.n
-        self.models['n3'] = self.n
-        self.models['n4'] = self.n
-        self.models['n5'] = self.n
-        self.models['s1'] = self.s
-        self.models['s3'] = self.s
-        self.models['s4'] = self.s
-        self.models['s5'] = self.s
-        self.models['m1'] = self.m
-        self.models['m3'] = self.m
-        self.models['m4'] = self.m
-        self.models['m5'] = self.m
-        self.models['l1'] = self.l
-        self.models['l3'] = self.l
-        self.models['l4'] = self.l
-        self.models['l5'] = self.l
-        self.models['x1'] = self.x
-        self.models['x3'] = self.x
-        self.models['x4'] = self.x
-        self.models['x5'] = self.x
-        self.models['lpd_crop'] = self.lpd_crop
-        self.models['lcd'] = self.lcd
-        self.models['lpd_v1'] = self.lpd_v1
-        self.models['lpd_v2'] = self.lpd_v2
+        self.models['n'] = self.n
+        # self.models['s'] = self.s
+        # self.models['m'] = self.m
+        # self.models['l'] = self.l
+        # self.models['x'] = self.x
+        # self.models['n1'] = self.n
+        # self.models['n3'] = self.n
+        # self.models['n4'] = self.n
+        # self.models['n5'] = self.n
+        # self.models['s1'] = self.s
+        # self.models['s3'] = self.s
+        # self.models['s4'] = self.s
+        # self.models['s5'] = self.s
+        # self.models['m1'] = self.m
+        # self.models['m3'] = self.m
+        # self.models['m4'] = self.m
+        # self.models['m5'] = self.m
+        # self.models['l1'] = self.l
+        # self.models['l3'] = self.l
+        # self.models['l4'] = self.l
+        # self.models['l5'] = self.l
+        # self.models['x1'] = self.x
+        # self.models['x3'] = self.x
+        # self.models['x4'] = self.x
+        # self.models['x5'] = self.x
+        # self.models['lpd_crop'] = self.lpd_crop
+        # self.models['lcd'] = self.lcd
+        # self.models['lpd_v1'] = self.lpd_v1
+        # self.models['lpd_v2'] = self.lpd_v2
 
     def build(self, model_type):
-        try:
-            return self.models[model_type](int(model_type[1]))
-        except KeyError:
+        model_type_valid = type(model_type) is str and len(model_type) == 4
+        if model_type_valid:
+            backbone = model_type[0]
+            num_output_layers = model_type[1]
+            p = model_type[2]
+            pyramid_scale = int(model_type[3])
+            if backbone not in list(self.models.keys()):
+                model_type_valid = False
+            if num_output_layers not in ['1', 'm']:
+                model_type_valid = False
+            if p != 'p':
+                model_type_valid = False
+            if pyramid_scale not in [0, 1, 2, 3, 4, 5]:
+                model_type_valid = False
+        if not model_type_valid:
             ModelUtil.print_error_exit([
                 f'invalid model type => \'{model_type}\'',
-                f'available model types : {list(self.models.keys())}'])
+                f'model type must be combination of <backbone(n, s, m, l, x), num_output_layers(1, m), p, pyramid_scale(0, 1, 2, 3, 4, 5)>',
+                f'  backbone : n, s, m, l, x',
+                f'  num output layers : 1, m(multi layer for given pyramid scale)',
+                f'  p : constant character for naming rule',
+                f'  pyramid scale : scale value for feature pyramid. max resolution scale of output layers',
+                f'',
+                f'ex) n1p3 : nano backbone with one output layer, 3 pyramid scale : output layer resolution is divided by 8 of input resolution',
+                f'ex) lmp2 : large backbone with multi output layer(4 output layer for pyramid sacle 4), 2 pyramid scale : output layer resolution is divided by 4 of input resolution',
+                f'ex) xmp4 : xlarge backbone with multi output layer(2 output layer for pyramid sacle 4), 4 pyramid scale : output layer resolution is divided by 16 of input resolution'])
+        return self.models[backbone](num_output_layers, pyramid_scale)
 
     """
+    model_type : n1p3
     shape : (384, 640, 1)
     GFLOPs : 1.9766
     parameters : 947,815
@@ -88,36 +115,111 @@ class Model:
         16x8x : 8.11ms
         16x16x : 15.08ms
     """
-    def n(self, num_output_layers):
+    def n(self, num_output_layers, pyramid_scale):
+        features = []
+        layer_infos = [
+            ['conv', 3, 8, 1],
+            ['conv', 3, 16, 1],
+            ['conv', 3, 32, 2],
+            ['csp', 3, 64, 3],
+            ['csp', 3, 128, 3],
+            ['csp', 3, 256, 3],
+            ['head', -1, -1, -1],
+        ]
+
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
-        x = self.conv_block(input_layer, 8, 3, activation='relu')
-        x = self.max_pool(x)
+        x = input_layer
+        for i, (method, kernel_size, channel, depth) in enumerate(layer_infos):
+            if i > 0:
+                x = self.dropout(x)
+            if method == 'conv':
+                for _ in range(depth):
+                    x = self.conv_block(x, channel, kernel_size, activation='relu')
+                features.append(x)
+            elif method == 'csp':
+                x = self.csp_block_light(x, channel, kernel_size, depth, activation='relu')
+                features.append(x)
+            elif method == 'head':
+                num_upscaling = 5 - pyramid_scale
+                if num_upscaling > 0:
+                    ms = list(reversed([v[0] for v in layer_infos]))[2:num_upscaling+2]
+                    ks = list(reversed([v[1] for v in layer_infos]))[2:num_upscaling+2]
+                    cs = list(reversed([v[2] for v in layer_infos]))[2:num_upscaling+2]
+                    ds = list(reversed([v[3] for v in layer_infos]))[2:num_upscaling+2]
+                    fs = list(reversed(features))[1:num_upscaling+1]
 
-        x = self.dropout(x)
-        x = self.conv_block(x, 16, 3, activation='relu')
-        x = self.max_pool(x)
+                    print('ms')
+                    print(ms)
 
-        x = self.dropout(x)
-        x = self.conv_block(x, 32, 3, activation='relu')
-        x = self.conv_block(x, 32, 3, activation='relu')
-        x = self.max_pool(x)
+                    print('ks')
+                    print(ks)
 
-        x = self.dropout(x)
-        x = self.csp_block_light(x, 64, 3, depth=3, activation='relu')
-        f0 = x
-        x = self.max_pool(x)
+                    print('cs')
+                    print(cs)
 
-        x = self.dropout(x)
-        x = self.csp_block_light(x, 128, 3, depth=3, activation='relu')
-        f1 = x
-        x = self.max_pool(x)
+                    print('ds')
+                    print(ds)
 
-        x = self.dropout(x)
-        x = self.csp_block_light(x, 256, 3, depth=3, activation='relu')
+                    x = self.csp_fpn_block(x, ms, fs, cs, ks, ds, activation='relu', return_layers=num_output_layers == 'm')
+                    if type(x) is not list:
+                        x = [x]
+                    # f3, f2, f1, f0 = self.csp_fpn_block(x, [f2, f1, f0], [256, 128, 64], depth=3, activation='relu', return_layers=True)
+            else:
+                ModelUtil.print_error_exit(f'invalid layer info method : {method}')
+            if i < 5:
+                x = self.max_pool(x)
 
-        f2, f1, f0 = self.csp_fpn_block(x, [f1, f0], [128, 64], depth=3, activation='relu', return_layers=True)
-        y = self.detection_block(f0, f1, f2, num_output_layers)
-        return tf.keras.models.Model(input_layer, y)
+
+        # x = self.conv_block(x, cs[0], 3, activation='relu')
+        # fs.append(x)
+        # x = self.max_pool(x)
+
+        # x = self.dropout(x)
+        # x = self.conv_block(x, cs[1], 3, activation='relu')
+        # fs.append(x)
+        # x = self.max_pool(x)
+
+        # x = self.dropout(x)
+        # x = self.conv_block(x, cs[2], 3, activation='relu')
+        # x = self.conv_block(x, cs[2], 3, activation='relu')
+        # fs.append(x)
+        # x = self.max_pool(x)
+
+        # x = self.dropout(x)
+        # x = self.csp_block_light(x, cs[3], 3, depth=3, activation='relu')
+        # fs.append(x)
+        # x = self.max_pool(x)
+
+        # x = self.dropout(x)
+        # x = self.csp_block_light(x, cs[4], 3, depth=3, activation='relu')
+        # fs.append(x)
+        # x = self.max_pool(x)
+
+        # x = self.dropout(x)
+        # x = self.csp_block_light(x, cs[5], 3, depth=3, activation='relu')
+
+        # fpn_fs, fpn_cs, fpn_ds, fpn_ms, use_fpn = self.get_fpn_params(fs, cs, ds, ms, pyramid_scale)
+        # if use_fpn:
+        #     x = self.csp_fpn_block(x, fpn_fs, fpn_cs, depth=3, activation='relu', return_layers=num_output_layers == 'm')
+        # # y = self.detection_block(f0, f1, f2, num_output_layers)
+        # y = self.detection_layer(x, 'sbd_output')
+
+        
+        output_layers = []
+        for i in range(len(x)):
+            output_layers.append(self.detection_layer(x[i], f'sbd_output{i}'))
+        return tf.keras.models.Model(input_layer, output_layers if type(output_layers) is list else output_layers[0])
+
+    # def get_fpn_params(self, fs, cs, ds, ms, p):
+    #     fpn_fs, fpn_cs, fpn_ds, fpn_ms, use_fpn = [], [], [], [], False
+    #     for i in range(4, -1, -1):
+    #         if p <= i:
+    #             fpn_fs.append(fs[i])
+    #             fpn_cs.append(cs[i])
+    #             fpn_ds.append(ds[i])
+    #             dpn_ms.append(ms[i])
+    #             use_fpn = True
+    #     return fpn_fs, fpn_cs, use_fpn
 
     """
     shape : (384, 640, 1)
@@ -128,36 +230,37 @@ class Model:
         16x8x : 28.12ms
         16x16x : 55.61ms
     """
-    def s(self, num_output_layers):
-        input_layer = tf.keras.layers.Input(shape=self.input_shape)
-        x = self.conv_block(input_layer, 16, 3, activation='relu')
-        x = self.max_pool(x)
+    # def s(self, num_output_layers):
+    #     input_layer = tf.keras.layers.Input(shape=self.input_shape)
+    #     x = self.conv_block(input_layer, 16, 3, activation='relu')
+    #     x = self.max_pool(x)
 
-        x = self.dropout(x)
-        x = self.conv_block(x, 32, 3, activation='relu')
-        x = self.max_pool(x)
+    #     x = self.dropout(x)
+    #     x = self.conv_block(x, 32, 3, activation='relu')
+    #     x = self.max_pool(x)
 
-        x = self.dropout(x)
-        x = self.conv_block(x, 64, 3, activation='relu')
-        x = self.conv_block(x, 64, 3, activation='relu')
-        x = self.max_pool(x)
+    #     x = self.dropout(x)
+    #     x = self.conv_block(x, 64, 3, activation='relu')
+    #     x = self.conv_block(x, 64, 3, activation='relu')
+    #     f0 = x
+    #     x = self.max_pool(x)
 
-        x = self.dropout(x)
-        x = self.csp_block_light(x, 128, 3, depth=3, activation='relu')
-        f0 = x
-        x = self.max_pool(x)
+    #     x = self.dropout(x)
+    #     x = self.csp_block_light(x, 128, 3, depth=3, activation='relu')
+    #     f1 = x
+    #     x = self.max_pool(x)
 
-        x = self.dropout(x)
-        x = self.csp_block_light(x, 256, 3, depth=3, activation='relu')
-        f1 = x
-        x = self.max_pool(x)
+    #     x = self.dropout(x)
+    #     x = self.csp_block_light(x, 256, 3, depth=3, activation='relu')
+    #     f2 = x
+    #     x = self.max_pool(x)
 
-        x = self.dropout(x)
-        x = self.csp_block_light(x, 512, 3, depth=3, activation='relu')
+    #     x = self.dropout(x)
+    #     x = self.csp_block_light(x, 512, 3, depth=3, activation='relu')
 
-        f2, f1, f0 = self.csp_fpn_block(x, [f1, f0], [256, 128], depth=3, activation='relu', return_layers=True)
-        y = self.detection_block(f0, f1, f2, num_output_layers)
-        return tf.keras.models.Model(input_layer, y)
+    #     f3, f2, f1, f0 = self.csp_fpn_block(x, [f2, f1, f0], [256, 128, 64], depth=3, activation='relu', return_layers=True)
+    #     y = self.detection_block_4(f0, f1, f2, f3, num_output_layers)
+    #     return tf.keras.models.Model(input_layer, y)
 
     """
     shape : (384, 640, 1)
@@ -168,36 +271,36 @@ class Model:
         16x8x : 55.85ms
         16x16x : 111.71ms
     """
-    def m(self, num_output_layers):
-        input_layer = tf.keras.layers.Input(shape=self.input_shape)
-        x = self.conv_block(input_layer, 16, 3, activation='relu')
-        x = self.max_pool(x)
+    # def m(self, num_output_layers):
+    #     input_layer = tf.keras.layers.Input(shape=self.input_shape)
+    #     x = self.conv_block(input_layer, 16, 3, activation='relu')
+    #     x = self.max_pool(x)
 
-        x = self.dropout(x)
-        x = self.conv_block(x, 32, 3, activation='relu')
-        x = self.max_pool(x)
+    #     x = self.dropout(x)
+    #     x = self.conv_block(x, 32, 3, activation='relu')
+    #     x = self.max_pool(x)
 
-        x = self.dropout(x)
-        x = self.conv_block(x, 64, 3, activation='relu')
-        x = self.conv_block(x, 64, 3, activation='relu')
-        x = self.max_pool(x)
+    #     x = self.dropout(x)
+    #     x = self.conv_block(x, 64, 3, activation='relu')
+    #     x = self.conv_block(x, 64, 3, activation='relu')
+    #     x = self.max_pool(x)
 
-        x = self.dropout(x)
-        x = self.csp_block_light(x, 192, 3, depth=4, activation='relu')
-        f0 = x
-        x = self.max_pool(x)
+    #     x = self.dropout(x)
+    #     x = self.csp_block_light(x, 192, 3, depth=4, activation='relu')
+    #     f0 = x
+    #     x = self.max_pool(x)
 
-        x = self.dropout(x)
-        x = self.csp_block_light(x, 384, 3, depth=4, activation='relu')
-        f1 = x
-        x = self.max_pool(x)
+    #     x = self.dropout(x)
+    #     x = self.csp_block_light(x, 384, 3, depth=4, activation='relu')
+    #     f1 = x
+    #     x = self.max_pool(x)
 
-        x = self.dropout(x)
-        x = self.csp_block_light(x, 512, 3, depth=4, activation='relu')
+    #     x = self.dropout(x)
+    #     x = self.csp_block_light(x, 512, 3, depth=4, activation='relu')
 
-        f2, f1, f0 = self.csp_fpn_block(x, [f1, f0], [384, 192], depth=4, activation='relu', return_layers=True)
-        y = self.detection_block(f0, f1, f2, num_output_layers)
-        return tf.keras.models.Model(input_layer, y)
+    #     f2, f1, f0 = self.csp_fpn_block(x, [f1, f0], [384, 192], depth=4, activation='relu', return_layers=True)
+    #     y = self.detection_block(f0, f1, f2, num_output_layers)
+    #     return tf.keras.models.Model(input_layer, y)
 
     """
     shape : (384, 640, 1)
@@ -208,36 +311,36 @@ class Model:
         16x8x : 84.73ms
         16x16x : 169.54ms
     """
-    def l(self, num_output_layers):
-        input_layer = tf.keras.layers.Input(shape=self.input_shape)
-        x = self.conv_block(input_layer, 16, 3, activation='relu')
-        x = self.max_pool(x)
+    # def l(self, num_output_layers):
+    #     input_layer = tf.keras.layers.Input(shape=self.input_shape)
+    #     x = self.conv_block(input_layer, 16, 3, activation='relu')
+    #     x = self.max_pool(x)
 
-        x = self.dropout(x)
-        x = self.conv_block(x, 32, 3, activation='relu')
-        x = self.max_pool(x)
+    #     x = self.dropout(x)
+    #     x = self.conv_block(x, 32, 3, activation='relu')
+    #     x = self.max_pool(x)
 
-        x = self.dropout(x)
-        x = self.conv_block(x, 64, 3, activation='relu')
-        x = self.conv_block(x, 64, 3, activation='relu')
-        x = self.max_pool(x)
+    #     x = self.dropout(x)
+    #     x = self.conv_block(x, 64, 3, activation='relu')
+    #     x = self.conv_block(x, 64, 3, activation='relu')
+    #     x = self.max_pool(x)
 
-        x = self.dropout(x)
-        x = self.csp_block_light(x, 256, 3, depth=5, activation='relu')
-        f0 = x
-        x = self.max_pool(x)
+    #     x = self.dropout(x)
+    #     x = self.csp_block_light(x, 256, 3, depth=5, activation='relu')
+    #     f0 = x
+    #     x = self.max_pool(x)
 
-        x = self.dropout(x)
-        x = self.csp_block_light(x, 384, 3, depth=5, activation='relu')
-        f1 = x
-        x = self.max_pool(x)
+    #     x = self.dropout(x)
+    #     x = self.csp_block_light(x, 384, 3, depth=5, activation='relu')
+    #     f1 = x
+    #     x = self.max_pool(x)
 
-        x = self.dropout(x)
-        x = self.csp_block_light(x, 512, 3, depth=5, activation='relu')
+    #     x = self.dropout(x)
+    #     x = self.csp_block_light(x, 512, 3, depth=5, activation='relu')
 
-        f2, f1, f0 = self.csp_fpn_block(x, [f1, f0], [384, 256], depth=5, activation='relu', return_layers=True)
-        y = self.detection_block(f0, f1, f2, num_output_layers)
-        return tf.keras.models.Model(input_layer, y)
+    #     f2, f1, f0 = self.csp_fpn_block(x, [f1, f0], [384, 256], depth=5, activation='relu', return_layers=True)
+    #     y = self.detection_block(f0, f1, f2, num_output_layers)
+    #     return tf.keras.models.Model(input_layer, y)
 
     """
     shape : (384, 640, 1)
@@ -248,152 +351,152 @@ class Model:
         16x8x : 160.21ms
         16x16x : 318.20ms
     """
-    def x(self, num_output_layers):
-        input_layer = tf.keras.layers.Input(shape=self.input_shape)
-        x = self.conv_block(input_layer, 32, 3, activation='relu')
-        x = self.max_pool(x)
+    # def x(self, num_output_layers):
+    #     input_layer = tf.keras.layers.Input(shape=self.input_shape)
+    #     x = self.conv_block(input_layer, 32, 3, activation='relu')
+    #     x = self.max_pool(x)
 
-        x = self.dropout(x)
-        x = self.conv_block(x, 64, 3, activation='relu')
-        x = self.conv_block(x, 64, 3, activation='relu')
-        x = self.max_pool(x)
+    #     x = self.dropout(x)
+    #     x = self.conv_block(x, 64, 3, activation='relu')
+    #     x = self.conv_block(x, 64, 3, activation='relu')
+    #     x = self.max_pool(x)
 
-        x = self.dropout(x)
-        x = self.conv_block(x, 128, 3, activation='relu')
-        x = self.conv_block(x, 128, 3, activation='relu')
-        x = self.max_pool(x)
+    #     x = self.dropout(x)
+    #     x = self.conv_block(x, 128, 3, activation='relu')
+    #     x = self.conv_block(x, 128, 3, activation='relu')
+    #     x = self.max_pool(x)
 
-        x = self.dropout(x)
-        x = self.csp_block_light(x, 256, 3, depth=6, activation='relu')
-        f0 = x
-        x = self.max_pool(x)
+    #     x = self.dropout(x)
+    #     x = self.csp_block_light(x, 256, 3, depth=6, activation='relu')
+    #     f0 = x
+    #     x = self.max_pool(x)
 
-        x = self.dropout(x)
-        x = self.csp_block_light(x, 512, 3, depth=6, activation='relu')
-        f1 = x
-        x = self.max_pool(x)
+    #     x = self.dropout(x)
+    #     x = self.csp_block_light(x, 512, 3, depth=6, activation='relu')
+    #     f1 = x
+    #     x = self.max_pool(x)
 
-        x = self.dropout(x)
-        x = self.csp_block_light(x, 512, 3, depth=6, activation='relu')
+    #     x = self.dropout(x)
+    #     x = self.csp_block_light(x, 512, 3, depth=6, activation='relu')
 
-        f2, f1, f0 = self.csp_fpn_block(x, [f1, f0], [512, 256], depth=6, activation='relu', return_layers=True)
-        y = self.detection_block(f0, f1, f2, num_output_layers)
-        return tf.keras.models.Model(input_layer, y)
+    #     f2, f1, f0 = self.csp_fpn_block(x, [f1, f0], [512, 256], depth=6, activation='relu', return_layers=True)
+    #     y = self.detection_block(f0, f1, f2, num_output_layers)
+    #     return tf.keras.models.Model(input_layer, y)
 
     # (368, 640, 1) CV22 12ms
-    def lpd_v1(self):
-        input_layer = tf.keras.layers.Input(shape=self.input_shape)
-        x = self.conv_block(input_layer, 8, 3, activation='relu')
-        x = self.max_pool(x)
+    # def lpd_v1(self):
+    #     input_layer = tf.keras.layers.Input(shape=self.input_shape)
+    #     x = self.conv_block(input_layer, 8, 3, activation='relu')
+    #     x = self.max_pool(x)
 
-        x = self.conv_block(x, 16, 3, activation='relu')
-        x = self.max_pool(x)
+    #     x = self.conv_block(x, 16, 3, activation='relu')
+    #     x = self.max_pool(x)
 
-        x = self.conv_block(x, 32, 3, activation='relu')
-        x = self.conv_block(x, 32, 3, activation='relu')
-        x = self.max_pool(x)
+    #     x = self.conv_block(x, 32, 3, activation='relu')
+    #     x = self.conv_block(x, 32, 3, activation='relu')
+    #     x = self.max_pool(x)
 
-        x = self.conv_block(x, 64, 3, activation='relu')
-        x = self.conv_block(x, 64, 3, activation='relu')
-        f0 = x
-        x = self.max_pool(x)
+    #     x = self.conv_block(x, 64, 3, activation='relu')
+    #     x = self.conv_block(x, 64, 3, activation='relu')
+    #     f0 = x
+    #     x = self.max_pool(x)
 
-        x = self.conv_block(x, 128, 3, activation='relu')
-        x = self.conv_block(x, 128, 3, activation='relu')
-        f1 = x
-        x = self.max_pool(x)
+    #     x = self.conv_block(x, 128, 3, activation='relu')
+    #     x = self.conv_block(x, 128, 3, activation='relu')
+    #     f1 = x
+    #     x = self.max_pool(x)
 
-        x = self.conv_block(x, 256, 3, activation='relu')
-        x = self.conv_block(x, 256, 3, activation='relu')
-        f2 = x
+    #     x = self.conv_block(x, 256, 3, activation='relu')
+    #     x = self.conv_block(x, 256, 3, activation='relu')
+    #     f2 = x
 
-        x = self.fpn_block([f0, f1, f2], [64, 128, 256], activation='relu')
-        y = self.detection_layer(x, 'sbd_output')
-        return tf.keras.models.Model(input_layer, y)
+    #     x = self.fpn_block([f0, f1, f2], [64, 128, 256], activation='relu')
+    #     y = self.detection_layer(x, 'sbd_output')
+    #     return tf.keras.models.Model(input_layer, y)
 
     # (352, 640, 1) CV22 20ms (16x 8x)
-    def lpd_v2(self):
-        input_layer = tf.keras.layers.Input(shape=self.input_shape)
-        x = self.conv_block(input_layer, 16, 3, activation='relu')
-        x = self.max_pool(x)
+    # def lpd_v2(self):
+    #     input_layer = tf.keras.layers.Input(shape=self.input_shape)
+    #     x = self.conv_block(input_layer, 16, 3, activation='relu')
+    #     x = self.max_pool(x)
 
-        x = self.conv_block(x, 16, 3, activation='relu')
-        x = self.max_pool(x)
+    #     x = self.conv_block(x, 16, 3, activation='relu')
+    #     x = self.max_pool(x)
 
-        x = self.conv_block(x, 32, 3, activation='relu')
-        x = self.conv_block(x, 32, 3, activation='relu')
-        x = self.max_pool(x)
+    #     x = self.conv_block(x, 32, 3, activation='relu')
+    #     x = self.conv_block(x, 32, 3, activation='relu')
+    #     x = self.max_pool(x)
 
-        x = self.csp_block(x, 128, 3, first_depth_n_convs=1, second_depth_n_convs=4, activation='relu', inner_activation='relu')
-        x = self.max_pool(x)
-        f1 = x
+    #     x = self.csp_block(x, 128, 3, first_depth_n_convs=1, second_depth_n_convs=4, activation='relu', inner_activation='relu')
+    #     x = self.max_pool(x)
+    #     f1 = x
 
-        x = self.csp_block(x, 256, 3, first_depth_n_convs=1, second_depth_n_convs=4, activation='relu', inner_activation='relu')
-        x = self.max_pool(x)
+    #     x = self.csp_block(x, 256, 3, first_depth_n_convs=1, second_depth_n_convs=4, activation='relu', inner_activation='relu')
+    #     x = self.max_pool(x)
 
-        x = self.csp_block(x, 512, 3, first_depth_n_convs=1, second_depth_n_convs=4, activation='relu', inner_activation='relu')
-        f2 = x
+    #     x = self.csp_block(x, 512, 3, first_depth_n_convs=1, second_depth_n_convs=4, activation='relu', inner_activation='relu')
+    #     f2 = x
 
-        x = self.fpn_block([f1, f2], [256, 256], activation='relu')
-        y = self.detection_layer(x)
-        return tf.keras.models.Model(input_layer, y)
+    #     x = self.fpn_block([f1, f2], [256, 256], activation='relu')
+    #     y = self.detection_layer(x)
+    #     return tf.keras.models.Model(input_layer, y)
 
     # (320, 320, 1) CV22 12ms
-    def lpd_crop(self):
-        input_layer = tf.keras.layers.Input(shape=self.input_shape)
-        x = self.conv_block(input_layer, 8, 3, activation='relu')
-        x = self.max_pool(x)
+    # def lpd_crop(self):
+    #     input_layer = tf.keras.layers.Input(shape=self.input_shape)
+    #     x = self.conv_block(input_layer, 8, 3, activation='relu')
+    #     x = self.max_pool(x)
 
-        x = self.conv_block(x, 16, 3, activation='relu')
-        x = self.max_pool(x)
+    #     x = self.conv_block(x, 16, 3, activation='relu')
+    #     x = self.max_pool(x)
 
-        x = self.conv_block(x, 32, 3, activation='relu')
-        x = self.conv_block(x, 32, 3, activation='relu')
-        x = self.max_pool(x)
+    #     x = self.conv_block(x, 32, 3, activation='relu')
+    #     x = self.conv_block(x, 32, 3, activation='relu')
+    #     x = self.max_pool(x)
 
-        x = self.conv_block(x, 64, 3, activation='relu')
-        x = self.conv_block(x, 64, 3, activation='relu')
-        f0 = x
-        x = self.max_pool(x)
+    #     x = self.conv_block(x, 64, 3, activation='relu')
+    #     x = self.conv_block(x, 64, 3, activation='relu')
+    #     f0 = x
+    #     x = self.max_pool(x)
 
-        x = self.conv_block(x, 128, 3, activation='relu')
-        x = self.conv_block(x, 128, 3, activation='relu')
-        f1 = x
-        x = self.max_pool(x)
+    #     x = self.conv_block(x, 128, 3, activation='relu')
+    #     x = self.conv_block(x, 128, 3, activation='relu')
+    #     f1 = x
+    #     x = self.max_pool(x)
 
-        x = self.conv_block(x, 256, 3, activation='relu')
-        x = self.conv_block(x, 256, 3, activation='relu')
-        f2 = x
+    #     x = self.conv_block(x, 256, 3, activation='relu')
+    #     x = self.conv_block(x, 256, 3, activation='relu')
+    #     f2 = x
 
-        x = self.fpn_block([f0, f1, f2], [64, 128, 256], activation='relu')
-        y = self.detection_layer(x, 'sbd_output')
-        return tf.keras.models.Model(input_layer, y)
+    #     x = self.fpn_block([f0, f1, f2], [64, 128, 256], activation='relu')
+    #     y = self.detection_layer(x, 'sbd_output')
+    #     return tf.keras.models.Model(input_layer, y)
 
-    def lcd(self):
-        input_layer = tf.keras.layers.Input(shape=self.input_shape)
-        x = self.conv_block(input_layer, 16, 3, activation='relu')
-        x = self.max_pool(x)
+    # def lcd(self):
+    #     input_layer = tf.keras.layers.Input(shape=self.input_shape)
+    #     x = self.conv_block(input_layer, 16, 3, activation='relu')
+    #     x = self.max_pool(x)
 
-        x = self.conv_block(x, 32, 3, activation='relu')
-        x = self.max_pool(x)
+    #     x = self.conv_block(x, 32, 3, activation='relu')
+    #     x = self.max_pool(x)
 
-        x = self.conv_block(x, 64, 3, activation='relu')
-        x = self.max_pool(x)
+    #     x = self.conv_block(x, 64, 3, activation='relu')
+    #     x = self.max_pool(x)
 
-        x = self.conv_block(x, 128, 3, activation='relu')
-        f0 = x
-        x = self.max_pool(x)
+    #     x = self.conv_block(x, 128, 3, activation='relu')
+    #     f0 = x
+    #     x = self.max_pool(x)
 
-        x = self.conv_block(x, 256, 3, activation='relu')
-        f1 = x
-        x = self.max_pool(x)
+    #     x = self.conv_block(x, 256, 3, activation='relu')
+    #     f1 = x
+    #     x = self.max_pool(x)
 
-        x = self.conv_block(x, 512, 3, activation='relu')
-        f2 = x
+    #     x = self.conv_block(x, 512, 3, activation='relu')
+    #     f2 = x
 
-        x = self.fpn_block([f0, f1, f2], [128, 256, 512], activation='relu', additional_conv=False)
-        y = self.detection_layer(x, 'sbd_output')
-        return tf.keras.models.Model(input_layer, y)
+    #     x = self.fpn_block([f0, f1, f2], [128, 256, 512], activation='relu', additional_conv=False)
+    #     y = self.detection_layer(x, 'sbd_output')
+    #     return tf.keras.models.Model(input_layer, y)
 
     def spatial_attention_block(self, x, activation, bn=False, reduction_ratio=16):
         input_layer = x
@@ -424,11 +527,12 @@ class Model:
         layers = list(reversed(ret))
         return layers if return_layers else x
 
-    def csp_fpn_block(self, x, layers, filters, depth, activation, bn=False, return_layers=False, mode='add'):
+    def csp_fpn_block(self, x, methods, layers, filters, kernel_sizes, depths, activation, bn=False, return_layers=False, mode='add'):
         assert mode in ['add', 'concat']
-        assert type(layers) == list and type(filters) == list
+        # assert type(layers) == list and type(filters) == list and type(depths) == list and type(kernel_sizes) == list
         output_layers = [x]
         for i in range(len(layers)):
+            print(f'i : {i}')
             if mode == 'add':
                 x = self.conv_block(x, filters[i], 1, bn=bn, activation=activation)
                 x = self.upsampling(x)
@@ -437,7 +541,13 @@ class Model:
                 x = self.upsampling(x)
                 x = self.concat([x, layers[i]])
                 x = self.conv_block(x, filters[i], 1, bn=bn, activation=activation)
-            x = self.csp_block_light(x, filters[i], 3, depth=depth, activation=activation)
+            if methods[i] == 'conv':
+                for _ in range(depths[i]):
+                    x = self.conv_block(x, filters[i], kernel_sizes[i], activation=activation)
+            elif methods[i] == 'csp':
+                x = self.csp_block_light(x, filters[i], kernel_sizes[i], depth=depths[i], activation=activation)
+            else:
+                ModelUtil.print_error_exit(f'invalid layer info method : {methods[i]}')
             output_layers.append(x)
         return output_layers if return_layers else x
 
@@ -627,6 +737,29 @@ class Model:
         if bn:
             x = self.bn(x)
         x = self.activation(x, activation=activation)
+        return x
+
+    def detection_block_4(self, f0, f1, f2, f3, num_output_layers):
+        x = []
+        if num_output_layers == 1:
+            x = self.detection_layer(f0, 'sbd_output_00')
+        elif num_output_layers == 3:
+            x.append(self.detection_layer(f0, 'sbd_output_00'))
+            x.append(self.detection_layer(f1, 'sbd_output_10'))
+            x.append(self.detection_layer(f2, 'sbd_output_20'))
+        elif num_output_layers == 4:
+            x.append(self.detection_layer(f0, 'sbd_output_00'))
+            x.append(self.detection_layer(f1, 'sbd_output_10'))
+            x.append(self.detection_layer(f1, 'sbd_output_11'))
+            x.append(self.detection_layer(f2, 'sbd_output_20'))
+        elif num_output_layers == 5:
+            x.append(self.detection_layer(f0, 'sbd_output_00'))
+            x.append(self.detection_layer(f1, 'sbd_output_10'))
+            x.append(self.detection_layer(f1, 'sbd_output_11'))
+            x.append(self.detection_layer(f2, 'sbd_output_20'))
+            x.append(self.detection_layer(f2, 'sbd_output_21'))
+        else:
+            ModelUtil.print_error_exit(f'invalid num_output_layers : {num_output_layers}')
         return x
 
     def detection_block(self, f0, f1, f2, num_output_layers):
