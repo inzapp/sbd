@@ -209,8 +209,8 @@ class YoloDataGenerator:
         clustering_mse = (w_mse + h_mse) / 2.0
         print(f'clustered MSE(Mean Squared Error) : {clustering_mse:.4f}')
 
-        self.virtual_anchor_ws = sorted(np.asarray(clustered_ws).reshape(-1))
-        self.virtual_anchor_hs = sorted(np.asarray(clustered_hs).reshape(-1))
+        self.virtual_anchor_ws = sorted(np.asarray(clustered_ws).reshape(-1), reverse=True)
+        self.virtual_anchor_hs = sorted(np.asarray(clustered_hs).reshape(-1), reverse=True)
 
         print(f'virtual anchor : ', end='')
         for i in range(num_cluster):
@@ -524,8 +524,8 @@ class YoloDataGenerator:
             img = self.transform(image=img)['image']
             with open(f'{cur_img_path[:-4]}.txt', mode='rt') as file:
                 label_lines = file.readlines()
-            if np.random.uniform() < 0.5:
-                img, label_lines = self.random_scale(img, label_lines)
+            # if np.random.uniform() < 0.5:
+            #     img, label_lines = self.random_scale(img, label_lines)
             x = ModelUtil.preprocess(img)
             batch_x.append(x)
             labeled_boxes = self.convert_to_boxes(label_lines)
