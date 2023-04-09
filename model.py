@@ -193,14 +193,14 @@ class Model:
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
         x = input_layer
         for i, (method, kernel_size, channel, depth) in enumerate(layer_infos):
-            if i > 0:
-                x = self.dropout(x)
-            if method == 'conv':
-                for _ in range(depth):
-                    x = self.conv_block(x, channel, kernel_size, activation='relu')
-                features.append(x)
-            elif method == 'csp':
-                x = self.csp_block_light(x, channel, kernel_size, depth, activation='relu')
+            if method in ['conv', 'csp']:
+                if i > 0:
+                    x = self.dropout(x)
+                if method == 'conv':
+                    for _ in range(depth):
+                        x = self.conv_block(x, channel, kernel_size, activation='relu')
+                else:
+                    x = self.csp_block_light(x, channel, kernel_size, depth, activation='relu')
                 features.append(x)
             elif method == 'head':
                 num_upscaling = 5 - pyramid_scale
@@ -214,7 +214,7 @@ class Model:
                     if type(x) is not list:
                         x = [x]
             else:
-                ModelUtil.print_error_exit(f'invalid layer info method : {method}')
+                ModelUtil.print_error_exit(f'invalid layer info method : {method}, available method : [conv, csp, head]')
             if i < 5:
                 x = self.max_pool(x)
 
