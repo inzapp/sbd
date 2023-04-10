@@ -192,6 +192,7 @@ class Model:
         features = []
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
         x = input_layer
+        x = self.max_pool(x)
         for i, (method, kernel_size, channel, depth) in enumerate(layer_infos):
             if method in ['conv', 'csp']:
                 if i > 0:
@@ -200,7 +201,7 @@ class Model:
                     for _ in range(depth):
                         x = self.conv_block(x, channel, kernel_size, activation='relu')
                 else:
-                    x = self.csp_block_light(x, channel, kernel_size, depth, activation='relu')
+                    x = self.csp_block(x, channel, kernel_size, depth, activation='relu')
                 features.append(x)
             elif method == 'head':
                 num_upscaling = 5 - pyramid_scale
@@ -234,24 +235,6 @@ class Model:
         x = self.conv_block(x, input_filters, 1, bn=bn, activation='sigmoid')
         return tf.keras.layers.Multiply()([x, input_layer])
 
-    def fpn_block(self, layers, filters, activation, bn=False, return_layers=False, channel_reduction=True, additional_conv=True):
-        assert type(layers) == list and type(filters) == list
-        layers = list(reversed(layers))
-        ret = [layers[0]]
-        filters = list(reversed(filters))
-        for i in range(len(layers) - 1):
-            x = tf.keras.layers.UpSampling2D()(layers[i] if i == 0 else x)
-            x = self.concat([x, layers[i+1]])
-            x = self.conv_block(x, filters[i+1], 1, bn=bn, activation=activation)
-            x = self.conv_block(x, filters[i+1], 3, bn=bn, activation=activation)
-            if additional_conv:
-                if channel_reduction:
-                    x = self.conv_block(x, filters[i+1] // 2, 1, bn=bn, activation=activation)
-                x = self.conv_block(x, filters[i+1], 3, bn=bn, activation=activation)
-            ret.append(x)
-        layers = list(reversed(ret))
-        return layers if return_layers else x
-
     def csp_fpn_block(self, x, methods, layers, filters, kernel_sizes, depths, activation, bn=False, return_layers=False, mode='add'):
         assert mode in ['add', 'concat']
         output_layers = [x]
@@ -268,26 +251,11 @@ class Model:
                 for _ in range(depths[i]):
                     x = self.conv_block(x, filters[i], kernel_sizes[i], activation=activation)
             elif methods[i] == 'csp':
-                x = self.csp_block_light(x, filters[i], kernel_sizes[i], depth=depths[i], activation=activation)
+                x = self.csp_block(x, filters[i], kernel_sizes[i], depth=depths[i], activation=activation)
             else:
                 ModelUtil.print_error_exit(f'invalid layer info method : {methods[i]}')
             output_layers.append(x)
         return output_layers if return_layers else x
-
-    # def fpn_block(self, layers, filters, activation, bn=False, return_layers=False):
-    #     assert type(layers) == list and type(filters) == list
-    #     layers = list(reversed(layers))
-    #     ret = [layers[0]]
-    #     filters = list(reversed(filters))
-    #     for i in range(len(layers) - 1):
-    #         x = tf.keras.layers.UpSampling2D()(layers[i] if i == 0 else x)
-    #         if filters[i] != filters[i+1]:
-    #             x = self.conv_block(x, filters[i+1], 1, bn=bn, activation=activation)
-    #         x = self.add([x, layers[i+1]])
-    #         x = self.conv_block(x, filters[i+1], 3, bn=bn, activation=activation)
-    #         ret.append(x)
-    #     layers = list(reversed(ret))
-    #     return layers if return_layers else x
 
     def pa_block(self, layers, filters, activation, bn=False, return_layers=False):
         assert type(layers) == list and type(filters) == list
@@ -330,66 +298,12 @@ class Model:
         layers = list(reversed(ret))
         return layers if return_layers else x
 
-    def csp_block(self, x, filters, kernel_size, drop_rate=0.0, first_depth_n_convs=1, second_depth_n_convs=2, bn=False, activation='none', inner_activation='none'):
-        half_filters = filters / 2
-        x_0 = self.conv_block(x, half_filters, 1, activation='none')
-        for i in range(first_depth_n_convs):
-            if i == 0:
-                x_1 = self.conv_block(x, half_filters, 1, activation=inner_activation)
-            else:
-                if drop_rate > 0.0:
-                    x_1 = self.dropout(x_1, drop_rate * 0.5)
-                x_1 = self.conv_block(x_1, half_filters, kernel_size, activation=inner_activation)
-        x_1_0 = self.conv_block(x_1, half_filters, 1, activation='none')
-        for i in range(second_depth_n_convs):
-            if i == 0:
-                x_1_1 = self.conv_block(x_1, half_filters, 1, activation=inner_activation)
-            else:
-                if drop_rate > 0.0:
-                    x_1_1 = self.dropout(x_1_1, drop_rate * 0.5)
-                x_1_1 = self.conv_block(x_1_1, half_filters, kernel_size, activation='none' if i == second_depth_n_convs - 1 else inner_activation)
-        x_1 = tf.keras.layers.Concatenate()([x_1_0, x_1_1])
-        x = tf.keras.layers.Concatenate()([x_0, x_1])
-        if bn:
-            x = self.bn(x)
-        x = self.activation(x, activation=activation)
-        x = self.conv_block(x, filters, 1, bn=bn, activation=activation)
-        return x
-
-    def csp_block_new(self, x, filters, kernel_size, depth, bn=False, activation='none'):
-        half_filters = filters / 2
-        x_0 = self.conv_block(x, half_filters, 1, bn=bn, activation=activation)
-        x_1 = self.conv_block(x, half_filters, 1, bn=bn, activation=activation)
-        for _ in range(depth):
-            x_0_1 = self.conv_block(x_0, half_filters, 1, bn=bn, activation=activation)
-            x_0_1 = self.conv_block(x_0_1, half_filters, kernel_size, bn=bn, activation=activation)
-            x_0 = self.add([x_0, x_0_1])
-        x = self.concat([x_0, x_1])
-        # x = self.conv_block(x, filters, 1, bn=bn, activation=activation)
-        return x
-
-    def csp_block_light(self, x, filters, kernel_size, depth, bn=False, activation='none'):
+    def csp_block(self, x, filters, kernel_size, depth, bn=False, activation='none'):
         half_filters = filters / 2
         x_0 = self.conv_block(x, half_filters, 1, bn=bn, activation=activation)
         x_1 = self.conv_block(x, half_filters, 1, bn=bn, activation=activation)
         for _ in range(depth):
             x_0 = self.conv_block(x_0, half_filters, kernel_size, bn=bn, activation=activation)
-        x = self.concat([x_0, x_1])
-        x = self.conv_block(x, filters, 1, bn=bn, activation=activation)
-        return x
-
-    def csp_block_light_2_depth(self, x, filters, kernel_size, depth, bn=False, activation='none'):
-        half_filters = filters // 2
-        quarter_filters = filters // 4
-        x_0 = self.conv_block(x, half_filters, 1, bn=bn, activation=activation)
-        x_1 = self.conv_block(x, half_filters, 1, bn=bn, activation=activation)
-        for _ in range(depth):
-            x_1 = self.conv_block(x_1, half_filters, kernel_size, bn=bn, activation=activation)
-        x_1_1 = self.conv_block(x_1, quarter_filters, 1, bn=bn, activation=activation)
-        for _ in range(depth):
-            x_1_1 = self.conv_block(x_1_1, quarter_filters, kernel_size, bn=bn, activation=activation)
-        x_1 = self.concat([x_1, x_1_1])
-        x_1 = self.conv_block(x_1, filters, 1, bn=bn, activation=activation)
         x = self.concat([x_0, x_1])
         x = self.conv_block(x, filters, 1, bn=bn, activation=activation)
         return x
@@ -403,27 +317,6 @@ class Model:
             padding='same',
             use_bias=False if bn else True,
             kernel_regularizer=self.kernel_regularizer())(x)
-        if bn:
-            x = self.bn(x)
-        x = self.activation(x, activation=activation)
-        return x
-
-    def cross_csp_block(self, x, filters, kernel_size, first_depth_n_convs=1, second_depth_n_convs=2, mode='add', bn=False, activation='none', inner_activation='none'):
-        half_filters = filters // 2
-        x_0 = self.cross_conv_block(x, half_filters, 1, mode=mode, activation='none')
-        for i in range(first_depth_n_convs):
-            if i == 0:
-                x_1 = self.cross_conv_block(x, half_filters, 1, mode=mode, activation=inner_activation)
-            else:
-                x_1 = self.cross_conv_block(x_1, half_filters, kernel_size, mode=mode, activation=inner_activation)
-        x_1_0 = self.cross_conv_block(x_1, half_filters, 1, activation='none')
-        for i in range(second_depth_n_convs):
-            if i == 0:
-                x_1_1 = self.cross_conv_block(x_1, half_filters, 1, mode=mode, activation=inner_activation)
-            else:
-                x_1_1 = self.cross_conv_block(x_1_1, half_filters, kernel_size, mode=mode, activation='none' if i == second_depth_n_convs - 1 else inner_activation)
-        x_1 = tf.keras.layers.Concatenate()([x_1_0, x_1_1])
-        x = tf.keras.layers.Concatenate()([x_0, x_1])
         if bn:
             x = self.bn(x)
         x = self.activation(x, activation=activation)
@@ -462,52 +355,6 @@ class Model:
         x = self.activation(x, activation=activation)
         return x
 
-    def detection_block_4(self, f0, f1, f2, f3, num_output_layers):
-        x = []
-        if num_output_layers == 1:
-            x = self.detection_layer(f0, 'sbd_output_00')
-        elif num_output_layers == 3:
-            x.append(self.detection_layer(f0, 'sbd_output_00'))
-            x.append(self.detection_layer(f1, 'sbd_output_10'))
-            x.append(self.detection_layer(f2, 'sbd_output_20'))
-        elif num_output_layers == 4:
-            x.append(self.detection_layer(f0, 'sbd_output_00'))
-            x.append(self.detection_layer(f1, 'sbd_output_10'))
-            x.append(self.detection_layer(f1, 'sbd_output_11'))
-            x.append(self.detection_layer(f2, 'sbd_output_20'))
-        elif num_output_layers == 5:
-            x.append(self.detection_layer(f0, 'sbd_output_00'))
-            x.append(self.detection_layer(f1, 'sbd_output_10'))
-            x.append(self.detection_layer(f1, 'sbd_output_11'))
-            x.append(self.detection_layer(f2, 'sbd_output_20'))
-            x.append(self.detection_layer(f2, 'sbd_output_21'))
-        else:
-            ModelUtil.print_error_exit(f'invalid num_output_layers : {num_output_layers}')
-        return x
-
-    def detection_block(self, f0, f1, f2, num_output_layers):
-        x = []
-        if num_output_layers == 1:
-            x = self.detection_layer(f0, 'sbd_output_00')
-        elif num_output_layers == 3:
-            x.append(self.detection_layer(f0, 'sbd_output_00'))
-            x.append(self.detection_layer(f1, 'sbd_output_10'))
-            x.append(self.detection_layer(f2, 'sbd_output_20'))
-        elif num_output_layers == 4:
-            x.append(self.detection_layer(f0, 'sbd_output_00'))
-            x.append(self.detection_layer(f1, 'sbd_output_10'))
-            x.append(self.detection_layer(f1, 'sbd_output_11'))
-            x.append(self.detection_layer(f2, 'sbd_output_20'))
-        elif num_output_layers == 5:
-            x.append(self.detection_layer(f0, 'sbd_output_00'))
-            x.append(self.detection_layer(f1, 'sbd_output_10'))
-            x.append(self.detection_layer(f1, 'sbd_output_11'))
-            x.append(self.detection_layer(f2, 'sbd_output_20'))
-            x.append(self.detection_layer(f2, 'sbd_output_21'))
-        else:
-            ModelUtil.print_error_exit(f'invalid num_output_layers : {num_output_layers}')
-        return x
-
     def detection_layer(self, x, name='sbd_output'):
         return tf.keras.layers.Conv2D(
             filters=self.output_channel,
@@ -516,11 +363,11 @@ class Model:
             name=name)(x)
 
     def activation(self, x, activation='none'):
-        if activation in ['relu', 'sigmoid', 'tanh']:
+        if activation in ['relu', 'sigmoid', 'tanh', 'softplus']:
             return tf.keras.layers.Activation(activation)(x)
         elif activation == 'leaky':
             return tf.keras.layers.LeakyReLU(alpha=0.1)(x)
-        elif activation == 'silu' or activation == 'swish':
+        elif activation in ['silu', 'swish']:
             x_sigmoid = tf.keras.layers.Activation('sigmoid')(x)
             return self.multiply([x, x_sigmoid])
         elif activation == 'mish':
