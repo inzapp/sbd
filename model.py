@@ -192,7 +192,6 @@ class Model:
         features = []
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
         x = input_layer
-        x = self.max_pool(x)
         for i, (method, kernel_size, channel, depth) in enumerate(layer_infos):
             if method in ['conv', 'csp']:
                 if i > 0:
