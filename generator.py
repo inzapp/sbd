@@ -246,7 +246,7 @@ class YoloDataGenerator:
             label_lines, _ = f.result()
             labeled_boxes = self.convert_to_boxes(label_lines)
             box_count_in_real_data += len(labeled_boxes)
-            _, _, allocated_count = self.build_batch_tensor(labeled_boxes, virtual_anchor_training=False)
+            _, _, allocated_count = self.build_batch_tensor(labeled_boxes)
             y_true_obj_count += allocated_count
 
         avg_obj_count_per_image = box_count_in_real_data / float(len(self.image_paths))
@@ -402,7 +402,7 @@ class YoloDataGenerator:
                     'iou': iou})
         return sorted(nearby_cells, key=lambda x: x['iou'], reverse=True)
 
-    def build_batch_tensor(self, labeled_boxes, virtual_anchor_training):
+    def build_batch_tensor(self, labeled_boxes):
         y, mask = [], []
         for i in range(self.num_output_layers):
             y.append(np.zeros(shape=tuple(self.output_shapes[i][1:]), dtype=np.float32))
@@ -467,25 +467,19 @@ class YoloDataGenerator:
                         confidence_mask_indices = np.where(object_mask < confidence_mask_channel)
                         confidence_mask_channel[confidence_mask_indices] = object_mask[confidence_mask_indices]
                         y[i][offset_center_row][offset_center_col][0] = 1.0
-                        if virtual_anchor_training:
-                            y[i][:, :, 1] = cx_grid
-                            y[i][:, :, 2] = cy_grid
-                            y[i][:, :, 3] = self.virtual_anchor_ws[i]
-                            y[i][:, :, 4] = self.virtual_anchor_hs[i]
-                        else:
-                            y[i][offset_center_row][offset_center_col][1] = cx_grid
-                            y[i][offset_center_row][offset_center_col][2] = cy_grid
-                            y[i][offset_center_row][offset_center_col][3] = w
-                            y[i][offset_center_row][offset_center_col][4] = h
+                        y[i][offset_center_row][offset_center_col][1] = cx_grid
+                        y[i][offset_center_row][offset_center_col][2] = cy_grid
+                        y[i][offset_center_row][offset_center_col][3] = w
+                        y[i][offset_center_row][offset_center_col][4] = h
 
-                            # cx_channel = y[i][:, :, 1]
-                            # cy_channel = y[i][:, :, 2]
-                            # w_channel = y[i][:, :, 3]
-                            # h_channel = y[i][:, :, 4]
-                            # cx_channel[confidence_indices] = cx_grid
-                            # cy_channel[confidence_indices] = cy_grid
-                            # w_channel[confidence_indices] = w
-                            # h_channel[confidence_indices] = h
+                        # cx_channel = y[i][:, :, 1]
+                        # cy_channel = y[i][:, :, 2]
+                        # w_channel = y[i][:, :, 3]
+                        # h_channel = y[i][:, :, 4]
+                        # cx_channel[confidence_indices] = cx_grid
+                        # cy_channel[confidence_indices] = cy_grid
+                        # w_channel[confidence_indices] = w
+                        # h_channel[confidence_indices] = h
                         for class_index in class_indexes:
                             # class_channel = y[i][:, :, class_index+5]
                             # class_indices = np.where(object_heatmap > class_channel)
@@ -514,7 +508,7 @@ class YoloDataGenerator:
         #     exit(0)
         return y, mask, allocated_count
             
-    def load(self, virtual_anchor_training=False):
+    def load(self):
         fs, batch_x, batch_y, batch_mask = [], [], [], []
         for i in range(self.num_output_layers):
             batch_y.append([])
@@ -534,7 +528,7 @@ class YoloDataGenerator:
             batch_x.append(x)
             labeled_boxes = self.convert_to_boxes(label_lines)
             np.random.shuffle(labeled_boxes)
-            y, mask, _ = self.build_batch_tensor(labeled_boxes, virtual_anchor_training)
+            y, mask, _ = self.build_batch_tensor(labeled_boxes)
             for i in range(self.num_output_layers):
                 batch_y[i].append(y[i])
                 batch_mask[i].append(mask[i])
