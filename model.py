@@ -210,7 +210,7 @@ class Model:
                     cs = list(reversed([v[2] for v in layer_infos]))[2:num_upscaling+2]
                     ds = list(reversed([v[3] for v in layer_infos]))[2:num_upscaling+2]
                     fs = list(reversed(features))[1:num_upscaling+1]
-                    x = self.csp_fpn_block(x, ms, fs, cs, ks, ds, activation='relu', return_layers=num_output_layers == 'm')
+                    x = self.fpn_block(x, ms, fs, cs, ks, ds, activation='relu', return_layers=num_output_layers == 'm')
                     if type(x) is not list:
                         x = [x]
             else:
@@ -234,7 +234,7 @@ class Model:
         x = self.conv_block(x, input_filters, 1, bn=bn, activation='sigmoid')
         return tf.keras.layers.Multiply()([x, input_layer])
 
-    def csp_fpn_block(self, x, methods, layers, filters, kernel_sizes, depths, activation, bn=False, return_layers=False, mode='add'):
+    def fpn_block(self, x, methods, layers, filters, kernel_sizes, depths, activation, bn=False, return_layers=False, mode='add'):
         assert mode in ['add', 'concat']
         output_layers = [x]
         for i in range(len(layers)):
