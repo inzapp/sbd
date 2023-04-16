@@ -146,7 +146,7 @@ class Yolo:
         inc = 0
         checkpoint_path = f'checkpoint/{self.__model_name}'
         while True:
-            dir_path = f'model_{inc}'
+            dir_path = f'm{inc}'
             if os.path.exists(dir_path) and os.path.isdir(dir_path):
                 inc += 1
             else:
@@ -324,8 +324,8 @@ class Yolo:
                 iteration_count += 1
                 print(self.build_loss_str(iteration_count, loss_vars), end='')
                 warm_up_end = iteration_count >= int(self.__iterations * self.__warm_up)
-                if iteration_count % 2000 == 0:
-                    self.__model.save('model_last.h5', include_optimizer=False)
+                if iteration_count % 2000 == 0 or iteration_count == self.__iterations:
+                    self.__model.save(f'{self.__checkpoint_path}/last.h5', include_optimizer=False)
                 if warm_up_end:
                     if self.__training_view:
                         self.__training_view_function()
