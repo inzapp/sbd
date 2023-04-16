@@ -21,6 +21,7 @@ import os
 from time import time, sleep
 
 import cv2
+import yaml
 import numpy as np
 import tensorflow as tf
 
@@ -36,7 +37,11 @@ from loss import confidence_loss, confidence_with_bbox_loss, yolo_loss
 class Yolo:
     def __init__(self, config):
         pretrained_model_path = config['pretrained_model_path']
-        input_shape = config['input_shape']
+        input_rows = config['input_rows']
+        input_cols = config['input_cols']
+        self.__input_channels = config['input_channels']
+        assert self.__input_channels in [1, 3]
+        input_shape = (input_rows, input_cols, self.__input_channels)
         train_image_path = config['train_image_path']
         validation_image_path = config['validation_image_path']
         multi_classification_at_same_box = config['multi_classification_at_same_box']
@@ -50,7 +55,7 @@ class Yolo:
         self.__gammas = None
         self.__l2 = config['l2']
         self.__momentum = config['momentum']
-        self.__label_smoothing = config['label_smoothing']
+        self.__label_smoothing = config['smoothing']
         self.__warm_up = config['warm_up']
         self.__decay_step = config['decay_step']
         self.__iterations = config['iterations']
@@ -61,18 +66,15 @@ class Yolo:
         self.__training_view = config['training_view']
         self.__map_checkpoint = config['map_checkpoint']
         self.__curriculum_iterations = config['curriculum_iterations']
-        self.__checkpoint_interval = config['checkpoint_interval']
+        self.__map_checkpoint_interval = config['map_checkpoint_interval']
         self.__live_view_previous_time = time()
-        self.__checkpoint_path = config['checkpoint_path']
-        self.__cycle_step = 0
-        self.__cycle_length = 2500
+        self.__checkpoint_path = self.__new_checkpoint_path()
         self.__presaved_iteration_count = 0
 
-        self.__input_width, self.__input_height, self.__input_channel = ModelUtil.get_width_height_channel_from_input_shape(input_shape)
         self.__class_names, self.__num_classes = ModelUtil.init_class_names(self.__class_names_file_path)
 
         pretrained_model_load_success = False
-        if pretrained_model_path != '':
+        if pretrained_model_path.endswith('.h5'):
             if os.path.exists(pretrained_model_path) and os.path.isfile(pretrained_model_path):
                 self.__model = tf.keras.models.load_model(pretrained_model_path, compile=False)
                 self.__presaved_iteration_count = self.__parse_presaved_iteration_count(pretrained_model_path)
@@ -126,8 +128,31 @@ class Yolo:
             heatmap_scale=heatmap_scale)
 
         self.__live_loss_plot = None
-        os.makedirs(f'{self.__checkpoint_path}', exist_ok=True)
+        self.__best_mean_ap, self.__best_f1_score, self.__best_iou, self.__best_confidence = 0.0, 0.0, 0.0, 0.0
+        os.makedirs(self.__checkpoint_path, exist_ok=True)
         np.set_printoptions(precision=6)
+
+    @staticmethod
+    def load_cfg(cfg_path):
+        if not os.path.exists(cfg_path):
+            ModelUtil.print_error_exit(f'invalid cfg path. file not found : {cfg_path}')
+        if not os.path.isfile(cfg_path):
+            ModelUtil.print_error_exit(f'invalid file format, is not file : {cfg_path}')
+        with open(cfg_path, 'rt') as f:
+            config = yaml.load(f, Loader=yaml.FullLoader)
+        return config
+
+    def __new_checkpoint_path(self):
+        inc = 0
+        checkpoint_path = f'checkpoint/{self.__model_name}'
+        while True:
+            dir_path = f'model_{inc}'
+            if os.path.exists(dir_path) and os.path.isdir(dir_path):
+                inc += 1
+            else:
+                break
+        checkpoint_path = f'{checkpoint_path}/{dir_path}'
+        return checkpoint_path
 
     def __parse_presaved_iteration_count(self, pretrained_model_path):
         iteration_count = 0
@@ -304,7 +329,7 @@ class Yolo:
                 if warm_up_end:
                     if self.__training_view:
                         self.__training_view_function()
-                    if self.__map_checkpoint and iteration_count % self.__checkpoint_interval == 0 and iteration_count < self.__iterations:
+                    if self.__map_checkpoint and iteration_count % self.__map_checkpoint_interval == 0 and iteration_count < self.__iterations:
                         self.__save_model(iteration_count=iteration_count, use_map_checkpoint=self.__map_checkpoint)
                 if iteration_count == self.__iterations:
                     self.__save_model(iteration_count=iteration_count, use_map_checkpoint=True)
@@ -316,7 +341,8 @@ class Yolo:
         if use_map_checkpoint:
             self.calculate_map(dataset='validation', iteration_count=iteration_count, save_model=True)
         else:
-            self.__model.save(f'{self.__checkpoint_path}/{self.__model_type}_{self.__model_name}_{iteration_count}_iter.h5', include_optimizer=False)
+            # self.__model.save(f'{self.__checkpoint_path}/{self.__model_type}_{self.__model_name}_{iteration_count}_iter.h5', include_optimizer=False)
+            self.__model.save(f'{self.__checkpoint_path}/last.h5', include_optimizer=False)
 
     @staticmethod
     @tf.function
@@ -535,22 +561,35 @@ class Yolo:
             classes_txt_path=self.__class_names_file_path,
             cached=cached)
         if save_model:
-            model_path = f'{self.__checkpoint_path}/'
-            model_path += f'{self.__model_type}_{self.__model_name}'
-            if iteration_count + self.__presaved_iteration_count > 0:
-                model_path += f'_{iteration_count + self.__presaved_iteration_count}_iter'
-            model_path += f'_mAP_{mean_ap:.4f}'
-            model_path += f'_f1_{f1_score:.4f}'
-            model_path += f'_iou_{iou:.4f}'
-            model_path += f'_tp_{tp}_fp_{fp}_fn_{fn}'
-            model_path += f'_conf_{confidence:.4f}'
-            model_path += f'_confth_{confidence_threshold:.2f}'
-            model_path += f'_tpiouth_{tp_iou_threshold:.2f}'
-            model_path += f'.h5'
-            self.__model.save(model_path, include_optimizer=False)
-            with open(f'{model_path[:-3]}.txt', 'wt') as f:
-                f.write(txt_content)
-            print(f'model saved to [{model_path}]')
+            # model_path = f'{self.__checkpoint_path}/'
+            # model_path += f'{self.__model_type}_{self.__model_name}'
+            # if iteration_count + self.__presaved_iteration_count > 0:
+            #     model_path += f'_{iteration_count + self.__presaved_iteration_count}_iter'
+            # model_path += f'_mAP_{mean_ap:.4f}'
+            # model_path += f'_f1_{f1_score:.4f}'
+            # model_path += f'_iou_{iou:.4f}'
+            # model_path += f'_tp_{tp}_fp_{fp}_fn_{fn}'
+            # model_path += f'_conf_{confidence:.4f}'
+            # model_path += f'_confth_{confidence_threshold:.2f}'
+            # model_path += f'_tpiouth_{tp_iou_threshold:.2f}'
+            # model_path += f'.h5'
+            new_best_model = False
+            if mean_ap >= self.__best_mean_ap:
+                self.__best_mean_ap = mean_ap
+                new_best_model = True
+                if f1_score > self.__best_f1_score:
+                    self.__best_f1_score = f1_score
+                if iou > self.__best_iou:
+                    self.__best_iou = iou
+                if confidence > self.__best_confidence:
+                    self.__best_confidence = confidence
+
+            if new_best_model:
+                model_path = f'{self.__checkpoint_path}/best.h5'
+                self.__model.save(model_path, include_optimizer=False)
+                with open(f'{self.__checkpoint_path}/result.txt', 'wt') as f:
+                    f.write(txt_content)
+                print(f'new best model saved to [{model_path}]')
 
     def __training_view_function(self):
         """
@@ -563,7 +602,7 @@ class Yolo:
                 img_path = np.random.choice(self.__train_image_paths)
             else:
                 img_path = np.random.choice(self.__validation_image_paths)
-            img, raw_bgr, _ = ModelUtil.load_img(img_path, self.__input_channel)
+            img, raw_bgr, _ = ModelUtil.load_img(img_path, self.__input_channels)
             boxes = Yolo.predict(self.__model, img, device='cpu')
             boxed_image = self.bounding_box(raw_bgr, boxes)
             cv2.imshow('training view', boxed_image)
