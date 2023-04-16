@@ -1,26 +1,26 @@
-# pretrained_model_path: None
-# train_image_path: C:\inz\train_data\loon\train
-# validation_image_path: C:\inz\train_data\loon\validation
-# class_names_file_path: C:\inz\train_data\loon\train\classes.txt
-# input_rows: 64
-# input_cols: 256
-# input_channels: 3
-# model_name: loon
-# model_type: n1p3
-# optimizer: sgd
-# lr_policy: step
-
 pretrained_model_path: None
-train_image_path: C:\inz\train_data\square_set
-validation_image_path: C:\inz\train_data\square_set
-class_names_file_path: C:\inz\train_data\square_set\classes.txt
-input_rows: 512
+train_image_path: C:\inz\train_data\loon\train
+validation_image_path: C:\inz\train_data\loon\validation
+class_names_file_path: C:\inz\train_data\loon\train\classes.txt
+input_rows: 128
 input_cols: 512
-input_channels: 1
-model_name: square
-model_type: n1p2
+input_channels: 3
+model_name: loon
+model_type: n1p3
 optimizer: sgd
 lr_policy: step
+
+# pretrained_model_path: None
+# train_image_path: C:\inz\train_data\square_set
+# validation_image_path: C:\inz\train_data\square_set
+# class_names_file_path: C:\inz\train_data\square_set\classes.txt
+# input_rows: 512
+# input_cols: 512
+# input_channels: 1
+# model_name: square
+# model_type: n1p2
+# optimizer: sgd
+# lr_policy: step
 
 # pretrained_model_path: None
 # train_image_path: C:\inz\train_data\circle_regtangle\train
@@ -106,12 +106,12 @@ lr_policy: step
 # optimizer: sgd
 # lr_policy: step
 
-lr: 0.003
+lr: 0.001
 l2: 0.0005
 alpha: 0.25
 gamma: 2.0
 warm_up: 0.5
-momentum: 0.92
+momentum: 0.9
 smoothing: 0.0
 decay_step: 0.1
 heatmap_scale: 0.4
