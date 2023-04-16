@@ -20,21 +20,20 @@ limitations under the License.
 import argparse
 
 from yolo import Yolo
-from train import config
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--cfg', type=str, default='cfg/cfg.yaml', help='path of training configuration file')
+    parser.add_argument('--model', type=str, default='model_last.h5', help='pretrained model path for mAP calculation')
     parser.add_argument('--cpu', action='store_true', help='forward with cpu while calculating mAP')
     parser.add_argument('--save', action='store_true', help='save another model with calculated mAP result naming')
     parser.add_argument('--cached', action='store_true', help='use pre-saved csv files for mAP calculation')
     parser.add_argument('--iou', type=float, default=0.5, help='true positive threshold for intersection over union')
     parser.add_argument('--conf', type=float, default=0.2, help='confidence threshold for detection')
-    parser.add_argument('--model', type=str, default='model_last.h5', help='pretrained model path for mAP calculation')
     parser.add_argument('--dataset', type=str, default='validation', help='dataset name for mAP calculation. train or validation')
     args = parser.parse_args()
-    config = Yolo.load_cfg(args.cfg)
-    config['pretrained_model_path'] = args.model
-    Yolo(config=config).calculate_map(args.dataset, save_model=args.save, device='cpu' if args.cpu else 'auto', confidence_threshold=args.conf, tp_iou_threshold=args.iou, cached=args.cached)
-
+    yolo_obj = Yolo(cfg_path=args.cfg)
+    if args.model != '':
+        yolo_obj.load_model(args.model)
+    yolo_obj.calculate_map(args.dataset, device='cpu' if args.cpu else 'auto', confidence_threshold=args.conf, tp_iou_threshold=args.iou, cached=args.cached)

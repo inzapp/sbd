@@ -24,5 +24,5 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--cfg', type=str, default='cfg/cfg.yaml', help='path of training configuration file')
     args = parser.parse_args()
-    Yolo(Yolo.load_cfg(args.cfg)).fit()
+    Yolo(args.cfg).fit()
 

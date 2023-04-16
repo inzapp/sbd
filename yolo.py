@@ -23,6 +23,7 @@ from time import time, sleep
 import cv2
 import yaml
 import numpy as np
+import shutil as sh
 import tensorflow as tf
 
 from model import Model
@@ -35,8 +36,10 @@ from loss import confidence_loss, confidence_with_bbox_loss, yolo_loss
 
 
 class Yolo:
-    def __init__(self, config):
-        pretrained_model_path = config['pretrained_model_path']
+    def __init__(self, cfg_path):
+        config = self.load_cfg(cfg_path)
+        self.__cfg_path = cfg_path
+        self.__pretrained_model_path = config['pretrained_model_path']
         input_rows = config['input_rows']
         input_cols = config['input_cols']
         self.__input_channels = config['input_channels']
@@ -69,21 +72,14 @@ class Yolo:
         self.__map_checkpoint_interval = config['map_checkpoint_interval']
         self.__live_view_previous_time = time()
         self.__checkpoint_path = self.__new_checkpoint_path()
-        self.__presaved_iteration_count = 0
 
         self.__class_names, self.__num_classes = ModelUtil.init_class_names(self.__class_names_file_path)
+        self.__use_pretrained_model = False
+        if self.__pretrained_model_path.endswith('.h5'):
+            self.load_model(self.__pretrained_model_path)
+            self.__use_pretrained_model = True
 
-        pretrained_model_load_success = False
-        if pretrained_model_path.endswith('.h5'):
-            if os.path.exists(pretrained_model_path) and os.path.isfile(pretrained_model_path):
-                self.__model = tf.keras.models.load_model(pretrained_model_path, compile=False)
-                self.__presaved_iteration_count = self.__parse_presaved_iteration_count(pretrained_model_path)
-                pretrained_model_load_success = True
-                print(f'success loading pretrained model : [{pretrained_model_path}]')
-            else:
-                ModelUtil.print_error_exit(f'pretrained model not found. model path : {pretrained_model_path}')
-
-        if not pretrained_model_load_success:
+        if not self.__use_pretrained_model:
             if self.__num_classes == 0:
                 ModelUtil.print_error_exit(f'classes file not found. file path : {self.__class_names_file_path}')
             if self.__optimizer == 'adam':
@@ -129,11 +125,9 @@ class Yolo:
 
         self.__live_loss_plot = None
         self.__best_mean_ap, self.__best_f1_score, self.__best_iou, self.__best_confidence = 0.0, 0.0, 0.0, 0.0
-        os.makedirs(self.__checkpoint_path, exist_ok=True)
         np.set_printoptions(precision=6)
 
-    @staticmethod
-    def load_cfg(cfg_path):
+    def load_cfg(self, cfg_path):
         if not os.path.exists(cfg_path):
             ModelUtil.print_error_exit(f'invalid cfg path. file not found : {cfg_path}')
         if not os.path.isfile(cfg_path):
@@ -142,29 +136,35 @@ class Yolo:
             config = yaml.load(f, Loader=yaml.FullLoader)
         return config
 
+    def init_checkpoint_dir(self):
+        cfg_content = ''
+        with open(self.__cfg_path, 'rt') as f:
+            lines = f.readlines()
+        for line in lines:
+            if line.startswith('#') or line.strip().replace('\n', '') == '':
+                continue
+            cfg_content += line
+        basename = os.path.basename(self.__cfg_path)
+        with open(f'{self.__checkpoint_path}/{basename}', 'wt') as f:
+            f.writelines(cfg_content)
+        sh.copy(self.__class_names_file_path, self.__checkpoint_path)
+
+    def load_model(self, model_path):
+        if os.path.exists(model_path) and os.path.isfile(model_path):
+            self.__model = tf.keras.models.load_model(model_path, compile=False)
+        else:
+            ModelUtil.print_error_exit(f'pretrained model not found. model path : {model_path}')
+
     def __new_checkpoint_path(self):
         inc = 0
-        checkpoint_path = f'checkpoint/{self.__model_name}'
+        base_path = f'checkpoint/{self.__model_name}'
         while True:
-            dir_path = f'm{inc}'
-            if os.path.exists(dir_path) and os.path.isdir(dir_path):
+            checkpoint_path = f'{base_path}/m{inc}'
+            if os.path.exists(checkpoint_path) and os.path.isdir(checkpoint_path):
                 inc += 1
             else:
                 break
-        checkpoint_path = f'{checkpoint_path}/{dir_path}'
         return checkpoint_path
-
-    def __parse_presaved_iteration_count(self, pretrained_model_path):
-        iteration_count = 0
-        if pretrained_model_path.find('iter') > -1:
-            sp = pretrained_model_path.split('_') 
-            for i in range(len(sp)):
-                if sp[i] == 'iter' and i > 0:
-                    try:
-                        iteration_count = int(sp[i-1])
-                    except ValueError:
-                        iteration_count = 0
-        return iteration_count
 
     def __get_optimizer(self, optimizer_str):
         lr = self.__lr if self.__lr_policy == 'constant' else 0.0
@@ -211,7 +211,7 @@ class Yolo:
 
     def fit(self):
         gflops = ModelUtil.get_gflops(self.__model)
-        self.__model.save('model.h5', include_optimizer=False)
+        self.save_model(with_map=False)
         self.__model.summary()
         print(f'\nGFLOPs : {gflops:.4f}')
         print(f'\ntrain on {len(self.__train_image_paths)} samples.')
@@ -243,7 +243,10 @@ class Yolo:
         if self.__curriculum_iterations > 0:
             print('\nstart curriculum training')
             self.__curriculum_train()
-        print('\nstart training')
+        if self.__use_pretrained_model:
+            print(f'\nstart training with pretrained model : {self.__pretrained_model_path}')
+        else:
+            print('\nstart training')
         self.__train()
 
     def compute_gradient(self, model, optimizer, loss_function, x, y_true, mask, num_output_layers, alphas, gammas, label_smoothing):
@@ -270,9 +273,10 @@ class Yolo:
 
     def __refresh_model_and_optimizer(self, model, optimizer_str):
         sleep(0.2)
-        model.save('model.h5', include_optimizer=False)
+        model_path = f'{self.__checkpoint_path}/last.h5'
+        model.save(model_path, include_optimizer=False)
         sleep(0.2)
-        model = tf.keras.models.load_model('model.h5', compile=False)
+        model = tf.keras.models.load_model(model_path, compile=False)
         optimizer = self.__get_optimizer(optimizer_str)
         return model, optimizer
 
@@ -316,6 +320,9 @@ class Yolo:
         compute_gradient_tf = tf.function(self.compute_gradient)
         self.__model, optimizer = self.__refresh_model_and_optimizer(self.__model, self.__optimizer)
         lr_scheduler = LRScheduler(iterations=self.__iterations, lr=self.__lr, warm_up=self.__warm_up, policy=self.__lr_policy, decay_step=self.__decay_step)
+        os.makedirs(self.__checkpoint_path, exist_ok=True)
+        self.init_checkpoint_dir()
+        print(f'model will be save to {self.__checkpoint_path}')
         while True:
             for _ in range(len(self.__train_data_generator)):
                 batch_x, batch_y, mask = self.__train_data_generator.load()
@@ -325,24 +332,16 @@ class Yolo:
                 print(self.build_loss_str(iteration_count, loss_vars), end='')
                 warm_up_end = iteration_count >= int(self.__iterations * self.__warm_up)
                 if iteration_count % 2000 == 0 or iteration_count == self.__iterations:
-                    self.__model.save(f'{self.__checkpoint_path}/last.h5', include_optimizer=False)
+                    self.save_model(with_map=False)
                 if warm_up_end:
                     if self.__training_view:
                         self.__training_view_function()
                     if self.__map_checkpoint and iteration_count % self.__map_checkpoint_interval == 0 and iteration_count < self.__iterations:
-                        self.__save_model(iteration_count=iteration_count, use_map_checkpoint=self.__map_checkpoint)
+                        self.save_model(iteration_count=iteration_count)
                 if iteration_count == self.__iterations:
-                    self.__save_model(iteration_count=iteration_count, use_map_checkpoint=True)
+                    self.save_model(iteration_count=iteration_count)
                     print('\n\ntrain end successfully')
                     return
-
-    def __save_model(self, iteration_count, use_map_checkpoint):
-        print('\n')
-        if use_map_checkpoint:
-            self.calculate_map(dataset='validation', iteration_count=iteration_count, save_model=True)
-        else:
-            # self.__model.save(f'{self.__checkpoint_path}/{self.__model_type}_{self.__model_name}_{iteration_count}_iter.h5', include_optimizer=False)
-            self.__model.save(f'{self.__checkpoint_path}/last.h5', include_optimizer=False)
 
     @staticmethod
     @tf.function
@@ -503,6 +502,8 @@ class Yolo:
         """
         Equal to the evaluate function. video path is required.
         """
+        if not (os.path.exists(video_path) and os.path.isfile(video_path)):
+            ModelUtil.print_error_exit(f'video not found. video path : {video_path}')
         cap = cv2.VideoCapture(video_path)
         while True:
             frame_exist, raw = cap.read()
@@ -543,16 +544,14 @@ class Yolo:
             if key == 27:
                 break
 
-    def calculate_map(self, dataset='validation', iteration_count=0, save_model=False, device='auto', confidence_threshold=0.2, tp_iou_threshold=0.5, cached=False):
+    def calculate_map(self, dataset, device, confidence_threshold, tp_iou_threshold, cached):
+        assert dataset in ['train', 'validation']
         if dataset == 'train':
             image_paths = self.__train_image_paths
         elif dataset == 'validation':
             image_paths = self.__validation_image_paths
-        else:
-            print(f'invalid dataset : [{dataset}]')
-            return
         device = ModelUtil.available_device() if device == 'auto' else device
-        mean_ap, f1_score, iou, tp, fp, fn, confidence, txt_content = calc_mean_average_precision(
+        return calc_mean_average_precision(
             model=self.__model,
             image_paths=image_paths,
             device=device,
@@ -560,36 +559,29 @@ class Yolo:
             tp_iou_threshold=tp_iou_threshold,
             classes_txt_path=self.__class_names_file_path,
             cached=cached)
-        if save_model:
-            # model_path = f'{self.__checkpoint_path}/'
-            # model_path += f'{self.__model_type}_{self.__model_name}'
-            # if iteration_count + self.__presaved_iteration_count > 0:
-            #     model_path += f'_{iteration_count + self.__presaved_iteration_count}_iter'
-            # model_path += f'_mAP_{mean_ap:.4f}'
-            # model_path += f'_f1_{f1_score:.4f}'
-            # model_path += f'_iou_{iou:.4f}'
-            # model_path += f'_tp_{tp}_fp_{fp}_fn_{fn}'
-            # model_path += f'_conf_{confidence:.4f}'
-            # model_path += f'_confth_{confidence_threshold:.2f}'
-            # model_path += f'_tpiouth_{tp_iou_threshold:.2f}'
-            # model_path += f'.h5'
-            new_best_model = False
-            if mean_ap >= self.__best_mean_ap:
-                self.__best_mean_ap = mean_ap
-                new_best_model = True
-                if f1_score > self.__best_f1_score:
-                    self.__best_f1_score = f1_score
-                if iou > self.__best_iou:
-                    self.__best_iou = iou
-                if confidence > self.__best_confidence:
-                    self.__best_confidence = confidence
 
-            if new_best_model:
-                model_path = f'{self.__checkpoint_path}/best.h5'
-                self.__model.save(model_path, include_optimizer=False)
-                with open(f'{self.__checkpoint_path}/result.txt', 'wt') as f:
-                    f.write(txt_content)
-                print(f'new best model saved to [{model_path}]')
+    def save_model(self, dataset='validation', iteration_count=0, device='auto', confidence_threshold=0.2, tp_iou_threshold=0.5, cached=False, with_map=True):
+        os.makedirs(self.__checkpoint_path, exist_ok=True)
+        if not with_map:
+            self.__model.save(f'{self.__checkpoint_path}/last.h5', include_optimizer=False)
+            return
+
+        mean_ap, f1_score, iou, tp, fp, fn, confidence, txt_content = self.calculate_map(
+            dataset=dataset,
+            device=device,
+            confidence_threshold=confidence_threshold,
+            tp_iou_threshold=tp_iou_threshold,
+            cached=cached)
+        new_best_model = False
+        if mean_ap >= self.__best_mean_ap:
+            self.__best_mean_ap = mean_ap
+            new_best_model = True
+        if new_best_model:
+            best_model_path = f'{self.__checkpoint_path}/best.h5'
+            self.__model.save(best_model_path, include_optimizer=False)
+            with open(f'{self.__checkpoint_path}/map.txt', 'wt') as f:
+                f.write(txt_content)
+            print(f'new best model saved to [{best_model_path}]')
 
     def __training_view_function(self):
         """
