@@ -141,7 +141,7 @@ class Yolo:
         with open(self.__cfg_path, 'rt') as f:
             lines = f.readlines()
         for line in lines:
-            if line.startswith('#') or line.strip().replace('\n', '') == '':
+            if line.strip().startswith('#') or line.strip().replace('\n', '') == '':
                 continue
             cfg_content += line
         with open(f'{self.__checkpoint_path}/cfg.yaml', 'wt') as f:
