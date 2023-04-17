@@ -18,14 +18,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 import argparse
-
 from yolo import Yolo
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--cfg', type=str, default='cfg/cfg.yaml', help='path of training configuration file')
-    parser.add_argument('--model', type=str, default='model_last.h5', help='pretrained model path for mAP calculation')
+    parser.add_argument('--cfg', type=str, default='cfg.yaml', help='path of training configuration file')
+    parser.add_argument('--model', type=str, default='best.h5', help='pretrained model path for detection')
     parser.add_argument('--cpu', action='store_true', help='forward with cpu while calculating mAP')
     parser.add_argument('--save', action='store_true', help='save another model with calculated mAP result naming')
     parser.add_argument('--cached', action='store_true', help='use pre-saved csv files for mAP calculation')
@@ -34,6 +33,5 @@ if __name__ == '__main__':
     parser.add_argument('--dataset', type=str, default='validation', help='dataset name for mAP calculation. train or validation')
     args = parser.parse_args()
     yolo_obj = Yolo(cfg_path=args.cfg)
-    if args.model != '':
-        yolo_obj.load_model(args.model)
+    yolo_obj.load_model(args.model)
     yolo_obj.calculate_map(args.dataset, device='cpu' if args.cpu else 'auto', confidence_threshold=args.conf, tp_iou_threshold=args.iou, cached=args.cached)

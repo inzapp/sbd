@@ -144,8 +144,7 @@ class Yolo:
             if line.startswith('#') or line.strip().replace('\n', '') == '':
                 continue
             cfg_content += line
-        basename = os.path.basename(self.__cfg_path)
-        with open(f'{self.__checkpoint_path}/{basename}', 'wt') as f:
+        with open(f'{self.__checkpoint_path}/cfg.yaml', 'wt') as f:
             f.writelines(cfg_content)
         sh.copy(self.__class_names_file_path, self.__checkpoint_path)
 

@@ -23,8 +23,8 @@ from yolo import Yolo
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--cfg', type=str, default='cfg/cfg.yaml', help='path of training configuration file')
-    parser.add_argument('--model', type=str, default='', help='pretrained model path for detection')
+    parser.add_argument('--cfg', type=str, default='cfg.yaml', help='path of training configuration file')
+    parser.add_argument('--model', type=str, default='best.h5', help='pretrained model path for detection')
     parser.add_argument('--gpu', action='store_true', help='use gpu device for model forwarding')
     parser.add_argument('--conf', type=float, default=0.2, help='confidence threshold for detection')
     parser.add_argument('--video', type=str, default='', help='video path for detection')
@@ -32,8 +32,7 @@ if __name__ == '__main__':
     parser.add_argument('--dataset', type=str, default='validation', help='dataset name for prediction. train or validation')
     args = parser.parse_args()
     yolo_obj = Yolo(cfg_path=args.cfg)
-    if args.model != '':
-        yolo_obj.load_model(args.model)
+    yolo_obj.load_model(args.model)
     if args.video == '':
         yolo_obj.predict_images(dataset=args.dataset, confidence_threshold=args.conf, device='gpu' if args.gpu else 'cpu', show_class_with_score=not args.noclass)
     else:
