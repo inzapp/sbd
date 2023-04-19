@@ -52,10 +52,14 @@ class Yolo:
         batch_size = config['batch_size']
         self.__class_names_file_path = config['class_names_file_path']
         self.__lr = config['lr']
-        self.__alpha_arg = config['alpha'] 
-        self.__alphas = None
-        self.__gamma_arg = config['gamma']
-        self.__gammas = None
+        self.__obj_alpha_param = config['obj_alpha'] 
+        self.__obj_gamma_param = config['obj_gamma']
+        self.__cls_alpha_param = config['cls_alpha'] 
+        self.__cls_gamma_param = config['cls_gamma']
+        self.__obj_alphas = None
+        self.__obj_gammas = None
+        self.__cls_alphas = None
+        self.__cls_gammas = None
         self.__l2 = config['l2']
         self.__momentum = config['momentum']
         self.__label_smoothing = config['smoothing']
@@ -178,35 +182,31 @@ class Yolo:
             optimizer = None
         return optimizer
 
+    def __convert_alpha_gamma_to_list(self, param, num_output_layers):
+        params = None
+        param_type = type(param)
+        if param_type is float:
+            params = [param for _ in range(num_output_layers)]
+        elif param_type is list:
+            if len(param) == num_output_layers:
+                params = param
+                for val in params:
+                    try:
+                        float(val)
+                    except:
+                        ModelUtil.print_error_exit(f'invalid alpha or gamma value value : {val}')
+            else:
+                ModelUtil.print_error_exit(f'list length of alpha is must be equal with models output layer count {num_output_layers}')
+        else:
+            ModelUtil.print_error_exit(f'invalid type ({param_type}) of alpha. type must be float or list')
+        return params
+
     def __set_alpha_gamma(self):
         num_output_layers = len(self.__model.output_shape) if type(self.__model.output_shape) is list else 1
-
-        alpha_type = type(self.__alpha_arg)
-        if alpha_type is float:
-            self.__alphas = [self.__alpha_arg for _ in range(num_output_layers)]
-        elif alpha_type is list:
-            if len(self.__alpha_arg) == num_output_layers:
-                self.__alphas = self.__alpha_arg
-            else:
-                print(f'list length of alpha is must be equal with models output layer count {num_output_layers}')
-                return False
-        else:
-            print(f'invalid type ({alpha_type}) of alpha. type must be float or list')
-            return False
-
-        gamma_type = type(self.__gamma_arg)
-        if gamma_type is float:
-            self.__gammas = [self.__gamma_arg for _ in range(num_output_layers)]
-        elif gamma_type is list:
-            if len(self.__gamma_arg) == num_output_layers:
-                self.__gammas = self.__gamma_arg
-            else:
-                print(f'list length of gamma is must be equal with models output layer count {num_output_layers}')
-                return False
-        else:
-            print(f'invalid type ({gamma_type}) of gamma. type must be float or list')
-            return False
-        return True
+        self.__obj_alphas = self.__convert_alpha_gamma_to_list(self.__obj_alpha_param, num_output_layers)
+        self.__obj_gammas = self.__convert_alpha_gamma_to_list(self.__obj_gamma_param, num_output_layers)
+        self.__cls_alphas = self.__convert_alpha_gamma_to_list(self.__cls_alpha_param, num_output_layers)
+        self.__cls_gammas = self.__convert_alpha_gamma_to_list(self.__cls_gamma_param, num_output_layers)
 
     def fit(self):
         gflops = ModelUtil.get_gflops(self.__model)
@@ -230,15 +230,16 @@ class Yolo:
         self.__train_data_generator.calculate_virtual_anchor()
         print('\ncalculate BPR(Best Possible Recall)...')
         self.__train_data_generator.calculate_best_possible_recall()
-        if not self.__set_alpha_gamma():
-            return
+        self.__set_alpha_gamma()
         print('\nstart test forward for checking forwarding time.')
         if ModelUtil.available_device() == 'gpu':
             ModelUtil.check_forwarding_time(self.__model, device='gpu')
         ModelUtil.check_forwarding_time(self.__model, device='cpu')
 
-        print(f'\nalpha : {self.__alphas}')
-        print(f'gamma : {self.__gammas}')
+        print(f'\nobj_alpha : {self.__obj_alphas}')
+        print(f'obj_gamma : {self.__obj_gammas}')
+        print(f'cls_alpha : {self.__cls_alphas}')
+        print(f'cls_gamma : {self.__cls_gammas}')
         if self.__curriculum_iterations > 0:
             print('\nstart curriculum training')
             self.__curriculum_train()
@@ -248,16 +249,16 @@ class Yolo:
             print('\nstart training')
         self.__train()
 
-    def compute_gradient(self, model, optimizer, loss_function, x, y_true, mask, num_output_layers, alphas, gammas, label_smoothing):
+    def compute_gradient(self, model, optimizer, loss_function, x, y_true, mask, num_output_layers, obj_alphas, obj_gammas, cls_alphas, cls_gammas, label_smoothing):
         with tf.GradientTape() as tape:
             loss = 0.0
             y_pred = model(x, training=True)
             if num_output_layers == 1:
-                confidence_loss, bbox_loss, classification_loss = loss_function(y_true, y_pred, mask, alphas[0], gammas[0], label_smoothing)
+                confidence_loss, bbox_loss, classification_loss = loss_function(y_true, y_pred, mask, obj_alphas[0], obj_gammas[0], cls_alphas[0], cls_gammas[0], label_smoothing)
             else:
                 confidence_loss, bbox_loss, classification_loss = 0.0, 0.0, 0.0
                 for i in range(num_output_layers):
-                    _confidence_loss, _bbox_loss, _classification_loss = loss_function(y_true[i], y_pred[i], mask[i], alphas[i], gammas[i], label_smoothing)
+                    _confidence_loss, _bbox_loss, _classification_loss = loss_function(y_true[i], y_pred[i], mask[i], obj_alphas[i], obj_gammas[i], cls_alphas[i], cls_gammas[i], label_smoothing)
                     confidence_loss += _confidence_loss
                     bbox_loss += _bbox_loss
                     classification_loss += _classification_loss
@@ -303,7 +304,7 @@ class Yolo:
                     batch_x, batch_y, mask = self.__train_data_generator.load()
                     iteration_count += 1
                     lr_scheduler.update(optimizer, iteration_count)
-                    loss_vars = compute_gradients[i](self.__model, optimizer, loss_functions[i], batch_x, batch_y, mask, self.num_output_layers, self.__alphas, self.__gammas, self.__label_smoothing)
+                    loss_vars = compute_gradients[i](self.__model, optimizer, loss_functions[i], batch_x, batch_y, mask, self.num_output_layers, self.__obj_alphas, self.__obj_gammas, self.__label_smoothing)
                     print(self.build_loss_str(iteration_count, loss_vars), end='')
                     if iteration_count % 2000 == 0:
                         self.__model.save('model_last.h5', include_optimizer=False)
@@ -326,7 +327,19 @@ class Yolo:
             for _ in range(len(self.__train_data_generator)):
                 batch_x, batch_y, mask = self.__train_data_generator.load()
                 lr_scheduler.update(optimizer, iteration_count)
-                loss_vars = compute_gradient_tf(self.__model, optimizer, yolo_loss, batch_x, batch_y, mask, self.num_output_layers, self.__alphas, self.__gammas, self.__label_smoothing)
+                loss_vars = compute_gradient_tf(
+                    self.__model,
+                    optimizer,
+                    yolo_loss,
+                    batch_x,
+                    batch_y,
+                    mask,
+                    self.num_output_layers,
+                    self.__obj_alphas,
+                    self.__obj_gammas,
+                    self.__cls_alphas,
+                    self.__cls_gammas,
+                    self.__label_smoothing)
                 iteration_count += 1
                 print(self.build_loss_str(iteration_count, loss_vars), end='')
                 warm_up_end = iteration_count >= int(self.__iterations * self.__warm_up)
