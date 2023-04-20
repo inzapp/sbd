@@ -108,15 +108,17 @@ lr_policy: step
 
 lr: 0.001
 l2: 0.0005
-alpha: 0.25
-gamma: 2.0
+obj_alpha: 0.5
+obj_gamma: 1.0
+cls_alpha: 0.5
+cls_gamma: 1.0
 warm_up: 0.5
 momentum: 0.9
 smoothing: 0.0
 decay_step: 0.1
-heatmap_scale: 0.4
+heatmap_scale: 0.0
 batch_size: 4
-iterations: 4000
+iterations: 6000
 curriculum_iterations: 0
 training_view: False
 map_checkpoint: False
