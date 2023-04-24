@@ -26,20 +26,6 @@ from util import ModelUtil
 os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
 
-@tf.keras.utils.register_keras_serializable(package='Custom', name='WeightStandardization')
-class WeightStandardization(tf.keras.regularizers.Regularizer):
-  def __init__(self):
-      super().__init__()
-
-  def __call__(self, x):
-      x -= tf.reduce_mean(x, axis=[0, 1, 2], keepdims=True)
-      x /= tf.math.reduce_std(x, axis=[0, 1, 2], keepdims=True) + 1e-5
-      return x
-
-  def get_config(self):
-      return {}
-
-
 class Model:
     def __init__(self, input_shape, output_channel, l2):
         self.input_shape = input_shape
@@ -255,47 +241,6 @@ class Model:
                 ModelUtil.print_error_exit(f'invalid layer info method : {methods[i]}')
             output_layers.append(x)
         return output_layers if return_layers else x
-
-    def pa_block(self, layers, filters, activation, bn=False, return_layers=False):
-        assert type(layers) == list and type(filters) == list
-        layers = list(reversed(layers))
-
-        # upsampling with feature addition
-        ret = [layers[0]]
-        filters = list(reversed(filters))
-        for i in range(len(layers) - 1):
-            x = tf.keras.layers.UpSampling2D()(layers[i] if i == 0 else x)
-            if filters[i] != filters[i+1]:
-                x = self.conv_block(x, filters[i+1], 1, bn=bn, activation=activation)
-            x = self.add([x, layers[i+1]])
-            x = self.conv_block(x, filters[i+1], 3, bn=bn, activation=activation)
-            ret.append(x)
-        layers = list(reversed(ret))
-
-        # maxpool with feature addition
-        ret = [layers[0]]
-        filters = list(reversed(filters))
-        for i in range(len(layers) - 1):
-            x = tf.keras.layers.MaxPool2D()(layers[i] if i == 0 else x)
-            if filters[i] != filters[i+1]:
-                x = self.conv_block(x, filters[i+1], 1, bn=bn, activation=activation)
-            x = self.add([x, layers[i+1]])
-            x = self.conv_block(x, filters[i+1], 3, bn=bn, activation=activation)
-            ret.append(x)
-        layers = list(reversed(ret))
-
-        # upsampling with feature addition
-        ret = [layers[0]]
-        filters = list(reversed(filters))
-        for i in range(len(layers) - 1):
-            x = tf.keras.layers.UpSampling2D()(layers[i] if i == 0 else x)
-            if filters[i] != filters[i+1]:
-                x = self.conv_block(x, filters[i+1], 1, bn=bn, activation=activation)
-            x = self.add([x, layers[i+1]])
-            x = self.conv_block(x, filters[i+1], 3, bn=bn, activation=activation)
-            ret.append(x)
-        layers = list(reversed(ret))
-        return layers if return_layers else x
 
     def csp_block(self, x, filters, kernel_size, depth, bn=False, activation='none'):
         half_filters = filters / 2
