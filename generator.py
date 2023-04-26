@@ -28,7 +28,7 @@ from concurrent.futures.thread import ThreadPoolExecutor
 
 
 class YoloDataGenerator:
-    def __init__(self, image_paths, input_shape, output_shape, batch_size, multi_classification_at_same_box, ignore_scale):
+    def __init__(self, image_paths, input_shape, output_shape, batch_size, multi_classification_at_same_box, ignore_scale, aug_scale, aug_brightness, aug_contrast):
         self.image_paths = image_paths
         self.input_shape = input_shape
         self.input_width, self.input_height, self.input_channel = ModelUtil.get_width_height_channel_from_input_shape(input_shape)
@@ -39,13 +39,14 @@ class YoloDataGenerator:
         self.batch_size = batch_size
         self.num_output_layers = len(self.output_shapes)
         self.multi_classification_at_same_box = multi_classification_at_same_box
-        self.ignore_scale = ignore_scale 
+        self.ignore_scale = ignore_scale
+        self.aug_scale = aug_scale
         self.virtual_anchor_ws = []
         self.virtual_anchor_hs = []
         self.img_index = 0
         self.pool = ThreadPoolExecutor(8)
         self.transform = A.Compose([
-            A.RandomBrightnessContrast(p=0.5, brightness_limit=0.2, contrast_limit=0.3),
+            A.RandomBrightnessContrast(p=0.5, brightness_limit=aug_brightness, contrast_limit=aug_contrast),
             A.GaussianBlur(p=0.5, blur_limit=(5, 5))
         ])
 
@@ -262,7 +263,7 @@ class YoloDataGenerator:
         print(f'not trained  obj count : {not_trained_obj_count} ({not_trained_obj_rate:.2f}%)')
         print(f'best possible recall   : {best_possible_recall:.4f}')
 
-    def random_scale(self, img, label_lines, min_scale, max_scale):
+    def random_scale(self, img, label_lines, min_scale):
         def overlay(img, overlay_img, start_x, start_y, channels):
             img_height, img_width = img.shape[:2]
             overlay_img_height, overlay_img_width = overlay_img.shape[:2]
@@ -274,6 +275,7 @@ class YoloDataGenerator:
                 img[y_slice, x_slice, :] = overlay_img[:overlay_img_height, :overlay_img_width, :]
             return img
 
+        max_scale = 1.0
         scale = np.random.uniform() * (max_scale - min_scale) + min_scale
         img_height, img_width = img.shape[:2]
         channels = 1
@@ -519,8 +521,8 @@ class YoloDataGenerator:
             img = self.transform(image=img)['image']
             with open(f'{cur_img_path[:-4]}.txt', mode='rt') as file:
                 label_lines = file.readlines()
-            # if np.random.uniform() < 0.5:
-            #     img, label_lines = self.random_scale(img, label_lines, 0.75, 0.95)
+            if self.aug_scale < 1.0 and np.random.uniform() < 0.5:
+                img, label_lines = self.random_scale(img, label_lines, self.aug_scale)
             x = ModelUtil.preprocess(img)
             batch_x.append(x)
             labeled_boxes = self.convert_to_boxes(label_lines)

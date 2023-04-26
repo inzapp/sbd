@@ -47,13 +47,13 @@
 # lr_policy: step
 
 pretrained_model_path: None
-train_image_path: C:\inz\train_data\lcd_new\lcd_b2\train
-validation_image_path: C:\inz\train_data\lcd_new\lcd_b2\validation
-class_names_file_path: C:\inz\train_data\lcd_new\lcd_b2\train\classes.txt
+train_image_path: C:\inz\train_data\lcd_new\lcd_white\train
+validation_image_path: C:\inz\train_data\lcd_new\lcd_white\validation
+class_names_file_path: C:\inz\train_data\lcd_new\lcd_white\train\classes.txt
 input_rows: 96
 input_cols: 192
 input_channels: 1
-model_name: lcd_b2
+model_name: lcd_white
 model_type: n1p3
 optimizer: sgd
 lr_policy: step
@@ -112,6 +112,9 @@ obj_alpha: 0.25
 obj_gamma: 1.0
 cls_alpha: 0.5
 cls_gamma: 1.0
+aug_scale: 1.0
+aug_contrast: 0.3
+aug_brightness: 0.2
 warm_up: 0.5
 momentum: 0.9
 smoothing: 0.0
