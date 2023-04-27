@@ -4,9 +4,6 @@
 *.prototxt
 .idea/
 __pycache__/
-checkpoints/
-f1_result.txt
-cscope.*
 checkpoint/
-annotations.csv
-predictions.csv
+cscope.*
+*.csv
