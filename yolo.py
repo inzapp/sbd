@@ -75,7 +75,6 @@ class Yolo:
         self.__model_name = config['model_name']
         self.__model_type = config['model_type']
         self.__training_view = config['training_view']
-        self.__map_checkpoint = config['map_checkpoint']
         self.__curriculum_iterations = config['curriculum_iterations']
         self.__map_checkpoint_interval = config['map_checkpoint_interval']
         self.__live_view_previous_time = time()
@@ -381,7 +380,7 @@ class Yolo:
                 if warm_up_end:
                     if self.__training_view:
                         self.__training_view_function()
-                    if self.__map_checkpoint and iteration_count % self.__map_checkpoint_interval == 0 and iteration_count < self.__iterations:
+                    if self.__map_checkpoint_interval > 0 and iteration_count % self.__map_checkpoint_interval == 0 and iteration_count < self.__iterations:
                         self.save_model_with_map()
                 if iteration_count == self.__iterations:
                     self.save_model_with_map()

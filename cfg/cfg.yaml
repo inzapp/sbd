@@ -42,7 +42,7 @@
 # input_cols: 640
 # input_channels: 1
 # model_name: lpd
-# model_type: s1p3
+# model_type: s1p2
 # optimizer: sgd
 # lr_policy: step
 
@@ -54,9 +54,21 @@ input_rows: 96
 input_cols: 192
 input_channels: 1
 model_name: lcd_white
-model_type: n1p3
+model_type: n1p2
 optimizer: sgd
 lr_policy: step
+
+# pretrained_model_path: None
+# train_image_path: C:\inz\train_data\lcd_new\lcd_b1\train
+# validation_image_path: C:\inz\train_data\lcd_new\lcd_b1\validation
+# class_names_file_path: C:\inz\train_data\lcd_new\lcd_b1\train\classes.txt
+# input_rows: 96
+# input_cols: 192
+# input_channels: 1
+# model_name: lcd_b1
+# model_type: n1p2
+# optimizer: sgd
+# lr_policy: step
 
 # pretrained_model_path: None
 # train_image_path: C:\inz\train_data\lp_in_car\train
@@ -112,18 +124,17 @@ obj_alpha: 0.25
 obj_gamma: 1.0
 cls_alpha: 0.5
 cls_gamma: 1.0
-aug_scale: 1.0
+aug_scale: 0.8
 aug_contrast: 0.3
-aug_brightness: 0.2
+aug_brightness: 0.3
 warm_up: 0.5
 momentum: 0.9
 smoothing: 0.0
 decay_step: 0.1
 ignore_scale: 0.0
 batch_size: 4
-iterations: 30000
+iterations: 2000
 curriculum_iterations: 0
-training_view: False
-map_checkpoint: False
-map_checkpoint_interval: 1000
+map_checkpoint_interval: 0
 multi_classification_at_same_box: False
+training_view: False
