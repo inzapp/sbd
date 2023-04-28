@@ -37,7 +37,7 @@ from loss import confidence_loss, confidence_with_bbox_loss, yolo_loss
 
 
 class Yolo:
-    def __init__(self, cfg_path):
+    def __init__(self, cfg_path, training=True):
         config = self.load_cfg(cfg_path)
         self.__cfg_path = cfg_path
         self.__pretrained_model_path = config['pretrained_model_path']
@@ -83,7 +83,7 @@ class Yolo:
 
         self.__class_names, self.__num_classes = ModelUtil.init_class_names(self.__class_names_file_path)
         self.__use_pretrained_model = False
-        if self.__pretrained_model_path.endswith('.h5'):
+        if self.__pretrained_model_path.endswith('.h5') and training:
             self.load_model(self.__pretrained_model_path)
             self.__use_pretrained_model = True
 

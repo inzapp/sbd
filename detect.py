@@ -31,7 +31,7 @@ if __name__ == '__main__':
     parser.add_argument('--noclass', action='store_true', help='not showing class label with confidence score')
     parser.add_argument('--dataset', type=str, default='validation', help='dataset name for prediction. train or validation')
     args = parser.parse_args()
-    yolo_obj = Yolo(cfg_path=args.cfg)
+    yolo_obj = Yolo(cfg_path=args.cfg, training=False)
     yolo_obj.load_model(args.model)
     if args.video == '':
         yolo_obj.predict_images(dataset=args.dataset, confidence_threshold=args.conf, device='gpu' if args.gpu else 'cpu', show_class_with_score=not args.noclass)
