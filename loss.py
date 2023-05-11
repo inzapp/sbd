@@ -23,6 +23,9 @@ from ale import AbsoluteLogarithmicError
 from tensorflow.python.framework.ops import convert_to_tensor_v2
 
 
+IGNORED_LOSS = IGNORED_LOSS
+
+
 def __confidence_loss(y_true, y_pred, mask, alpha, gamma):
     obj_true = y_true[:, :, :, 0]
     obj_pred = y_pred[:, :, :, 0]
@@ -111,13 +114,13 @@ def __classification_loss(y_true, y_pred, mask, alpha, gamma, label_smoothing):
 def confidence_loss(y_true, y_pred, mask, obj_alpha, obj_gamma, label_smoothing):
     y_pred = convert_to_tensor_v2(y_pred)
     y_true = tf.cast(y_true, y_pred.dtype)
-    return __confidence_loss(y_true, y_pred, mask, obj_alpha, obj_gamma), -1.0, -1.0
+    return __confidence_loss(y_true, y_pred, mask, obj_alpha, obj_gamma), IGNORED_LOSS, IGNORED_LOSS
 
 
 def confidence_with_bbox_loss(y_true, y_pred, mask, obj_alpha, obj_gamma, label_smoothing):
     y_pred = convert_to_tensor_v2(y_pred)
     y_true = tf.cast(y_true, y_pred.dtype)
-    return __confidence_loss(y_true, y_pred, mask, obj_alpha, obj_gamma), __bbox_loss(y_true, y_pred, mask), -1.0
+    return __confidence_loss(y_true, y_pred, mask, obj_alpha, obj_gamma), __bbox_loss(y_true, y_pred, mask), IGNORED_LOSS
 
 
 def sbd_loss(y_true, y_pred, mask, obj_alpha, obj_gamma, cls_alpha, cls_gamma, label_smoothing):

@@ -32,7 +32,7 @@ from box_colors import colors
 from lr_scheduler import LRScheduler
 from generator import DataGenerator
 from mAP_calculator import calc_mean_average_precision
-from loss import confidence_loss, confidence_with_bbox_loss, sbd_loss
+from loss import confidence_loss, confidence_with_bbox_loss, sbd_loss, IGNORED_LOSS
 
 
 class SBD:
@@ -43,7 +43,6 @@ class SBD:
         input_rows = config['input_rows']
         input_cols = config['input_cols']
         self.__input_channels = config['input_channels']
-        assert self.__input_channels in [1, 3]
         input_shape = (input_rows, input_cols, self.__input_channels)
         train_image_path = config['train_image_path']
         validation_image_path = config['validation_image_path']
@@ -273,7 +272,6 @@ class SBD:
 
     def compute_gradient(self, model, optimizer, loss_function, x, y_true, mask, num_output_layers, obj_alphas, obj_gammas, cls_alphas, cls_gammas, label_smoothing):
         with tf.GradientTape() as tape:
-            loss = 0.0
             y_pred = model(x, training=True)
             if num_output_layers == 1:
                 confidence_loss, bbox_loss, classification_loss = loss_function(y_true, y_pred, mask, obj_alphas[0], obj_gammas[0], cls_alphas[0], cls_gammas[0], label_smoothing)
@@ -285,9 +283,9 @@ class SBD:
                     bbox_loss += _bbox_loss
                     classification_loss += _classification_loss
             loss = confidence_loss
-            if bbox_loss > -1.0:
+            if bbox_loss != IGNORED_LOSS:
                 loss += bbox_loss
-            if classification_loss > -1.0:
+            if classification_loss != IGNORED_LOSS:
                 loss += classification_loss
             gradients = tape.gradient(loss, model.trainable_variables)
         optimizer.apply_gradients(zip(gradients, model.trainable_variables))
@@ -308,9 +306,9 @@ class SBD:
         confidence_loss, bbox_loss, classification_loss = loss_vars
         loss_str = f'\r[iteration_count : {iteration_count:6d}]'
         loss_str += f' confidence_loss : {confidence_loss:>8.4f}'
-        if bbox_loss > -1.0:
+        if bbox_loss != IGNORED_LOSS:
             loss_str += f', bbox_loss: {bbox_loss:>8.4f}'
-        if classification_loss > -1.0:
+        if classification_loss != IGNORED_LOSS:
             loss_str += f', classification_loss : {classification_loss:>8.4f}'
         return loss_str
 
