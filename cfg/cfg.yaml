@@ -6,7 +6,7 @@ input_rows: 416
 input_cols: 416
 input_channels: 1
 model_name: coco
-model_type: n1p3
+model_type: m1p2
 optimizer: sgd
 lr_policy: step
 lr: 0.001
@@ -23,8 +23,8 @@ momentum: 0.9
 smoothing: 0.1
 decay_step: 0.1
 ignore_scale: 0.1
-batch_size: 32
-iterations: 2000000
+batch_size: 4
+iterations: 1000000
 map_checkpoint_interval: 0
 multi_classification_at_same_box: False
 training_view: False
