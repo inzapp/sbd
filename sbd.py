@@ -265,11 +265,6 @@ class SBD:
         if ModelUtil.available_device() == 'gpu':
             ModelUtil.check_forwarding_time(self.__model, device='gpu')
         ModelUtil.check_forwarding_time(self.__model, device='cpu')
-
-        print(f'\nobj_alpha : {self.__obj_alphas}')
-        print(f'obj_gamma : {self.__obj_gammas}')
-        print(f'cls_alpha : {self.__cls_alphas}')
-        print(f'cls_gamma : {self.__cls_gammas}')
         if self.__use_pretrained_model:
             print(f'\nstart training with pretrained model : {self.__pretrained_model_path}')
         else:
