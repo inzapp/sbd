@@ -75,7 +75,6 @@ class Yolo:
         self.__model_name = config['model_name']
         self.__model_type = config['model_type']
         self.__training_view = config['training_view']
-        self.__curriculum_iterations = config['curriculum_iterations']
         self.__map_checkpoint_interval = config['map_checkpoint_interval']
         self.__live_view_previous_time = time()
         self.__checkpoint_path = self.__new_checkpoint_path()
@@ -274,9 +273,6 @@ class Yolo:
         print(f'obj_gamma : {self.__obj_gammas}')
         print(f'cls_alpha : {self.__cls_alphas}')
         print(f'cls_gamma : {self.__cls_gammas}')
-        if self.__curriculum_iterations > 0:
-            print('\nstart curriculum training')
-            self.__curriculum_train()
         if self.__use_pretrained_model:
             print(f'\nstart training with pretrained model : {self.__pretrained_model_path}')
         else:
@@ -325,29 +321,6 @@ class Yolo:
         if classification_loss > -1.0:
             loss_str += f', classification_loss : {classification_loss:>8.4f}'
         return loss_str
-
-    def __curriculum_train(self):
-        loss_functions = [confidence_loss, confidence_with_bbox_loss]
-        compute_gradients = [tf.function(self.compute_gradient) for _ in range(len(loss_functions))]
-        for i in range(len(loss_functions)):
-            iteration_count = 0
-            self.__model, optimizer = self.__refresh_model_and_optimizer(self.__model, self.__optimizer)
-            lr_scheduler = LRScheduler(iterations=self.__curriculum_iterations, lr=self.__lr, warm_up=self.__warm_up, policy=self.__lr_policy, decay_step=self.__decay_step)
-            while True:
-                for _ in range(len(self.__train_data_generator)):
-                    batch_x, batch_y, mask = self.__train_data_generator.load()
-                    iteration_count += 1
-                    lr_scheduler.update(optimizer, iteration_count)
-                    loss_vars = compute_gradients[i](self.__model, optimizer, loss_functions[i], batch_x, batch_y, mask, self.num_output_layers, self.__obj_alphas, self.__obj_gammas, self.__label_smoothing)
-                    print(self.build_loss_str(iteration_count, loss_vars), end='')
-                    if iteration_count % 2000 == 0:
-                        self.__model.save('model_last.h5', include_optimizer=False)
-                    if iteration_count == self.__curriculum_iterations:
-                        self.__model.save('model_last.h5', include_optimizer=False)
-                        print()
-                        break
-                if iteration_count == self.__curriculum_iterations:
-                    break
 
     def __train(self):
         iteration_count = self.__pretrained_iteration_count
