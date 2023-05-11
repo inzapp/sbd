@@ -42,21 +42,21 @@ class Model:
         self.models['x'] = self.x
 
     def build(self, model_type):
-        model_type_valid = type(model_type) is str and len(model_type) == 4
-        if model_type_valid:
+        is_model_type_valid = type(model_type) is str and len(model_type) == 4
+        if is_model_type_valid:
             backbone = model_type[0]
             num_output_layers = model_type[1]
             p = model_type[2]
             pyramid_scale = int(model_type[3])
             if backbone not in list(self.models.keys()):
-                model_type_valid = False
+                is_model_type_valid = False
             if num_output_layers not in ['1', 'm']:
-                model_type_valid = False
+                is_model_type_valid = False
             if p != 'p':
-                model_type_valid = False
+                is_model_type_valid = False
             if pyramid_scale not in [0, 1, 2, 3, 4, 5]:
-                model_type_valid = False
-        if not model_type_valid:
+                is_model_type_valid = False
+        if not is_model_type_valid:
             ModelUtil.print_error_exit([
                 f'invalid model type => \'{model_type}\'',
                 f'model type must be combination of <backbone(n, s, m, l, x), num_output_layers(1, m), p, pyramid_scale(0, 1, 2, 3, 4, 5)>',
@@ -65,9 +65,9 @@ class Model:
                 f'  p : constant character for naming rule',
                 f'  pyramid scale : scale value for feature pyramid. max resolution scale of output layers',
                 f'',
-                f'ex) n1p3 : nano backbone with one output layer, 3 pyramid scale : output layer resolution is divided by 8 of input resolution',
-                f'ex) lmp2 : large backbone with multi output layer(4 output layer for pyramid sacle 4), 2 pyramid scale : output layer resolution is divided by 4 of input resolution',
-                f'ex) xmp4 : xlarge backbone with multi output layer(2 output layer for pyramid sacle 4), 4 pyramid scale : output layer resolution is divided by 16 of input resolution'])
+                f'ex) n1p3 : nano backbone with one output layer, 3 pyramid scale : output layer resolution is divided by 8(2^3) of input resolution',
+                f'ex) lmp2 : large backbone with multi output layer(4 output layer for pyramid sacle 4), 2 pyramid scale : output layer resolution is divided by 4(2^2) of input resolution',
+                f'ex) xmp4 : xlarge backbone with multi output layer(2 output layer for pyramid sacle 4), 4 pyramid scale : output layer resolution is divided by 16(2^4) of input resolution'])
         return self.models[backbone](num_output_layers, pyramid_scale)
 
     """
