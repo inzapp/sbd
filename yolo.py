@@ -79,6 +79,7 @@ class Yolo:
         self.__live_view_previous_time = time()
         self.__checkpoint_path = self.__new_checkpoint_path()
         self.__pretrained_iteration_count = 0
+        self.__best_mean_ap = 0.0
 
         self.__class_names, self.__num_classes = ModelUtil.init_class_names(self.__class_names_file_path)
         self.__use_pretrained_model = False
@@ -141,9 +142,6 @@ class Yolo:
             aug_scale=1.0,
             aug_brightness=aug_brightness,
             aug_contrast=aug_contrast)
-
-        self.__live_loss_plot = None
-        self.__best_mean_ap, self.__best_f1_score, self.__best_iou, self.__best_confidence = 0.0, 0.0, 0.0, 0.0
         np.set_printoptions(precision=6)
 
     def load_cfg(self, cfg_path):
