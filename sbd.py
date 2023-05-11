@@ -527,7 +527,6 @@ class SBD:
                 break
             x = cv2.cvtColor(raw, cv2.COLOR_BGR2GRAY) if self.__model.input.shape[-1] == 1 else raw.copy()
             boxes = SBD.predict(self.__model, x, device=device, confidence_threshold=confidence_threshold)
-            # raw = cv2.resize(raw, (1280, 720), interpolation=cv2.INTER_AREA)
             boxed_image = self.bounding_box(raw, boxes, show_class_with_score=show_class_with_score)
             cv2.imshow('video', boxed_image)
             key = cv2.waitKey(1)
