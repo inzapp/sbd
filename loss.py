@@ -34,7 +34,7 @@ def __confidence_loss(y_true, y_pred, mask, alpha, gamma):
     return loss / tf.cast(tf.shape(y_true)[0], dtype=y_pred.dtype)
 
 
-def __iou(y_true, y_pred, convex=False):
+def __iou(y_true, y_pred):
     y_true_shape = tf.cast(tf.shape(y_true), y_pred.dtype)
     grid_height, grid_width = y_true_shape[1], y_true_shape[2]
 
