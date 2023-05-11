@@ -53,9 +53,9 @@ def auto_label(model_path, image_path, origin_classes_txt_path):
 
 
 def main():
-    model_path = r'C:\inz\git\yolo-lab\checkpoint\loon\loon_10000_iter_mAP_1.0000_f1_1.0000_iou_0.8646_tp_104_fp_0_fn_0_conf_0.6846_confth_0.10_tpiouth_0.50.h5'
-    origin_classes_txt_path = r'C:\inz\train_data\loon\train\classes.txt'
-    img_path = r'C:\inz\train_data\loon\validation_autolabel_test'
+    model_path = r'./checkpoint/model/m0/best.h5'
+    origin_classes_txt_path = r'/train_data/imagenet/train/classes.txt'
+    img_path = r'/train_data/unlabeled/imagenet'
     auto_label(model_path, img_path, origin_classes_txt_path)
 
 
