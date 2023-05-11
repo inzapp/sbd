@@ -174,6 +174,7 @@ class DataGenerator:
         if self.num_output_layers == 1:  # one layer model doesn't need virtual anchor
             self.virtual_anchor_ws = [0.5]
             self.virtual_anchor_hs = [0.5]
+            print('skip calculating virtual anchor when output layer size is 1')
             return 
 
         fs = []
