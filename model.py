@@ -28,6 +28,9 @@ os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
 class Model:
     def __init__(self, input_shape, output_channel, l2):
+        assert input_shape[0] % 32 == 0
+        assert input_shape[1] % 32 == 0
+        assert inptu_shape[-1] in [1, 3]
         self.input_shape = input_shape
         self.output_channel = output_channel
         self.l2 = l2
