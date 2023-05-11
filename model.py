@@ -266,39 +266,6 @@ class Model:
         x = self.activation(x, activation=activation)
         return x
 
-    def cross_conv_block(self, x, filters, kernel_size, mode='concat', bn=False, activation='none'):
-        filters = filters // 2 if mode == 'concat' else filters
-        v_conv = tf.keras.layers.Conv2D(
-            filters=filters,
-            kernel_size=(kernel_size, 1),
-            kernel_initializer=self.kernel_initializer(),
-            bias_initializer=self.bias_initializer(),
-            padding='same',
-            use_bias=False if bn else True,
-            kernel_regularizer=self.kernel_regularizer())(x)
-        # if mode == 'stack':
-        #     if bn:
-        #         v_conv = self.bn(v_conv)
-        #     v_conv = self.activation(v_conv, activation=activation)
-        h_conv = tf.keras.layers.Conv2D(
-            filters=filters,
-            kernel_size=(1, kernel_size),
-            kernel_initializer=self.kernel_initializer(),
-            bias_initializer=self.bias_initializer(),
-            padding='same',
-            use_bias=False if bn else True,
-            kernel_regularizer=self.kernel_regularizer())(v_conv if mode == 'stack' else x)
-        if mode == 'add':
-            x = tf.keras.layers.Add()([v_conv, h_conv])
-        elif mode == 'concat':
-            x = tf.keras.layers.Concatenate()([v_conv, h_conv])
-        elif mode == 'stack':
-            x = h_conv
-        if bn:
-            x = self.bn(x)
-        x = self.activation(x, activation=activation)
-        return x
-
     def detection_layer(self, x, name='sbd_output'):
         return tf.keras.layers.Conv2D(
             filters=self.output_channel,
