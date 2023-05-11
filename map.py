@@ -1,7 +1,7 @@
 """
 Authors : inzapp
 
-Github url : https://github.com/inzapp/c-yolo
+Github url : https://github.com/inzapp/sbd
 
 Copyright 2021 inzapp Authors. All Rights Reserved.
 
@@ -18,7 +18,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 import argparse
-from yolo import Yolo
+from sbd import SBD
 
 
 if __name__ == '__main__':
@@ -32,6 +32,6 @@ if __name__ == '__main__':
     parser.add_argument('--conf', type=float, default=0.2, help='confidence threshold for detection')
     parser.add_argument('--dataset', type=str, default='validation', help='dataset name for mAP calculation. train or validation')
     args = parser.parse_args()
-    yolo_obj = Yolo(cfg_path=args.cfg, training=False)
-    yolo_obj.load_model(args.model)
-    yolo_obj.calculate_map(args.dataset, device='cpu' if args.cpu else 'auto', confidence_threshold=args.conf, tp_iou_threshold=args.iou, cached=args.cached)
+    sbd = SBD(cfg_path=args.cfg, training=False)
+    sbd.load_model(args.model)
+    sbd.calculate_map(args.dataset, device='cpu' if args.cpu else 'auto', confidence_threshold=args.conf, tp_iou_threshold=args.iou, cached=args.cached)

@@ -1,7 +1,7 @@
 """
 Authors : inzapp
 
-Github url : https://github.com/inzapp/c-yolo
+Github url : https://github.com/inzapp/sbd
 
 Copyright 2021 inzapp Authors. All Rights Reserved.
 
@@ -19,12 +19,12 @@ limitations under the License.
 """
 import argparse
 
-from yolo import Yolo
+from sbd import SBD
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--cfg', type=str, default='cfg/cfg.yaml', help='path of training configuration file')
     args = parser.parse_args()
-    Yolo(args.cfg).fit()
+    SBD(args.cfg).fit()
 

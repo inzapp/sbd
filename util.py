@@ -1,7 +1,7 @@
 """
 Authors : inzapp
 
-Github url : https://github.com/inzapp/c-yolo
+Github url : https://github.com/inzapp/sbd
 
 Copyright 2021 inzapp Authors. All Rights Reserved.
 

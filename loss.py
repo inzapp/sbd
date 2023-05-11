@@ -1,7 +1,7 @@
 """
 Authors : inzapp
 
-Github url : https://github.com/inzapp/c-yolo
+Github url : https://github.com/inzapp/sbd
 
 Copyright 2021 inzapp Authors. All Rights Reserved.
 
@@ -174,7 +174,7 @@ def confidence_with_bbox_loss(y_true, y_pred, mask, obj_alpha, obj_gamma, label_
     return __confidence_loss(y_true, y_pred, mask, obj_alpha, obj_gamma), __bbox_loss(y_true, y_pred, mask), -1.0
 
 
-def yolo_loss(y_true, y_pred, mask, obj_alpha, obj_gamma, cls_alpha, cls_gamma, label_smoothing):
+def sbd_loss(y_true, y_pred, mask, obj_alpha, obj_gamma, cls_alpha, cls_gamma, label_smoothing):
     y_pred = convert_to_tensor_v2(y_pred)
     y_true = tf.cast(y_true, y_pred.dtype)
     return __confidence_loss(y_true, y_pred, mask, obj_alpha, obj_gamma), __bbox_loss(y_true, y_pred, mask), __classification_loss(y_true, y_pred, mask, cls_alpha, cls_gamma, label_smoothing)

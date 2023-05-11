@@ -58,7 +58,7 @@ def convert_boxes_to_csv_lines(path, boxes):
 
 
 def make_predictions_csv(model, image_paths, device):
-    from yolo import Yolo
+    from sbd import SBD
     print('predictions csv creation start')
     global g_predictions_csv_name
     fs = []
@@ -69,7 +69,7 @@ def make_predictions_csv(model, image_paths, device):
     csv = 'ImageID,LabelName,Conf,XMin,XMax,YMin,YMax\n'
     for f in tqdm(fs):
         img, _, path = f.result()
-        boxes = Yolo.predict(model, img, confidence_threshold=0.001, nms_iou_threshold=g_nms_iou_threshold, device=device)
+        boxes = SBD.predict(model, img, confidence_threshold=0.001, nms_iou_threshold=g_nms_iou_threshold, device=device)
         csv += convert_boxes_to_csv_lines(path, boxes)
     with open(g_predictions_csv_name, 'wt') as f:
         f.writelines(csv)

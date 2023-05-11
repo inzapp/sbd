@@ -1,7 +1,7 @@
 """
 Authors : inzapp
 
-Github url : https://github.com/inzapp/c-yolo
+Github url : https://github.com/inzapp/sbd
 
 Copyright 2021 inzapp Authors. All Rights Reserved.
 
@@ -27,7 +27,7 @@ from util import ModelUtil
 from concurrent.futures.thread import ThreadPoolExecutor
 
 
-class YoloDataGenerator:
+class DataGenerator:
     def __init__(self, image_paths, input_shape, output_shape, batch_size, multi_classification_at_same_box, ignore_scale, aug_scale, aug_brightness, aug_contrast):
         self.image_paths = image_paths
         self.input_shape = input_shape

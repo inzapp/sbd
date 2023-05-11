@@ -1,7 +1,7 @@
 """
 Authors : inzapp
 
-Github url : https://github.com/inzapp/c-yolo
+Github url : https://github.com/inzapp/sbd
 
 Copyright 2021 inzapp Authors. All Rights Reserved.
 
@@ -30,12 +30,12 @@ from util import ModelUtil
 from time import time, sleep
 from box_colors import colors
 from lr_scheduler import LRScheduler
-from generator import YoloDataGenerator
+from generator import DataGenerator
 from mAP_calculator import calc_mean_average_precision
-from loss import confidence_loss, confidence_with_bbox_loss, yolo_loss
+from loss import confidence_loss, confidence_with_bbox_loss, sbd_loss
 
 
-class Yolo:
+class SBD:
     def __init__(self, cfg_path, training=True):
         config = self.load_cfg(cfg_path)
         self.__cfg_path = cfg_path
@@ -101,7 +101,7 @@ class Yolo:
         self.__train_image_paths = ModelUtil.init_image_paths(train_image_path)
         self.__validation_image_paths = ModelUtil.init_image_paths(validation_image_path)
 
-        self.__train_data_generator = YoloDataGenerator(
+        self.__train_data_generator = DataGenerator(
             image_paths=self.__train_image_paths,
             input_shape=input_shape,
             output_shape=self.__model.output_shape,
@@ -111,7 +111,7 @@ class Yolo:
             aug_scale=aug_scale,
             aug_brightness=aug_brightness,
             aug_contrast=aug_contrast)
-        self.__validation_data_generator = YoloDataGenerator(
+        self.__validation_data_generator = DataGenerator(
             image_paths=self.__validation_image_paths,
             input_shape=input_shape,
             output_shape=self.__model.output_shape,
@@ -121,7 +121,7 @@ class Yolo:
             aug_scale=aug_scale,
             aug_brightness=aug_brightness,
             aug_contrast=aug_contrast)
-        self.__train_data_generator_for_check = YoloDataGenerator(
+        self.__train_data_generator_for_check = DataGenerator(
             image_paths=self.__train_image_paths,
             input_shape=input_shape,
             output_shape=self.__model.output_shape,
@@ -131,7 +131,7 @@ class Yolo:
             aug_scale=1.0,
             aug_brightness=aug_brightness,
             aug_contrast=aug_contrast)
-        self.__validation_data_generator_for_check = YoloDataGenerator(
+        self.__validation_data_generator_for_check = DataGenerator(
             image_paths=self.__validation_image_paths,
             input_shape=input_shape,
             output_shape=self.__model.output_shape,
@@ -332,7 +332,7 @@ class Yolo:
                 loss_vars = compute_gradient_tf(
                     self.__model,
                     optimizer,
-                    yolo_loss,
+                    sbd_loss,
                     batch_x,
                     batch_y,
                     mask,
@@ -426,7 +426,7 @@ class Yolo:
     @staticmethod
     def predict(model, img, device, confidence_threshold=0.2, nms_iou_threshold=0.45, max_box_size_per_class=512, verbose=False):
         """
-        Detect object in image using trained YOLO model.
+        Detect object in image using trained SBD model.
         :param img: (width, height, channel) formatted image to be predicted.
         :param confidence_threshold: threshold confidence score to detect object.
         :param nms_iou_threshold: threshold to remove overlapped detection.
@@ -452,7 +452,7 @@ class Yolo:
         boxes_before_nms_list = []
         for layer_index in range(num_output_layers):
             output_tensor = y[layer_index][0]
-            boxes_before_nms_list += list(Yolo.decode_bounding_box(output_tensor, confidence_threshold).numpy())
+            boxes_before_nms_list += list(SBD.decode_bounding_box(output_tensor, confidence_threshold).numpy())
         boxes_before_nms_dicts = []
         for box in boxes_before_nms_list:
             confidence = float(box[0])
@@ -481,9 +481,9 @@ class Yolo:
 
     def bounding_box(self, img, boxes, font_scale=0.4, show_class_with_score=True):
         """
-        draw bounding bbox using result of YOLO.predict function.
+        draw bounding bbox using result of SBD.predict function.
         :param img: image to be predicted.
-        :param boxes: result value of YOLO.predict() function.
+        :param boxes: result value of SBD.predict() function.
         :param font_scale: scale of font.
         :return: image of bounding boxed.
         """
@@ -526,7 +526,7 @@ class Yolo:
                 print('frame not exists')
                 break
             x = cv2.cvtColor(raw, cv2.COLOR_BGR2GRAY) if self.__model.input.shape[-1] == 1 else raw.copy()
-            boxes = Yolo.predict(self.__model, x, device=device, confidence_threshold=confidence_threshold)
+            boxes = SBD.predict(self.__model, x, device=device, confidence_threshold=confidence_threshold)
             # raw = cv2.resize(raw, (1280, 720), interpolation=cv2.INTER_AREA)
             boxed_image = self.bounding_box(raw, boxes, show_class_with_score=show_class_with_score)
             cv2.imshow('video', boxed_image)
@@ -551,7 +551,7 @@ class Yolo:
         for path in image_paths:
             print(f'image path : {path}')
             raw, raw_bgr, _ = ModelUtil.load_img(path, input_channel)
-            boxes = Yolo.predict(self.__model, raw, device=device, verbose=True, confidence_threshold=confidence_threshold)
+            boxes = SBD.predict(self.__model, raw, device=device, verbose=True, confidence_threshold=confidence_threshold)
             raw_bgr = cv2.resize(raw_bgr, (input_width, input_height), interpolation=cv2.INTER_AREA)
             boxed_image = self.bounding_box(raw_bgr, boxes, show_class_with_score=show_class_with_score)
             cv2.imshow('res', boxed_image)
@@ -621,7 +621,7 @@ class Yolo:
             else:
                 img_path = np.random.choice(self.__validation_image_paths)
             img, raw_bgr, _ = ModelUtil.load_img(img_path, self.__input_channels)
-            boxes = Yolo.predict(self.__model, img, device='cpu')
+            boxes = SBD.predict(self.__model, img, device='cpu')
             boxed_image = self.bounding_box(raw_bgr, boxes)
             cv2.imshow('training view', boxed_image)
             cv2.waitKey(1)
