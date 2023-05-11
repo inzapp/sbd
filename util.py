@@ -18,12 +18,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 import os
-from glob import glob
-from time import perf_counter
-
 import cv2
 import numpy as np
 import tensorflow as tf
+
+from glob import glob
+from time import perf_counter
 from keras_flops import get_flops
 
 

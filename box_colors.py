@@ -1,5 +1,5 @@
 """
-Yolo bounding box colors
+bounding box colors
 """
 colors = [
     (0, 255, 0),

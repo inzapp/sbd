@@ -18,8 +18,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 import os
-from time import time, sleep
-
 import cv2
 import yaml
 import numpy as np
@@ -29,6 +27,7 @@ import tensorflow as tf
 from glob import glob
 from model import Model
 from util import ModelUtil
+from time import time, sleep
 from box_colors import colors
 from lr_scheduler import LRScheduler
 from generator import YoloDataGenerator

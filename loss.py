@@ -18,8 +18,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 import tensorflow as tf
-from tensorflow.python.framework.ops import convert_to_tensor_v2
+
 from ale import AbsoluteLogarithmicError
+from tensorflow.python.framework.ops import convert_to_tensor_v2
 
 
 def __confidence_loss(y_true, y_pred, mask, alpha, gamma):

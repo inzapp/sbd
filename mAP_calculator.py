@@ -1,10 +1,10 @@
 import os
 import numpy as np
-from tqdm import tqdm
-from concurrent.futures.thread import ThreadPoolExecutor
 
+from tqdm import tqdm
 from util import ModelUtil
 from map_boxes import mean_average_precision_for_boxes
+from concurrent.futures.thread import ThreadPoolExecutor
 
 
 g_iou_threshold = 0.5
