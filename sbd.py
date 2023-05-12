@@ -311,37 +311,36 @@ class SBD:
         lr_scheduler = LRScheduler(iterations=self.iterations, lr=self.lr, warm_up=self.warm_up, policy=self.lr_policy, decay_step=self.decay_step)
         print(f'model will be save to {self.checkpoint_path}')
         while True:
-            for _ in range(len(self.train_data_generator)):
-                batch_x, batch_y, mask = self.train_data_generator.load()
-                lr_scheduler.update(optimizer, iteration_count)
-                loss_vars = compute_gradient_tf(
-                    self.model,
-                    optimizer,
-                    sbd_loss,
-                    batch_x,
-                    batch_y,
-                    mask,
-                    self.num_output_layers,
-                    self.obj_alphas,
-                    self.obj_gammas,
-                    self.cls_alphas,
-                    self.cls_gammas,
-                    self.label_smoothing)
-                iteration_count += 1
-                print(self.build_loss_str(iteration_count, loss_vars), end='')
-                warm_up_end = iteration_count >= int(self.iterations * self.warm_up)
-                if iteration_count % 2000 == 0:
-                    self.save_last_model(iteration_count=iteration_count)
-                if warm_up_end:
-                    if self.training_view:
-                        self.training_view_function()
-                    if self.map_checkpoint_interval > 0 and iteration_count % self.map_checkpoint_interval == 0 and iteration_count < self.iterations:
-                        self.save_model_with_map()
-                if iteration_count == self.iterations:
+            batch_x, batch_y, mask = self.train_data_generator.load()
+            lr_scheduler.update(optimizer, iteration_count)
+            loss_vars = compute_gradient_tf(
+                self.model,
+                optimizer,
+                sbd_loss,
+                batch_x,
+                batch_y,
+                mask,
+                self.num_output_layers,
+                self.obj_alphas,
+                self.obj_gammas,
+                self.cls_alphas,
+                self.cls_gammas,
+                self.label_smoothing)
+            iteration_count += 1
+            print(self.build_loss_str(iteration_count, loss_vars), end='')
+            warm_up_end = iteration_count >= int(self.iterations * self.warm_up)
+            if iteration_count % 2000 == 0:
+                self.save_last_model(iteration_count=iteration_count)
+            if warm_up_end:
+                if self.training_view:
+                    self.training_view_function()
+                if self.map_checkpoint_interval > 0 and iteration_count % self.map_checkpoint_interval == 0 and iteration_count < self.iterations:
                     self.save_model_with_map()
-                    self.remove_last_model()
-                    print('\n\ntrain end successfully')
-                    return
+            if iteration_count == self.iterations:
+                self.save_model_with_map()
+                self.remove_last_model()
+                print('\n\ntrain end successfully')
+                return
 
     @staticmethod
     @tf.function
