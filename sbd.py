@@ -547,7 +547,7 @@ class SBD:
         return save_path
 
     def save_model_with_map(self, dataset='validation', device='auto', confidence_threshold=0.2, tp_iou_threshold=0.5, cached=False):
-        os.makedirs(self.checkpoint_path, exist_ok=True)
+        self.make_checkpoint_dir()
         mean_ap, f1_score, iou, tp, fp, fn, confidence, txt_content = self.calculate_map(
             dataset=dataset,
             device=device,
@@ -560,7 +560,6 @@ class SBD:
             new_best_model = True
         if new_best_model:
             best_model_path = f'{self.checkpoint_path}/best.h5'
-            self.make_checkpoint_dir()
             self.model.save(best_model_path, include_optimizer=False)
             with open(f'{self.checkpoint_path}/map.txt', 'wt') as f:
                 f.write(txt_content)
