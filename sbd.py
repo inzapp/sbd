@@ -38,12 +38,12 @@ from loss import confidence_loss, confidence_with_bbox_loss, sbd_loss, IGNORED_L
 class SBD:
     def __init__(self, cfg_path, training=True):
         config = self.load_cfg(cfg_path)
-        self.__cfg_path = cfg_path
-        self.__pretrained_model_path = config['pretrained_model_path']
+        self.cfg_path = cfg_path
+        self.pretrained_model_path = config['pretrained_model_path']
         input_rows = config['input_rows']
         input_cols = config['input_cols']
-        self.__input_channels = config['input_channels']
-        input_shape = (input_rows, input_cols, self.__input_channels)
+        self.input_channels = config['input_channels']
+        input_shape = (input_rows, input_cols, self.input_channels)
         train_image_path = config['train_image_path']
         validation_image_path = config['validation_image_path']
         multi_classification_at_same_box = config['multi_classification_at_same_box']
@@ -52,89 +52,89 @@ class SBD:
         aug_brightness = config['aug_brightness']
         aug_contrast = config['aug_contrast']
         batch_size = config['batch_size']
-        self.__class_names_file_path = config['class_names_file_path']
-        self.__lr = config['lr']
-        self.__obj_alpha_param = config['obj_alpha'] 
-        self.__obj_gamma_param = config['obj_gamma']
-        self.__cls_alpha_param = config['cls_alpha'] 
-        self.__cls_gamma_param = config['cls_gamma']
-        self.__obj_alphas = None
-        self.__obj_gammas = None
-        self.__cls_alphas = None
-        self.__cls_gammas = None
-        self.__l2 = config['l2']
-        self.__momentum = config['momentum']
-        self.__label_smoothing = config['smoothing']
-        self.__warm_up = config['warm_up']
-        self.__decay_step = config['decay_step']
-        self.__iterations = config['iterations']
-        self.__optimizer = config['optimizer']
-        self.__lr_policy = config['lr_policy']
-        self.__model_name = config['model_name']
-        self.__model_type = config['model_type']
-        self.__training_view = config['training_view']
-        self.__map_checkpoint_interval = config['map_checkpoint_interval']
-        self.__live_view_previous_time = time()
-        self.__checkpoint_path = self.__new_checkpoint_path()
-        self.__pretrained_iteration_count = 0
-        self.__best_mean_ap = 0.0
+        self.class_names_file_path = config['class_names_file_path']
+        self.lr = config['lr']
+        self.obj_alpha_param = config['obj_alpha'] 
+        self.obj_gamma_param = config['obj_gamma']
+        self.cls_alpha_param = config['cls_alpha'] 
+        self.cls_gamma_param = config['cls_gamma']
+        self.obj_alphas = None
+        self.obj_gammas = None
+        self.cls_alphas = None
+        self.cls_gammas = None
+        self.l2 = config['l2']
+        self.momentum = config['momentum']
+        self.label_smoothing = config['smoothing']
+        self.warm_up = config['warm_up']
+        self.decay_step = config['decay_step']
+        self.iterations = config['iterations']
+        self.optimizer = config['optimizer']
+        self.lr_policy = config['lr_policy']
+        self.model_name = config['model_name']
+        self.model_type = config['model_type']
+        self.training_view = config['training_view']
+        self.map_checkpoint_interval = config['map_checkpoint_interval']
+        self.live_view_previous_time = time()
+        self.checkpoint_path = self.new_checkpoint_path()
+        self.pretrained_iteration_count = 0
+        self.best_mean_ap = 0.0
 
-        self.__class_names, self.__num_classes = ModelUtil.init_class_names(self.__class_names_file_path)
-        self.__use_pretrained_model = False
-        if self.__pretrained_model_path.endswith('.h5') and training:
-            self.load_model(self.__pretrained_model_path)
-            self.__use_pretrained_model = True
+        self.class_names, self.num_classes = ModelUtil.init_class_names(self.class_names_file_path)
+        self.use_pretrained_model = False
+        if self.pretrained_model_path.endswith('.h5') and training:
+            self.load_model(self.pretrained_model_path)
+            self.use_pretrained_model = True
 
-        if not self.__use_pretrained_model:
-            if self.__num_classes == 0:
-                ModelUtil.print_error_exit(f'classes file not found. file path : {self.__class_names_file_path}')
-            if self.__optimizer == 'adam':
-                self.__l2 = 0.0
-            self.__model = Model(input_shape=input_shape, output_channel=self.__num_classes + 5, l2=self.__l2).build(self.__model_type)
+        if not self.use_pretrained_model:
+            if self.num_classes == 0:
+                ModelUtil.print_error_exit(f'classes file not found. file path : {self.class_names_file_path}')
+            if self.optimizer == 'adam':
+                self.l2 = 0.0
+            self.model = Model(input_shape=input_shape, output_channel=self.num_classes + 5, l2=self.l2).build(self.model_type)
 
-        if type(self.__model.output_shape) == tuple:
+        if type(self.model.output_shape) == tuple:
             self.num_output_layers = 1
         else:
-            self.num_output_layers = len(self.__model.output_shape)
+            self.num_output_layers = len(self.model.output_shape)
 
-        self.__train_image_paths = ModelUtil.init_image_paths(train_image_path)
-        self.__validation_image_paths = ModelUtil.init_image_paths(validation_image_path)
+        self.train_image_paths = ModelUtil.init_image_paths(train_image_path)
+        self.validation_image_paths = ModelUtil.init_image_paths(validation_image_path)
 
-        self.__train_data_generator = DataGenerator(
-            image_paths=self.__train_image_paths,
+        self.train_data_generator = DataGenerator(
+            image_paths=self.train_image_paths,
             input_shape=input_shape,
-            output_shape=self.__model.output_shape,
+            output_shape=self.model.output_shape,
             batch_size=batch_size,
             multi_classification_at_same_box=multi_classification_at_same_box,
             ignore_scale=ignore_scale,
             aug_scale=aug_scale,
             aug_brightness=aug_brightness,
             aug_contrast=aug_contrast)
-        self.__validation_data_generator = DataGenerator(
-            image_paths=self.__validation_image_paths,
+        self.validation_data_generator = DataGenerator(
+            image_paths=self.validation_image_paths,
             input_shape=input_shape,
-            output_shape=self.__model.output_shape,
+            output_shape=self.model.output_shape,
             batch_size=batch_size,
             multi_classification_at_same_box=multi_classification_at_same_box,
             ignore_scale=ignore_scale,
             aug_scale=aug_scale,
             aug_brightness=aug_brightness,
             aug_contrast=aug_contrast)
-        self.__train_data_generator_for_check = DataGenerator(
-            image_paths=self.__train_image_paths,
+        self.train_data_generator_for_check = DataGenerator(
+            image_paths=self.train_image_paths,
             input_shape=input_shape,
-            output_shape=self.__model.output_shape,
-            batch_size=ModelUtil.get_zero_mod_batch_size(len(self.__train_image_paths)),
+            output_shape=self.model.output_shape,
+            batch_size=ModelUtil.get_zero_mod_batch_size(len(self.train_image_paths)),
             multi_classification_at_same_box=multi_classification_at_same_box,
             ignore_scale=ignore_scale,
             aug_scale=1.0,
             aug_brightness=aug_brightness,
             aug_contrast=aug_contrast)
-        self.__validation_data_generator_for_check = DataGenerator(
-            image_paths=self.__validation_image_paths,
+        self.validation_data_generator_for_check = DataGenerator(
+            image_paths=self.validation_image_paths,
             input_shape=input_shape,
-            output_shape=self.__model.output_shape,
-            batch_size=ModelUtil.get_zero_mod_batch_size(len(self.__validation_image_paths)),
+            output_shape=self.model.output_shape,
+            batch_size=ModelUtil.get_zero_mod_batch_size(len(self.validation_image_paths)),
             multi_classification_at_same_box=multi_classification_at_same_box,
             ignore_scale=ignore_scale,
             aug_scale=1.0,
@@ -152,25 +152,25 @@ class SBD:
         return config
 
     def make_checkpoint_dir(self):
-        os.makedirs(self.__checkpoint_path, exist_ok=True)
+        os.makedirs(self.checkpoint_path, exist_ok=True)
 
     def init_checkpoint_dir(self):
         self.make_checkpoint_dir()
         cfg_content = ''
-        with open(self.__cfg_path, 'rt') as f:
+        with open(self.cfg_path, 'rt') as f:
             lines = f.readlines()
         for line in lines:
             if line.strip().startswith('#') or line.strip().replace('\n', '') == '':
                 continue
             cfg_content += line
-        with open(f'{self.__checkpoint_path}/cfg.yaml', 'wt') as f:
+        with open(f'{self.checkpoint_path}/cfg.yaml', 'wt') as f:
             f.writelines(cfg_content)
-        sh.copy(self.__class_names_file_path, self.__checkpoint_path)
+        sh.copy(self.class_names_file_path, self.checkpoint_path)
 
     def load_model(self, model_path):
         if os.path.exists(model_path) and os.path.isfile(model_path):
-            self.__model = tf.keras.models.load_model(model_path, compile=False)
-            self.__pretrained_iteration_count = self.parse_pretrained_iteration_count(model_path)
+            self.model = tf.keras.models.load_model(model_path, compile=False)
+            self.pretrained_iteration_count = self.parse_pretrained_iteration_count(model_path)
         else:
             ModelUtil.print_error_exit(f'pretrained model not found. model path : {model_path}')
 
@@ -186,9 +186,9 @@ class SBD:
                 break
         return iteration_count
 
-    def __new_checkpoint_path(self):
+    def new_checkpoint_path(self):
         inc = 0
-        base_path = f'checkpoint/{self.__model_name}'
+        base_path = f'checkpoint/{self.model_name}'
         while True:
             checkpoint_path = f'{base_path}/m{inc}'
             if os.path.exists(checkpoint_path) and os.path.isdir(checkpoint_path):
@@ -197,12 +197,12 @@ class SBD:
                 break
         return checkpoint_path
 
-    def __get_optimizer(self, optimizer_str):
-        lr = self.__lr if self.__lr_policy == 'constant' else 0.0
+    def get_optimizer(self, optimizer_str):
+        lr = self.lr if self.lr_policy == 'constant' else 0.0
         if optimizer_str == 'sgd':
-            optimizer = tf.keras.optimizers.SGD(learning_rate=lr, momentum=self.__momentum, nesterov=True)
+            optimizer = tf.keras.optimizers.SGD(learning_rate=lr, momentum=self.momentum, nesterov=True)
         elif optimizer_str == 'adam':
-            optimizer = tf.keras.optimizers.Adam(learning_rate=lr, beta_1=self.__momentum)
+            optimizer = tf.keras.optimizers.Adam(learning_rate=lr, beta_1=self.momentum)
         elif optimizer_str == 'rmsprop':
             optimizer = tf.keras.optimizers.RMSprop(learning_rate=lr)
         else:
@@ -210,7 +210,7 @@ class SBD:
             optimizer = None
         return optimizer
 
-    def __convert_alpha_gamma_to_list(self, param, num_output_layers):
+    def convert_alpha_gamma_to_list(self, param, num_output_layers):
         params = None
         param_type = type(param)
         if param_type is float:
@@ -229,46 +229,46 @@ class SBD:
             ModelUtil.print_error_exit(f'invalid type ({param_type}) of alpha. type must be float or list')
         return params
 
-    def __set_alpha_gamma(self):
-        num_output_layers = len(self.__model.output_shape) if type(self.__model.output_shape) is list else 1
-        self.__obj_alphas = self.__convert_alpha_gamma_to_list(self.__obj_alpha_param, num_output_layers)
-        self.__obj_gammas = self.__convert_alpha_gamma_to_list(self.__obj_gamma_param, num_output_layers)
-        self.__cls_alphas = self.__convert_alpha_gamma_to_list(self.__cls_alpha_param, num_output_layers)
-        self.__cls_gammas = self.__convert_alpha_gamma_to_list(self.__cls_gamma_param, num_output_layers)
+    def set_alpha_gamma(self):
+        num_output_layers = len(self.model.output_shape) if type(self.model.output_shape) is list else 1
+        self.obj_alphas = self.convert_alpha_gamma_to_list(self.obj_alpha_param, num_output_layers)
+        self.obj_gammas = self.convert_alpha_gamma_to_list(self.obj_gamma_param, num_output_layers)
+        self.cls_alphas = self.convert_alpha_gamma_to_list(self.cls_alpha_param, num_output_layers)
+        self.cls_gammas = self.convert_alpha_gamma_to_list(self.cls_gamma_param, num_output_layers)
 
     def fit(self):
         self.init_checkpoint_dir()
-        gflops = ModelUtil.get_gflops(self.__model)
-        self.save_last_model(iteration_count=self.__pretrained_iteration_count)
-        self.__model.summary()
+        gflops = ModelUtil.get_gflops(self.model)
+        self.save_last_model(iteration_count=self.pretrained_iteration_count)
+        self.model.summary()
         print(f'\nGFLOPs : {gflops:.4f}')
-        print(f'\ntrain on {len(self.__train_image_paths)} samples.')
-        print(f'validate on {len(self.__validation_image_paths)} samples.')
+        print(f'\ntrain on {len(self.train_image_paths)} samples.')
+        print(f'validate on {len(self.validation_image_paths)} samples.')
 
         print('\nlabel exist check in train data...')
-        self.__train_data_generator_for_check.check_labels_exist()
+        self.train_data_generator_for_check.check_labels_exist()
         print('\nlabel exist check in validation data...')
-        self.__validation_data_generator_for_check.check_labels_exist()
+        self.validation_data_generator_for_check.check_labels_exist()
         print('\ninvalid label check in train data...')
-        self.__train_data_generator_for_check.check_invalid_label()
+        self.train_data_generator_for_check.check_invalid_label()
         print('\ninvalid label check in validation data...')
-        self.__validation_data_generator_for_check.check_invalid_label()
+        self.validation_data_generator_for_check.check_invalid_label()
         print('\ncalculate class weights...')
-        self.__train_data_generator_for_check.calculate_class_weights()
+        self.train_data_generator_for_check.calculate_class_weights()
         print('\ncalculate virtual anchor...')
-        self.__train_data_generator.calculate_virtual_anchor()
+        self.train_data_generator.calculate_virtual_anchor()
         print('\ncalculate BPR(Best Possible Recall)...')
-        self.__train_data_generator.calculate_best_possible_recall()
-        self.__set_alpha_gamma()
+        self.train_data_generator.calculate_best_possible_recall()
+        self.set_alpha_gamma()
         print('\nstart test forward for checking forwarding time.')
         if ModelUtil.available_device() == 'gpu':
-            ModelUtil.check_forwarding_time(self.__model, device='gpu')
-        ModelUtil.check_forwarding_time(self.__model, device='cpu')
-        if self.__use_pretrained_model:
-            print(f'\nstart training with pretrained model : {self.__pretrained_model_path}')
+            ModelUtil.check_forwarding_time(self.model, device='gpu')
+        ModelUtil.check_forwarding_time(self.model, device='cpu')
+        if self.use_pretrained_model:
+            print(f'\nstart training with pretrained model : {self.pretrained_model_path}')
         else:
             print('\nstart training')
-        self.__train()
+        self.train()
 
     def compute_gradient(self, model, optimizer, loss_function, x, y_true, mask, num_output_layers, obj_alphas, obj_gammas, cls_alphas, cls_gammas, label_smoothing):
         with tf.GradientTape() as tape:
@@ -291,13 +291,13 @@ class SBD:
         optimizer.apply_gradients(zip(gradients, model.trainable_variables))
         return confidence_loss, bbox_loss, classification_loss
 
-    def __refresh_model_and_optimizer(self, model, optimizer_str):
+    def refresh_model_and_optimizer(self, model, optimizer_str):
         sleep(0.2)
         model_path = f'model.h5'
         model.save(model_path, include_optimizer=False)
         sleep(0.2)
         model = tf.keras.models.load_model(model_path, compile=False)
-        optimizer = self.__get_optimizer(optimizer_str)
+        optimizer = self.get_optimizer(optimizer_str)
         return model, optimizer
 
     def build_loss_str(self, iteration_count, loss_vars):
@@ -310,40 +310,40 @@ class SBD:
             loss_str += f', classification_loss : {classification_loss:>8.4f}'
         return loss_str
 
-    def __train(self):
-        iteration_count = self.__pretrained_iteration_count
+    def train(self):
+        iteration_count = self.pretrained_iteration_count
         compute_gradient_tf = tf.function(self.compute_gradient)
-        self.__model, optimizer = self.__refresh_model_and_optimizer(self.__model, self.__optimizer)
-        lr_scheduler = LRScheduler(iterations=self.__iterations, lr=self.__lr, warm_up=self.__warm_up, policy=self.__lr_policy, decay_step=self.__decay_step)
-        print(f'model will be save to {self.__checkpoint_path}')
+        self.model, optimizer = self.refresh_model_and_optimizer(self.model, self.optimizer)
+        lr_scheduler = LRScheduler(iterations=self.iterations, lr=self.lr, warm_up=self.warm_up, policy=self.lr_policy, decay_step=self.decay_step)
+        print(f'model will be save to {self.checkpoint_path}')
         while True:
-            for _ in range(len(self.__train_data_generator)):
-                batch_x, batch_y, mask = self.__train_data_generator.load()
+            for _ in range(len(self.train_data_generator)):
+                batch_x, batch_y, mask = self.train_data_generator.load()
                 lr_scheduler.update(optimizer, iteration_count)
                 loss_vars = compute_gradient_tf(
-                    self.__model,
+                    self.model,
                     optimizer,
                     sbd_loss,
                     batch_x,
                     batch_y,
                     mask,
                     self.num_output_layers,
-                    self.__obj_alphas,
-                    self.__obj_gammas,
-                    self.__cls_alphas,
-                    self.__cls_gammas,
-                    self.__label_smoothing)
+                    self.obj_alphas,
+                    self.obj_gammas,
+                    self.cls_alphas,
+                    self.cls_gammas,
+                    self.label_smoothing)
                 iteration_count += 1
                 print(self.build_loss_str(iteration_count, loss_vars), end='')
-                warm_up_end = iteration_count >= int(self.__iterations * self.__warm_up)
+                warm_up_end = iteration_count >= int(self.iterations * self.warm_up)
                 if iteration_count % 2000 == 0:
                     self.save_last_model(iteration_count=iteration_count)
                 if warm_up_end:
-                    if self.__training_view:
-                        self.__training_view_function()
-                    if self.__map_checkpoint_interval > 0 and iteration_count % self.__map_checkpoint_interval == 0 and iteration_count < self.__iterations:
+                    if self.training_view:
+                        self.training_view_function()
+                    if self.map_checkpoint_interval > 0 and iteration_count % self.map_checkpoint_interval == 0 and iteration_count < self.iterations:
                         self.save_model_with_map()
-                if iteration_count == self.__iterations:
+                if iteration_count == self.iterations:
                     self.save_model_with_map()
                     self.remove_last_model()
                     print('\n\ntrain end successfully')
@@ -484,10 +484,10 @@ class SBD:
         img_height, img_width = img.shape[:2]
         for i, box in enumerate(boxes):
             class_index = int(box['class'])
-            if len(self.__class_names) == 0:
+            if len(self.class_names) == 0:
                 class_name = str(class_index)
             else:
-                class_name = self.__class_names[class_index].replace('\n', '')
+                class_name = self.class_names[class_index].replace('\n', '')
             label_background_color = colors[class_index]
             label_font_color = (0, 0, 0) if ModelUtil.is_background_color_bright(label_background_color) else (255, 255, 255)
             label_text = f'{class_name}({int(box["confidence"] * 100.0)}%)'
@@ -516,8 +516,8 @@ class SBD:
             if not frame_exist:
                 print('frame not exists')
                 break
-            x = cv2.cvtColor(raw, cv2.COLOR_BGR2GRAY) if self.__model.input.shape[-1] == 1 else raw.copy()
-            boxes = SBD.predict(self.__model, x, device=device, confidence_threshold=confidence_threshold)
+            x = cv2.cvtColor(raw, cv2.COLOR_BGR2GRAY) if self.model.input.shape[-1] == 1 else raw.copy()
+            boxes = SBD.predict(self.model, x, device=device, confidence_threshold=confidence_threshold)
             boxed_image = self.bounding_box(raw, boxes, show_class_with_score=show_class_with_score)
             cv2.imshow('video', boxed_image)
             key = cv2.waitKey(1)
@@ -530,18 +530,18 @@ class SBD:
         """
         Equal to the evaluate function. image paths are required.
         """
-        input_width, input_height, input_channel = ModelUtil.get_width_height_channel_from_input_shape(self.__model.input_shape[1:])
+        input_width, input_height, input_channel = ModelUtil.get_width_height_channel_from_input_shape(self.model.input_shape[1:])
         if dataset == 'train':
-            image_paths = self.__train_image_paths
+            image_paths = self.train_image_paths
         elif dataset == 'validation':
-            image_paths = self.__validation_image_paths
+            image_paths = self.validation_image_paths
         else:
             print(f'invalid dataset : [{dataset}]')
             return
         for path in image_paths:
             print(f'image path : {path}')
             raw, raw_bgr, _ = ModelUtil.load_img(path, input_channel)
-            boxes = SBD.predict(self.__model, raw, device=device, verbose=True, confidence_threshold=confidence_threshold)
+            boxes = SBD.predict(self.model, raw, device=device, verbose=True, confidence_threshold=confidence_threshold)
             raw_bgr = cv2.resize(raw_bgr, (input_width, input_height), interpolation=cv2.INTER_AREA)
             boxed_image = self.bounding_box(raw_bgr, boxes, show_class_with_score=show_class_with_score)
             cv2.imshow('res', boxed_image)
@@ -551,25 +551,25 @@ class SBD:
 
     def calculate_map(self, dataset, device, confidence_threshold, tp_iou_threshold, cached):
         assert dataset in ['train', 'validation']
-        image_paths = self.__train_image_paths if dataset == 'train' else self.__validation_image_paths
+        image_paths = self.train_image_paths if dataset == 'train' else self.validation_image_paths
         device = ModelUtil.available_device() if device == 'auto' else device
         return calc_mean_average_precision(
-            model=self.__model,
+            model=self.model,
             image_paths=image_paths,
             device=device,
             confidence_threshold=confidence_threshold,
             tp_iou_threshold=tp_iou_threshold,
-            classes_txt_path=self.__class_names_file_path,
+            classes_txt_path=self.class_names_file_path,
             cached=cached)
 
     def remove_last_model(self):
-        for last_model_path in glob(f'{self.__checkpoint_path}/last_*_iter.h5'):
+        for last_model_path in glob(f'{self.checkpoint_path}/last_*_iter.h5'):
             os.remove(last_model_path)
 
     def save_last_model(self, iteration_count):
         self.make_checkpoint_dir()
-        save_path = f'{self.__checkpoint_path}/last_{iteration_count}_iter.h5'
-        self.__model.save(save_path, include_optimizer=False)
+        save_path = f'{self.checkpoint_path}/last_{iteration_count}_iter.h5'
+        self.model.save(save_path, include_optimizer=False)
         tmp_path = f'{save_path}.tmp'
         sh.move(save_path, tmp_path)
         self.remove_last_model()
@@ -577,7 +577,7 @@ class SBD:
         return save_path
 
     def save_model_with_map(self, dataset='validation', device='auto', confidence_threshold=0.2, tp_iou_threshold=0.5, cached=False):
-        os.makedirs(self.__checkpoint_path, exist_ok=True)
+        os.makedirs(self.checkpoint_path, exist_ok=True)
         mean_ap, f1_score, iou, tp, fp, fn, confidence, txt_content = self.calculate_map(
             dataset=dataset,
             device=device,
@@ -585,30 +585,30 @@ class SBD:
             tp_iou_threshold=tp_iou_threshold,
             cached=cached)
         new_best_model = False
-        if mean_ap >= self.__best_mean_ap:
-            self.__best_mean_ap = mean_ap
+        if mean_ap >= self.best_mean_ap:
+            self.best_mean_ap = mean_ap
             new_best_model = True
         if new_best_model:
-            best_model_path = f'{self.__checkpoint_path}/best.h5'
+            best_model_path = f'{self.checkpoint_path}/best.h5'
             self.make_checkpoint_dir()
-            self.__model.save(best_model_path, include_optimizer=False)
-            with open(f'{self.__checkpoint_path}/map.txt', 'wt') as f:
+            self.model.save(best_model_path, include_optimizer=False)
+            with open(f'{self.checkpoint_path}/map.txt', 'wt') as f:
                 f.write(txt_content)
             print(f'new best model saved to [{best_model_path}]')
 
-    def __training_view_function(self):
+    def training_view_function(self):
         """
         During training, the image is forwarded in real time, showing the results are shown.
         """
         cur_time = time()
-        if cur_time - self.__live_view_previous_time > 0.5:
-            self.__live_view_previous_time = cur_time
+        if cur_time - self.live_view_previous_time > 0.5:
+            self.live_view_previous_time = cur_time
             if np.random.uniform() > 0.5:
-                img_path = np.random.choice(self.__train_image_paths)
+                img_path = np.random.choice(self.train_image_paths)
             else:
-                img_path = np.random.choice(self.__validation_image_paths)
-            img, raw_bgr, _ = ModelUtil.load_img(img_path, self.__input_channels)
-            boxes = SBD.predict(self.__model, img, device='cpu')
+                img_path = np.random.choice(self.validation_image_paths)
+            img, raw_bgr, _ = ModelUtil.load_img(img_path, self.input_channels)
+            boxes = SBD.predict(self.model, img, device='cpu')
             boxed_image = self.bounding_box(raw_bgr, boxes)
             cv2.imshow('training view', boxed_image)
             cv2.waitKey(1)
