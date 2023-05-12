@@ -63,6 +63,7 @@ class SBD:
         self.cls_alphas = None
         self.cls_gammas = None
         self.l2 = config['l2']
+        self.drop_rate = config['dropout']
         self.momentum = config['momentum']
         self.label_smoothing = config['smoothing']
         self.warm_up = config['warm_up']
@@ -90,7 +91,7 @@ class SBD:
                 ModelUtil.print_error_exit(f'classes file not found. file path : {self.class_names_file_path}')
             if self.optimizer == 'adam':
                 self.l2 = 0.0
-            self.model = Model(input_shape=input_shape, output_channel=self.num_classes + 5, l2=self.l2).build(self.model_type)
+            self.model = Model(input_shape=input_shape, output_channel=self.num_classes + 5, l2=self.l2, drop_rate=self.drop_rate).build(self.model_type)
 
         if type(self.model.output_shape) == tuple:
             self.num_output_layers = 1

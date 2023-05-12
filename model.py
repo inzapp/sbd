@@ -27,13 +27,14 @@ os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
 
 class Model:
-    def __init__(self, input_shape, output_channel, l2):
+    def __init__(self, input_shape, output_channel, l2, drop_rate):
         assert input_shape[0] % 32 == 0
         assert input_shape[1] % 32 == 0
         assert input_shape[-1] in [1, 3]
         self.input_shape = input_shape
         self.output_channel = output_channel
         self.l2 = l2
+        self.drop_rate = drop_rate
         self.models = dict()
         self.models['n'] = self.n
         self.models['s'] = self.s
@@ -306,6 +307,9 @@ class Model:
     def kernel_regularizer(self):
         return tf.keras.regularizers.l2(l2=self.l2) if self.l2 > 0.0 else None
 
+    def dropout(self, x):
+        return tf.keras.layers.Dropout(self.drop_rate)(x) if self.drop_rate > 0.0 else x
+
     @staticmethod
     def max_pool(x):
         return tf.keras.layers.MaxPool2D()(x)
@@ -325,8 +329,4 @@ class Model:
     @staticmethod
     def concat(layers):
         return tf.keras.layers.Concatenate()(layers)
-
-    @staticmethod
-    def dropout(x):
-        return tf.keras.layers.Dropout(0.1)(x)
 
