@@ -285,9 +285,9 @@ class SBD:
         optimizer.apply_gradients(zip(gradients, model.trainable_variables))
         return confidence_loss, bbox_loss, classification_loss
 
-    def refresh_model_and_optimizer(self, model, optimizer_str):
+    def refresh(self, model, optimizer_str):
         sleep(0.2)
-        model_path = f'model.h5'
+        model_path = 'model.h5'
         model.save(model_path, include_optimizer=False)
         sleep(0.2)
         model = tf.keras.models.load_model(model_path, compile=False)
@@ -307,7 +307,7 @@ class SBD:
     def train(self):
         iteration_count = self.pretrained_iteration_count
         compute_gradient_tf = tf.function(self.compute_gradient)
-        self.model, optimizer = self.refresh_model_and_optimizer(self.model, self.optimizer)
+        self.model, optimizer = self.refresh(self.model, self.optimizer)
         lr_scheduler = LRScheduler(iterations=self.iterations, lr=self.lr, warm_up=self.warm_up, policy=self.lr_policy, decay_step=self.decay_step)
         print(f'model will be save to {self.checkpoint_path}')
         while True:
