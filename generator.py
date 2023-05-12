@@ -50,9 +50,6 @@ class DataGenerator:
             A.GaussianBlur(p=0.5, blur_limit=(5, 5))
         ])
 
-    def __len__(self):
-        return int(np.floor(len(self.image_paths) / self.batch_size))
-
     def label_path(self, image_path):
         return f'{image_path[:-4]}.txt'
 
