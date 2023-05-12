@@ -18,7 +18,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 import os
-import cv2
 import numpy as np
 import shutil as sh
 import tensorflow as tf
@@ -38,7 +37,6 @@ def auto_label(model_path, image_path, origin_classes_txt_path):
     model = tf.keras.models.load_model(model_path, compile=False)
     input_shape = model.input_shape[1:]
     _, _, channel = ModelUtil.get_width_height_channel_from_input_shape(input_shape)
-    color_mode = cv2.IMREAD_GRAYSCALE if channel == 1 else cv2.IMREAD_COLOR
 
     image_paths = glob(f'{image_path}/*.jpg')
     classes_txt_path = f'{image_path}/classes.txt'
@@ -73,8 +71,8 @@ def auto_label(model_path, image_path, origin_classes_txt_path):
 
 def main():
     model_path = r'./checkpoint/model/m0/best.h5'
-    origin_classes_txt_path = r'/train_data/imagenet/train/classes.txt'
     img_path = r'/train_data/unlabeled/imagenet'
+    origin_classes_txt_path = r'/train_data/imagenet/train/classes.txt'
     auto_label(model_path, img_path, origin_classes_txt_path)
 
 
