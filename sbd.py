@@ -301,8 +301,6 @@ class SBD:
         return model, optimizer
 
     def build_loss_str(self, iteration_count, loss_vars):
-        loss_str = ''
-        n_loss_vars = len(loss_vars)
         confidence_loss, bbox_loss, classification_loss = loss_vars
         loss_str = f'\r[iteration_count : {iteration_count:6d}]'
         loss_str += f' confidence_loss : {confidence_loss:>8.4f}'
@@ -417,23 +415,22 @@ class SBD:
         return boxes_after_nms
 
     @staticmethod
-    def predict(model, img, device, confidence_threshold=0.2, nms_iou_threshold=0.45, max_box_size_per_class=512, verbose=False):
+    def predict(model, img, device, confidence_threshold=0.2, nms_iou_threshold=0.45, verbose=False):
         """
         Detect object in image using trained SBD model.
+        :param model: model for for forward image.
         :param img: (width, height, channel) formatted image to be predicted.
+        :param device: cpu or gpu device.
         :param confidence_threshold: threshold confidence score to detect object.
         :param nms_iou_threshold: threshold to remove overlapped detection.
-        :return: dictionary array sorted by x position.
+        :param verbose: print detected box info if True.
+        :return: bounding boxes dictionary array sorted by x position.
         each dictionary has class index and bbox info: [x1, y1, x2, y2].
         """
-        raw_width, raw_height = img.shape[1], img.shape[0]
         input_shape = model.input_shape[1:]
         input_width, input_height, _ = ModelUtil.get_width_height_channel_from_input_shape(input_shape)
         output_shape = model.output_shape
-        num_classes = output_shape[-1] - 5 if type(output_shape) == tuple else output_shape[0][-1] - 5
         num_output_layers = 1 if type(output_shape) == tuple else len(output_shape)
-        if num_output_layers == 1:
-            output_shape = [output_shape]
 
         img = ModelUtil.resize(img, (input_width, input_height))
         x = np.reshape(ModelUtil.preprocess(img), (1,) + input_shape)
@@ -449,7 +446,7 @@ class SBD:
         boxes_before_nms_dicts = []
         for box in boxes_before_nms_list:
             confidence = float(box[0])
-            y1, x1, y2,x2 = np.clip(np.array(list(map(float, box[1:5]))), 0.0, 1.0)
+            y1, x1, y2, x2 = np.clip(np.array(list(map(float, box[1:5]))), 0.0, 1.0)
             class_index = int(box[5])
             boxes_before_nms_dicts.append({
                 'confidence': confidence,
@@ -478,6 +475,7 @@ class SBD:
         :param img: image to be predicted.
         :param boxes: result value of SBD.predict() function.
         :param font_scale: scale of font.
+        :param show_class_with_score: draw bounding box with class and score label if True, else draw bounding box only
         :return: image of bounding boxed.
         """
         padding = 5
@@ -553,10 +551,7 @@ class SBD:
 
     def calculate_map(self, dataset, device, confidence_threshold, tp_iou_threshold, cached):
         assert dataset in ['train', 'validation']
-        if dataset == 'train':
-            image_paths = self.__train_image_paths
-        elif dataset == 'validation':
-            image_paths = self.__validation_image_paths
+        image_paths = self.__train_image_paths if dataset == 'train' else self.__validation_image_paths
         device = ModelUtil.available_device() if device == 'auto' else device
         return calc_mean_average_precision(
             model=self.__model,
