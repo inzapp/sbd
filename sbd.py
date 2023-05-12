@@ -381,32 +381,9 @@ class SBD:
         xmax = tf.expand_dims(xmax, axis=-1)
         ymax = tf.expand_dims(ymax, axis=-1)
         max_class_index = tf.expand_dims(max_class_index, axis=-1)
-        result_tensor = tf.concat([confidence, ymin, xmin, ymax, xmax, max_class_index], axis=-1)  # box format must be [ymin, xmin, ymax, xmax] for using tf.image.non_max_suppression()
+        result_tensor = tf.concat([confidence, ymin, xmin, ymax, xmax, max_class_index], axis=-1)
         boxes_before_nms = tf.gather_nd(result_tensor, over_confidence_indices)
         return boxes_before_nms
-
-    @staticmethod
-    @tf.function(experimental_relax_shapes=True)
-    def tf_nms(boxes, nms_iou_threshold, num_classes, max_box_size_per_class):
-        scores = boxes[:, 0]
-        boxes = boxes[:, 1:]
-
-        selected_indices = tf.TensorArray(dtype=tf.int32, size=0, dynamic_size=True)
-        for class_index in tf.range(num_classes):
-            class_indices = tf.where(tf.equal(tf.cast(boxes[:, 4], dtype=tf.int32), class_index))
-            class_indices = tf.cast(class_indices, dtype=tf.int32)  # cast to int32
-            class_boxes = tf.gather_nd(boxes[:, :4], class_indices)
-            class_scores = tf.gather_nd(scores, class_indices)
-            nms_indices = tf.image.non_max_suppression(class_boxes, class_scores, max_output_size=max_box_size_per_class, iou_threshold=nms_iou_threshold)
-            selected_indices = selected_indices.write(class_index, tf.gather(class_indices, nms_indices))
-        selected_indices = selected_indices.concat()
-
-        selected_boxes = tf.gather(boxes, selected_indices)
-        selected_boxes = tf.reshape(selected_boxes, (-1, 5))
-        selected_scores = tf.gather(scores, selected_indices)
-
-        boxes_after_nms = tf.concat([selected_scores, selected_boxes], axis=1)
-        return boxes_after_nms
 
     @staticmethod
     def predict(model, img, device, confidence_threshold=0.2, nms_iou_threshold=0.45, verbose=False):
