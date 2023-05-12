@@ -114,10 +114,10 @@ class DataGenerator:
                 print(label_path)
             ModelUtil.print_error_exit(f'{len(invalid_label_paths)} invalid label exists fix it')
 
-        maxlen= len(str(np.max(class_counts)))
+        max_len = len(str(np.max(class_counts)))
         print(f'\nclass counts')
         for i in range(len(class_counts)):
-            print(f'class {i:>3} : {class_counts[i]:>{maxlen}}')
+            print(f'class {i:>3} : {class_counts[i]:>{max_len}}')
         print('label check success')
 
     def get_iou_with_virtual_anchors(self, box):
