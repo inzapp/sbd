@@ -132,43 +132,21 @@ class DataGenerator:
             iou_with_virtual_anchors.append([layer_index, iou])
         return sorted(iou_with_virtual_anchors, key=lambda x: x[1], reverse=True)
 
-    def calculate_class_weights(self):
+    def print_class_count(self):
         fs = []
         for path in self.image_paths:
             fs.append(self.pool.submit(self.load_label, f'{path[:-4]}.txt'))
 
         class_counts = np.zeros(shape=(self.num_classes,), dtype=np.int32)
-        labeled_boxes, ws, hs = [], [], []
         for f in tqdm(fs):
             lines, label_path = f.result()
             for line in lines:
                 class_index, cx, cy, w, h = list(map(float, line.split()))
                 class_counts[int(class_index)] += 1
-                labeled_boxes.append([cx, cy, w, h])
-                ws.append(w)
-                hs.append(h)
 
-        class_counts_over_zero = class_counts[class_counts > 0]
-        if class_counts_over_zero is None:
-            class_weights = np.ones(shape=(self.num_classes,), dtype=np.float32)
-        else:
-            min_class_count = np.min(class_counts_over_zero) + 1e-5
-            class_weights = np.asarray([min_class_count / class_count for class_count in class_counts], dtype=np.float32)
-        
-        class_weights_sum = np.sum(class_weights) + 1e-5
-        if class_weights_sum > 4.0:
-            print(class_weights)
-            print(class_weights_sum)
-            print()
-            class_weights *= (4.0 / class_weights_sum)
-
-        print(f'\nclass count, weight')
-        for i in range(len(class_weights)):
-            print(f'class {i:>3} : {class_counts[i]:>8}, {class_weights[i]:.2f}')
-
-        # print(len(class_counts))
-        # print(np.sum(class_weights))
-        return class_weights
+        print(f'\nclass count')
+        for i in range(len(class_counts)):
+            print(f'class {i:>3} : {class_counts[i]:>8}')
 
     def calculate_virtual_anchor(self):
         if self.num_output_layers == 1:  # one layer model doesn't need virtual anchor
