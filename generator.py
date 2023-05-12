@@ -59,26 +59,15 @@ class DataGenerator:
             is_label_exists = True
         return is_label_exists, label_path
 
-    def check_labels_exist(self):
-        fs = []
-        for path in self.image_paths:
-            fs.append(self.pool.submit(self.is_label_exists, f'{path[:-4]}.txt'))
-        not_found_label_paths = set()
-        for f in tqdm(fs):
-            label_exists, label_path = f.result()
-            if not label_exists:
-                not_found_label_paths.add(label_path)
-        if len(not_found_label_paths) > 0:
-            print()
-            for label_path in list(not_found_label_paths):
-                print(f'label not found : {label_path}')
-            ModelUtil.print_error_exit(f'{len(not_found_label_paths)} labels not found')
-        print('label exist check success')
-
     def load_label(self, label_path):
-        with open(label_path, 'rt') as f:
-            lines = f.readlines()
-        return lines, label_path
+        lines = []
+        label_exists = True
+        if not (os.path.exists(label_path) and os.path.isfile(label_path)):
+            label_exists = False
+        if label_exists:
+            with open(label_path, 'rt') as f:
+                lines = f.readlines()
+        return lines, label_path, label_exists
 
     def is_invalid_label(self, path, label, num_classes):
         class_index, cx, cy, w, h = label
@@ -94,23 +83,42 @@ class DataGenerator:
         else:
             return False
 
-    def check_invalid_label(self):
+    def check_label(self):
         fs = []
         for path in self.image_paths:
             fs.append(self.pool.submit(self.load_label, f'{path[:-4]}.txt'))
+
         invalid_label_paths = set()
+        not_found_label_paths = set()
+        class_counts = np.zeros(shape=(self.num_classes,), dtype=np.int32)
         for f in tqdm(fs):
-            lines, label_path = f.result()
-            for line in lines:
-                class_index, cx, cy, w, h = list(map(float, line.split()))
-                if self.is_invalid_label(label_path, [class_index, cx, cy, w, h], self.num_classes):
-                    invalid_label_paths.add(label_path)
+            lines, label_path, exists = f.result()
+            if not exists:
+                not_found_label_paths.add(label_path)
+            if len(not_found_label_paths) == 0:
+                for line in lines:
+                    class_index, cx, cy, w, h = list(map(float, line.split()))
+                    class_counts[int(class_index)] += 1
+                    if self.is_invalid_label(label_path, [class_index, cx, cy, w, h], self.num_classes):
+                        invalid_label_paths.add(label_path)
+
+        if len(not_found_label_paths) > 0:
+            print()
+            for label_path in list(not_found_label_paths):
+                print(f'label not found : {label_path}')
+            ModelUtil.print_error_exit(f'{len(not_found_label_paths)} labels not found')
+
         if len(invalid_label_paths) > 0:
             print()
             for label_path in list(invalid_label_paths):
                 print(label_path)
             ModelUtil.print_error_exit(f'{len(invalid_label_paths)} invalid label exists fix it')
-        print('invalid label check success')
+
+        maxlen= len(str(np.max(class_counts)))
+        print(f'\nclass counts')
+        for i in range(len(class_counts)):
+            print(f'class {i:>3} : {class_counts[i]:>{maxlen}}')
+        print('label check success')
 
     def get_iou_with_virtual_anchors(self, box):
         cx, cy, w, h = box
@@ -132,22 +140,6 @@ class DataGenerator:
             iou_with_virtual_anchors.append([layer_index, iou])
         return sorted(iou_with_virtual_anchors, key=lambda x: x[1], reverse=True)
 
-    def print_class_count(self):
-        fs = []
-        for path in self.image_paths:
-            fs.append(self.pool.submit(self.load_label, f'{path[:-4]}.txt'))
-
-        class_counts = np.zeros(shape=(self.num_classes,), dtype=np.int32)
-        for f in tqdm(fs):
-            lines, label_path = f.result()
-            for line in lines:
-                class_index, cx, cy, w, h = list(map(float, line.split()))
-                class_counts[int(class_index)] += 1
-
-        print(f'\nclass count')
-        for i in range(len(class_counts)):
-            print(f'class {i:>3} : {class_counts[i]:>8}')
-
     def calculate_virtual_anchor(self):
         if self.num_output_layers == 1:  # one layer model doesn't need virtual anchor
             self.virtual_anchor_ws = [0.5]
@@ -161,7 +153,7 @@ class DataGenerator:
         ignore_box_count = 0
         labeled_boxes, ws, hs = [], [], []
         for f in tqdm(fs):
-            lines, label_path = f.result()
+            lines, label_path, _ = f.result()
             for line in lines:
                 class_index, cx, cy, w, h = list(map(float, line.split()))
                 is_w_valid = int(w * self.input_shape[1]) > 3
@@ -222,7 +214,7 @@ class DataGenerator:
         y_true_obj_count = 0
         box_count_in_real_data = 0
         for f in tqdm(fs):
-            label_lines, _ = f.result()
+            label_lines, _, _ = f.result()
             labeled_boxes = self.convert_to_boxes(label_lines)
             box_count_in_real_data += len(labeled_boxes)
             _, _, allocated_count = self.build_batch_tensor(labeled_boxes)
