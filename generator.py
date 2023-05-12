@@ -266,7 +266,6 @@ class DataGenerator:
 
     def random_scale(self, img, label_lines, min_scale):
         def overlay(img, overlay_img, start_x, start_y, channels):
-            img_height, img_width = img.shape[:2]
             overlay_img_height, overlay_img_width = overlay_img.shape[:2]
             y_slice = slice(start_y, start_y + overlay_img_height)
             x_slice = slice(start_x, start_x + overlay_img_width)
@@ -300,7 +299,6 @@ class DataGenerator:
         roi_y2 = (start_y + reduced_height) / float(img_height)
         roi_w = roi_x2 - roi_x1
         roi_h = roi_y2 - roi_y1
-        roi = [roi_x1, roi_y1, roi_x2, roi_y2]
 
         scaled_label_lines = []
         for line in label_lines:
@@ -344,7 +342,7 @@ class DataGenerator:
                 labeled_boxes[same_box_index]['class_indexes'].append(class_index)
         return sorted(labeled_boxes, key=lambda x: x['area'], reverse=True)
 
-    def get_nearby_grids(self, confidence_channel, rows, cols, row, col, cx_grid, cy_grid, cx_raw, cy_raw, w, h):
+    def get_nearby_grids(self, rows, cols, row, col, cx_grid, cy_grid, cx_raw, cy_raw, w, h):
         nearby_cells = []
         positions = [[-1, -1, 'lt'], [-1, 0, 't'], [-1, 1, 'rt'], [0, -1, 'l'], [0, 0, 'c'], [0, 1, 'r'], [1, -1, 'lb'], [1, 0, 'b'], [1, 1, 'rb']]
         for offset_y, offset_x, name in positions:
@@ -433,7 +431,6 @@ class DataGenerator:
                 cx_grid_scale = (cx - float(center_col) / output_cols) / (1.0 / output_cols)
                 cy_grid_scale = (cy - float(center_row) / output_rows) / (1.0 / output_rows)
                 nearby_grids = self.get_nearby_grids(
-                    confidence_channel=y[i][:, :, 0],
                     rows=output_rows,
                     cols=output_cols,
                     row=center_row,
