@@ -453,13 +453,8 @@ class DataGenerator:
                     if y[i][offset_center_row][offset_center_col][0] == 0.0:
                         half_scale = max(self.ignore_scale * 0.5, 1e-5)
                         object_heatmap = 1.0 - np.clip((np.abs(rr - center_row_f) / (h * half_scale)) ** 2 + (np.abs(cc - center_col_f) / (w * half_scale)) ** 2, 0.0, 1.0) ** 0.5
-                        # confidence_channel = y[i][:, :, 0]
-                        # confidence_indices = np.where(object_heatmap > confidence_channel)
-                        # confidence_channel[confidence_indices] = object_heatmap[confidence_indices]
-
                         object_mask = np.where(object_heatmap == 0.0, 1.0, 0.0)
                         object_mask[offset_center_row][offset_center_col] = 1.0
-
                         confidence_mask_channel = mask[i][:, :, 0]
                         confidence_mask_indices = np.where(object_mask < confidence_mask_channel)
                         confidence_mask_channel[confidence_mask_indices] = object_mask[confidence_mask_indices]
@@ -468,19 +463,7 @@ class DataGenerator:
                         y[i][offset_center_row][offset_center_col][2] = cy_grid
                         y[i][offset_center_row][offset_center_col][3] = w
                         y[i][offset_center_row][offset_center_col][4] = h
-
-                        # cx_channel = y[i][:, :, 1]
-                        # cy_channel = y[i][:, :, 2]
-                        # w_channel = y[i][:, :, 3]
-                        # h_channel = y[i][:, :, 4]
-                        # cx_channel[confidence_indices] = cx_grid
-                        # cy_channel[confidence_indices] = cy_grid
-                        # w_channel[confidence_indices] = w
-                        # h_channel[confidence_indices] = h
                         for class_index in class_indexes:
-                            # class_channel = y[i][:, :, class_index+5]
-                            # class_indices = np.where(object_heatmap > class_channel)
-                            # class_channel[class_indices] = object_heatmap[class_indices]
                             class_mask_channel = mask[i][:, :, class_index+5]
                             class_mask_indices = np.where(object_mask < class_mask_channel)
                             class_mask_channel[class_mask_indices] = object_mask[class_mask_indices]
