@@ -25,6 +25,7 @@ smoothing: 0.1
 decay_step: 0.1
 ignore_scale: 0.1
 batch_size: 4
+num_workers: 8
 iterations: 1000000
 map_checkpoint_interval: 0
 multi_classification_at_same_box: False

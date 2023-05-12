@@ -52,6 +52,7 @@ class SBD:
         aug_brightness = config['aug_brightness']
         aug_contrast = config['aug_contrast']
         batch_size = config['batch_size']
+        num_workers = config['num_workers']
         self.class_names_file_path = config['class_names_file_path']
         self.lr = config['lr']
         self.obj_alpha_param = config['obj_alpha'] 
@@ -106,6 +107,7 @@ class SBD:
             input_shape=input_shape,
             output_shape=self.model.output_shape,
             batch_size=batch_size,
+            num_workers=num_workers,
             multi_classification_at_same_box=multi_classification_at_same_box,
             ignore_scale=ignore_scale,
             aug_scale=aug_scale,
@@ -116,6 +118,7 @@ class SBD:
             input_shape=input_shape,
             output_shape=self.model.output_shape,
             batch_size=batch_size,
+            num_workers=num_workers,
             multi_classification_at_same_box=multi_classification_at_same_box,
             ignore_scale=ignore_scale,
             aug_scale=aug_scale,
@@ -126,6 +129,7 @@ class SBD:
             input_shape=input_shape,
             output_shape=self.model.output_shape,
             batch_size=ModelUtil.get_zero_mod_batch_size(len(self.train_image_paths)),
+            num_workers=num_workers,
             multi_classification_at_same_box=multi_classification_at_same_box,
             ignore_scale=ignore_scale,
             aug_scale=1.0,
@@ -136,6 +140,7 @@ class SBD:
             input_shape=input_shape,
             output_shape=self.model.output_shape,
             batch_size=ModelUtil.get_zero_mod_batch_size(len(self.validation_image_paths)),
+            num_workers=num_workers,
             multi_classification_at_same_box=multi_classification_at_same_box,
             ignore_scale=ignore_scale,
             aug_scale=1.0,
