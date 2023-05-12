@@ -53,6 +53,9 @@ class DataGenerator:
     def __len__(self):
         return int(np.floor(len(self.image_paths) / self.batch_size))
 
+    def label_path(self, image_path):
+        return f'{image_path[:-4]}.txt'
+
     def is_label_exists(self, label_path):
         is_label_exists = False
         if os.path.exists(label_path) and os.path.isfile(label_path):
@@ -86,7 +89,7 @@ class DataGenerator:
     def check_label(self):
         fs = []
         for path in self.image_paths:
-            fs.append(self.pool.submit(self.load_label, f'{path[:-4]}.txt'))
+            fs.append(self.pool.submit(self.load_label, self.label_path(path)))
 
         invalid_label_paths = set()
         not_found_label_paths = set()
@@ -149,7 +152,7 @@ class DataGenerator:
 
         fs = []
         for path in self.image_paths:
-            fs.append(self.pool.submit(self.load_label, f'{path[:-4]}.txt'))
+            fs.append(self.pool.submit(self.load_label, self.label_path(path)))
         ignore_box_count = 0
         labeled_boxes, ws, hs = [], [], []
         for f in tqdm(fs):
@@ -209,7 +212,7 @@ class DataGenerator:
     def calculate_best_possible_recall(self):
         fs = []
         for path in self.image_paths:
-            fs.append(self.pool.submit(self.load_label, f'{path[:-4]}.txt'))
+            fs.append(self.pool.submit(self.load_label, self.label_path(path)))
 
         y_true_obj_count = 0
         box_count_in_real_data = 0
@@ -454,7 +457,7 @@ class DataGenerator:
             img, _, cur_img_path = f.result()
             img = ModelUtil.resize(img, (self.input_width, self.input_height))
             img = self.transform(image=img)['image']
-            with open(f'{cur_img_path[:-4]}.txt', mode='rt') as file:
+            with open(self.label_path(cur_img_path), mode='rt') as file:
                 label_lines = file.readlines()
             if self.aug_scale < 1.0 and np.random.uniform() < 0.5:
                 img, label_lines = self.random_scale(img, label_lines, self.aug_scale)
