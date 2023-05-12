@@ -471,21 +471,6 @@ class DataGenerator:
                         is_box_allocated = True
                         allocated_count += 1
                         break
-        # for i in range(self.output_shapes[0][1]):
-        #     for j in range(self.output_shapes[0][2]):
-        #         print(f'{int(y[0][i][j][0])} ', end='')
-        #     print()
-        # exit(0)
-
-        # for i in range(len(y)):
-        #     # cv2.imshow(f'confidence', cv2.resize(np.asarray(y[i][:, :, 0] * 255.0).astype('uint8'), (0, 0), fx=8, fy=8, interpolation=cv2.INTER_NEAREST))
-        #     # for class_index in range(self.num_classes):  # class heatmap
-        #     #     cv2.imshow(f'class_{class_index}', cv2.resize(np.asarray(y[i][:, :, class_index+5] * 255.0).astype('uint8'), (0, 0), fx=8, fy=8, interpolation=cv2.INTER_NEAREST))
-
-        #     cv2.imshow(f'confidence mask', cv2.resize(np.asarray(mask[i][:, :, 0] * 255.0).astype('uint8'), (0, 0), fx=8, fy=8, interpolation=cv2.INTER_NEAREST))
-        # key = cv2.waitKey(0)
-        # if key == 27:
-        #     exit(0)
         return y, mask, allocated_count
             
     def load(self):
@@ -497,7 +482,6 @@ class DataGenerator:
             fs.append(self.pool.submit(ModelUtil.load_img, self.get_next_image_path(), self.input_channel))
         for f in fs:
             img, _, cur_img_path = f.result()
-            # cv2.imshow('img', img)
             img = ModelUtil.resize(img, (self.input_width, self.input_height))
             img = self.transform(image=img)['image']
             with open(f'{cur_img_path[:-4]}.txt', mode='rt') as file:
