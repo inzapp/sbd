@@ -249,9 +249,9 @@ class SBD:
         self.train_data_generator_for_check.check_label()
         print('\nchecking label in validation data...')
         self.validation_data_generator_for_check.check_label()
-        print('\calculating virtual anchor...')
+        print('\ncalculating virtual anchor...')
         self.train_data_generator.calculate_virtual_anchor()
-        print('\calculating BPR(Best Possible Recall)...')
+        print('\ncalculating BPR(Best Possible Recall)...')
         self.train_data_generator.calculate_best_possible_recall()
         self.set_alpha_gamma()
         print('\nstart test forward for checking forwarding time.')
@@ -267,10 +267,10 @@ class SBD:
     def compute_gradient(self, model, optimizer, loss_function, x, y_true, mask, num_output_layers, obj_alphas, obj_gammas, cls_alphas, cls_gammas, label_smoothing):
         with tf.GradientTape() as tape:
             y_pred = model(x, training=True)
+            confidence_loss, bbox_loss, classification_loss = 0.0, 0.0, 0.0
             if num_output_layers == 1:
                 confidence_loss, bbox_loss, classification_loss = loss_function(y_true, y_pred, mask, obj_alphas[0], obj_gammas[0], cls_alphas[0], cls_gammas[0], label_smoothing)
             else:
-                confidence_loss, bbox_loss, classification_loss = 0.0, 0.0, 0.0
                 for i in range(num_output_layers):
                     _confidence_loss, _bbox_loss, _classification_loss = loss_function(y_true[i], y_pred[i], mask[i], obj_alphas[i], obj_gammas[i], cls_alphas[i], cls_gammas[i], label_smoothing)
                     confidence_loss += _confidence_loss
