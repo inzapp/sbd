@@ -74,6 +74,7 @@ class SBD:
         self.lr_policy = config['lr_policy']
         self.model_name = config['model_name']
         self.model_type = config['model_type']
+        self.fast_mode = config['fast_data_loader']
         self.training_view = config['training_view']
         self.map_checkpoint_interval = config['map_checkpoint_interval']
         self.live_view_previous_time = time()
@@ -112,7 +113,8 @@ class SBD:
             ignore_scale=ignore_scale,
             aug_scale=aug_scale,
             aug_brightness=aug_brightness,
-            aug_contrast=aug_contrast)
+            aug_contrast=aug_contrast,
+            fast_mode=self.fast_mode)
         self.validation_data_generator = DataGenerator(
             image_paths=self.validation_image_paths,
             input_shape=input_shape,
@@ -123,7 +125,8 @@ class SBD:
             ignore_scale=ignore_scale,
             aug_scale=aug_scale,
             aug_brightness=aug_brightness,
-            aug_contrast=aug_contrast)
+            aug_contrast=aug_contrast,
+            fast_mode=False)
         self.train_data_generator_for_check = DataGenerator(
             image_paths=self.train_image_paths,
             input_shape=input_shape,
@@ -134,7 +137,8 @@ class SBD:
             ignore_scale=ignore_scale,
             aug_scale=1.0,
             aug_brightness=aug_brightness,
-            aug_contrast=aug_contrast)
+            aug_contrast=aug_contrast,
+            fast_mode=False)
         self.validation_data_generator_for_check = DataGenerator(
             image_paths=self.validation_image_paths,
             input_shape=input_shape,
@@ -145,7 +149,8 @@ class SBD:
             ignore_scale=ignore_scale,
             aug_scale=1.0,
             aug_brightness=aug_brightness,
-            aug_contrast=aug_contrast)
+            aug_contrast=aug_contrast,
+            fast_mode=False)
         np.set_printoptions(precision=6)
 
     def load_cfg(self, cfg_path):
