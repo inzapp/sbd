@@ -23,7 +23,7 @@ from ale import AbsoluteLogarithmicError
 from tensorflow.python.framework.ops import convert_to_tensor_v2
 
 
-IGNORED_LOSS = IGNORED_LOSS
+IGNORED_LOSS = -2147483647.9
 
 
 def __confidence_loss(y_true, y_pred, mask, alpha, gamma):
@@ -34,7 +34,7 @@ def __confidence_loss(y_true, y_pred, mask, alpha, gamma):
     return loss / tf.cast(tf.shape(y_true)[0], dtype=y_pred.dtype)
 
 
-def __iou(y_true, y_pred):
+def __iou(y_true, y_pred, convex):
     y_true_shape = tf.cast(tf.shape(y_true), y_pred.dtype)
     grid_height, grid_width = y_true_shape[1], y_true_shape[2]
 
@@ -87,7 +87,7 @@ def __iou(y_true, y_pred):
     return iou
 
 
-def __bbox_loss(y_true, y_pred, mask):
+def __bbox_loss(y_true, y_pred):
     obj_true = y_true[:, :, :, 0]
     obj_count = tf.cast(tf.reduce_sum(obj_true), y_pred.dtype)
     if obj_count == tf.constant(0.0):
@@ -98,7 +98,7 @@ def __bbox_loss(y_true, y_pred, mask):
     return loss / tf.cast(tf.shape(y_true)[0], dtype=y_pred.dtype)
 
 
-def __classification_loss(y_true, y_pred, mask, alpha, gamma, label_smoothing):
+def __classification_loss(y_true, y_pred, alpha, gamma, label_smoothing):
     obj_true = y_true[:, :, :, 0]
     obj_count = tf.cast(tf.reduce_sum(obj_true), y_pred.dtype)
     if obj_count == tf.constant(0.0):
@@ -120,11 +120,11 @@ def confidence_loss(y_true, y_pred, mask, obj_alpha, obj_gamma, label_smoothing)
 def confidence_with_bbox_loss(y_true, y_pred, mask, obj_alpha, obj_gamma, label_smoothing):
     y_pred = convert_to_tensor_v2(y_pred)
     y_true = tf.cast(y_true, y_pred.dtype)
-    return __confidence_loss(y_true, y_pred, mask, obj_alpha, obj_gamma), __bbox_loss(y_true, y_pred, mask), IGNORED_LOSS
+    return __confidence_loss(y_true, y_pred, mask, obj_alpha, obj_gamma), __bbox_loss(y_true, y_pred), IGNORED_LOSS
 
 
 def sbd_loss(y_true, y_pred, mask, obj_alpha, obj_gamma, cls_alpha, cls_gamma, label_smoothing):
     y_pred = convert_to_tensor_v2(y_pred)
     y_true = tf.cast(y_true, y_pred.dtype)
-    return __confidence_loss(y_true, y_pred, mask, obj_alpha, obj_gamma), __bbox_loss(y_true, y_pred, mask), __classification_loss(y_true, y_pred, mask, cls_alpha, cls_gamma, label_smoothing)
+    return __confidence_loss(y_true, y_pred, mask, obj_alpha, obj_gamma), __bbox_loss(y_true, y_pred), __classification_loss(y_true, y_pred, cls_alpha, cls_gamma, label_smoothing)
 
