@@ -115,18 +115,6 @@ class SBD:
             aug_brightness=aug_brightness,
             aug_contrast=aug_contrast,
             fast_mode=self.fast_mode)
-        self.validation_data_generator = DataGenerator(
-            image_paths=self.validation_image_paths,
-            input_shape=input_shape,
-            output_shape=self.model.output_shape,
-            batch_size=batch_size,
-            num_workers=num_workers,
-            multi_classification_at_same_box=multi_classification_at_same_box,
-            ignore_scale=ignore_scale,
-            aug_scale=aug_scale,
-            aug_brightness=aug_brightness,
-            aug_contrast=aug_contrast,
-            fast_mode=False)
         self.train_data_generator_for_check = DataGenerator(
             image_paths=self.train_image_paths,
             input_shape=input_shape,
@@ -285,8 +273,8 @@ class SBD:
                 for i in range(num_output_layers):
                     _confidence_loss, _bbox_loss, _classification_loss = loss_function(y_true[i], y_pred[i], mask[i], obj_alphas[i], obj_gammas[i], cls_alphas[i], cls_gammas[i], label_smoothing)
                     confidence_loss += _confidence_loss
-                    bbox_loss += _bbox_loss
-                    classification_loss += _classification_loss
+                    bbox_loss = bbox_loss + _bbox_loss if _bbox_loss != IGNORED_LOSS else IGNORED_LOSS
+                    classification_loss = classification_loss + _classification_loss if _classification_loss != IGNORED_LOSS else IGNORED_LOSS
             loss = confidence_loss
             if bbox_loss != IGNORED_LOSS:
                 loss += bbox_loss
@@ -310,7 +298,7 @@ class SBD:
         loss_str = f'\r[iteration_count : {iteration_count:6d}]'
         loss_str += f' confidence_loss : {confidence_loss:>8.4f}'
         if bbox_loss != IGNORED_LOSS:
-            loss_str += f', bbox_loss: {bbox_loss:>8.4f}'
+            loss_str += f', bbox_loss : {bbox_loss:>8.4f}'
         if classification_loss != IGNORED_LOSS:
             loss_str += f', classification_loss : {classification_loss:>8.4f}'
         return loss_str
