@@ -26,11 +26,12 @@ import tensorflow as tf
 
 from glob import glob
 from model import Model
-from util import ModelUtil
-from time import time, sleep
+from util import Util
 from box_colors import colors
-from lr_scheduler import LRScheduler
+from keras_flops import get_flops
 from generator import DataGenerator
+from lr_scheduler import LRScheduler
+from time import time, sleep, perf_counter
 from mAP_calculator import calc_mean_average_precision
 from loss import confidence_loss, confidence_with_bbox_loss, sbd_loss, IGNORED_LOSS
 
@@ -82,7 +83,7 @@ class SBD:
         self.pretrained_iteration_count = 0
         self.best_mean_ap = 0.0
 
-        self.class_names, self.num_classes = ModelUtil.init_class_names(self.class_names_file_path)
+        self.class_names, self.num_classes = self.init_class_names(self.class_names_file_path)
         self.use_pretrained_model = False
         if self.pretrained_model_path.endswith('.h5') and training:
             self.load_model(self.pretrained_model_path)
@@ -90,7 +91,7 @@ class SBD:
 
         if not self.use_pretrained_model:
             if self.num_classes == 0:
-                ModelUtil.print_error_exit(f'classes file not found. file path : {self.class_names_file_path}')
+                Util.print_error_exit(f'classes file not found. file path : {self.class_names_file_path}')
             if self.optimizer == 'adam':
                 self.l2 = 0.0
             self.model = Model(input_shape=input_shape, output_channel=self.num_classes + 5, l2=self.l2, drop_rate=self.drop_rate).build(self.model_type)
@@ -100,8 +101,8 @@ class SBD:
         else:
             self.num_output_layers = len(self.model.output_shape)
 
-        self.train_image_paths = ModelUtil.init_image_paths(train_image_path)
-        self.validation_image_paths = ModelUtil.init_image_paths(validation_image_path)
+        self.train_image_paths = self.init_image_paths(train_image_path)
+        self.validation_image_paths = self.init_image_paths(validation_image_path)
 
         self.train_data_generator = DataGenerator(
             image_paths=self.train_image_paths,
@@ -119,7 +120,7 @@ class SBD:
             image_paths=self.train_image_paths,
             input_shape=input_shape,
             output_shape=self.model.output_shape,
-            batch_size=ModelUtil.get_zero_mod_batch_size(len(self.train_image_paths)),
+            batch_size=self.get_zero_mod_batch_size(len(self.train_image_paths)),
             num_workers=num_workers,
             multi_classification_at_same_box=multi_classification_at_same_box,
             ignore_scale=ignore_scale,
@@ -131,7 +132,7 @@ class SBD:
             image_paths=self.validation_image_paths,
             input_shape=input_shape,
             output_shape=self.model.output_shape,
-            batch_size=ModelUtil.get_zero_mod_batch_size(len(self.validation_image_paths)),
+            batch_size=self.get_zero_mod_batch_size(len(self.validation_image_paths)),
             num_workers=num_workers,
             multi_classification_at_same_box=multi_classification_at_same_box,
             ignore_scale=ignore_scale,
@@ -141,11 +142,37 @@ class SBD:
             fast_mode=False)
         np.set_printoptions(precision=6)
 
+    def init_class_names(self, class_names_file_path):
+        if os.path.exists(class_names_file_path) and os.path.isfile(class_names_file_path):
+            with open(class_names_file_path, 'rt') as classes_file:
+                class_names = [s.replace('\n', '') for s in classes_file.readlines()]
+                num_classes = len(class_names)
+            return class_names, num_classes
+        else:
+            return [], 0
+
+    def init_image_paths(self, image_path):
+        if image_path.endswith('.txt'):
+            with open(image_path, 'rt') as f:
+                image_paths = f.readlines()
+            for i in range(len(image_paths)):
+                image_paths[i] = image_paths[i].replace('\n', '')
+        else:
+            image_paths = glob(f'{image_path}/**/*.jpg', recursive=True)
+        return image_paths
+
+    def get_zero_mod_batch_size(self, image_paths_length):
+        zero_mod_batch_size = 1
+        for i in range(1, 256, 1):
+            if image_paths_length % i == 0:
+                zero_mod_batch_size = i
+        return zero_mod_batch_size
+
     def load_cfg(self, cfg_path):
         if not os.path.exists(cfg_path):
-            ModelUtil.print_error_exit(f'invalid cfg path. file not found : {cfg_path}')
+            Util.print_error_exit(f'invalid cfg path. file not found : {cfg_path}')
         if not os.path.isfile(cfg_path):
-            ModelUtil.print_error_exit(f'invalid file format, is not file : {cfg_path}')
+            Util.print_error_exit(f'invalid file format, is not file : {cfg_path}')
         with open(cfg_path, 'rt') as f:
             config = yaml.load(f, Loader=yaml.FullLoader)
         return config
@@ -171,7 +198,7 @@ class SBD:
             self.model = tf.keras.models.load_model(model_path, compile=False)
             self.pretrained_iteration_count = self.parse_pretrained_iteration_count(model_path)
         else:
-            ModelUtil.print_error_exit(f'pretrained model not found. model path : {model_path}')
+            Util.print_error_exit(f'pretrained model not found. model path : {model_path}')
 
     def parse_pretrained_iteration_count(self, pretrained_model_path):
         iteration_count = 0
@@ -221,11 +248,11 @@ class SBD:
                     try:
                         float(val)
                     except:
-                        ModelUtil.print_error_exit(f'invalid alpha or gamma value value : {val}')
+                        Util.print_error_exit(f'invalid alpha or gamma value value : {val}')
             else:
-                ModelUtil.print_error_exit(f'list length of alpha is must be equal with models output layer count {num_output_layers}')
+                Util.print_error_exit(f'list length of alpha is must be equal with models output layer count {num_output_layers}')
         else:
-            ModelUtil.print_error_exit(f'invalid type ({param_type}) of alpha. type must be float or list')
+            Util.print_error_exit(f'invalid type ({param_type}) of alpha. type must be float or list')
         return params
 
     def set_alpha_gamma(self):
@@ -235,9 +262,34 @@ class SBD:
         self.cls_alphas = self.convert_alpha_gamma_to_list(self.cls_alpha_param, num_output_layers)
         self.cls_gammas = self.convert_alpha_gamma_to_list(self.cls_gamma_param, num_output_layers)
 
+    def available_device(self):
+        devices = tf.config.list_physical_devices()
+        for device in devices:
+            if device.device_type.lower() == 'gpu':
+                return 'gpu'
+        return 'cpu'
+
+    def check_forwarding_time(self, model, device):
+        input_shape = model.input_shape[1:]
+        mul = 1
+        for val in input_shape:
+            mul *= val
+
+        forward_count = 32
+        noise = np.random.uniform(0.0, 1.0, mul * forward_count)
+        noise = np.asarray(noise).reshape((forward_count, 1) + input_shape).astype('float32')
+        SBD.graph_forward(model, noise[0], device)  # only first forward is slow, skip first forward in check forwarding time
+
+        st = perf_counter()
+        for i in range(forward_count):
+            SBD.graph_forward(model, noise[i], device)
+        et = perf_counter()
+        forwarding_time = ((et - st) / forward_count) * 1000.0
+        print(f'model forwarding time with {device} : {forwarding_time:.2f} ms')
+
     def fit(self):
         self.init_checkpoint_dir()
-        gflops = ModelUtil.get_gflops(self.model)
+        gflops = get_flops(self.model, batch_size=1) * 1e-9
         self.save_last_model(iteration_count=self.pretrained_iteration_count)
         self.model.summary()
         print(f'\nGFLOPs : {gflops:.4f}')
@@ -254,9 +306,9 @@ class SBD:
         self.train_data_generator.calculate_best_possible_recall()
         self.set_alpha_gamma()
         print('\nstart test forward for checking forwarding time.')
-        if ModelUtil.available_device() == 'gpu':
-            ModelUtil.check_forwarding_time(self.model, device='gpu')
-        ModelUtil.check_forwarding_time(self.model, device='cpu')
+        if self.available_device() == 'gpu':
+            self.check_forwarding_time(self.model, device='gpu')
+        self.check_forwarding_time(self.model, device='cpu')
         if self.use_pretrained_model:
             print(f'\nstart training with pretrained model : {self.pretrained_model_path}')
         else:
@@ -384,6 +436,12 @@ class SBD:
         return boxes_before_nms
 
     @staticmethod
+    @tf.function
+    def graph_forward(model, x, device):
+        with tf.device(f'/{device}:0'):
+            return model(x, training=False)
+
+    @staticmethod
     def predict(model, img, device, confidence_threshold=0.2, nms_iou_threshold=0.45, verbose=False):
         """
         Detect object in image using trained SBD model.
@@ -397,13 +455,13 @@ class SBD:
         each dictionary has class index and bbox info: [x1, y1, x2, y2].
         """
         input_shape = model.input_shape[1:]
-        input_width, input_height, _ = ModelUtil.get_width_height_channel_from_input_shape(input_shape)
+        input_width, input_height, _ = Util.get_width_height_channel_from_input_shape(input_shape)
         output_shape = model.output_shape
         num_output_layers = 1 if type(output_shape) == tuple else len(output_shape)
 
-        img = ModelUtil.resize(img, (input_width, input_height))
-        x = np.reshape(ModelUtil.preprocess(img), (1,) + input_shape)
-        y = ModelUtil.graph_forward(model, x, device)
+        img = Util.resize(img, (input_width, input_height))
+        x = np.reshape(Util.preprocess(img), (1,) + input_shape)
+        y = SBD.graph_forward(model, x, device)
         y = np.array(y)
         if num_output_layers == 1:
             y = [y]
@@ -422,7 +480,7 @@ class SBD:
                 'bbox_norm': [x1, y1, x2, y2],
                 'class': class_index,
                 'discard': False})
-        boxes = ModelUtil.nms(boxes_before_nms_dicts, nms_iou_threshold)
+        boxes = Util.nms(boxes_before_nms_dicts, nms_iou_threshold)
         if verbose:
             print(f'before nms box count : {len(boxes_before_nms_dicts)}')
             print(f'after  nms box count : {len(boxes)}')
@@ -437,6 +495,18 @@ class SBD:
                 print()
             print()
         return boxes
+
+    def is_background_color_bright(self, bgr):
+        """
+        Determine whether the color is bright or not.
+        :param bgr: bgr scalar tuple.
+        :return: true if parameter color is bright and false if not.
+        """
+        tmp = np.zeros((1, 1), dtype=np.uint8)
+        tmp = cv2.cvtColor(tmp, cv2.COLOR_GRAY2BGR)
+        cv2.rectangle(tmp, (0, 0), (1, 1), bgr, -1)
+        tmp = cv2.cvtColor(tmp, cv2.COLOR_BGR2GRAY)
+        return tmp[0][0] > 127
 
     def bounding_box(self, img, boxes, font_scale=0.4, show_class_with_score=True):
         """
@@ -458,7 +528,7 @@ class SBD:
             else:
                 class_name = self.class_names[class_index].replace('\n', '')
             label_background_color = colors[class_index]
-            label_font_color = (0, 0, 0) if ModelUtil.is_background_color_bright(label_background_color) else (255, 255, 255)
+            label_font_color = (0, 0, 0) if self.is_background_color_bright(label_background_color) else (255, 255, 255)
             label_text = f'{class_name}({int(box["confidence"] * 100.0)}%)'
             x1, y1, x2, y2 = box['bbox_norm']
             x1 = int(x1 * img_width)
@@ -478,7 +548,7 @@ class SBD:
         Equal to the evaluate function. video path is required.
         """
         if not (os.path.exists(video_path) and os.path.isfile(video_path)):
-            ModelUtil.print_error_exit(f'video not found. video path : {video_path}')
+            Util.print_error_exit(f'video not found. video path : {video_path}')
         cap = cv2.VideoCapture(video_path)
         while True:
             frame_exist, raw = cap.read()
@@ -499,7 +569,7 @@ class SBD:
         """
         Equal to the evaluate function. image paths are required.
         """
-        input_width, input_height, input_channel = ModelUtil.get_width_height_channel_from_input_shape(self.model.input_shape[1:])
+        input_width, input_height, input_channel = Util.get_width_height_channel_from_input_shape(self.model.input_shape[1:])
         if dataset == 'train':
             image_paths = self.train_image_paths
         elif dataset == 'validation':
@@ -509,7 +579,7 @@ class SBD:
             return
         for path in image_paths:
             print(f'image path : {path}')
-            raw, raw_bgr, _ = ModelUtil.load_img(path, input_channel)
+            raw, raw_bgr, _ = Util.load_img(path, input_channel)
             boxes = SBD.predict(self.model, raw, device=device, verbose=True, confidence_threshold=confidence_threshold)
             raw_bgr = cv2.resize(raw_bgr, (input_width, input_height), interpolation=cv2.INTER_AREA)
             boxed_image = self.bounding_box(raw_bgr, boxes, show_class_with_score=show_class_with_score)
@@ -521,7 +591,7 @@ class SBD:
     def calculate_map(self, dataset, device, confidence_threshold, tp_iou_threshold, cached):
         assert dataset in ['train', 'validation']
         image_paths = self.train_image_paths if dataset == 'train' else self.validation_image_paths
-        device = ModelUtil.available_device() if device == 'auto' else device
+        device = self.available_device() if device == 'auto' else device
         return calc_mean_average_precision(
             model=self.model,
             image_paths=image_paths,
@@ -575,7 +645,7 @@ class SBD:
                 img_path = np.random.choice(self.train_image_paths)
             else:
                 img_path = np.random.choice(self.validation_image_paths)
-            img, raw_bgr, _ = ModelUtil.load_img(img_path, self.input_channels)
+            img, raw_bgr, _ = Util.load_img(img_path, self.input_channels)
             boxes = SBD.predict(self.model, img, device='cpu')
             boxed_image = self.bounding_box(raw_bgr, boxes)
             cv2.imshow('training view', boxed_image)

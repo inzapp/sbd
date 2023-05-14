@@ -20,7 +20,7 @@ limitations under the License.
 import os
 import tensorflow as tf
 
-from util import ModelUtil
+from util import Util
 
 
 os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
@@ -58,7 +58,7 @@ class Model:
             if pyramid_scale not in [0, 1, 2, 3, 4, 5]:
                 is_model_type_valid = False
         if not is_model_type_valid:
-            ModelUtil.print_error_exit([
+            Util.print_error_exit([
                 f'invalid model type => \'{model_type}\'',
                 f'model type must be combination of <backbone(n, s, m, l, x), num_output_layers(1, m), p, pyramid_scale(0, 1, 2, 3, 4, 5)>',
                 f'  backbone : n, s, m, l, x',
@@ -204,7 +204,7 @@ class Model:
                     if type(x) is not list:
                         x = [x]
             else:
-                ModelUtil.print_error_exit(f'invalid layer info method : {method}, available method : [conv, csp, head]')
+                Util.print_error_exit(f'invalid layer info method : {method}, available method : [conv, csp, head]')
             if i < 5:
                 x = self.max_pool(x)
 
@@ -242,7 +242,7 @@ class Model:
             elif methods[i] == 'csp':
                 x = self.csp_block(x, filters[i], kernel_sizes[i], depth=depths[i], activation=activation)
             else:
-                ModelUtil.print_error_exit(f'invalid layer info method : {methods[i]}')
+                Util.print_error_exit(f'invalid layer info method : {methods[i]}')
             output_layers.append(x)
         return output_layers if return_layers else x
 

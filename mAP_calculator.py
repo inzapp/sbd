@@ -2,7 +2,7 @@ import os
 import numpy as np
 
 from tqdm import tqdm
-from util import ModelUtil
+from util import Util
 from map_boxes import mean_average_precision_for_boxes
 from concurrent.futures.thread import ThreadPoolExecutor
 
@@ -62,10 +62,10 @@ def make_predictions_csv(model, image_paths, device):
     print('predictions csv creation start')
     global g_predictions_csv_name
     fs = []
-    _, _, input_channel = ModelUtil.get_width_height_channel_from_input_shape(model.input_shape[1:])
+    _, _, input_channel = Util.get_width_height_channel_from_input_shape(model.input_shape[1:])
     pool = ThreadPoolExecutor(8)
     for path in image_paths:
-        fs.append(pool.submit(ModelUtil.load_img, path, input_channel))
+        fs.append(pool.submit(Util.load_img, path, input_channel))
     csv = 'ImageID,LabelName,Conf,XMin,XMax,YMin,YMax\n'
     for f in tqdm(fs):
         img, _, path = f.result()

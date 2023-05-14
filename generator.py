@@ -23,7 +23,7 @@ import numpy as np
 import albumentations as A
 
 from tqdm import tqdm
-from util import ModelUtil
+from util import Util
 from concurrent.futures.thread import ThreadPoolExecutor
 
 
@@ -31,7 +31,7 @@ class DataGenerator:
     def __init__(self, image_paths, input_shape, output_shape, batch_size, num_workers, multi_classification_at_same_box, ignore_scale, aug_scale, aug_brightness, aug_contrast, fast_mode):
         self.image_paths = image_paths
         self.input_shape = input_shape
-        self.input_width, self.input_height, self.input_channel = ModelUtil.get_width_height_channel_from_input_shape(input_shape)
+        self.input_width, self.input_height, self.input_channel = Util.get_width_height_channel_from_input_shape(input_shape)
         self.output_shapes = output_shape
         if type(self.output_shapes) == tuple:
             self.output_shapes = [self.output_shapes]
@@ -112,13 +112,13 @@ class DataGenerator:
             print()
             for label_path in list(not_found_label_paths):
                 print(f'label not found : {label_path}')
-            ModelUtil.print_error_exit(f'{len(not_found_label_paths)} labels not found')
+            Util.print_error_exit(f'{len(not_found_label_paths)} labels not found')
 
         if len(invalid_label_paths) > 0:
             print()
             for label_path in list(invalid_label_paths):
                 print(label_path)
-            ModelUtil.print_error_exit(f'{len(invalid_label_paths)} invalid label exists fix it')
+            Util.print_error_exit(f'{len(invalid_label_paths)} invalid label exists fix it')
 
         max_len = len(str(np.max(class_counts)))
         print(f'\nclass counts')
@@ -142,7 +142,7 @@ class DataGenerator:
             x2 = cx + (w * 0.5)
             y2 = cy + (h * 0.5)
             virtual_anchor_box = np.clip(np.asarray([x1, y1, x2, y2]), 0.0, 1.0)
-            iou = ModelUtil.iou(labeled_box, virtual_anchor_box)
+            iou = Util.iou(labeled_box, virtual_anchor_box)
             iou_with_virtual_anchors.append([layer_index, iou])
         return sorted(iou_with_virtual_anchors, key=lambda x: x[1], reverse=True)
 
@@ -367,7 +367,7 @@ class DataGenerator:
                 if name == 'c':
                     iou = 1.0
                 else:
-                    iou = ModelUtil.iou(box_origin, box_nearby) - 1e-4  # subtract small value for give center grid to first priority
+                    iou = Util.iou(box_origin, box_nearby) - 1e-4  # subtract small value for give center grid to first priority
                 nearby_cells.append({
                     'offset_y': offset_y,
                     'offset_x': offset_x,
@@ -461,16 +461,16 @@ class DataGenerator:
                 batch_y.append([])
                 batch_mask.append([])
         for _ in range(self.batch_size if not use_cache else 1):
-            fs.append(self.pool.submit(ModelUtil.load_img, self.get_next_image_path(), self.input_channel))
+            fs.append(self.pool.submit(Util.load_img, self.get_next_image_path(), self.input_channel))
         for f in fs:
             img, _, cur_img_path = f.result()
-            img = ModelUtil.resize(img, (self.input_width, self.input_height))
+            img = Util.resize(img, (self.input_width, self.input_height))
             img = self.transform(image=img)['image']
             with open(self.label_path(cur_img_path), mode='rt') as file:
                 label_lines = file.readlines()
             if self.aug_scale < 1.0 and np.random.uniform() < 0.5:
                 img, label_lines = self.random_scale(img, label_lines, self.aug_scale)
-            x = ModelUtil.preprocess(img)
+            x = Util.preprocess(img)
             batch_x.append(x)
             labeled_boxes = self.convert_to_boxes(label_lines)
             np.random.shuffle(labeled_boxes)
