@@ -28,7 +28,7 @@ from concurrent.futures.thread import ThreadPoolExecutor
 
 
 class DataGenerator:
-    def __init__(self, image_paths, input_shape, output_shape, batch_size, num_workers, multi_classification_at_same_box, ignore_scale, aug_scale, aug_brightness, aug_contrast, fast_mode):
+    def __init__(self, image_paths, input_shape, output_shape, batch_size, num_workers, multi_classification_at_same_box, ignore_scale, aug_scale, aug_brightness, aug_contrast):
         self.image_paths = image_paths
         self.input_shape = input_shape
         self.input_width, self.input_height, self.input_channel = Util.get_width_height_channel_from_input_shape(input_shape)
@@ -41,15 +41,10 @@ class DataGenerator:
         self.multi_classification_at_same_box = multi_classification_at_same_box
         self.ignore_scale = ignore_scale
         self.aug_scale = aug_scale
-        self.fast_mode = fast_mode
         self.virtual_anchor_ws = []
         self.virtual_anchor_hs = []
         self.img_index = 0
         self.pool = ThreadPoolExecutor(num_workers)
-        self.cached_batch_x = []
-        self.cached_batch_y = []
-        self.cached_batch_mask = []
-        self.first_batch_loaded = False
         np.random.shuffle(self.image_paths)
         self.transform = A.Compose([
             A.RandomBrightnessContrast(p=0.5, brightness_limit=aug_brightness, contrast_limit=aug_contrast),
@@ -451,16 +446,10 @@ class DataGenerator:
             
     def load(self):
         fs, batch_x, batch_y, batch_mask = [], [], [], []
-        use_cache = self.fast_mode and self.first_batch_loaded
-        if use_cache:
-            batch_x = list(self.cached_batch_x[1:])
-            batch_y = [list(self.cached_batch_y[1:])]
-            batch_mask = [list(self.cached_batch_mask[1:])]
-        else:
-            for i in range(self.num_output_layers):
-                batch_y.append([])
-                batch_mask.append([])
-        for _ in range(self.batch_size if not use_cache else 1):
+        for i in range(self.num_output_layers):
+            batch_y.append([])
+            batch_mask.append([])
+        for _ in range(self.batch_size):
             fs.append(self.pool.submit(Util.load_img, self.get_next_image_path(), self.input_channel))
         for f in fs:
             img, _, cur_img_path = f.result()
@@ -482,15 +471,9 @@ class DataGenerator:
         for i in range(self.num_output_layers):
             batch_y[i] = np.asarray(batch_y[i]).astype('float32')
             batch_mask[i] = np.asarray(batch_mask[i]).astype('float32')
-
         if self.num_output_layers == 1:
             batch_y = batch_y[0]
             batch_mask = batch_mask[0]
-        if self.fast_mode:
-            self.cached_batch_x = batch_x
-            self.cached_batch_y = batch_y
-            self.cached_batch_mask = batch_mask
-            self.first_batch_loaded = True
         return batch_x, batch_y, batch_mask
 
     def get_next_image_path(self):
