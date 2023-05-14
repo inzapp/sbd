@@ -44,7 +44,6 @@ class SBD:
         input_rows = config['input_rows']
         input_cols = config['input_cols']
         self.input_channels = config['input_channels']
-        input_shape = (input_rows, input_cols, self.input_channels)
         train_image_path = config['train_image_path']
         validation_image_path = config['validation_image_path']
         multi_classification_at_same_box = config['multi_classification_at_same_box']
@@ -88,6 +87,10 @@ class SBD:
             self.load_model(self.pretrained_model_path)
             self.use_pretrained_model = True
 
+        assert input_rows % 32 == 0
+        assert input_cols % 32 == 0
+        assert self.input_channels in [1, 3]
+        input_shape = (input_rows, input_cols, self.input_channels)
         if not self.use_pretrained_model:
             if self.num_classes == 0:
                 Util.print_error_exit(f'classes file not found. file path : {self.class_names_file_path}')
