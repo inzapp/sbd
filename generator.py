@@ -50,6 +50,7 @@ class DataGenerator:
         self.cached_batch_y = []
         self.cached_batch_mask = []
         self.first_batch_loaded = False
+        np.random.shuffle(self.image_paths)
         self.transform = A.Compose([
             A.RandomBrightnessContrast(p=0.5, brightness_limit=aug_brightness, contrast_limit=aug_contrast),
             A.GaussianBlur(p=0.5, blur_limit=(5, 5))
