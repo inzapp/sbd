@@ -50,11 +50,9 @@ def auto_label(model_path, image_path, origin_classes_txt_path):
     for path in image_paths:
         fs.append(pool.submit(ModelUtil.load_img, path, channel))
 
-    # device = ModelUtil.available_device()
-    device = 'cpu'
     for f in tqdm(fs):
         raw, _, path = f.result()
-        boxes = SBD.predict(model, raw, device, confidence_threshold=g_confidence_threshold)
+        boxes = SBD.predict(model, raw, 'cpu', confidence_threshold=g_confidence_threshold)
         label_content = ''
         for box in boxes:
             class_index = box['class']
