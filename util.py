@@ -65,13 +65,6 @@ class Util:
         return x
 
     @staticmethod
-    def get_width_height_channel_from_input_shape(input_shape):
-        if input_shape[0] in [1, 3]:
-            return input_shape[2], input_shape[1], input_shape[0]
-        elif input_shape[2] in [1, 3]:
-            return input_shape[1], input_shape[0], input_shape[2]
-
-    @staticmethod
     def nms(boxes, nms_iou_threshold):
         boxes = sorted(boxes, key=lambda x: x['confidence'], reverse=True)
         for i in range(len(boxes) - 1):
