@@ -31,7 +31,7 @@ class DataGenerator:
     def __init__(self, image_paths, input_shape, output_shape, batch_size, num_workers, multi_classification_at_same_box, ignore_scale, aug_scale, aug_brightness, aug_contrast):
         self.image_paths = image_paths
         self.input_shape = input_shape
-        self.input_width, self.input_height, self.input_channel = Util.get_width_height_channel_from_input_shape(input_shape)
+        self.input_height, self.input_width, self.input_channel = input_shape
         self.output_shapes = output_shape
         if type(self.output_shapes) == tuple:
             self.output_shapes = [self.output_shapes]

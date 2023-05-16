@@ -62,7 +62,7 @@ def make_predictions_csv(model, image_paths, device):
     print('predictions csv creation start')
     global g_predictions_csv_name
     fs = []
-    _, _, input_channel = Util.get_width_height_channel_from_input_shape(model.input_shape[1:])
+    input_channel = model.input_shape[1:][-1]
     pool = ThreadPoolExecutor(8)
     for path in image_paths:
         fs.append(pool.submit(Util.load_img, path, input_channel))

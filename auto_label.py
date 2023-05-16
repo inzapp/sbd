@@ -36,7 +36,7 @@ os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 def auto_label(model_path, image_path, origin_classes_txt_path):
     model = tf.keras.models.load_model(model_path, compile=False)
     input_shape = model.input_shape[1:]
-    _, _, channel = Util.get_width_height_channel_from_input_shape(input_shape)
+    channel = input_shape[-1]
 
     image_paths = glob(f'{image_path}/*.jpg')
     classes_txt_path = f'{image_path}/classes.txt'

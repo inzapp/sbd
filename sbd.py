@@ -454,7 +454,7 @@ class SBD:
         each dictionary has class index and bbox info: [x1, y1, x2, y2].
         """
         input_shape = model.input_shape[1:]
-        input_width, input_height, _ = Util.get_width_height_channel_from_input_shape(input_shape)
+        input_height, input_width = input_shape[:2]
         output_shape = model.output_shape
         num_output_layers = 1 if type(output_shape) == tuple else len(output_shape)
 
@@ -568,7 +568,7 @@ class SBD:
         """
         Equal to the evaluate function. image paths are required.
         """
-        input_width, input_height, input_channel = Util.get_width_height_channel_from_input_shape(self.model.input_shape[1:])
+        input_height, input_width, input_channel = self.model.input_shape[1:]
         if dataset == 'train':
             image_paths = self.train_image_paths
         elif dataset == 'validation':
