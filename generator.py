@@ -452,10 +452,10 @@ class DataGenerator:
         for _ in range(self.batch_size):
             fs.append(self.pool.submit(Util.load_img, self.get_next_image_path(), self.input_channel))
         for f in fs:
-            img, _, cur_img_path = f.result()
+            img, _, path = f.result()
             img = Util.resize(img, (self.input_width, self.input_height))
             img = self.transform(image=img)['image']
-            with open(self.label_path(cur_img_path), mode='rt') as file:
+            with open(self.label_path(path), mode='rt') as file:
                 label_lines = file.readlines()
             if self.aug_scale < 1.0 and np.random.uniform() < 0.5:
                 img, label_lines = self.random_scale(img, label_lines, self.aug_scale)
