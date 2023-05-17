@@ -90,25 +90,6 @@ class Util:
         return boxes
 
     @staticmethod
-    def nms(boxes, nms_iou_threshold):
-        boxes = sorted(boxes, key=lambda x: x['confidence'], reverse=True)
-        for i in range(len(boxes) - 1):
-            if boxes[i]['discard']:
-                continue
-            for j in range(i + 1, len(boxes)):
-                if boxes[j]['discard'] or boxes[i]['class'] != boxes[j]['class']:
-                    continue
-                if Util.iou(boxes[i]['bbox_norm'], boxes[j]['bbox_norm']) > nms_iou_threshold:
-                    boxes[j]['discard'] = True
-
-        y_pred_copy = np.asarray(boxes.copy())
-        boxes = []
-        for i in range(len(y_pred_copy)):
-            if not y_pred_copy[i]['discard']:
-                boxes.append(y_pred_copy[i])
-        return boxes
-
-    @staticmethod
     def iou(a, b):
         """
         Intersection of union function.
