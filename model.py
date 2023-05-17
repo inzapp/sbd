@@ -64,7 +64,7 @@ class Model:
                 f'  pyramid scale : scale value for feature pyramid. max resolution scale of output layers',
                 f'',
                 f'ex) n1p3 : nano backbone with one output layer, 3 pyramid scale : output layer resolution is divided by 8(2^3) of input resolution',
-                f'ex) lmp2 : large backbone with multi output layer(4 output layer for pyramid sacle 4), 2 pyramid scale : output layer resolution is divided by 4(2^2) of input resolution',
+                f'ex) lmp2 : large backbone with multi output layer(4 output layer for pyramid sacle 2), 2 pyramid scale : output layer resolution is divided by 4(2^2) of input resolution',
                 f'ex) xmp4 : xlarge backbone with multi output layer(2 output layer for pyramid sacle 4), 4 pyramid scale : output layer resolution is divided by 16(2^4) of input resolution'])
         return self.models[backbone](num_output_layers, pyramid_scale)
 
