@@ -455,8 +455,10 @@ class DataGenerator:
             img, _, path = f.result()
             img = Util.resize(img, (self.input_width, self.input_height))
             img = self.transform(image=img)['image']
-            with open(self.label_path(path), mode='rt') as file:
-                label_lines = file.readlines()
+            label_lines, label_path, label_exists = self.load_label(self.label_path(path))
+            if not label_exists:
+                print(f'label not found : {label_path}')
+                continue
             if self.aug_scale < 1.0 and np.random.uniform() < 0.5:
                 img, label_lines = self.random_scale(img, label_lines, self.aug_scale)
             x = Util.preprocess(img)
