@@ -542,21 +542,28 @@ class SBD:
                 cv2.putText(img, label_text, (x1 + padding - 1, y1 - baseline - padding), cv2.FONT_HERSHEY_DUPLEX, fontScale=font_scale, color=label_font_color, thickness=1, lineType=cv2.LINE_AA)
         return img
 
-    def predict_video(self, video_path, confidence_threshold=0.2, device='cpu', show_class_with_score=True):
+    def predict_video(self, video_path, confidence_threshold=0.2, device='cpu', show_class_with_score=True, width=0, height=0):
         """
         Equal to the evaluate function. video path is required.
         """
         if not (os.path.exists(video_path) and os.path.isfile(video_path)):
             Util.print_error_exit(f'video not found. video path : {video_path}')
         cap = cv2.VideoCapture(video_path)
+
+        view_width, view_height = 0, 0
+        if width > 0 and height > 0:
+            view_width, view_height = width, height
+        else:
+            view_width, view_height = input_width, input_height
         while True:
-            frame_exist, raw = cap.read()
+            frame_exist, bgr = cap.read()
             if not frame_exist:
                 print('frame not exists')
                 break
-            x = cv2.cvtColor(raw, cv2.COLOR_BGR2GRAY) if self.model.input.shape[-1] == 1 else raw.copy()
-            boxes = SBD.predict(self.model, x, device=device, confidence_threshold=confidence_threshold)
-            boxed_image = self.bounding_box(raw, boxes, show_class_with_score=show_class_with_score)
+            img = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY) if self.model.input.shape[-1] == 1 else cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+            boxes = SBD.predict(self.model, img, device=device, confidence_threshold=confidence_threshold)
+            bgr = Util.resize(bgr, (view_width, view_height))
+            boxed_image = self.bounding_box(bgr, boxes, show_class_with_score=show_class_with_score)
             cv2.imshow('video', boxed_image)
             key = cv2.waitKey(1)
             if key == 27:
@@ -564,7 +571,7 @@ class SBD:
         cap.release()
         cv2.destroyAllWindows()
 
-    def predict_images(self, dataset='validation', confidence_threshold=0.2, device='cpu', show_class_with_score=True):
+    def predict_images(self, dataset='validation', confidence_threshold=0.2, device='cpu', show_class_with_score=True, width=0, height=0):
         """
         Equal to the evaluate function. image paths are required.
         """
@@ -576,11 +583,17 @@ class SBD:
         else:
             print(f'invalid dataset : [{dataset}]')
             return
+
+        view_width, view_height = 0, 0
+        if width > 0 and height > 0:
+            view_width, view_height = width, height
+        else:
+            view_width, view_height = input_width, input_height
         for path in image_paths:
             print(f'image path : {path}')
             raw, raw_bgr, _ = Util.load_img(path, input_channel)
             boxes = SBD.predict(self.model, raw, device=device, verbose=True, confidence_threshold=confidence_threshold)
-            raw_bgr = cv2.resize(raw_bgr, (input_width, input_height), interpolation=cv2.INTER_AREA)
+            raw_bgr = Util.resize(raw_bgr, (view_width, view_height))
             boxed_image = self.bounding_box(raw_bgr, boxes, show_class_with_score=show_class_with_score)
             cv2.imshow('res', boxed_image)
             key = cv2.waitKey(0)
