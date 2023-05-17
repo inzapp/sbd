@@ -117,18 +117,7 @@ class SBD:
             aug_scale=aug_scale,
             aug_brightness=aug_brightness,
             aug_contrast=aug_contrast)
-        self.train_data_generator_for_check = DataGenerator(
-            image_paths=self.train_image_paths,
-            input_shape=input_shape,
-            output_shape=self.model.output_shape,
-            batch_size=self.get_zero_mod_batch_size(len(self.train_image_paths)),
-            num_workers=num_workers,
-            multi_classification_at_same_box=multi_classification_at_same_box,
-            ignore_scale=ignore_scale,
-            aug_scale=1.0,
-            aug_brightness=aug_brightness,
-            aug_contrast=aug_contrast)
-        self.validation_data_generator_for_check = DataGenerator(
+        self.validation_data_generator = DataGenerator(
             image_paths=self.validation_image_paths,
             input_shape=input_shape,
             output_shape=self.model.output_shape,
@@ -336,9 +325,9 @@ class SBD:
         print(f'validate on {len(self.validation_image_paths)} samples.')
 
         print('\nchecking label in train data...')
-        self.train_data_generator_for_check.check_label()
+        self.train_data_generator.check_label()
         print('\nchecking label in validation data...')
-        self.validation_data_generator_for_check.check_label()
+        self.validation_data_generator.check_label()
         print('\ncalculating virtual anchor...')
         self.train_data_generator.calculate_virtual_anchor()
         print('\ncalculating BPR(Best Possible Recall)...')
