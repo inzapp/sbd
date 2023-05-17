@@ -591,10 +591,10 @@ class SBD:
             view_width, view_height = input_width, input_height
         for path in image_paths:
             print(f'image path : {path}')
-            raw, raw_target, _ = Util.load_img(path, input_channel)
-            boxes = SBD.predict(self.model, raw, device=device, verbose=True, confidence_threshold=confidence_threshold)
-            raw_target = Util.resize(raw_target, (view_width, view_height))
-            boxed_image = self.bounding_box(raw_target, boxes, show_class_with_score=show_class_with_score)
+            img, bgr, _ = Util.load_img(path, input_channel, with_bgr=True)
+            boxes = SBD.predict(self.model, img, device=device, verbose=True, confidence_threshold=confidence_threshold)
+            bgr = Util.resize(bgr, (view_width, view_height))
+            boxed_image = self.bounding_box(bgr, boxes, show_class_with_score=show_class_with_score)
             cv2.imshow('res', boxed_image)
             key = cv2.waitKey(0)
             if key == 27:
@@ -657,9 +657,9 @@ class SBD:
                 img_path = np.random.choice(self.train_image_paths)
             else:
                 img_path = np.random.choice(self.validation_image_paths)
-            img, raw_target, _ = Util.load_img(img_path, self.input_channels)
+            img, bgr, _ = Util.load_img(img_path, self.input_channels, with_bgr=True)
             boxes = SBD.predict(self.model, img, device='cpu')
-            boxed_image = self.bounding_box(raw_target, boxes)
+            boxed_image = self.bounding_box(bgr, boxes)
             cv2.imshow('training view', boxed_image)
             cv2.waitKey(1)
 

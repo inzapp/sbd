@@ -40,13 +40,19 @@ class Util:
         exit(-1)
 
     @staticmethod
-    def load_img(path, channel):
-        color_mode = cv2.IMREAD_COLOR if channel == 3 else cv2.IMREAD_GRAYSCALE
-        img = cv2.imdecode(np.fromfile(path, dtype=np.uint8), color_mode)
-        raw_target = img
-        if color_mode == cv2.IMREAD_COLOR:
+    def load_img(path, channel, with_bgr=False):
+        bgr = None
+        if with_bgr:
+            img = cv2.imdecode(np.fromfile(path, dtype=np.uint8), cv2.IMREAD_COLOR)
+            bgr = img.copy()
+            if channel == 1:
+                img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        else:
+            color_mode = cv2.IMREAD_GRAYSCALE if channel == 1 else cv2.IMREAD_COLOR
+            img = cv2.imdecode(np.fromfile(path, dtype=np.uint8), color_mode)
+        if channel == 3:
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  # rb swap
-        return img, raw_target, path
+        return img, bgr, path
 
     @staticmethod
     def resize(img, size):
