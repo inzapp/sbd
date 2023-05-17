@@ -2,6 +2,9 @@
 *.pb
 *.caffemodel
 *.prototxt
+*.onnx
+*.pt
+*.pth
 .idea/
 __pycache__/
 checkpoint/
