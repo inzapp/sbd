@@ -43,10 +43,10 @@ class Util:
     def load_img(path, channel):
         color_mode = cv2.IMREAD_COLOR if channel == 3 else cv2.IMREAD_GRAYSCALE
         img = cv2.imdecode(np.fromfile(path, dtype=np.uint8), color_mode)
-        raw_bgr = img
+        raw_target = img
         if color_mode == cv2.IMREAD_COLOR:
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  # rb swap
-        return img, raw_bgr, path
+        return img, raw_target, path
 
     @staticmethod
     def resize(img, size):
