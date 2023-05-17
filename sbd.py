@@ -286,34 +286,6 @@ class SBD:
         forwarding_time = ((et - st) / forward_count) * 1000.0
         print(f'model forwarding time with {device} : {forwarding_time:.2f} ms')
 
-    def fit(self):
-        self.init_checkpoint_dir()
-        gflops = get_flops(self.model, batch_size=1) * 1e-9
-        self.save_last_model(iteration_count=self.pretrained_iteration_count)
-        self.model.summary()
-        print(f'\nGFLOPs : {gflops:.4f}')
-        print(f'\ntrain on {len(self.train_image_paths)} samples.')
-        print(f'validate on {len(self.validation_image_paths)} samples.')
-
-        print('\nchecking label in train data...')
-        self.train_data_generator_for_check.check_label()
-        print('\nchecking label in validation data...')
-        self.validation_data_generator_for_check.check_label()
-        print('\ncalculating virtual anchor...')
-        self.train_data_generator.calculate_virtual_anchor()
-        print('\ncalculating BPR(Best Possible Recall)...')
-        self.train_data_generator.calculate_best_possible_recall()
-        self.set_alpha_gamma()
-        print('\nstart test forward for checking forwarding time.')
-        if self.available_device() == 'gpu':
-            self.check_forwarding_time(self.model, device='gpu')
-        self.check_forwarding_time(self.model, device='cpu')
-        if self.use_pretrained_model:
-            print(f'\nstart training with pretrained model : {self.pretrained_model_path}')
-        else:
-            print('\nstart training')
-        self.train()
-
     def compute_gradient(self, model, optimizer, loss_function, x, y_true, mask, num_output_layers, obj_alphas, obj_gammas, cls_alphas, cls_gammas, label_smoothing):
         with tf.GradientTape() as tape:
             y_pred = model(x, training=True)
@@ -355,6 +327,32 @@ class SBD:
         return loss_str
 
     def train(self):
+        self.init_checkpoint_dir()
+        gflops = get_flops(self.model, batch_size=1) * 1e-9
+        self.save_last_model(iteration_count=self.pretrained_iteration_count)
+        self.model.summary()
+        print(f'\nGFLOPs : {gflops:.4f}')
+        print(f'\ntrain on {len(self.train_image_paths)} samples.')
+        print(f'validate on {len(self.validation_image_paths)} samples.')
+
+        print('\nchecking label in train data...')
+        self.train_data_generator_for_check.check_label()
+        print('\nchecking label in validation data...')
+        self.validation_data_generator_for_check.check_label()
+        print('\ncalculating virtual anchor...')
+        self.train_data_generator.calculate_virtual_anchor()
+        print('\ncalculating BPR(Best Possible Recall)...')
+        self.train_data_generator.calculate_best_possible_recall()
+        self.set_alpha_gamma()
+        print('\nstart test forward for checking forwarding time.')
+        if self.available_device() == 'gpu':
+            self.check_forwarding_time(self.model, device='gpu')
+        self.check_forwarding_time(self.model, device='cpu')
+        if self.use_pretrained_model:
+            print(f'\nstart training with pretrained model : {self.pretrained_model_path}')
+        else:
+            print('\nstart training')
+
         iteration_count = self.pretrained_iteration_count
         compute_gradient_tf = tf.function(self.compute_gradient)
         self.model, optimizer = self.refresh(self.model, self.optimizer)
