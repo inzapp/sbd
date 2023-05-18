@@ -94,7 +94,7 @@ class SBD:
         if not self.use_pretrained_model:
             if self.num_classes == 0:
                 Util.print_error_exit(f'classes file not found. file path : {self.class_names_file_path}')
-            if self.optimizer == 'adam':
+            if self.optimizer.lower() == 'adam':
                 self.l2 = 0.0
             self.model = Model(input_shape=input_shape, output_channel=self.num_classes + 5, l2=self.l2, drop_rate=self.drop_rate).build(self.model_type)
 
@@ -213,11 +213,11 @@ class SBD:
 
     def get_optimizer(self, optimizer_str):
         lr = self.lr if self.lr_policy == 'constant' else 0.0
-        if optimizer_str == 'sgd':
+        if optimizer_str.lower() == 'sgd':
             optimizer = tf.keras.optimizers.SGD(learning_rate=lr, momentum=self.momentum, nesterov=True)
-        elif optimizer_str == 'adam':
+        elif optimizer_str.lower() == 'adam':
             optimizer = tf.keras.optimizers.Adam(learning_rate=lr, beta_1=self.momentum)
-        elif optimizer_str == 'rmsprop':
+        elif optimizer_str.lower() == 'rmsprop':
             optimizer = tf.keras.optimizers.RMSprop(learning_rate=lr)
         else:
             print(f'\n\nunknown optimizer : {optimizer_str}')

@@ -41,6 +41,7 @@ class Model:
 
     def build(self, model_type):
         is_model_type_valid = type(model_type) is str and len(model_type) == 4
+        model_type = model_type.lower()
         if is_model_type_valid:
             backbone = model_type[0]
             num_output_layers = model_type[1]
