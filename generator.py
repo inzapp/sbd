@@ -28,7 +28,8 @@ from concurrent.futures.thread import ThreadPoolExecutor
 
 
 class DataGenerator:
-    def __init__(self, image_paths, input_shape, output_shape, batch_size, num_workers, multi_classification_at_same_box, ignore_scale, aug_scale, aug_brightness, aug_contrast):
+    def __init__(self, teacher, image_paths, input_shape, output_shape, batch_size, num_workers, multi_classification_at_same_box, ignore_scale, aug_scale, aug_brightness, aug_contrast):
+        self.teacher = teacher
         self.image_paths = image_paths
         self.input_shape = input_shape
         self.input_height, self.input_width, self.input_channel = input_shape
@@ -43,6 +44,7 @@ class DataGenerator:
         self.aug_scale = aug_scale
         self.virtual_anchor_ws = []
         self.virtual_anchor_hs = []
+        self.device = Util.available_device()
         self.img_index = 0
         self.pool = ThreadPoolExecutor(num_workers)
         np.random.shuffle(self.image_paths)
@@ -463,9 +465,15 @@ class DataGenerator:
                 img, label_lines = self.random_scale(img, label_lines, self.aug_scale)
             x = Util.preprocess(img)
             batch_x.append(x)
-            labeled_boxes = self.convert_to_boxes(label_lines)
-            np.random.shuffle(labeled_boxes)
-            y, mask, _ = self.build_batch_tensor(labeled_boxes)
+            if self.teacher is not None:
+                from sbd import SBD
+                output = SBD.graph_forward(self.teacher, x.reshape((1,) + x.shape), self.device)
+                y = [np.asarray(output[i][0]).astype('float32') for i in range(len(output))]
+                mask = [np.ones(self.output_shapes[i][1:], dtype=np.float32) for i in range(self.num_output_layers)]
+            else:
+                labeled_boxes = self.convert_to_boxes(label_lines)
+                np.random.shuffle(labeled_boxes)
+                y, mask, _ = self.build_batch_tensor(labeled_boxes)
             for i in range(self.num_output_layers):
                 batch_y[i].append(y[i])
                 batch_mask[i].append(mask[i])

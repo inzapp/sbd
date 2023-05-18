@@ -1,3 +1,4 @@
+kd_teacher_model_path: None
 pretrained_model_path: None
 train_image_path: /train_data/coco/train
 validation_image_path: /train_data/coco/validation

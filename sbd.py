@@ -40,6 +40,7 @@ class SBD:
     def __init__(self, cfg_path, training=True):
         config = self.load_cfg(cfg_path)
         self.cfg_path = cfg_path
+        self.kd_teacher_model_path = config['kd_teacher_model_path']
         self.pretrained_model_path = config['pretrained_model_path']
         input_rows = config['input_rows']
         input_cols = config['input_cols']
@@ -81,8 +82,9 @@ class SBD:
         self.pretrained_iteration_count = 0
         self.best_mean_ap = 0.0
 
-        self.class_names, self.num_classes = self.init_class_names(self.class_names_file_path)
         self.use_pretrained_model = False
+        self.model, self.teacher = None, None
+        self.class_names, self.num_classes = self.init_class_names(self.class_names_file_path)
         if self.pretrained_model_path.endswith('.h5') and training:
             self.load_model(self.pretrained_model_path)
             self.use_pretrained_model = True
@@ -98,6 +100,14 @@ class SBD:
                 self.l2 = 0.0
             self.model = Model(input_shape=input_shape, output_channel=self.num_classes + 5, l2=self.l2, drop_rate=self.drop_rate).build(self.model_type)
 
+        if self.kd_teacher_model_path.endswith('.h5') and training:
+            self.load_teacher(self.kd_teacher_model_path)
+            if self.teacher.output_shape != self.model.output_shape:
+                Util.print_error_exit([
+                    f'output shape mismatch with teacher',
+                    f'teacher : {self.teacher.output_shape}',
+                    f'student : {self.model.output_shape}'])
+
         if type(self.model.output_shape) == tuple:
             self.num_output_layers = 1
         else:
@@ -107,6 +117,7 @@ class SBD:
         self.validation_image_paths = self.init_image_paths(validation_image_path)
 
         self.train_data_generator = DataGenerator(
+            teacher=self.teacher,
             image_paths=self.train_image_paths,
             input_shape=input_shape,
             output_shape=self.model.output_shape,
@@ -118,6 +129,7 @@ class SBD:
             aug_brightness=aug_brightness,
             aug_contrast=aug_contrast)
         self.validation_data_generator = DataGenerator(
+            teacher=self.teacher,
             image_paths=self.validation_image_paths,
             input_shape=input_shape,
             output_shape=self.model.output_shape,
@@ -180,6 +192,12 @@ class SBD:
         with open(f'{self.checkpoint_path}/cfg.yaml', 'wt') as f:
             f.writelines(cfg_content)
         sh.copy(self.class_names_file_path, self.checkpoint_path)
+
+    def load_teacher(self, model_path):
+        if os.path.exists(model_path) and os.path.isfile(model_path):
+            self.teacher = tf.keras.models.load_model(model_path, compile=False)
+        else:
+            Util.print_error_exit(f'kd teacher model not found. model path : {model_path}')
 
     def load_model(self, model_path):
         if os.path.exists(model_path) and os.path.isfile(model_path):
