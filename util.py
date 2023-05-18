@@ -19,6 +19,7 @@ limitations under the License.
 """
 import cv2
 import numpy as np
+import tensorflow as tf
 
 
 class Util:
@@ -38,6 +39,14 @@ class Util:
         else:
             print(f'[print_error_exit] msg print failure. invalid msg type : {msg_type}')
         exit(-1)
+
+    @staticmethod
+    def available_device():
+        devices = tf.config.list_physical_devices()
+        for device in devices:
+            if device.device_type.lower() == 'gpu':
+                return 'gpu'
+        return 'cpu'
 
     @staticmethod
     def load_img(path, channel, with_bgr=False):
@@ -66,7 +75,7 @@ class Util:
     @staticmethod
     def preprocess(img):
         x = np.asarray(img).astype('float32') / 255.0
-        if len(img.shape) == 1:
+        if len(img.shape) == 2:
             x = x.reshape(img.shape + (1,))
         return x
 
