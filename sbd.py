@@ -41,6 +41,7 @@ class SBD:
     def __init__(self, cfg_path, training=True):
         config = self.load_cfg(cfg_path)
         self.cfg_path = cfg_path
+        self.devices = config['devices']
         self.kd_teacher_model_path = config['kd_teacher_model_path']
         self.pretrained_model_path = config['pretrained_model_path']
         input_rows = config['input_rows']
@@ -82,8 +83,6 @@ class SBD:
         self.checkpoint_path = self.new_checkpoint_path()
         self.pretrained_iteration_count = 0
         self.best_mean_ap = 0.0
-
-        self.devices = [0]
 
         self.use_pretrained_model = False
         self.model, self.teacher = None, None
