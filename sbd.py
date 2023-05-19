@@ -355,10 +355,13 @@ class SBD:
         if self.available_device() == 'gpu':
             self.check_forwarding_time(self.model, device='gpu')
         self.check_forwarding_time(self.model, device='cpu')
+        print()
+        if self.teacher is not None and self.optimizer.lower() == 'sgd':
+            print(f'warning : SGD optimizer with knowledge distilation training may be bad choice, consider using Adam optimizer instead')
         if self.use_pretrained_model:
-            print(f'\nstart training with pretrained model : {self.pretrained_model_path}')
+            print(f'start training with pretrained model : {self.pretrained_model_path}')
         else:
-            print('\nstart training')
+            print('start training')
 
         iteration_count = self.pretrained_iteration_count
         compute_gradient_tf = tf.function(self.compute_gradient)
