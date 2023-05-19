@@ -34,4 +34,4 @@ if __name__ == '__main__':
     args = parser.parse_args()
     sbd = SBD(cfg_path=args.cfg, training=False)
     sbd.load_model(args.model)
-    sbd.calculate_map(args.dataset, device='cpu' if args.cpu else 'auto', confidence_threshold=args.conf, tp_iou_threshold=args.iou, cached=args.cached)
+    sbd.calculate_map(args.dataset, device='cpu' if args.cpu else 'gpu', confidence_threshold=args.conf, tp_iou_threshold=args.iou, cached=args.cached)
