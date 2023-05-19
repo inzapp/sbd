@@ -71,7 +71,7 @@ class SBD:
         self.warm_up = config['warm_up']
         self.decay_step = config['decay_step']
         self.iterations = config['iterations']
-        self.optimizer = config['optimizer']
+        self.optimizer = config['optimizer'].lower()
         self.lr_policy = config['lr_policy']
         self.model_name = config['model_name']
         self.model_type = config['model_type']
@@ -96,7 +96,7 @@ class SBD:
         if not self.use_pretrained_model:
             if self.num_classes == 0:
                 Util.print_error_exit(f'classes file not found. file path : {self.class_names_file_path}')
-            if self.optimizer.lower() == 'adam':
+            if self.optimizer == 'adam':
                 self.l2 = 0.0
             self.model = Model(input_shape=input_shape, output_channel=self.num_classes + 5, l2=self.l2, drop_rate=self.drop_rate).build(self.model_type)
 
@@ -231,11 +231,11 @@ class SBD:
 
     def get_optimizer(self, optimizer_str):
         lr = self.lr if self.lr_policy == 'constant' else 0.0
-        if optimizer_str.lower() == 'sgd':
+        if optimizer_str == 'sgd':
             optimizer = tf.keras.optimizers.SGD(learning_rate=lr, momentum=self.momentum, nesterov=True)
-        elif optimizer_str.lower() == 'adam':
+        elif optimizer_str == 'adam':
             optimizer = tf.keras.optimizers.Adam(learning_rate=lr, beta_1=self.momentum)
-        elif optimizer_str.lower() == 'rmsprop':
+        elif optimizer_str == 'rmsprop':
             optimizer = tf.keras.optimizers.RMSprop(learning_rate=lr)
         else:
             print(f'\n\nunknown optimizer : {optimizer_str}')
@@ -356,7 +356,7 @@ class SBD:
             self.check_forwarding_time(self.model, device='gpu')
         self.check_forwarding_time(self.model, device='cpu')
         print()
-        if self.teacher is not None and self.optimizer.lower() == 'sgd':
+        if self.teacher is not None and self.optimizer == 'sgd':
             print(f'warning : SGD optimizer with knowledge distilation training may be bad choice, consider using Adam optimizer instead')
         if self.use_pretrained_model:
             print(f'start training with pretrained model : {self.pretrained_model_path}')
