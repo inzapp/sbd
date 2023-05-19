@@ -31,6 +31,7 @@ from box_colors import colors
 from keras_flops import get_flops
 from generator import DataGenerator
 from lr_scheduler import LRScheduler
+from contextlib import contextmanager
 from time import time, sleep, perf_counter
 from mAP_calculator import calc_mean_average_precision
 from loss import confidence_loss, confidence_with_bbox_loss, sbd_loss, IGNORED_LOSS
@@ -82,9 +83,16 @@ class SBD:
         self.pretrained_iteration_count = 0
         self.best_mean_ap = 0.0
 
+        self.devices = [0]
+
         self.use_pretrained_model = False
         self.model, self.teacher = None, None
         self.class_names, self.num_classes = self.init_class_names(self.class_names_file_path)
+
+        self.strategy = None
+        if Util.available_device() == 'gpu' and not (len(self.devices) == 1 and self.devices[0] == 0):
+            self.strategy = tf.distribute.MirroredStrategy(devices=[f'/gpu:{i}' for i in self.devices])
+
         if self.pretrained_model_path.endswith('.h5') and training:
             self.load_model(self.pretrained_model_path)
             self.use_pretrained_model = True
@@ -98,7 +106,11 @@ class SBD:
                 Util.print_error_exit(f'classes file not found. file path : {self.class_names_file_path}')
             if self.optimizer == 'adam':
                 self.l2 = 0.0
-            self.model = Model(input_shape=input_shape, output_channel=self.num_classes + 5, l2=self.l2, drop_rate=self.drop_rate).build(self.model_type)
+            self.model, _ = self.refresh(Model(
+                input_shape=input_shape,
+                output_channel=self.num_classes + 5,
+                l2=self.l2,
+                drop_rate=self.drop_rate).build(self.model_type), self.optimizer)
 
         if self.kd_teacher_model_path.endswith('.h5') and training:
             self.load_teacher(self.kd_teacher_model_path)
@@ -193,15 +205,34 @@ class SBD:
             f.writelines(cfg_content)
         sh.copy(self.class_names_file_path, self.checkpoint_path)
 
+    @contextmanager
+    def empty_scope(self):
+        try:
+            yield
+        finally:
+            pass
+
+    def context(self):
+        if self.strategy is not None:
+            return self.strategy.scope()
+        else:
+            return self.empty_scope()
+
+    def load_model_with_device(self, model_path):
+        model = None
+        with self.context():
+            model = tf.keras.models.load_model(model_path, compile=False)
+        return model
+
     def load_teacher(self, model_path):
         if os.path.exists(model_path) and os.path.isfile(model_path):
-            self.teacher = tf.keras.models.load_model(model_path, compile=False)
+            self.teacher = self.load_model_with_device(model_path)
         else:
             Util.print_error_exit(f'kd teacher model not found. model path : {model_path}')
 
     def load_model(self, model_path):
         if os.path.exists(model_path) and os.path.isfile(model_path):
-            self.model = tf.keras.models.load_model(model_path, compile=False)
+            self.model = self.load_model_with_device()
             self.pretrained_iteration_count = self.parse_pretrained_iteration_count(model_path)
         else:
             Util.print_error_exit(f'pretrained model not found. model path : {model_path}')
@@ -293,7 +324,8 @@ class SBD:
         forwarding_time = ((et - st) / forward_count) * 1000.0
         print(f'model forwarding time with {device} : {forwarding_time:.2f} ms')
 
-    def compute_gradient(self, model, optimizer, loss_function, x, y_true, mask, num_output_layers, obj_alphas, obj_gammas, cls_alphas, cls_gammas, label_smoothing, kd):
+    def compute_gradient(self, args):
+        _strategy, _train_step, model, optimizer, loss_function, x, y_true, mask, num_output_layers, obj_alphas, obj_gammas, cls_alphas, cls_gammas, label_smoothing, kd = args
         with tf.GradientTape() as tape:
             y_pred = model(x, training=True)
             confidence_loss, bbox_loss, classification_loss = 0.0, 0.0, 0.0
@@ -314,12 +346,20 @@ class SBD:
         optimizer.apply_gradients(zip(gradients, model.trainable_variables))
         return confidence_loss, bbox_loss, classification_loss
 
+    def distributed_train_step(self, args):
+        strategy, train_step, *_ = args
+        confidence_loss, bbox_loss, classification_loss = strategy.run(train_step, args=(args,))
+        confidence_loss = strategy.reduce(tf.distribute.ReduceOp.MEAN, confidence_loss, axis=None)
+        bbox_loss = strategy.reduce(tf.distribute.ReduceOp.MEAN, bbox_loss, axis=None)
+        classification_loss = strategy.reduce(tf.distribute.ReduceOp.MEAN, classification_loss, axis=None)
+        return confidence_loss, bbox_loss, classification_loss
+
     def refresh(self, model, optimizer_str):
         sleep(0.2)
         model_path = 'model.h5'
         model.save(model_path, include_optimizer=False)
         sleep(0.2)
-        model = tf.keras.models.load_model(model_path, compile=False)
+        model = self.load_model_with_device(model_path)
         optimizer = self.get_optimizer(optimizer_str)
         return model, optimizer
 
@@ -365,14 +405,19 @@ class SBD:
             print('start training')
 
         iteration_count = self.pretrained_iteration_count
-        compute_gradient_tf = tf.function(self.compute_gradient)
+        train_step = tf.function(self.compute_gradient)
+        compute_gradient_tf = train_step
+        if self.strategy is not None:
+            compute_gradient_tf = tf.function(self.distributed_train_step)
         self.model, optimizer = self.refresh(self.model, self.optimizer)
         lr_scheduler = LRScheduler(iterations=self.iterations, lr=self.lr, warm_up=self.warm_up, policy=self.lr_policy, decay_step=self.decay_step)
         print(f'model will be save to {self.checkpoint_path}')
         while True:
             batch_x, batch_y, mask = self.train_data_generator.load()
             lr_scheduler.update(optimizer, iteration_count)
-            loss_vars = compute_gradient_tf(
+            loss_vars = compute_gradient_tf((
+                self.strategy,
+                train_step,
                 self.model,
                 optimizer,
                 sbd_loss,
@@ -385,7 +430,7 @@ class SBD:
                 self.cls_alphas,
                 self.cls_gammas,
                 self.label_smoothing,
-                self.teacher is not None)
+                self.teacher is not None))
             iteration_count += 1
             print(self.build_loss_str(iteration_count, loss_vars), end='')
             warm_up_end = iteration_count >= int(self.iterations * self.warm_up)
