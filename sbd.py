@@ -90,7 +90,7 @@ class SBD:
         self.class_names, self.num_classes = self.init_class_names(self.class_names_file_path)
 
         self.strategy = None
-        if Util.available_device() == 'gpu' and not (len(self.devices) == 1 and self.devices[0] == 0):
+        if len(Util.available_gpu_indexes()) > 0 and not (len(self.devices) == 1 and self.devices[0] == 0):
             self.strategy = tf.distribute.MirroredStrategy(devices=[f'/gpu:{i}' for i in self.devices])
 
         if self.pretrained_model_path.endswith('.h5') and training:
@@ -299,13 +299,6 @@ class SBD:
         self.cls_alphas = self.convert_alpha_gamma_to_list(self.cls_alpha_param, num_output_layers)
         self.cls_gammas = self.convert_alpha_gamma_to_list(self.cls_gamma_param, num_output_layers)
 
-    def available_device(self):
-        devices = tf.config.list_physical_devices()
-        for device in devices:
-            if device.device_type.lower() == 'gpu':
-                return 'gpu'
-        return 'cpu'
-
     def check_forwarding_time(self, model, device):
         input_shape = model.input_shape[1:]
         mul = 1
@@ -393,7 +386,7 @@ class SBD:
         self.train_data_generator.calculate_best_possible_recall()
         self.set_alpha_gamma()
         print('\nstart test forward for checking forwarding time.')
-        if self.available_device() == 'gpu':
+        if len(Util.available_gpu_indexes()) > 0:
             self.check_forwarding_time(self.model, device='gpu')
         self.check_forwarding_time(self.model, device='cpu')
         print()
@@ -658,7 +651,6 @@ class SBD:
     def calculate_map(self, dataset, device, confidence_threshold, tp_iou_threshold, cached):
         assert dataset in ['train', 'validation']
         image_paths = self.train_image_paths if dataset == 'train' else self.validation_image_paths
-        device = self.available_device() if device == 'auto' else device
         return calc_mean_average_precision(
             model=self.model,
             image_paths=image_paths,
@@ -682,7 +674,7 @@ class SBD:
         sh.move(tmp_path, save_path)
         return save_path
 
-    def save_model_with_map(self, dataset='validation', device='auto', confidence_threshold=0.2, tp_iou_threshold=0.5, cached=False):
+    def save_model_with_map(self, dataset='validation', device='gpu', confidence_threshold=0.2, tp_iou_threshold=0.5, cached=False):
         self.make_checkpoint_dir()
         mean_ap, f1_score, iou, tp, fp, fn, confidence, txt_content = self.calculate_map(
             dataset=dataset,

@@ -44,7 +44,7 @@ class DataGenerator:
         self.aug_scale = aug_scale
         self.virtual_anchor_ws = []
         self.virtual_anchor_hs = []
-        self.device = Util.available_device()
+        self.device = 'gpu' if len(Util.available_gpu_indexes()) > 0 else 'cpu'
         self.img_index = 0
         self.pool = ThreadPoolExecutor(num_workers)
         np.random.shuffle(self.image_paths)

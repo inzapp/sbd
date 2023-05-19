@@ -41,12 +41,14 @@ class Util:
         exit(-1)
 
     @staticmethod
-    def available_device():
+    def available_gpu_indexes():
+        indexes = []
         devices = tf.config.list_physical_devices()
         for device in devices:
             if device.device_type.lower() == 'gpu':
-                return 'gpu'
-        return 'cpu'
+                gpu_index = int(device.name.split(':')[-1])
+                indexes.append(gpu_index)
+        return indexes
 
     @staticmethod
     def load_img(path, channel, with_bgr=False):
