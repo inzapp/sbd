@@ -479,7 +479,7 @@ class DataGenerator:
                 from sbd import SBD
                 output = SBD.graph_forward(self.teacher, x.reshape((1,) + x.shape), self.device)
                 y = [np.asarray(output[i][0]).astype('float32') for i in range(len(output))]
-                mask = [np.ones(self.output_shapes[i][1:], dtype=np.float32) for i in range(self.num_output_layers)]
+                mask = [1.0 for i in range(self.num_output_layers)]
             else:
                 labeled_boxes = self.convert_to_boxes(label_lines)
                 np.random.shuffle(labeled_boxes)
