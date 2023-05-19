@@ -325,12 +325,13 @@ class SBD:
 
     def build_loss_str(self, iteration_count, loss_vars):
         confidence_loss, bbox_loss, classification_loss = loss_vars
+        kd = 'kd_' if self.teacher is not None else ''
         loss_str = f'\r[iteration_count : {iteration_count:6d}]'
-        loss_str += f' confidence_loss : {confidence_loss:>8.4f}'
+        loss_str += f' {kd}confidence_loss : {confidence_loss:>8.4f}'
         if bbox_loss != IGNORED_LOSS:
-            loss_str += f', bbox_loss : {bbox_loss:>8.4f}'
+            loss_str += f', {kd}bbox_loss : {bbox_loss:>8.4f}'
         if classification_loss != IGNORED_LOSS:
-            loss_str += f', classification_loss : {classification_loss:>8.4f}'
+            loss_str += f', {kd}classification_loss : {classification_loss:>8.4f}'
         return loss_str
 
     def train(self):
