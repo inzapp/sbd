@@ -8,7 +8,7 @@ from concurrent.futures.thread import ThreadPoolExecutor
 
 
 g_iou_threshold = 0.5
-g_confidence_threshold = 0.25  # only for tp, fp, fn
+g_confidence_threshold = 0.2  # only for tp, fp, fn
 g_nms_iou_threshold = 0.45  # darknet yolo nms threshold value
 g_annotations_csv_name = 'annotations.csv'
 g_predictions_csv_name = 'predictions.csv'
