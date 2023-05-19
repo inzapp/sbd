@@ -293,15 +293,15 @@ class SBD:
         forwarding_time = ((et - st) / forward_count) * 1000.0
         print(f'model forwarding time with {device} : {forwarding_time:.2f} ms')
 
-    def compute_gradient(self, model, optimizer, loss_function, x, y_true, mask, num_output_layers, obj_alphas, obj_gammas, cls_alphas, cls_gammas, label_smoothing):
+    def compute_gradient(self, model, optimizer, loss_function, x, y_true, mask, num_output_layers, obj_alphas, obj_gammas, cls_alphas, cls_gammas, label_smoothing, kd):
         with tf.GradientTape() as tape:
             y_pred = model(x, training=True)
             confidence_loss, bbox_loss, classification_loss = 0.0, 0.0, 0.0
             if num_output_layers == 1:
-                confidence_loss, bbox_loss, classification_loss = loss_function(y_true, y_pred, mask, obj_alphas[0], obj_gammas[0], cls_alphas[0], cls_gammas[0], label_smoothing)
+                confidence_loss, bbox_loss, classification_loss = loss_function(y_true, y_pred, mask, obj_alphas[0], obj_gammas[0], cls_alphas[0], cls_gammas[0], label_smoothing, kd)
             else:
                 for i in range(num_output_layers):
-                    _confidence_loss, _bbox_loss, _classification_loss = loss_function(y_true[i], y_pred[i], mask[i], obj_alphas[i], obj_gammas[i], cls_alphas[i], cls_gammas[i], label_smoothing)
+                    _confidence_loss, _bbox_loss, _classification_loss = loss_function(y_true[i], y_pred[i], mask[i], obj_alphas[i], obj_gammas[i], cls_alphas[i], cls_gammas[i], label_smoothing, kd)
                     confidence_loss += _confidence_loss
                     bbox_loss = bbox_loss + _bbox_loss if _bbox_loss != IGNORED_LOSS else IGNORED_LOSS
                     classification_loss = classification_loss + _classification_loss if _classification_loss != IGNORED_LOSS else IGNORED_LOSS
@@ -380,7 +380,8 @@ class SBD:
                 self.obj_gammas,
                 self.cls_alphas,
                 self.cls_gammas,
-                self.label_smoothing)
+                self.label_smoothing,
+                self.teacher is not None)
             iteration_count += 1
             print(self.build_loss_str(iteration_count, loss_vars), end='')
             warm_up_end = iteration_count >= int(self.iterations * self.warm_up)
