@@ -90,7 +90,11 @@ class SBD:
         self.class_names, self.num_classes = self.init_class_names(self.class_names_file_path)
 
         self.strategy = None
-        if len(Util.available_gpu_indexes()) > 0 and not (len(self.devices) == 1 and self.devices[0] == 0):
+        available_gpu_indexes = Util.available_gpu_indexes()
+        if len(available_gpu_indexes) > 0 and not (len(self.devices) == 1 and self.devices[0] == 0):
+            for device_index in self.devices:
+                if device_index not in available_gpu_indexes:
+                    Util.print_error_exit(f'invalid gpu index {device_index}. available gpu index : {available_gpu_indexes}')
             self.strategy = tf.distribute.MirroredStrategy(devices=[f'/gpu:{i}' for i in self.devices])
 
         if self.pretrained_model_path.endswith('.h5') and training:
