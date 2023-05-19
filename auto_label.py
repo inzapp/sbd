@@ -75,6 +75,5 @@ def main():
 
 
 if __name__ == '__main__':
-    with tf.device('/cpu:0'):
-        main()
+    main()
 
