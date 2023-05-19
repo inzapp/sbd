@@ -87,6 +87,10 @@ class DataGenerator:
             return False
 
     def check_label(self):
+        if self.teacher is not None:
+            print(f'knowledge distilation training doesn\'t need label check, skip')
+            return
+
         fs = []
         for path in self.image_paths:
             fs.append(self.pool.submit(self.load_label, self.label_path(path)))
