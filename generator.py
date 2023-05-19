@@ -148,6 +148,12 @@ class DataGenerator:
             self.virtual_anchor_ws = [0.5]
             self.virtual_anchor_hs = [0.5]
             print('skip calculating virtual anchor when output layer size is 1')
+            return
+
+        if self.teacher is not None:
+            self.virtual_anchor_ws = [0.5 for _ in range(self.num_output_layers)]
+            self.virtual_anchor_hs = [0.5 for _ in range(self.num_output_layers)]
+            print(f'knowledge distilation training doesn\'t need virtual anchor, skip')
             return 
 
         fs = []
@@ -210,6 +216,10 @@ class DataGenerator:
         print(f'average IoU with virtual anchor : {avg_iou_with_virtual_anchor:.4f}')
 
     def calculate_best_possible_recall(self):
+        if self.teacher is not None:
+            print(f'knowledge distilation training doesn\'t need BPR, skip')
+            return
+
         fs = []
         for path in self.image_paths:
             fs.append(self.pool.submit(self.load_label, self.label_path(path)))
