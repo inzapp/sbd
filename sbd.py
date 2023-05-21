@@ -235,7 +235,7 @@ class SBD:
 
     def load_model(self, model_path):
         if os.path.exists(model_path) and os.path.isfile(model_path):
-            self.model = self.load_model_with_device()
+            self.model = self.load_model_with_device(model_path)
             self.pretrained_iteration_count = self.parse_pretrained_iteration_count(model_path)
         else:
             Util.print_error_exit(f'pretrained model not found. model path : {model_path}')
