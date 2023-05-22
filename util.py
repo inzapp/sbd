@@ -75,10 +75,12 @@ class Util:
         return img
 
     @staticmethod
-    def preprocess(img):
+    def preprocess(img, batch_axis=False):
         x = np.asarray(img).astype('float32') / 255.0
-        if len(img.shape) == 2:
-            x = x.reshape(img.shape + (1,))
+        if len(x.shape) == 2:
+            x = x.reshape(x.shape + (1,))
+        if batch_axis:
+            x = x.reshape((1,) + x.shape)
         return x
 
     @staticmethod
