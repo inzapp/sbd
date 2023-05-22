@@ -512,7 +512,6 @@ class SBD:
         img = Util.resize(img, (input_width, input_height))
         x = Util.preprocess(img, batch_axis=True)
         y = SBD.graph_forward(model, x, device)
-        y = np.array(y)
         if num_output_layers == 1:
             y = [y]
 
