@@ -178,7 +178,7 @@ class Model:
     def build_layers(self, layer_infos, num_output_layers, pyramid_scale):
         assert len(layer_infos) == 7 and layer_infos[-1][0] == 'head'
         features = []
-        input_layer = tf.keras.layers.Input(shape=self.input_shape)
+        input_layer = tf.keras.layers.Input(shape=self.input_shape, name='sbd_input')
         x = input_layer
         for i, (method, kernel_size, channel, depth) in enumerate(layer_infos):
             if method in ['conv', 'csp']:
@@ -208,7 +208,7 @@ class Model:
 
         output_layers = []
         for i in range(len(x)):
-            output_layers.append(self.detection_layer(x[i], f'sbd_output{i}'))
+            output_layers.append(self.detection_layer(x[i], f'sbd_output_{i}'))
         return tf.keras.models.Model(input_layer, output_layers if type(output_layers) is list else output_layers[0])
 
     def spatial_attention_block(self, x, activation, bn=False, reduction_ratio=16):
