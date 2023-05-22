@@ -462,7 +462,7 @@ class DataGenerator:
             
     def load(self):
         fs, batch_x, batch_y, batch_mask = [], [], [], []
-        for i in range(self.num_output_layers):
+        for _ in range(self.num_output_layers):
             batch_y.append([])
             batch_mask.append([])
         for _ in range(self.batch_size):
@@ -482,7 +482,7 @@ class DataGenerator:
             if self.teacher is not None:
                 from sbd import SBD
                 output = SBD.graph_forward(self.teacher, x.reshape((1,) + x.shape), self.device)
-                y = [np.asarray(output[i][0]).astype('float32') for i in range(len(output))]
+                y = [output[i][0] for i in range(len(output))]
                 mask = [1.0 for i in range(self.num_output_layers)]
             else:
                 labeled_boxes = self.convert_to_boxes(label_lines)
