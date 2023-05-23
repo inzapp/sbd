@@ -509,7 +509,6 @@ class DataGenerator:
                 mask = [1.0 for i in range(self.num_output_layers)]
             else:
                 labeled_boxes = self.convert_to_boxes(label_lines)
-                np.random.shuffle(labeled_boxes)
                 self.build_batch_tensor(labeled_boxes, batch_y, batch_mask, i)
         if self.num_output_layers == 1:
             batch_y = batch_y[0]
