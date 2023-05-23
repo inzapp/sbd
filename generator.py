@@ -465,9 +465,6 @@ class DataGenerator:
                         y[i][offset_center_row][offset_center_col][3] = w
                         y[i][offset_center_row][offset_center_col][4] = h
                         for class_index in class_indexes:
-                            class_mask_channel = mask[i][:, :, class_index+5]
-                            class_mask_indices = np.where(object_mask < class_mask_channel)
-                            class_mask_channel[class_mask_indices] = object_mask[class_mask_indices]
                             y[i][center_row][center_col][class_index+5] = 1.0
                         is_box_allocated = True
                         allocated_count += 1
