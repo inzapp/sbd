@@ -51,6 +51,7 @@ class SBD:
         validation_image_path = config['validation_image_path']
         multi_classification_at_same_box = config['multi_classification_at_same_box']
         ignore_scale = config['ignore_scale']
+        virtual_anchor_iou_threshold = config['va_iou_threshold']
         aug_scale = config['aug_scale']
         aug_brightness = config['aug_brightness']
         aug_contrast = config['aug_contrast']
@@ -140,6 +141,7 @@ class SBD:
             num_workers=num_workers,
             multi_classification_at_same_box=multi_classification_at_same_box,
             ignore_scale=ignore_scale,
+            virtual_anchor_iou_threshold=virtual_anchor_iou_threshold,
             aug_scale=aug_scale,
             aug_brightness=aug_brightness,
             aug_contrast=aug_contrast)
@@ -152,6 +154,7 @@ class SBD:
             num_workers=num_workers,
             multi_classification_at_same_box=multi_classification_at_same_box,
             ignore_scale=ignore_scale,
+            virtual_anchor_iou_threshold=virtual_anchor_iou_threshold,
             aug_scale=1.0,
             aug_brightness=aug_brightness,
             aug_contrast=aug_contrast)

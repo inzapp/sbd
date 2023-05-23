@@ -28,7 +28,20 @@ from concurrent.futures.thread import ThreadPoolExecutor
 
 
 class DataGenerator:
-    def __init__(self, teacher, image_paths, input_shape, output_shape, batch_size, num_workers, multi_classification_at_same_box, ignore_scale, aug_scale, aug_brightness, aug_contrast):
+    def __init__(
+        self,
+        teacher,
+        image_paths,
+        input_shape,
+        output_shape,
+        batch_size,
+        num_workers,
+        multi_classification_at_same_box,
+        ignore_scale,
+        virtual_anchor_iou_threshold,
+        aug_scale,
+        aug_brightness,
+        aug_contrast):
         self.teacher = teacher
         self.image_paths = image_paths
         self.input_shape = input_shape
@@ -41,6 +54,7 @@ class DataGenerator:
         self.num_output_layers = len(self.output_shapes)
         self.multi_classification_at_same_box = multi_classification_at_same_box
         self.ignore_scale = ignore_scale
+        self.virtual_anchor_iou_threshold = virtual_anchor_iou_threshold
         self.aug_scale = aug_scale
         self.virtual_anchor_ws = []
         self.virtual_anchor_hs = []
@@ -401,10 +415,10 @@ class DataGenerator:
             if w_not_valid and h_not_valid:
                 continue
 
-            best_iou_layer_indexes = self.get_iou_with_virtual_anchors([cx, cy, w, h])
+            best_iou_indexes = self.get_iou_with_virtual_anchors([cx, cy, w, h])
             is_box_allocated = False
-            for i, layer_iou in best_iou_layer_indexes:
-                if is_box_allocated and layer_iou < 0.6:
+            for i, virtual_anchor_iou in best_iou_indexes:
+                if is_box_allocated and virtual_anchor_iou < self.virtual_anchor_iou_threshold:
                     break
                 output_rows = float(self.output_shapes[i][1])
                 output_cols = float(self.output_shapes[i][2])
