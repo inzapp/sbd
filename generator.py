@@ -142,6 +142,8 @@ class DataGenerator:
         print('label check success')
 
     def get_iou_with_virtual_anchors(self, box):
+        if self.virtual_anchor_iou_threshold == 0.0:
+            return [[i, 1.0] for i in range(self.num_output_layers)]
         cx, cy, w, h = box
         x1 = cx - (w * 0.5)
         y1 = cy - (h * 0.5)
@@ -172,7 +174,13 @@ class DataGenerator:
             self.virtual_anchor_ws = [0.5 for _ in range(self.num_output_layers)]
             self.virtual_anchor_hs = [0.5 for _ in range(self.num_output_layers)]
             print(f'knowledge distilation training doesn\'t need virtual anchor, skip')
-            return 
+            return
+
+        if self.virtual_anchor_iou_threshold == 0.0:
+            self.virtual_anchor_ws = [0.5 for _ in range(self.num_output_layers)]
+            self.virtual_anchor_hs = [0.5 for _ in range(self.num_output_layers)]
+            print(f'training with va_iou_threshold 0.0 doesn\'t need virtual anchor, skip')
+            return
 
         fs = []
         for path in self.image_paths:
