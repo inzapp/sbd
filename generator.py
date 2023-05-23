@@ -253,11 +253,13 @@ class DataGenerator:
 
         y_true_obj_count = 0
         box_count_in_real_data = 0
+        batch_y = [np.zeros(shape=(1,) + self.output_shapes[i][1:]) for i in range(self.num_output_layers)]
+        batch_mask = [np.ones(shape=(1,) + self.output_shapes[i][1:]) for i in range(self.num_output_layers)]
         for f in tqdm(fs):
             label_lines, _, _ = f.result()
             labeled_boxes = self.convert_to_boxes(label_lines)
             box_count_in_real_data += len(labeled_boxes)
-            _, _, allocated_count = self.build_batch_tensor(labeled_boxes)
+            allocated_count = self.build_batch_tensor(labeled_boxes, batch_y, batch_mask, 0)
             y_true_obj_count += allocated_count
 
         avg_obj_count_per_image = box_count_in_real_data / float(len(self.image_paths))
@@ -414,12 +416,7 @@ class DataGenerator:
                     'iou': iou})
         return sorted(nearby_cells, key=lambda x: x['iou'], reverse=True)
 
-    def build_batch_tensor(self, labeled_boxes):
-        y, mask = [], []
-        for i in range(self.num_output_layers):
-            y.append(np.zeros(shape=tuple(self.output_shapes[i][1:]), dtype=np.float32))
-            mask.append(np.ones(shape=tuple(self.output_shapes[i][1:]), dtype=np.float32))
-
+    def build_batch_tensor(self, labeled_boxes, y, mask, batch_index):
         allocated_count = 0
         for b in labeled_boxes:
             class_indexes, cx, cy, w, h = b['class_indexes'], b['cx'], b['cy'], b['w'], b['h']
@@ -455,7 +452,7 @@ class DataGenerator:
                     cy_raw=cy,
                     w=w,
                     h=h,
-                    center_only=y[i][center_row][center_col][0] == 0.0)
+                    center_only=y[i][batch_index][center_row][center_col][0] == 0.0)
                 for grid in nearby_grids:
                     if grid['iou'] < 0.8:
                         break
@@ -465,36 +462,36 @@ class DataGenerator:
                     cy_grid = grid['cy_grid']
                     offset_center_row = center_row + offset_y
                     offset_center_col = center_col + offset_x
-                    if y[i][offset_center_row][offset_center_col][0] == 0.0:
+                    if y[i][batch_index][offset_center_row][offset_center_col][0] == 0.0:
                         if 0.0 < self.ignore_scale < 1.0:
                             half_scale = max(self.ignore_scale * 0.5, 1e-5)
                             object_heatmap = 1.0 - np.clip((np.abs(rr - center_row_f) / (h * half_scale)) ** 2 + (np.abs(cc - center_col_f) / (w * half_scale)) ** 2, 0.0, 1.0) ** 0.5
                             object_mask = np.where(object_heatmap == 0.0, 1.0, 0.0)
                             object_mask[offset_center_row][offset_center_col] = 1.0
-                            confidence_mask_channel = mask[i][:, :, 0]
+                            confidence_mask_channel = mask[i][batch_index][:, :, 0]
                             confidence_mask_indices = np.where(object_mask < confidence_mask_channel)
                             confidence_mask_channel[confidence_mask_indices] = object_mask[confidence_mask_indices]
-                        y[i][offset_center_row][offset_center_col][0] = 1.0
-                        y[i][offset_center_row][offset_center_col][1] = cx_grid
-                        y[i][offset_center_row][offset_center_col][2] = cy_grid
-                        y[i][offset_center_row][offset_center_col][3] = w
-                        y[i][offset_center_row][offset_center_col][4] = h
+                        y[i][batch_index][offset_center_row][offset_center_col][0] = 1.0
+                        y[i][batch_index][offset_center_row][offset_center_col][1] = cx_grid
+                        y[i][batch_index][offset_center_row][offset_center_col][2] = cy_grid
+                        y[i][batch_index][offset_center_row][offset_center_col][3] = w
+                        y[i][batch_index][offset_center_row][offset_center_col][4] = h
                         for class_index in class_indexes:
-                            y[i][center_row][center_col][class_index+5] = 1.0
+                            y[i][batch_index][center_row][center_col][class_index+5] = 1.0
                         is_box_allocated = True
                         allocated_count += 1
                         break
-        return y, mask, allocated_count
+        return allocated_count
             
     def load(self):
-        fs, batch_x, batch_y, batch_mask = [], [], [], []
-        for _ in range(self.num_output_layers):
-            batch_y.append([])
-            batch_mask.append([])
+        fs = []
+        batch_x = np.zeros(shape=(self.batch_size,) + self.input_shape, dtype=np.float32)
+        batch_y = [np.zeros(shape=(self.batch_size,) + self.output_shapes[i][1:], dtype=np.float32) for i in range(self.num_output_layers)]
+        batch_mask = [np.ones(shape=(self.batch_size,) + self.output_shapes[i][1:], dtype=np.float32) for i in range(self.num_output_layers)]
         for _ in range(self.batch_size):
             fs.append(self.pool.submit(Util.load_img, self.get_next_image_path(), self.input_channel))
-        for f in fs:
-            img, _, path = f.result()
+        for i in range(len(fs)):
+            img, _, path = fs[i].result()
             img = Util.resize(img, (self.input_width, self.input_height))
             img = self.transform(image=img)['image']
             label_lines, label_path, label_exists = self.load_label(self.label_path(path))
@@ -504,7 +501,7 @@ class DataGenerator:
             if self.aug_scale < 1.0 and np.random.uniform() < 0.5:
                 img, label_lines = self.random_scale(img, label_lines, self.aug_scale)
             x = Util.preprocess(img)
-            batch_x.append(x)
+            batch_x[i] = x
             if self.teacher is not None:
                 from sbd import SBD
                 output = SBD.graph_forward(self.teacher, x.reshape((1,) + x.shape), self.device)
@@ -513,14 +510,7 @@ class DataGenerator:
             else:
                 labeled_boxes = self.convert_to_boxes(label_lines)
                 np.random.shuffle(labeled_boxes)
-                y, mask, _ = self.build_batch_tensor(labeled_boxes)
-            for i in range(self.num_output_layers):
-                batch_y[i].append(y[i])
-                batch_mask[i].append(mask[i])
-        batch_x = np.asarray(batch_x).astype('float32')
-        for i in range(self.num_output_layers):
-            batch_y[i] = np.asarray(batch_y[i]).astype('float32')
-            batch_mask[i] = np.asarray(batch_mask[i]).astype('float32')
+                self.build_batch_tensor(labeled_boxes, batch_y, batch_mask, i)
         if self.num_output_layers == 1:
             batch_y = batch_y[0]
             batch_mask = batch_mask[0]
