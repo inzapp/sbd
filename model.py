@@ -199,8 +199,8 @@ class Model:
                     ds = list(reversed([v[3] for v in layer_infos]))[2:num_upscaling+2]
                     fs = list(reversed(features))[1:num_upscaling+1]
                     x = self.fpn_block(x, ms, fs, cs, ks, ds, activation='relu', return_layers=num_output_layers == 'm')
-                    if type(x) is not list:
-                        x = [x]
+                if type(x) is not list:
+                    x = [x]
             else:
                 Util.print_error_exit(f'invalid layer info method : {method}, available method : [conv, csp, head]')
             if i < 5:
