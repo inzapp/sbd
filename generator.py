@@ -495,10 +495,13 @@ class DataGenerator:
     def load(self):
         fs = []
         batch_x = np.zeros(shape=(self.batch_size,) + self.input_shape, dtype=np.float32)
-        batch_y, batch_mask = None, None
+        batch_tx, batch_y, batch_mask = None, None, None
         if self.teacher is None:
             batch_y = [np.zeros(shape=(self.batch_size,) + self.output_shapes[i][1:], dtype=np.float32) for i in range(self.num_output_layers)]
             batch_mask = [np.ones(shape=(self.batch_size,) + self.output_shapes[i][1:], dtype=np.float32) for i in range(self.num_output_layers)]
+        else:
+            if self.input_shape != self.teacher.input_shape[1:]:
+                batch_tx = np.zeros(shape=(self.batch_size,) + self.teacher.input_shape[1:], dtype=np.float32)
         for _ in range(self.batch_size):
             fs.append(self.pool.submit(Util.load_img, self.get_next_image_path(), self.input_channel))
         for i in range(len(fs)):
@@ -516,10 +519,12 @@ class DataGenerator:
             x = Util.preprocess(img)
             batch_x[i] = x
             if self.teacher is not None:
-                from sbd import SBD
-                output = SBD.graph_forward(self.teacher, x.reshape((1,) + x.shape), self.device)
-                batch_y = [output[i][0] for i in range(len(output))]
-                mask = [1.0 for i in range(self.num_output_layers)]
+                tx = None
+                if self.input_shape != self.teacher.input_shape[1:]:
+                    tw = self.teacher.input_shape[1:][1]
+                    th = self.teacher.input_shape[1:][0]
+                    tx = Util.preprocess(Util.resize(img, (tw, th)))
+                    batch_tx[i] = tx
             else:
                 labeled_boxes = self.convert_to_boxes(label_lines)
                 self.build_batch_tensor(labeled_boxes, batch_y, batch_mask, i)
@@ -527,8 +532,13 @@ class DataGenerator:
                 key = cv2.waitKey(0)
                 if key == 27:
                     exit(0)
+        if self.teacher is not None:
+            from sbd import SBD
+            batch_y = SBD.graph_forward(self.teacher, batch_x if batch_tx is None else batch_tx, self.device)
+            batch_mask = [1.0 for _ in range(self.num_output_layers)]
         if self.num_output_layers == 1:
-            batch_y = batch_y[0]
+            if self.teacher is None:
+                batch_y = batch_y[0]
             batch_mask = batch_mask[0]
         return batch_x, batch_y, batch_mask
 
