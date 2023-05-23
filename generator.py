@@ -42,6 +42,7 @@ class DataGenerator:
         aug_scale,
         aug_brightness,
         aug_contrast):
+        self.debug = False
         self.teacher = teacher
         self.image_paths = image_paths
         self.input_shape = input_shape
@@ -253,9 +254,9 @@ class DataGenerator:
 
         y_true_obj_count = 0
         box_count_in_real_data = 0
-        batch_y = [np.zeros(shape=(1,) + self.output_shapes[i][1:]) for i in range(self.num_output_layers)]
-        batch_mask = [np.ones(shape=(1,) + self.output_shapes[i][1:]) for i in range(self.num_output_layers)]
         for f in tqdm(fs):
+            batch_y = [np.zeros(shape=(1,) + self.output_shapes[i][1:]) for i in range(self.num_output_layers)]
+            batch_mask = [np.ones(shape=(1,) + self.output_shapes[i][1:]) for i in range(self.num_output_layers)]
             label_lines, _, _ = f.result()
             labeled_boxes = self.convert_to_boxes(label_lines)
             box_count_in_real_data += len(labeled_boxes)
@@ -481,17 +482,29 @@ class DataGenerator:
                         is_box_allocated = True
                         allocated_count += 1
                         break
+        if self.debug:
+            confidence_channel = y[i][batch_index, :, :, 0]
+            print(f'confidence_channel.shape : {confidence_channel.shape}')
+            mask_channel = mask[i][batch_index, :, :, 0]
+            print(f'mask_channel.shape : {mask_channel.shape}')
+            cv2.imshow('confidence', cv2.resize(confidence_channel, (self.input_shape[1], self.input_shape[0]), interpolation=cv2.INTER_NEAREST))
+            cv2.imshow('mask', cv2.resize(mask_channel, (self.input_shape[1], self.input_shape[0]), interpolation=cv2.INTER_NEAREST))
+            print(f'allocated_count : {allocated_count}')
         return allocated_count
             
     def load(self):
         fs = []
         batch_x = np.zeros(shape=(self.batch_size,) + self.input_shape, dtype=np.float32)
-        batch_y = [np.zeros(shape=(self.batch_size,) + self.output_shapes[i][1:], dtype=np.float32) for i in range(self.num_output_layers)]
-        batch_mask = [np.ones(shape=(self.batch_size,) + self.output_shapes[i][1:], dtype=np.float32) for i in range(self.num_output_layers)]
+        batch_y, batch_mask = None, None
+        if self.teacher is None:
+            batch_y = [np.zeros(shape=(self.batch_size,) + self.output_shapes[i][1:], dtype=np.float32) for i in range(self.num_output_layers)]
+            batch_mask = [np.ones(shape=(self.batch_size,) + self.output_shapes[i][1:], dtype=np.float32) for i in range(self.num_output_layers)]
         for _ in range(self.batch_size):
             fs.append(self.pool.submit(Util.load_img, self.get_next_image_path(), self.input_channel))
         for i in range(len(fs)):
             img, _, path = fs[i].result()
+            if self.debug:
+                cv2.imshow('img', cv2.resize(cv2.cvtColor(img, cv2.COLOR_RGB2BGR) if self.input_channel == 3 else img, (self.input_shape[1], self.input_shape[0])))
             img = Util.resize(img, (self.input_width, self.input_height))
             img = self.transform(image=img)['image']
             label_lines, label_path, label_exists = self.load_label(self.label_path(path))
@@ -505,11 +518,15 @@ class DataGenerator:
             if self.teacher is not None:
                 from sbd import SBD
                 output = SBD.graph_forward(self.teacher, x.reshape((1,) + x.shape), self.device)
-                y = [output[i][0] for i in range(len(output))]
+                batch_y = [output[i][0] for i in range(len(output))]
                 mask = [1.0 for i in range(self.num_output_layers)]
             else:
                 labeled_boxes = self.convert_to_boxes(label_lines)
                 self.build_batch_tensor(labeled_boxes, batch_y, batch_mask, i)
+            if self.debug:
+                key = cv2.waitKey(0)
+                if key == 27:
+                    exit(0)
         if self.num_output_layers == 1:
             batch_y = batch_y[0]
             batch_mask = batch_mask[0]
