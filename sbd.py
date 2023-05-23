@@ -375,7 +375,7 @@ class SBD:
 
     def train(self):
         gflops = get_flops(self.model, batch_size=1) * 1e-9
-        self.save_last_model(iteration_count=self.pretrained_iteration_count)
+        self.model.save('model.h5', include_optimizer=False)
         self.model.summary()
         print(f'\nGFLOPs : {gflops:.4f}')
         print(f'\ntrain on {len(self.train_image_paths)} samples.')
