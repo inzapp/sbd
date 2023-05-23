@@ -374,7 +374,6 @@ class SBD:
         return loss_str
 
     def train(self):
-        self.init_checkpoint_dir()
         gflops = get_flops(self.model, batch_size=1) * 1e-9
         self.save_last_model(iteration_count=self.pretrained_iteration_count)
         self.model.summary()
@@ -403,6 +402,7 @@ class SBD:
         else:
             print('start training')
 
+        self.init_checkpoint_dir()
         iteration_count = self.pretrained_iteration_count
         train_step = tf.function(self.compute_gradient)
         compute_gradient_tf = train_step
