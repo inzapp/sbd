@@ -144,6 +144,7 @@ class DataGenerator:
     def get_iou_with_virtual_anchors(self, box):
         if self.virtual_anchor_iou_threshold == 0.0:
             return [[i, 1.0] for i in range(self.num_output_layers)]
+
         cx, cy, w, h = box
         x1 = cx - (w * 0.5)
         y1 = cy - (h * 0.5)
@@ -351,9 +352,13 @@ class DataGenerator:
                 labeled_boxes[same_box_index]['class_indexes'].append(class_index)
         return sorted(labeled_boxes, key=lambda x: x['area'], reverse=True)
 
-    def get_nearby_grids(self, rows, cols, row, col, cx_grid, cy_grid, cx_raw, cy_raw, w, h):
+    def get_nearby_grids(self, rows, cols, row, col, cx_grid, cy_grid, cx_raw, cy_raw, w, h, center_only):
+        positions = None
+        if center_only:
+            positions = [[0, 0, 'c']]
+        else:
+            positions = [[-1, -1, 'lt'], [-1, 0, 't'], [-1, 1, 'rt'], [0, -1, 'l'], [0, 1, 'r'], [1, -1, 'lb'], [1, 0, 'b'], [1, 1, 'rb']]
         nearby_cells = []
-        positions = [[-1, -1, 'lt'], [-1, 0, 't'], [-1, 1, 'rt'], [0, -1, 'l'], [0, 0, 'c'], [0, 1, 'r'], [1, -1, 'lb'], [1, 0, 'b'], [1, 1, 'rb']]
         for offset_y, offset_x, name in positions:
             if (0 <= row + offset_y < rows) and (0 <= col + offset_x < cols):
                 if name == 'lt':
@@ -384,22 +389,22 @@ class DataGenerator:
                     cx_nearby_grid = 0.0
                     cy_nearby_grid = 0.0
 
-                box_origin = [
-                    cx_raw - (w * 0.5),
-                    cy_raw - (h * 0.5),
-                    cx_raw + (w * 0.5),
-                    cy_raw + (h * 0.5)]
-                cx_nearby_raw = (float(col + offset_x) + cx_nearby_grid) / float(cols)
-                cy_nearby_raw = (float(row + offset_y) + cy_nearby_grid) / float(rows)
-                box_nearby = [
-                    cx_nearby_raw - (w * 0.5),
-                    cy_nearby_raw - (h * 0.5),
-                    cx_nearby_raw + (w * 0.5),
-                    cy_nearby_raw + (h * 0.5)]
-                box_nearby = np.clip(np.array(box_nearby), 0.0, 1.0)
                 if name == 'c':
                     iou = 1.0
                 else:
+                    box_origin = [
+                        cx_raw - (w * 0.5),
+                        cy_raw - (h * 0.5),
+                        cx_raw + (w * 0.5),
+                        cy_raw + (h * 0.5)]
+                    cx_nearby_raw = (float(col + offset_x) + cx_nearby_grid) / float(cols)
+                    cy_nearby_raw = (float(row + offset_y) + cy_nearby_grid) / float(rows)
+                    box_nearby = [
+                        cx_nearby_raw - (w * 0.5),
+                        cy_nearby_raw - (h * 0.5),
+                        cx_nearby_raw + (w * 0.5),
+                        cy_nearby_raw + (h * 0.5)]
+                    box_nearby = np.clip(np.array(box_nearby), 0.0, 1.0)
                     iou = Util.iou(box_origin, box_nearby) - 1e-4  # subtract small value for give center grid to first priority
                 nearby_cells.append({
                     'offset_y': offset_y,
@@ -449,7 +454,8 @@ class DataGenerator:
                     cx_raw=cx,
                     cy_raw=cy,
                     w=w,
-                    h=h)
+                    h=h,
+                    center_only=y[i][center_row][center_col][0] == 0.0)
                 for grid in nearby_grids:
                     if grid['iou'] < 0.8:
                         break
