@@ -142,7 +142,7 @@ class DataGenerator:
         print('label check success')
 
     def get_iou_with_virtual_anchors(self, box):
-        if self.virtual_anchor_iou_threshold == 0.0:
+        if self.num_output_layers == 1 or self.virtual_anchor_iou_threshold == 0.0:
             return [[i, 1.0] for i in range(self.num_output_layers)]
 
         cx, cy, w, h = box
