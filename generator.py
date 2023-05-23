@@ -466,13 +466,14 @@ class DataGenerator:
                     offset_center_row = center_row + offset_y
                     offset_center_col = center_col + offset_x
                     if y[i][offset_center_row][offset_center_col][0] == 0.0:
-                        half_scale = max(self.ignore_scale * 0.5, 1e-5)
-                        object_heatmap = 1.0 - np.clip((np.abs(rr - center_row_f) / (h * half_scale)) ** 2 + (np.abs(cc - center_col_f) / (w * half_scale)) ** 2, 0.0, 1.0) ** 0.5
-                        object_mask = np.where(object_heatmap == 0.0, 1.0, 0.0)
-                        object_mask[offset_center_row][offset_center_col] = 1.0
-                        confidence_mask_channel = mask[i][:, :, 0]
-                        confidence_mask_indices = np.where(object_mask < confidence_mask_channel)
-                        confidence_mask_channel[confidence_mask_indices] = object_mask[confidence_mask_indices]
+                        if 0.0 < self.ignore_scale < 1.0:
+                            half_scale = max(self.ignore_scale * 0.5, 1e-5)
+                            object_heatmap = 1.0 - np.clip((np.abs(rr - center_row_f) / (h * half_scale)) ** 2 + (np.abs(cc - center_col_f) / (w * half_scale)) ** 2, 0.0, 1.0) ** 0.5
+                            object_mask = np.where(object_heatmap == 0.0, 1.0, 0.0)
+                            object_mask[offset_center_row][offset_center_col] = 1.0
+                            confidence_mask_channel = mask[i][:, :, 0]
+                            confidence_mask_indices = np.where(object_mask < confidence_mask_channel)
+                            confidence_mask_channel[confidence_mask_indices] = object_mask[confidence_mask_indices]
                         y[i][offset_center_row][offset_center_col][0] = 1.0
                         y[i][offset_center_row][offset_center_col][1] = cx_grid
                         y[i][offset_center_row][offset_center_col][2] = cy_grid
