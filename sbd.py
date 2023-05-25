@@ -257,9 +257,8 @@ class SBD:
 
     def new_checkpoint_path(self):
         inc = 0
-        base_path = f'checkpoint/{self.model_name}'
         while True:
-            checkpoint_path = f'{base_path}/m{inc}'
+            checkpoint_path = f'checkpoint/{self.model_name}/{self.model_type.lower()}_{inc}'
             if os.path.exists(checkpoint_path) and os.path.isdir(checkpoint_path):
                 inc += 1
             else:
