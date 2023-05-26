@@ -41,7 +41,8 @@ class DataGenerator:
         virtual_anchor_iou_threshold,
         aug_scale,
         aug_brightness,
-        aug_contrast):
+        aug_contrast,
+        primary_device):
         self.debug = False
         self.teacher = teacher
         self.image_paths = image_paths
@@ -59,7 +60,6 @@ class DataGenerator:
         self.aug_scale = aug_scale
         self.virtual_anchor_ws = []
         self.virtual_anchor_hs = []
-        self.device = 'gpu' if len(Util.available_gpu_indexes()) > 0 else 'cpu'
         self.img_index = 0
         self.pool = ThreadPoolExecutor(num_workers)
         np.random.shuffle(self.image_paths)
@@ -534,7 +534,7 @@ class DataGenerator:
                     exit(0)
         if self.teacher is not None:
             from sbd import SBD
-            batch_y = SBD.graph_forward(self.teacher, batch_x if batch_tx is None else batch_tx, self.device)
+            batch_y = SBD.graph_forward(self.teacher, batch_x if batch_tx is None else batch_tx, self.primary_device)
             batch_mask = [1.0 for _ in range(self.num_output_layers)]
         if self.num_output_layers == 1:
             if self.teacher is None:

@@ -25,7 +25,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--cfg', type=str, default='cfg.yaml', help='path of training configuration file')
     parser.add_argument('--model', type=str, default='best.h5', help='pretrained model path for detection')
-    parser.add_argument('--cpu', action='store_true', help='forward with cpu while calculating mAP')
     parser.add_argument('--save', action='store_true', help='save another model with calculated mAP result naming')
     parser.add_argument('--cached', action='store_true', help='use pre-saved csv files for mAP calculation')
     parser.add_argument('--iou', type=float, default=0.5, help='true positive threshold for intersection over union')
@@ -34,4 +33,4 @@ if __name__ == '__main__':
     args = parser.parse_args()
     sbd = SBD(cfg_path=args.cfg, training=False)
     sbd.load_model(args.model)
-    sbd.calculate_map(args.dataset, device='cpu' if args.cpu else 'gpu', confidence_threshold=args.conf, tp_iou_threshold=args.iou, cached=args.cached)
+    sbd.calculate_map(args.dataset, confidence_threshold=args.conf, tp_iou_threshold=args.iou, cached=args.cached)

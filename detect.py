@@ -26,7 +26,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--cfg', type=str, default='cfg.yaml', help='path of training configuration file')
     parser.add_argument('--model', type=str, default='best.h5', help='pretrained model path for detection')
-    parser.add_argument('--gpu', action='store_true', help='use gpu device for model forwarding')
     parser.add_argument('--conf', type=float, default=0.2, help='confidence threshold for detection')
     parser.add_argument('--video', type=str, default='', help='video path for detection')
     parser.add_argument('--width', type=int, default=0, help='width for showing detection result')
@@ -37,7 +36,7 @@ if __name__ == '__main__':
     sbd = SBD(cfg_path=args.cfg, training=False)
     sbd.load_model(args.model)
     if args.video == '':
-        sbd.predict_images(dataset=args.dataset, confidence_threshold=args.conf, device='gpu' if args.gpu else 'cpu', show_class_with_score=not args.noclass, width=args.width, height=args.height)
+        sbd.predict_images(dataset=args.dataset, confidence_threshold=args.conf, show_class_with_score=not args.noclass, width=args.width, height=args.height)
     else:
-        sbd.predict_video(video_path=args.video, confidence_threshold=args.conf, device='gpu' if args.gpu else 'cpu', show_class_with_score=not args.noclass, width=args.width, height=args.height)
+        sbd.predict_video(video_path=args.video, confidence_threshold=args.conf, show_class_with_score=not args.noclass, width=args.width, height=args.height)
 

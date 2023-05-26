@@ -31,7 +31,6 @@ from box_colors import colors
 from keras_flops import get_flops
 from generator import DataGenerator
 from lr_scheduler import LRScheduler
-from contextlib import contextmanager
 from time import time, sleep, perf_counter
 from mAP_calculator import calc_mean_average_precision
 from loss import confidence_loss, confidence_with_bbox_loss, sbd_loss, IGNORED_LOSS
@@ -90,13 +89,30 @@ class SBD:
         self.model, self.teacher = None, None
         self.class_names, self.num_classes = self.init_class_names(self.class_names_file_path)
 
+        assert type(self.devices) is list
         self.strategy = None
-        available_gpu_indexes = Util.available_gpu_indexes()
-        if len(available_gpu_indexes) > 0 and not (len(self.devices) == 1 and self.devices[0] == 0):
+        tf.keras.backend.clear_session()
+        tf.config.set_soft_device_placement(True)
+        physical_devices = tf.config.list_physical_devices('GPU')
+        for physical_device in physical_devices:
+            tf.config.experimental.set_memory_growth(physical_device, True)
+        visible_devices = []
+        if len(self.devices) == 0:
+            self.primary_device = '/cpu:0'
+            os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'false'
+        else:
+            available_gpu_indexes = list(map(int, [gpu.name[-1] for gpu in physical_devices]))
             for device_index in self.devices:
                 if device_index not in available_gpu_indexes:
                     Util.print_error_exit(f'invalid gpu index {device_index}. available gpu index : {available_gpu_indexes}')
-            self.strategy = tf.distribute.MirroredStrategy(devices=[f'/gpu:{i}' for i in self.devices])
+                for physical_device in physical_devices:
+                    if int(physical_device.name[-1]) == device_index:
+                        visible_devices.append(physical_device)
+            if len(self.devices) > 1:
+                self.strategy = tf.distribute.MirroredStrategy(devices=[f'/gpu:{i}' for i in self.devices])
+            self.primary_device = f'/gpu:{self.devices[0]}'
+            os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
+        tf.config.set_visible_devices(visible_devices, 'GPU')
 
         if self.pretrained_model_path.endswith('.h5') and training:
             self.load_model(self.pretrained_model_path)
@@ -111,11 +127,8 @@ class SBD:
                 Util.print_error_exit(f'classes file not found. file path : {self.class_names_file_path}')
             if self.optimizer == 'adam':
                 self.l2 = 0.0
-            self.model, _ = self.refresh(Model(
-                input_shape=input_shape,
-                output_channel=self.num_classes + 5,
-                l2=self.l2,
-                drop_rate=self.drop_rate).build(self.model_type), self.optimizer)
+            with self.device_context():
+                self.model = Model(input_shape=input_shape, output_channel=self.num_classes + 5, l2=self.l2, drop_rate=self.drop_rate).build(self.model_type)
 
         if self.kd_teacher_model_path.endswith('.h5') and training:
             self.load_teacher(self.kd_teacher_model_path)
@@ -145,7 +158,8 @@ class SBD:
             virtual_anchor_iou_threshold=virtual_anchor_iou_threshold,
             aug_scale=aug_scale,
             aug_brightness=aug_brightness,
-            aug_contrast=aug_contrast)
+            aug_contrast=aug_contrast,
+            primary_device=self.primary_device)
         self.validation_data_generator = DataGenerator(
             teacher=self.teacher,
             image_paths=self.validation_image_paths,
@@ -158,7 +172,8 @@ class SBD:
             virtual_anchor_iou_threshold=virtual_anchor_iou_threshold,
             aug_scale=1.0,
             aug_brightness=aug_brightness,
-            aug_contrast=aug_contrast)
+            aug_contrast=aug_contrast,
+            primary_device=self.primary_device)
         np.set_printoptions(precision=6)
 
     def init_class_names(self, class_names_file_path):
@@ -212,22 +227,12 @@ class SBD:
             f.writelines(cfg_content)
         sh.copy(self.class_names_file_path, self.checkpoint_path)
 
-    @contextmanager
-    def empty_scope(self):
-        try:
-            yield
-        finally:
-            pass
-
-    def context(self):
-        if self.strategy is not None:
-            return self.strategy.scope()
-        else:
-            return self.empty_scope()
+    def device_context(self):
+        return tf.device(self.primary_device) if self.strategy is None else self.strategy.scope()
 
     def load_model_with_device(self, model_path):
         model = None
-        with self.context():
+        with self.device_context():
             model = tf.keras.models.load_model(model_path, compile=False)
         return model
 
@@ -321,7 +326,7 @@ class SBD:
             SBD.graph_forward(model, noise[i], device)
         et = perf_counter()
         forwarding_time = ((et - st) / forward_count) * 1000.0
-        print(f'model forwarding time with {device} : {forwarding_time:.2f} ms')
+        print(f'model forwarding time with {device[1:4]} : {forwarding_time:.2f} ms')
 
     def compute_gradient(self, args):
         _strategy, _train_step, model, optimizer, loss_function, x, y_true, mask, num_output_layers, obj_alphas, obj_gammas, cls_alphas, cls_gammas, box_weight, label_smoothing, kd = args
@@ -376,78 +381,77 @@ class SBD:
         return loss_str
 
     def train(self):
-        gflops = get_flops(self.model, batch_size=1) * 1e-9
-        self.model.save('model.h5', include_optimizer=False)
-        self.model.summary()
-        print(f'\nGFLOPs : {gflops:.4f}')
-        print(f'\ntrain on {len(self.train_image_paths)} samples.')
-        print(f'validate on {len(self.validation_image_paths)} samples.')
+        with self.device_context():
+            self.model.save('model.h5', include_optimizer=False)
+            self.model.summary()
+            print(f'\ntrain on {len(self.train_image_paths)} samples.')
+            print(f'validate on {len(self.validation_image_paths)} samples.')
 
-        print('\nchecking label in train data...')
-        self.train_data_generator.check_label()
-        print('\nchecking label in validation data...')
-        self.validation_data_generator.check_label()
-        print('\ncalculating virtual anchor...')
-        self.train_data_generator.calculate_virtual_anchor()
-        print('\ncalculating BPR(Best Possible Recall)...')
-        self.train_data_generator.calculate_best_possible_recall()
-        self.set_alpha_gamma()
-        print('\nstart test forward for checking forwarding time.')
-        if len(Util.available_gpu_indexes()) > 0:
-            self.check_forwarding_time(self.model, device='gpu')
-        self.check_forwarding_time(self.model, device='cpu')
-        print()
-        if self.teacher is not None and self.optimizer == 'sgd':
-            print(f'warning : SGD optimizer with knowledge distilation training may be bad choice, consider using Adam or RMSprop optimizer instead')
-        if self.use_pretrained_model:
-            print(f'start training with pretrained model : {self.pretrained_model_path}')
-        else:
-            print('start training')
+            print('\nchecking label in train data...')
+            self.train_data_generator.check_label()
+            print('\nchecking label in validation data...')
+            self.validation_data_generator.check_label()
+            print('\ncalculating virtual anchor...')
+            self.train_data_generator.calculate_virtual_anchor()
+            print('\ncalculating BPR(Best Possible Recall)...')
+            self.train_data_generator.calculate_best_possible_recall()
+            self.set_alpha_gamma()
+            print('\nstart test forward for checking forwarding time.')
+            if self.primary_device.find('gpu') > -1:
+                self.check_forwarding_time(self.model, device=self.primary_device)
+            self.check_forwarding_time(self.model, device='/cpu:0')
+            print()
+            if self.teacher is not None and self.optimizer == 'sgd':
+                print(f'warning : SGD optimizer with knowledge distilation training may be bad choice, consider using Adam or RMSprop optimizer instead')
+            if self.use_pretrained_model:
+                print(f'start training with pretrained model : {self.pretrained_model_path}')
+            else:
+                print('start training')
 
-        self.init_checkpoint_dir()
-        iteration_count = self.pretrained_iteration_count
-        train_step = tf.function(self.compute_gradient)
-        compute_gradient_tf = train_step
-        if self.strategy is not None:
-            compute_gradient_tf = tf.function(self.distributed_train_step)
-        self.model, optimizer = self.refresh(self.model, self.optimizer)
-        lr_scheduler = LRScheduler(iterations=self.iterations, lr=self.lr, warm_up=self.warm_up, policy=self.lr_policy, decay_step=self.decay_step)
-        print(f'model will be save to {self.checkpoint_path}')
-        while True:
-            batch_x, batch_y, mask = self.train_data_generator.load()
-            lr_scheduler.update(optimizer, iteration_count)
-            loss_vars = compute_gradient_tf((
-                self.strategy,
-                train_step,
-                self.model,
-                optimizer,
-                sbd_loss,
-                batch_x,
-                batch_y,
-                mask,
-                self.num_output_layers,
-                self.obj_alphas,
-                self.obj_gammas,
-                self.cls_alphas,
-                self.cls_gammas,
-                self.box_weight,
-                self.label_smoothing,
-                self.teacher is not None))
-            iteration_count += 1
-            print(self.build_loss_str(iteration_count, loss_vars), end='')
-            warm_up_end = iteration_count >= int(self.iterations * self.warm_up)
-            if iteration_count % 2000 == 0:
-                self.save_last_model(iteration_count=iteration_count)
-            if warm_up_end:
-                if self.training_view:
-                    self.training_view_function()
-                if self.map_checkpoint_interval > 0 and iteration_count % self.map_checkpoint_interval == 0 and iteration_count < self.iterations:
+            self.init_checkpoint_dir()
+            iteration_count = self.pretrained_iteration_count
+            train_step = tf.function(self.compute_gradient)
+            compute_gradient_tf = train_step
+            if self.strategy is not None:
+                compute_gradient_tf = tf.function(self.distributed_train_step)
+            self.model, optimizer = self.refresh(self.model, self.optimizer)
+            lr_scheduler = LRScheduler(iterations=self.iterations, lr=self.lr, warm_up=self.warm_up, policy=self.lr_policy, decay_step=self.decay_step)
+            print(f'model will be save to {self.checkpoint_path}')
+            while True:
+                batch_x, batch_y, mask = self.train_data_generator.load()
+                lr_scheduler.update(optimizer, iteration_count)
+                loss_vars = compute_gradient_tf((
+                    self.strategy,
+                    train_step,
+                    self.model,
+                    optimizer,
+                    sbd_loss,
+                    batch_x,
+                    batch_y,
+                    mask,
+                    self.num_output_layers,
+                    self.obj_alphas,
+                    self.obj_gammas,
+                    self.cls_alphas,
+                    self.cls_gammas,
+                    self.box_weight,
+                    self.label_smoothing,
+                    self.teacher is not None))
+                iteration_count += 1
+                print(self.build_loss_str(iteration_count, loss_vars), end='')
+                warm_up_end = iteration_count >= int(self.iterations * self.warm_up)
+                if iteration_count % 2000 == 0:
+                    self.save_last_model(iteration_count=iteration_count)
+                if warm_up_end:
+                    if self.training_view:
+                        self.training_view_function()
+                    if self.map_checkpoint_interval > 0 and iteration_count % self.map_checkpoint_interval == 0 and iteration_count < self.iterations:
+                        self.save_model_with_map()
+                if iteration_count == self.iterations:
                     self.save_model_with_map()
-            if iteration_count == self.iterations:
-                self.save_model_with_map()
-                self.remove_last_model()
-                print('\n\ntrain end successfully')
-                return
+                    self.remove_last_model()
+                    print('\n\ntrain end successfully')
+                    return
 
     @staticmethod
     @tf.function
@@ -494,7 +498,7 @@ class SBD:
     @staticmethod
     @tf.function
     def graph_forward(model, x, device):
-        with tf.device(f'/{device}:0'):
+        with tf.device(device):
             return model(x, training=False)
 
     @staticmethod
@@ -551,6 +555,10 @@ class SBD:
             print()
         return boxes
 
+    def calc_gflops(self):
+        gflops = get_flops(self.model, batch_size=1) * 1e-9
+        print(f'\nGFLOPs : {gflops:.4f}')
+
     def is_background_color_bright(self, bgr):
         """
         Determine whether the color is bright or not.
@@ -598,7 +606,7 @@ class SBD:
                 cv2.putText(img, label_text, (x1 + padding - 1, y1 - baseline - padding), cv2.FONT_HERSHEY_DUPLEX, fontScale=font_scale, color=label_font_color, thickness=1, lineType=cv2.LINE_AA)
         return img
 
-    def predict_video(self, video_path, confidence_threshold=0.2, device='cpu', show_class_with_score=True, width=0, height=0):
+    def predict_video(self, video_path, confidence_threshold=0.2, show_class_with_score=True, width=0, height=0):
         """
         Equal to the evaluate function. video path is required.
         """
@@ -617,7 +625,7 @@ class SBD:
                 print('frame not exists')
                 break
             img = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY) if self.model.input.shape[-1] == 1 else cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
-            boxes = SBD.predict(self.model, img, device=device, confidence_threshold=confidence_threshold)
+            boxes = SBD.predict(self.model, img, device=self.primary_device, confidence_threshold=confidence_threshold)
             bgr = Util.resize(bgr, (view_width, view_height))
             boxed_image = self.bounding_box(bgr, boxes, show_class_with_score=show_class_with_score)
             cv2.imshow('video', boxed_image)
@@ -627,7 +635,7 @@ class SBD:
         cap.release()
         cv2.destroyAllWindows()
 
-    def predict_images(self, dataset='validation', confidence_threshold=0.2, device='cpu', show_class_with_score=True, width=0, height=0):
+    def predict_images(self, dataset='validation', confidence_threshold=0.2, show_class_with_score=True, width=0, height=0):
         """
         Equal to the evaluate function. image paths are required.
         """
@@ -648,7 +656,7 @@ class SBD:
         for path in image_paths:
             print(f'image path : {path}')
             img, bgr, _ = Util.load_img(path, input_channel, with_bgr=True)
-            boxes = SBD.predict(self.model, img, device=device, verbose=True, confidence_threshold=confidence_threshold)
+            boxes = SBD.predict(self.model, img, device=self.primary_device, verbose=True, confidence_threshold=confidence_threshold)
             bgr = Util.resize(bgr, (view_width, view_height))
             boxed_image = self.bounding_box(bgr, boxes, show_class_with_score=show_class_with_score)
             cv2.imshow('res', boxed_image)
@@ -656,13 +664,13 @@ class SBD:
             if key == 27:
                 break
 
-    def calculate_map(self, dataset, device, confidence_threshold, tp_iou_threshold, cached):
+    def calculate_map(self, dataset, confidence_threshold, tp_iou_threshold, cached):
         assert dataset in ['train', 'validation']
         image_paths = self.train_image_paths if dataset == 'train' else self.validation_image_paths
         return calc_mean_average_precision(
             model=self.model,
             image_paths=image_paths,
-            device=device,
+            device=self.primary_device,
             confidence_threshold=confidence_threshold,
             tp_iou_threshold=tp_iou_threshold,
             classes_txt_path=self.class_names_file_path,
@@ -682,11 +690,11 @@ class SBD:
         sh.move(tmp_path, save_path)
         return save_path
 
-    def save_model_with_map(self, dataset='validation', device='gpu', confidence_threshold=0.2, tp_iou_threshold=0.5, cached=False):
+    def save_model_with_map(self, dataset='validation', confidence_threshold=0.2, tp_iou_threshold=0.5, cached=False):
         self.make_checkpoint_dir()
         mean_ap, f1_score, iou, tp, fp, fn, confidence, txt_content = self.calculate_map(
             dataset=dataset,
-            device=device,
+            device=self.primary_device,
             confidence_threshold=confidence_threshold,
             tp_iou_threshold=tp_iou_threshold,
             cached=cached)
@@ -713,7 +721,7 @@ class SBD:
             else:
                 img_path = np.random.choice(self.validation_image_paths)
             img, bgr, _ = Util.load_img(img_path, self.input_channels, with_bgr=True)
-            boxes = SBD.predict(self.model, img, device='cpu')
+            boxes = SBD.predict(self.model, img, device=self.primary_device)
             boxed_image = self.bounding_box(bgr, boxes)
             cv2.imshow('training view', boxed_image)
             cv2.waitKey(1)
