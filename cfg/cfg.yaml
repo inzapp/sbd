@@ -13,12 +13,13 @@ optimizer: sgd
 lr_policy: step
 lr: 0.001
 l2: 0.0005
-dropout: 0.1
+dropout: 0.0
 obj_alpha: 0.25
 obj_gamma: 1.0
 cls_alpha: 0.5
 cls_gamma: 1.0
 aug_scale: 0.9
+box_weight: 1.0
 aug_contrast: 0.3
 aug_brightness: 0.3
 warm_up: 0.5

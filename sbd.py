@@ -63,6 +63,7 @@ class SBD:
         self.obj_gamma_param = config['obj_gamma']
         self.cls_alpha_param = config['cls_alpha'] 
         self.cls_gamma_param = config['cls_gamma']
+        self.box_weight = config['box_weight']
         self.obj_alphas = None
         self.obj_gammas = None
         self.cls_alphas = None
@@ -323,15 +324,17 @@ class SBD:
         print(f'model forwarding time with {device} : {forwarding_time:.2f} ms')
 
     def compute_gradient(self, args):
-        _strategy, _train_step, model, optimizer, loss_function, x, y_true, mask, num_output_layers, obj_alphas, obj_gammas, cls_alphas, cls_gammas, label_smoothing, kd = args
+        _strategy, _train_step, model, optimizer, loss_function, x, y_true, mask, num_output_layers, obj_alphas, obj_gammas, cls_alphas, cls_gammas, box_weight, label_smoothing, kd = args
         with tf.GradientTape() as tape:
             y_pred = model(x, training=True)
             confidence_loss, bbox_loss, classification_loss = 0.0, 0.0, 0.0
             if num_output_layers == 1:
-                confidence_loss, bbox_loss, classification_loss = loss_function(y_true, y_pred, mask, obj_alphas[0], obj_gammas[0], cls_alphas[0], cls_gammas[0], label_smoothing, kd)
+                confidence_loss, bbox_loss, classification_loss = loss_function(
+                    y_true, y_pred, mask, obj_alphas[0], obj_gammas[0], cls_alphas[0], cls_gammas[0], box_weight, label_smoothing, kd)
             else:
                 for i in range(num_output_layers):
-                    _confidence_loss, _bbox_loss, _classification_loss = loss_function(y_true[i], y_pred[i], mask[i], obj_alphas[i], obj_gammas[i], cls_alphas[i], cls_gammas[i], label_smoothing, kd)
+                    _confidence_loss, _bbox_loss, _classification_loss = loss_function(
+                         y_true[i], y_pred[i], mask[i], obj_alphas[i], obj_gammas[i], cls_alphas[i], cls_gammas[i], box_weight, label_smoothing, kd)
                     confidence_loss += _confidence_loss
                     bbox_loss = bbox_loss + _bbox_loss if _bbox_loss != IGNORED_LOSS else IGNORED_LOSS
                     classification_loss = classification_loss + _classification_loss if _classification_loss != IGNORED_LOSS else IGNORED_LOSS
@@ -427,6 +430,7 @@ class SBD:
                 self.obj_gammas,
                 self.cls_alphas,
                 self.cls_gammas,
+                self.box_weight,
                 self.label_smoothing,
                 self.teacher is not None))
             iteration_count += 1

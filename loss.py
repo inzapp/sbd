@@ -90,7 +90,7 @@ def __iou(y_true, y_pred, convex):
     return iou
 
 
-def __bbox_loss(y_true, y_pred, kd):
+def __bbox_loss(y_true, y_pred, box_weight, kd):
     if kd:
         box_true = y_true[:, :, :, 1:5]
         box_pred = y_pred[:, :, :, 1:5]
@@ -102,7 +102,7 @@ def __bbox_loss(y_true, y_pred, kd):
         return 0.0
 
     iou = __iou(y_true, y_pred, convex=True)
-    loss = tf.reduce_sum((obj_true - iou) * obj_true)
+    loss = tf.reduce_sum((obj_true - iou) * obj_true) * box_weight
     return loss / tf.cast(tf.shape(y_true)[0], dtype=y_pred.dtype)
 
 
@@ -136,8 +136,8 @@ def confidence_with_bbox_loss(y_true, y_pred, mask, obj_alpha, obj_gamma, label_
     return __confidence_loss(y_true, y_pred, mask, obj_alpha, obj_gamma, kd), __bbox_loss(y_true, y_pred, kd), IGNORED_LOSS
 
 
-def sbd_loss(y_true, y_pred, mask, obj_alpha, obj_gamma, cls_alpha, cls_gamma, label_smoothing, kd):
+def sbd_loss(y_true, y_pred, mask, obj_alpha, obj_gamma, cls_alpha, cls_gamma, box_weight, label_smoothing, kd):
     y_pred = convert_to_tensor_v2(y_pred)
     y_true = tf.cast(y_true, y_pred.dtype)
-    return __confidence_loss(y_true, y_pred, mask, obj_alpha, obj_gamma, kd), __bbox_loss(y_true, y_pred, kd), __classification_loss(y_true, y_pred, cls_alpha, cls_gamma, label_smoothing, kd)
+    return __confidence_loss(y_true, y_pred, mask, obj_alpha, obj_gamma, kd), __bbox_loss(y_true, y_pred, box_weight, kd), __classification_loss(y_true, y_pred, cls_alpha, cls_gamma, label_smoothing, kd)
 
