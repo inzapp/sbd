@@ -601,7 +601,7 @@ class SBD:
         if not (os.path.exists(video_path) and os.path.isfile(video_path)):
             Util.print_error_exit(f'video not found. video path : {video_path}')
         cap = cv2.VideoCapture(video_path)
-
+        input_height, input_width, _ = self.model.input_shape[1:]
         view_width, view_height = 0, 0
         if width > 0 and height > 0:
             view_width, view_height = width, height
