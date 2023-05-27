@@ -682,8 +682,9 @@ class SBD:
     def save_last_model(self, iteration_count):
         self.make_checkpoint_dir()
         save_path = f'{self.checkpoint_path}/last_{iteration_count}_iter.h5'
+        self.model.save(save_path, include_optimizer=False)
         backup_path = f'{save_path}.bak'
-        self.model.save(backup_path, include_optimizer=False)
+        sh.move(save_path, backup_path)
         self.remove_last_model()
         sh.move(backup_path, save_path)
         return save_path
