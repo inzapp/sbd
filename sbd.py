@@ -81,7 +81,7 @@ class SBD:
         self.training_view = config['training_view']
         self.map_checkpoint_interval = config['map_checkpoint_interval']
         self.live_view_previous_time = time()
-        self.checkpoint_path = self.new_checkpoint_path()
+        self.checkpoint_path = None
         self.pretrained_iteration_count = 0
         self.best_mean_ap = 0.0
 
@@ -215,6 +215,14 @@ class SBD:
         os.makedirs(self.checkpoint_path, exist_ok=True)
 
     def init_checkpoint_dir(self):
+        inc = 0
+        while True:
+            new_checkpoint_path = f'checkpoint/{self.model_name}/{self.model_type.lower()}_{inc}'
+            if os.path.exists(new_checkpoint_path) and os.path.isdir(new_checkpoint_path):
+                inc += 1
+            else:
+                break
+        self.checkpoint_path = new_checkpoint_path
         self.make_checkpoint_dir()
         cfg_content = ''
         with open(self.cfg_path, 'rt') as f:
@@ -260,16 +268,6 @@ class SBD:
                     pass
                 break
         return iteration_count
-
-    def new_checkpoint_path(self):
-        inc = 0
-        while True:
-            checkpoint_path = f'checkpoint/{self.model_name}/{self.model_type.lower()}_{inc}'
-            if os.path.exists(checkpoint_path) and os.path.isdir(checkpoint_path):
-                inc += 1
-            else:
-                break
-        return checkpoint_path
 
     def get_optimizer(self, optimizer_str):
         lr = self.lr if self.lr_policy == 'constant' else 0.0
@@ -362,11 +360,12 @@ class SBD:
 
     def refresh(self, model, optimizer_str):
         sleep(0.2)
-        model_path = 'model.h5'
+        model_path = f'{self.checkpoint_path}/model.h5'
         model.save(model_path, include_optimizer=False)
         sleep(0.2)
         model = self.load_model_with_device(model_path)
         optimizer = self.get_optimizer(optimizer_str)
+        os.remove(model_path)
         return model, optimizer
 
     def build_loss_str(self, iteration_count, loss_vars):
@@ -683,11 +682,10 @@ class SBD:
     def save_last_model(self, iteration_count):
         self.make_checkpoint_dir()
         save_path = f'{self.checkpoint_path}/last_{iteration_count}_iter.h5'
-        self.model.save(save_path, include_optimizer=False)
-        tmp_path = f'{save_path}.tmp'
-        sh.move(save_path, tmp_path)
+        backup_path = f'{save_path}.bak'
+        self.model.save(backup_path, include_optimizer=False)
         self.remove_last_model()
-        sh.move(tmp_path, save_path)
+        sh.move(backup_path, save_path)
         return save_path
 
     def save_model_with_map(self, dataset='validation', confidence_threshold=0.2, tp_iou_threshold=0.5, cached=False):
