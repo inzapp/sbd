@@ -694,7 +694,6 @@ class SBD:
         self.make_checkpoint_dir()
         mean_ap, f1_score, iou, tp, fp, fn, confidence, txt_content = self.calculate_map(
             dataset=dataset,
-            device=self.primary_device,
             confidence_threshold=confidence_threshold,
             tp_iou_threshold=tp_iou_threshold,
             cached=cached)
