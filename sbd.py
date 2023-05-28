@@ -381,7 +381,6 @@ class SBD:
 
     def train(self):
         with self.device_context():
-            self.model.save('model.h5', include_optimizer=False)
             self.model.summary()
             print(f'\ntrain on {len(self.train_image_paths)} samples.')
             print(f'validate on {len(self.validation_image_paths)} samples.')
