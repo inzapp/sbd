@@ -58,6 +58,7 @@ class DataGenerator:
         self.ignore_scale = ignore_scale
         self.virtual_anchor_iou_threshold = virtual_anchor_iou_threshold
         self.aug_scale = aug_scale
+        self.primary_device = primary_device
         self.virtual_anchor_ws = []
         self.virtual_anchor_hs = []
         self.img_index = 0
