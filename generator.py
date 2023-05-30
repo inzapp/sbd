@@ -103,7 +103,7 @@ class DataGenerator:
 
     def check_label(self):
         if self.teacher is not None:
-            print(f'knowledge distilation training doesn\'t need label check, skip')
+            print(f'knowledge distillation training doesn\'t need label check, skip')
             return
 
         fs = []
@@ -175,7 +175,7 @@ class DataGenerator:
         if self.teacher is not None:
             self.virtual_anchor_ws = [0.5 for _ in range(self.num_output_layers)]
             self.virtual_anchor_hs = [0.5 for _ in range(self.num_output_layers)]
-            print(f'knowledge distilation training doesn\'t need virtual anchor, skip')
+            print(f'knowledge distillation training doesn\'t need virtual anchor, skip')
             return
 
         if self.virtual_anchor_iou_threshold == 0.0:
@@ -245,7 +245,7 @@ class DataGenerator:
 
     def calculate_best_possible_recall(self):
         if self.teacher is not None:
-            print(f'knowledge distilation training doesn\'t need BPR, skip')
+            print(f'knowledge distillation training doesn\'t need BPR, skip')
             return
 
         fs = []

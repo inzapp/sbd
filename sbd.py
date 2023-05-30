@@ -400,7 +400,7 @@ class SBD:
             self.check_forwarding_time(self.model, device='/cpu:0')
             print()
             if self.teacher is not None and self.optimizer == 'sgd':
-                print(f'warning : SGD optimizer with knowledge distilation training may be bad choice, consider using Adam or RMSprop optimizer instead')
+                print(f'warning : SGD optimizer with knowledge distillation training may be bad choice, consider using Adam or RMSprop optimizer instead')
             if self.use_pretrained_model:
                 print(f'start training with pretrained model : {self.pretrained_model_path}')
             else:
