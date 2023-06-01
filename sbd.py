@@ -20,8 +20,10 @@ limitations under the License.
 import os
 import cv2
 import yaml
+import warnings
 import numpy as np
 import shutil as sh
+import silence_tensorflow.auto
 import tensorflow as tf
 
 from glob import glob
@@ -84,6 +86,7 @@ class SBD:
         self.checkpoint_path = None
         self.pretrained_iteration_count = 0
         self.best_mean_ap = 0.0
+        warnings.filterwarnings(action='ignore')
 
         self.use_pretrained_model = False
         self.model, self.teacher = None, None
@@ -128,11 +131,7 @@ class SBD:
             if self.optimizer == 'adam':
                 self.l2 = 0.0
             with self.device_context():
-                self.model, _ = self.refresh(Model(
-                    input_shape=input_shape,
-                    output_channel=self.num_classes + 5,
-                    l2=self.l2,
-                    drop_rate=self.drop_rate).build(self.model_type), self.optimizer)
+                self.model = Model(input_shape=input_shape, output_channel=self.num_classes + 5, l2=self.l2, drop_rate=self.drop_rate).build(self.model_type)
 
         if self.kd_teacher_model_path.endswith('.h5') and training:
             self.load_teacher(self.kd_teacher_model_path)
