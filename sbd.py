@@ -128,7 +128,11 @@ class SBD:
             if self.optimizer == 'adam':
                 self.l2 = 0.0
             with self.device_context():
-                self.model = Model(input_shape=input_shape, output_channel=self.num_classes + 5, l2=self.l2, drop_rate=self.drop_rate).build(self.model_type)
+                self.model, _ = self.refresh(Model(
+                    input_shape=input_shape,
+                    output_channel=self.num_classes + 5,
+                    l2=self.l2,
+                    drop_rate=self.drop_rate).build(self.model_type), self.optimizer)
 
         if self.kd_teacher_model_path.endswith('.h5') and training:
             self.load_teacher(self.kd_teacher_model_path)
@@ -365,6 +369,7 @@ class SBD:
         sleep(0.2)
         model = self.load_model_with_device(model_path)
         optimizer = self.get_optimizer(optimizer_str)
+        model.compile(optimizer=optimizer)
         os.remove(model_path)
         return model, optimizer
 
