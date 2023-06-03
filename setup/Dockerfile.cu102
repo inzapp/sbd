@@ -25,7 +25,7 @@ COPY ./requirements_cuda_102.txt .
 
 # Upgrade pip and install Python packages
 RUN source /venv/tf/bin/activate && python -m pip install --upgrade pip && python -m pip install -r ./requirements_cuda_102.txt && deactivate
-RUN echo 'source /venv/tf/bin/activate' >> /etc/bash.bashrc
+COPY ./.bashrc /etc/bash.bashrc
 
 # Set the working directory
 RUN mkdir -p /sbd/
