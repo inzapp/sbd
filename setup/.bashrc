@@ -17,7 +17,7 @@
 # If not running interactively, don't do anything
 [ -z "$PS1" ] && return
 
-export PS1="\[\e[31m\]tf-docker\[\e[m\] \[\e[33m\]\w\[\e[m\] > "
+export PS1="\[\e[31m\]sbd-docker\[\e[m\] \[\e[33m\]\w\[\e[m\] > "
 export TERM=xterm-256color
 alias grep="grep --color=auto"
 alias ls="ls --color=auto"
