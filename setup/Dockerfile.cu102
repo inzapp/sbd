@@ -1,0 +1,32 @@
+# Use base image
+FROM tensorflow/tensorflow:2.3.1-gpu
+
+# Set arg for apt-key
+ARG APT_KEY_DONT_WARN_ON_DANGEROUS_USAGE=1
+
+# Install dependencies
+RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys A4B469963BF863CC && apt-get update && apt-get install -y \
+    vim \
+    git \
+    python3.8 \
+    python3.8-distutils \
+    python3.8-venv \
+    libgl1-mesa-glx
+
+# Set up the virtual environment
+RUN mkdir -p /venv/
+RUN python3.8 -m venv /venv/tf
+
+# Set the working directory
+WORKDIR /venv/tf
+
+# Copy requirements file
+COPY ./requirements_cuda_102.txt .
+
+# Upgrade pip and install Python packages
+RUN source /venv/tf/bin/activate && python -m pip install --upgrade pip && python -m pip install -r ./requirements_cuda_102.txt && deactivate
+RUN echo 'source /venv/tf/bin/activate' >> /etc/bash.bashrc
+
+# Set the working directory
+RUN mkdir -p /sbd/
+WORKDIR /sbd
