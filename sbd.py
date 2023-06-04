@@ -60,7 +60,7 @@ class SBD:
         num_workers = config['num_workers']
         self.class_names_file_path = config['class_names_file_path']
         self.lr = config['lr']
-        self.obj_alpha_param = config['obj_alpha'] 
+        self.obj_alpha_param = config['obj_alpha']
         self.obj_gamma_param = config['obj_gamma']
         self.cls_alpha_param = config['cls_alpha'] 
         self.cls_gamma_param = config['cls_gamma']
@@ -149,7 +149,7 @@ class SBD:
         self.train_image_paths = self.init_image_paths(train_image_path)
         self.validation_image_paths = self.init_image_paths(validation_image_path)
 
-        self.train_data_generator = DataGenerator(
+        self.data_generator = DataGenerator(
             teacher=self.teacher,
             image_paths=self.train_image_paths,
             input_shape=input_shape,
@@ -160,20 +160,6 @@ class SBD:
             ignore_scale=ignore_scale,
             virtual_anchor_iou_threshold=virtual_anchor_iou_threshold,
             aug_scale=aug_scale,
-            aug_brightness=aug_brightness,
-            aug_contrast=aug_contrast,
-            primary_device=self.primary_device)
-        self.validation_data_generator = DataGenerator(
-            teacher=self.teacher,
-            image_paths=self.validation_image_paths,
-            input_shape=input_shape,
-            output_shape=self.model.output_shape,
-            batch_size=self.get_zero_mod_batch_size(len(self.validation_image_paths)),
-            num_workers=num_workers,
-            multi_classification_at_same_box=multi_classification_at_same_box,
-            ignore_scale=ignore_scale,
-            virtual_anchor_iou_threshold=virtual_anchor_iou_threshold,
-            aug_scale=1.0,
             aug_brightness=aug_brightness,
             aug_contrast=aug_contrast,
             primary_device=self.primary_device)
@@ -390,13 +376,13 @@ class SBD:
             print(f'validate on {len(self.validation_image_paths)} samples.')
 
             print('\nchecking label in train data...')
-            self.train_data_generator.check_label()
+            self.data_generator.check_label(self.train_image_paths)
             print('\nchecking label in validation data...')
-            self.validation_data_generator.check_label()
+            self.data_generator.check_label(self.validation_image_paths)
             print('\ncalculating virtual anchor...')
-            self.train_data_generator.calculate_virtual_anchor()
+            self.data_generator.calculate_virtual_anchor()
             print('\ncalculating BPR(Best Possible Recall)...')
-            self.train_data_generator.calculate_best_possible_recall()
+            self.data_generator.calculate_best_possible_recall()
             self.set_alpha_gamma()
             print('\nstart test forward for checking forwarding time.')
             if self.primary_device.find('gpu') > -1:
@@ -420,7 +406,7 @@ class SBD:
             lr_scheduler = LRScheduler(iterations=self.iterations, lr=self.lr, warm_up=self.warm_up, policy=self.lr_policy, decay_step=self.decay_step)
             print(f'model will be save to {self.checkpoint_path}')
             while True:
-                batch_x, batch_y, mask = self.train_data_generator.load()
+                batch_x, batch_y, mask = self.data_generator.load()
                 lr_scheduler.update(optimizer, iteration_count)
                 loss_vars = compute_gradient_tf((
                     self.strategy,
