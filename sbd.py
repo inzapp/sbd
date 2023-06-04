@@ -376,9 +376,9 @@ class SBD:
             print(f'validate on {len(self.validation_image_paths)} samples.')
 
             print('\nchecking label in train data...')
-            self.data_generator.check_label(self.train_image_paths)
+            self.data_generator.check_label(self.train_image_paths, self.class_names)
             print('\nchecking label in validation data...')
-            self.data_generator.check_label(self.validation_image_paths)
+            self.data_generator.check_label(self.validation_image_paths, self.class_names)
             print('\ncalculating virtual anchor...')
             self.data_generator.calculate_virtual_anchor()
             print('\ncalculating BPR(Best Possible Recall)...')

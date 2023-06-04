@@ -102,7 +102,7 @@ class DataGenerator:
         else:
             return False
 
-    def check_label(self, image_paths):
+    def check_label(self, image_paths, class_names):
         if self.teacher is not None:
             print(f'knowledge distillation training doesn\'t need label check, skip')
             return
@@ -137,10 +137,17 @@ class DataGenerator:
                 print(label_path)
             Util.print_error_exit(f'{len(invalid_label_paths)} invalid label exists fix it')
 
-        max_len = len(str(np.max(class_counts)))
+        max_class_name_len = 0
+        for name in class_names:
+            max_class_name_len = max(max_class_name_len, len(name))
+        if max_class_name_len == 0:
+            max_class_name_len = 1
+
         print(f'\nclass counts')
         for i in range(len(class_counts)):
-            print(f'class {i:>3} : {class_counts[i]:>{max_len}}')
+            class_name = class_names[i]
+            class_count = class_counts[i]
+            print(f'{class_name:{max_class_name_len}s} : {class_count}')
         print('label check success')
 
     def get_iou_with_virtual_anchors(self, box):
