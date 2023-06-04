@@ -62,7 +62,7 @@ class SBD:
         self.lr = config['lr']
         self.obj_alpha_param = config['obj_alpha']
         self.obj_gamma_param = config['obj_gamma']
-        self.cls_alpha_param = config['cls_alpha'] 
+        self.cls_alpha_param = config['cls_alpha']
         self.cls_gamma_param = config['cls_gamma']
         self.box_weight = config['box_weight']
         self.obj_alphas = None
@@ -80,6 +80,7 @@ class SBD:
         self.lr_policy = config['lr_policy']
         self.model_name = config['model_name']
         self.model_type = config['model_type']
+        self.p6_model = config['p6_model']
         self.training_view = config['training_view']
         self.map_checkpoint_interval = config['map_checkpoint_interval']
         self.live_view_previous_time = time()
@@ -121,8 +122,10 @@ class SBD:
             self.load_model(self.pretrained_model_path)
             self.use_pretrained_model = True
 
-        assert input_rows % 32 == 0
-        assert input_cols % 32 == 0
+        if self.p6_model:
+            assert input_rows % 64 == 0 and input_cols % 64 == 0, 'input_rows, input_cols of p6 model must be multiple of 64'
+        else:
+            assert input_rows % 32 == 0 and input_cols % 32 == 0, 'input_rows, input_cols must be multiple of 32'
         assert self.input_channels in [1, 3]
         input_shape = (input_rows, input_cols, self.input_channels)
         if not self.use_pretrained_model:
@@ -131,7 +134,12 @@ class SBD:
             if self.optimizer == 'adam':
                 self.l2 = 0.0
             with self.device_context():
-                self.model = Model(input_shape=input_shape, output_channel=self.num_classes + 5, l2=self.l2, drop_rate=self.drop_rate).build(self.model_type)
+                self.model = Model(
+                    input_shape=input_shape,
+                    output_channel=self.num_classes + 5,
+                    p6=self.p6_model,
+                    l2=self.l2,
+                    drop_rate=self.drop_rate).build(self.model_type)
 
         if self.kd_teacher_model_path.endswith('.h5') and training:
             self.load_teacher(self.kd_teacher_model_path)

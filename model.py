@@ -23,9 +23,10 @@ from util import Util
 
 
 class Model:
-    def __init__(self, input_shape, output_channel, l2, drop_rate):
+    def __init__(self, input_shape, output_channel, p6, l2, drop_rate):
         self.input_shape = input_shape
         self.output_channel = output_channel
+        self.p6 = p6
         self.l2 = l2
         self.drop_rate = drop_rate
         self.models = dict()
@@ -49,12 +50,15 @@ class Model:
                 is_model_type_valid = False
             if p != 'p':
                 is_model_type_valid = False
-            if pyramid_scale not in [0, 1, 2, 3, 4, 5]:
+            if pyramid_scale not in [0, 1, 2, 3, 4, 5, 6]:
                 is_model_type_valid = False
+            if pyramid_scale == 6 and not self.p6:
+                is_model_type_valid = False
+                print('6 pyramid scale is only support with p6 model')
         if not is_model_type_valid:
             Util.print_error_exit([
                 f'invalid model type => \'{model_type}\'',
-                f'model type must be combination of <backbone(n, s, m, l, x), num_output_layers(1, m), p, pyramid_scale(0, 1, 2, 3, 4, 5)>',
+                f'model type must be combination of <backbone[n, s, m, l, x], num_output_layers[1, m], p, pyramid_scale[0, 1, 2, 3, 4, 5, 6(p6 only)]>',
                 f'  backbone : n, s, m, l, x',
                 f'  num output layers : 1, m(multi layer for given pyramid scale)',
                 f'  p : constant character for naming rule',
@@ -83,6 +87,7 @@ class Model:
             ['csp', 3, 64, 3],
             ['csp', 3, 128, 3],
             ['csp', 3, 256, 3],
+            ['csp', 3, 256, 3],
             ['head', -1, -1, -1],
         ]
         return self.build_layers(layer_infos, num_output_layers, pyramid_scale)
@@ -103,6 +108,7 @@ class Model:
             ['conv', 3, 64, 2],
             ['csp', 3, 128, 3],
             ['csp', 3, 256, 3],
+            ['csp', 3, 512, 3],
             ['csp', 3, 512, 3],
             ['head', -1, -1, -1],
         ]
@@ -125,6 +131,7 @@ class Model:
             ['csp', 3, 192, 4],
             ['csp', 3, 384, 4],
             ['csp', 3, 512, 4],
+            ['csp', 3, 512, 4],
             ['head', -1, -1, -1],
         ]
         return self.build_layers(layer_infos, num_output_layers, pyramid_scale)
@@ -145,6 +152,7 @@ class Model:
             ['conv', 3, 64, 2],
             ['csp', 3, 256, 5],
             ['csp', 3, 384, 5],
+            ['csp', 3, 512, 5],
             ['csp', 3, 512, 5],
             ['head', -1, -1, -1],
         ]
@@ -167,13 +175,16 @@ class Model:
             ['csp', 3, 256, 6],
             ['csp', 3, 512, 6],
             ['csp', 3, 512, 6],
+            ['csp', 3, 512, 6],
             ['head', -1, -1, -1],
         ]
         return self.build_layers(layer_infos, num_output_layers, pyramid_scale)
 
     def build_layers(self, layer_infos, num_output_layers, pyramid_scale):
-        assert len(layer_infos) == 7 and layer_infos[-1][0] == 'head'
+        assert len(layer_infos) == 8 and layer_infos[-1][0] == 'head'
         features = []
+        if not self.p6:
+            layer_infos.pop(6)
         input_layer = tf.keras.layers.Input(shape=self.input_shape, name='sbd_input')
         x = input_layer
         for i, (method, kernel_size, channel, depth) in enumerate(layer_infos):
@@ -199,7 +210,7 @@ class Model:
                     x = [x]
             else:
                 Util.print_error_exit(f'invalid layer info method : {method}, available method : [conv, csp, head]')
-            if i < 5:
+            if i < (6 if self.p6 else 5):
                 x = self.max_pool(x)
 
         output_layers = []
