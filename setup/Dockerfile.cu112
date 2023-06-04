@@ -15,16 +15,16 @@ RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys A4B469963BF863CC &&
 
 # Set up the virtual environment
 RUN mkdir -p /venv/
-RUN python3.8 -m venv /venv/tf
+RUN python3.8 -m venv /venv/sbd
 
 # Set the working directory
-WORKDIR /venv/tf
+WORKDIR /venv/sbd
 
 # Copy requirements file
 COPY ./requirements_cuda_112.txt .
 
 # Upgrade pip and install Python packages
-RUN source /venv/tf/bin/activate && python -m pip install --upgrade pip && python -m pip install -r ./requirements_cuda_112.txt && deactivate
+RUN source /venv/sbd/bin/activate && python -m pip install --upgrade pip && python -m pip install -r ./requirements_cuda_112.txt && deactivate
 COPY ./.bashrc /etc/bash.bashrc
 
 # Set the working directory

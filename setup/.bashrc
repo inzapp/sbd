@@ -60,4 +60,6 @@ fi
 
 # Turn off colors
 echo -e "\e[m"
-source /venv/tf/bin/activate
+
+# activate virtual environment
+source /venv/sbd/bin/activate
