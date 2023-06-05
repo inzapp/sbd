@@ -24,13 +24,14 @@ from tensorflow.python.framework.ops import convert_to_tensor_v2
 
 
 IGNORED_LOSS = -2147483647.9
+kd_ale = AbsoluteLogarithmicError(alpha=0.5, gamma=1.0)
 
 
 def __confidence_loss(y_true, y_pred, mask, alpha, gamma, kd):
     obj_true = y_true[:, :, :, 0]
     obj_pred = y_pred[:, :, :, 0]
     if kd:
-        return tf.reduce_mean(tf.square(obj_true - obj_pred))
+        return tf.reduce_mean(kd_ale(obj_true, obj_pred))
 
     ale = AbsoluteLogarithmicError(alpha=alpha, gamma=gamma)
     loss = tf.reduce_sum(ale(obj_true, obj_pred) * mask[:, :, :, 0])
@@ -94,7 +95,7 @@ def __bbox_loss(y_true, y_pred, box_weight, kd):
     if kd:
         box_true = y_true[:, :, :, 1:5]
         box_pred = y_pred[:, :, :, 1:5]
-        return tf.reduce_mean(tf.square(box_true - box_pred))
+        return tf.reduce_mean(tf.reduce_sum(kd_ale(box_true, box_pred), axis=-1)) * 5.0
 
     obj_true = y_true[:, :, :, 0]
     obj_count = tf.cast(tf.reduce_sum(obj_true), y_pred.dtype)
@@ -110,7 +111,7 @@ def __classification_loss(y_true, y_pred, alpha, gamma, label_smoothing, kd):
     if kd:
         class_true = y_true[:, :, :, 5:]
         class_pred = y_pred[:, :, :, 5:]
-        return tf.reduce_mean(tf.square(class_true - class_pred))
+        return tf.reduce_mean(tf.reduce_sum(kd_ale(class_true, class_pred), axis=-1))
 
     obj_true = y_true[:, :, :, 0]
     obj_count = tf.cast(tf.reduce_sum(obj_true), y_pred.dtype)
