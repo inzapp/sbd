@@ -198,7 +198,10 @@ class Model:
                     x = self.csp_block(x, channel, kernel_size, depth, activation='relu')
                 features.append(x)
             elif method == 'head':
-                num_upscaling = 5 - pyramid_scale
+                if self.p6:
+                    num_upscaling = 6 - pyramid_scale
+                else:
+                    num_upscaling = 5 - pyramid_scale
                 if num_upscaling > 0:
                     ms = list(reversed([v[0] for v in layer_infos]))[2:num_upscaling+2]
                     ks = list(reversed([v[1] for v in layer_infos]))[2:num_upscaling+2]
