@@ -91,7 +91,7 @@ class SBD:
 
         self.use_pretrained_model = False
         self.model, self.teacher = None, None
-        self.class_names, self.num_classes = self.init_class_names(self.class_names_file_path)
+        self.class_names, self.num_classes, self.unknown_class_index = self.init_class_names(self.class_names_file_path)
 
         assert type(self.devices) is list
         self.strategy = None
@@ -164,6 +164,7 @@ class SBD:
             output_shape=self.model.output_shape,
             batch_size=batch_size,
             num_workers=num_workers,
+            unknown_class_index=self.unknown_class_index,
             multi_classification_at_same_box=multi_classification_at_same_box,
             ignore_scale=ignore_scale,
             virtual_anchor_iou_threshold=virtual_anchor_iou_threshold,
@@ -174,13 +175,24 @@ class SBD:
         np.set_printoptions(precision=6)
 
     def init_class_names(self, class_names_file_path):
+        class_names = []
+        num_classes = 0
+        unknown_class_index = -1
         if os.path.exists(class_names_file_path) and os.path.isfile(class_names_file_path):
             with open(class_names_file_path, 'rt') as classes_file:
                 class_names = [s.replace('\n', '') for s in classes_file.readlines()]
+                for i, class_name in enumerate(class_names):
+                    if class_name == 'unknown':
+                        if unknown_class_index == -1:
+                            unknown_class_index = i
+                        else:
+                            Util.print_error_exit(f'unknown class count in {class_names_file_path} must be 1')
                 num_classes = len(class_names)
-            return class_names, num_classes
-        else:
-            return [], 0
+                if unknown_class_index > -1:
+                    num_classes -= 1
+                if num_classes <= 0:
+                    Util.print_error_exit('cannot build model with unknown class only')
+        return class_names, num_classes, unknown_class_index
 
     def init_image_paths(self, image_path):
         if image_path.endswith('.txt'):
@@ -667,6 +679,7 @@ class SBD:
             model=self.model,
             image_paths=image_paths,
             device=self.primary_device,
+            unknown_class_index=self.unknown_class_index,
             confidence_threshold=confidence_threshold,
             tp_iou_threshold=tp_iou_threshold,
             classes_txt_path=self.class_names_file_path,

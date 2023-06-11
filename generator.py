@@ -36,6 +36,7 @@ class DataGenerator:
         output_shape,
         batch_size,
         num_workers,
+        unknown_class_index,
         multi_classification_at_same_box,
         ignore_scale,
         virtual_anchor_iou_threshold,
@@ -53,6 +54,7 @@ class DataGenerator:
             self.output_shapes = [self.output_shapes]
         self.num_classes = self.output_shapes[0][-1] - 5
         self.batch_size = batch_size
+        self.unknown_class_index = unknown_class_index
         self.num_output_layers = len(self.output_shapes)
         self.multi_classification_at_same_box = multi_classification_at_same_box
         self.ignore_scale = ignore_scale
@@ -111,9 +113,13 @@ class DataGenerator:
         for path in image_paths:
             fs.append(self.pool.submit(self.load_label, self.label_path(path)))
 
+        num_classes = self.num_classes
+        if self.unknown_class_index > -1:
+            num_classes += 1
+            print(f'using unknown class with class index {self.unknown_class_index}')
         invalid_label_paths = set()
         not_found_label_paths = set()
-        class_counts = np.zeros(shape=(self.num_classes,), dtype=np.int32)
+        class_counts = np.zeros(shape=(num_classes,), dtype=np.int32)
         for f in tqdm(fs):
             lines, label_path, exists = f.result()
             if not exists:
@@ -122,7 +128,7 @@ class DataGenerator:
                 for line in lines:
                     class_index, cx, cy, w, h = list(map(float, line.split()))
                     class_counts[int(class_index)] += 1
-                    if self.is_invalid_label(label_path, [class_index, cx, cy, w, h], self.num_classes):
+                    if self.is_invalid_label(label_path, [class_index, cx, cy, w, h], num_classes):
                         invalid_label_paths.add(label_path)
 
         if len(not_found_label_paths) > 0:
@@ -252,6 +258,9 @@ class DataGenerator:
         print(f'average IoU with virtual anchor : {avg_iou_with_virtual_anchor:.4f}')
 
     def calculate_best_possible_recall(self):
+        if self.debug:
+            return
+
         if self.teacher is not None:
             print(f'knowledge distillation training doesn\'t need BPR, skip')
             return
@@ -486,7 +495,8 @@ class DataGenerator:
                         y[i][batch_index][offset_center_row][offset_center_col][3] = w
                         y[i][batch_index][offset_center_row][offset_center_col][4] = h
                         for class_index in class_indexes:
-                            y[i][batch_index][center_row][center_col][class_index+5] = 1.0
+                            if class_index != self.unknown_class_index:
+                                y[i][batch_index][center_row][center_col][class_index+5] = 1.0
                         is_box_allocated = True
                         allocated_count += 1
                         break
@@ -495,6 +505,9 @@ class DataGenerator:
             print(f'confidence_channel.shape : {confidence_channel.shape}')
             mask_channel = mask[i][batch_index, :, :, 0]
             print(f'mask_channel.shape : {mask_channel.shape}')
+            for class_index in range(self.num_classes):
+                class_channel = y[i][batch_index, :, :, 5+class_index]
+                cv2.imshow(f'class_{class_index}', cv2.resize(class_channel, (self.input_shape[1], self.input_shape[0]), interpolation=cv2.INTER_NEAREST))
             cv2.imshow('confidence', cv2.resize(confidence_channel, (self.input_shape[1], self.input_shape[0]), interpolation=cv2.INTER_NEAREST))
             cv2.imshow('mask', cv2.resize(mask_channel, (self.input_shape[1], self.input_shape[0]), interpolation=cv2.INTER_NEAREST))
             print(f'allocated_count : {allocated_count}')

@@ -14,7 +14,7 @@ g_annotations_csv_name = 'annotations.csv'
 g_predictions_csv_name = 'predictions.csv'
 
 
-def load_label(image_path):
+def load_label(image_path, unknown_class_index):
     csv = ''
     label_path = f'{image_path[:-4]}.txt'
     basename = os.path.basename(image_path)
@@ -23,6 +23,8 @@ def load_label(image_path):
     for line in lines:
         class_index, cx, cy, w, h = list(map(float, line.split()))
         class_index = int(class_index)
+        if class_index == unknown_class_index:
+            continue
         xmin = cx - w * 0.5
         ymin = cy - h * 0.5
         xmax = cx + w * 0.5
@@ -32,13 +34,13 @@ def load_label(image_path):
     return csv
 
 
-def make_annotations_csv(image_paths):
+def make_annotations_csv(image_paths, unknown_class_index):
     global g_annotations_csv_name
     print('annotations csv creation start')
     fs = []
     pool = ThreadPoolExecutor(8)
     for path in image_paths:
-        fs.append(pool.submit(load_label, path))
+        fs.append(pool.submit(load_label, path, unknown_class_index))
     csv = 'ImageID,LabelName,XMin,XMax,YMin,YMax\n'
     for f in tqdm(fs):
         csv += f.result()
@@ -75,10 +77,10 @@ def make_predictions_csv(model, image_paths, device):
         f.writelines(csv)
 
 
-def calc_mean_average_precision(model, image_paths, device, confidence_threshold, tp_iou_threshold, classes_txt_path, cached):
+def calc_mean_average_precision(model, image_paths, device, unknown_class_index, confidence_threshold, tp_iou_threshold, classes_txt_path, cached):
     global g_iou_threshold, g_confidence_threshold, g_annotations_csv_name, g_predictions_csv_name
     if not cached:
-        make_annotations_csv(image_paths)
+        make_annotations_csv(image_paths, unknown_class_index)
         make_predictions_csv(model, image_paths, device)
     return mean_average_precision_for_boxes(
         ann=g_annotations_csv_name,
