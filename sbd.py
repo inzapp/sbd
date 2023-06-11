@@ -565,6 +565,58 @@ class SBD:
             print()
         return boxes
 
+    def auto_label(self, model_path, image_path, confidence_threshold, cpu, recursive):
+        from tqdm import tqdm
+        from concurrent.futures.thread import ThreadPoolExecutor
+        input_shape = self.model.input_shape[1:]
+        channel = input_shape[-1]
+
+        if recursive:
+            image_paths = glob(f'{image_path}/**/*.jpg', recursive=True)
+        else:
+            image_paths = glob(f'{image_path}/*.jpg', recursive=False)
+        try:
+            sh.copy(self.class_names_file_path, f'{image_path}/classes.txt')
+        except sh.SameFileError:
+            pass
+
+        pool = ThreadPoolExecutor(8)
+        fs = []
+        def label_exists_and_box_exists(path):
+            return os.path.exists(path) and os.path.isfile(path) and os.path.getsize(path) > 0
+        for path in image_paths:
+            fs.append(pool.submit(label_exists_and_box_exists, path))
+        valid_label_file_count = 0
+        for f in fs:
+            if f.result():
+                valid_label_file_count += 1
+        if valid_label_file_count > 0:
+            ans = input(f'{valid_label_file_count} label files will be overwritten. continue? [Y/n] : ')
+            if ans not in ['y', 'Y']:
+                print('canceled')
+                return
+
+        fs = []
+        for path in image_paths:
+            fs.append(pool.submit(Util.load_img, path, channel))
+
+        device = '/cpu:0' if cpu else self.primary_device
+        for f in tqdm(fs):
+            img, _, path = f.result()
+            boxes = self.predict(self.model, img, device, confidence_threshold=confidence_threshold)
+            label_content = ''
+            for box in boxes:
+                class_index = box['class']
+                xmin, ymin, xmax, ymax = box['bbox_norm']
+                w = xmax - xmin
+                h = ymax - ymin
+                cx = xmin + (w * 0.5)
+                cy = ymin + (h * 0.5)
+                cx, cy, w, h = np.clip(np.array([cx, cy, w, h]), 0.0, 1.0)
+                label_content += f'{class_index} {cx:.6f} {cy:.6f} {w:.6f} {h:.6f}\n'
+            with open(f'{path[:-4]}.txt', 'wt') as file:
+                file.write(label_content)
+
     def calc_gflops(self):
         gflops = get_flops(self.model, batch_size=1) * 1e-9
         print(f'\nGFLOPs : {gflops:.4f}')
