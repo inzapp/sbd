@@ -34,4 +34,5 @@ num_workers: 8
 iterations: 1000000
 map_checkpoint_interval: 0
 training_view: False
+treat_unknown_as_class: True
 multi_classification_at_same_box: False

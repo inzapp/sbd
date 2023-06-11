@@ -82,6 +82,7 @@ class SBD:
         self.model_type = config['model_type']
         self.p6_model = config['p6_model']
         self.training_view = config['training_view']
+        self.treat_unknown_as_class = config['treat_unknown_as_class']
         self.map_checkpoint_interval = config['map_checkpoint_interval']
         self.live_view_previous_time = time()
         self.checkpoint_path = None
@@ -181,12 +182,13 @@ class SBD:
         if os.path.exists(class_names_file_path) and os.path.isfile(class_names_file_path):
             with open(class_names_file_path, 'rt') as classes_file:
                 class_names = [s.replace('\n', '') for s in classes_file.readlines()]
-                for i, class_name in enumerate(class_names):
-                    if class_name == 'unknown':
-                        if unknown_class_index == -1:
-                            unknown_class_index = i
-                        else:
-                            Util.print_error_exit(f'unknown class count in {class_names_file_path} must be 1')
+                if not self.treat_unknown_as_class:
+                    for i, class_name in enumerate(class_names):
+                        if class_name == 'unknown':
+                            if unknown_class_index == -1:
+                                unknown_class_index = i
+                            else:
+                                Util.print_error_exit(f'unknown class count in {class_names_file_path} must be 1')
                 num_classes = len(class_names)
                 if unknown_class_index > -1:
                     num_classes -= 1
