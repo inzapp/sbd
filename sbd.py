@@ -580,18 +580,20 @@ class SBD:
         except sh.SameFileError:
             pass
 
+        def get_label_path(path):
+            return f'{path[:-4]}.txt'
+        def is_exists(path):
+            return os.path.exists(path) and os.path.isfile(path)
         pool = ThreadPoolExecutor(8)
         fs = []
-        def label_exists_and_box_exists(path):
-            return os.path.exists(path) and os.path.isfile(path) and os.path.getsize(path) > 0
         for path in image_paths:
-            fs.append(pool.submit(label_exists_and_box_exists, path))
-        valid_label_file_count = 0
+            fs.append(pool.submit(is_exists, get_label_path(path)))
+        label_file_count = 0
         for f in fs:
             if f.result():
-                valid_label_file_count += 1
-        if valid_label_file_count > 0:
-            ans = input(f'{valid_label_file_count} label files will be overwritten. continue? [Y/n] : ')
+                label_file_count += 1
+        if label_file_count > 0:
+            ans = input(f'{label_file_count} label files will be overwritten. continue? [Y/n] : ')
             if ans not in ['y', 'Y']:
                 print('canceled')
                 return
@@ -614,7 +616,7 @@ class SBD:
                 cy = ymin + (h * 0.5)
                 cx, cy, w, h = np.clip(np.array([cx, cy, w, h]), 0.0, 1.0)
                 label_content += f'{class_index} {cx:.6f} {cy:.6f} {w:.6f} {h:.6f}\n'
-            with open(f'{path[:-4]}.txt', 'wt') as file:
+            with open(get_label_path(path), 'wt') as file:
                 file.write(label_content)
 
     def calc_gflops(self):
