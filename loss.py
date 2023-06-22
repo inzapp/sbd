@@ -38,7 +38,17 @@ def __confidence_loss(y_true, y_pred, mask, alpha, gamma, kd):
     return loss / tf.cast(tf.shape(y_true)[0], dtype=y_pred.dtype)
 
 
-def __iou(y_true, y_pred, convex):
+def __bbox_loss(y_true, y_pred, box_weight, kd, convex=True):
+    if kd:
+        box_true = y_true[:, :, :, 1:5]
+        box_pred = y_pred[:, :, :, 1:5]
+        return tf.reduce_mean(kd_ale(box_true, box_pred))
+
+    obj_true = y_true[:, :, :, 0]
+    obj_count = tf.cast(tf.reduce_sum(obj_true), y_pred.dtype)
+    if obj_count == tf.constant(0.0):
+        return 0.0
+
     y_true_shape = tf.cast(tf.shape(y_true), y_pred.dtype)
     grid_height, grid_width = y_true_shape[1], y_true_shape[2]
 
@@ -53,6 +63,9 @@ def __iou(y_true, y_pred, convex):
     cx_pred = (x_grid + cx_pred) / grid_width
     cy_true = (y_grid + cy_true) / grid_height
     cy_pred = (y_grid + cy_pred) / grid_height
+
+    cx_loss = tf.square(cx_true - cx_pred)
+    cy_loss = tf.square(cy_true - cy_pred)
 
     w_true = y_true[:, :, :, 3]
     h_true = y_true[:, :, :, 4]
@@ -87,23 +100,9 @@ def __iou(y_true, y_pred, convex):
         union = convex_width * convex_height
     else:
         union = y_true_area + y_pred_area - intersection
-    iou = intersection / (union + 1e-5)
-    return iou
-
-
-def __bbox_loss(y_true, y_pred, box_weight, kd):
-    if kd:
-        box_true = y_true[:, :, :, 1:5]
-        box_pred = y_pred[:, :, :, 1:5]
-        return tf.reduce_mean(kd_ale(box_true, box_pred))
-
-    obj_true = y_true[:, :, :, 0]
-    obj_count = tf.cast(tf.reduce_sum(obj_true), y_pred.dtype)
-    if obj_count == tf.constant(0.0):
-        return 0.0
-
-    iou = __iou(y_true, y_pred, convex=True)
-    loss = tf.reduce_sum((obj_true - iou) * obj_true) * box_weight
+    eps = 1e-5
+    iou = tf.clip_by_value(intersection / (union + eps), 0.0 + eps, 1.0 - eps)
+    loss = tf.reduce_sum(((obj_true - iou) + (cx_loss + cy_loss)) * obj_true) * box_weight
     return loss / tf.cast(tf.shape(y_true)[0], dtype=y_pred.dtype)
 
 
