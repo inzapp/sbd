@@ -5,7 +5,9 @@
 *.onnx
 *.pt
 *.pth
+*.bak
 .idea/
+boxed_images*
 __pycache__/
 checkpoint/
 cscope.*
