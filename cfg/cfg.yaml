@@ -15,7 +15,7 @@ lr_policy: step
 lr: 0.001
 l2: 0.0005
 dropout: 0.1
-obj_alpha: 0.25
+obj_alpha: 0.75
 obj_gamma: 1.0
 cls_alpha: 0.5
 cls_gamma: 1.0
@@ -25,14 +25,14 @@ aug_contrast: 0.3
 aug_brightness: 0.3
 warm_up: 0.5
 momentum: 0.9
-smoothing: 0.1
+smoothing: 0.05
 decay_step: 0.1
 ignore_scale: 0.1
-va_iou_threshold: 0.6
+va_iou_threshold: 1.0
 batch_size: 4
 num_workers: 8
 iterations: 1000000
 map_checkpoint_interval: 0
 training_view: False
-treat_unknown_as_class: True
+treat_unknown_as_class: False
 multi_classification_at_same_box: False
