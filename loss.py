@@ -64,9 +64,6 @@ def __bbox_loss(y_true, y_pred, box_weight, kd, convex=True):
     cy_true = (y_grid + cy_true) / grid_height
     cy_pred = (y_grid + cy_pred) / grid_height
 
-    cx_loss = tf.square(cx_true - cx_pred)
-    cy_loss = tf.square(cy_true - cy_pred)
-
     w_true = y_true[:, :, :, 3]
     h_true = y_true[:, :, :, 4]
     w_pred = y_pred[:, :, :, 3]
@@ -100,9 +97,8 @@ def __bbox_loss(y_true, y_pred, box_weight, kd, convex=True):
         union = convex_width * convex_height
     else:
         union = y_true_area + y_pred_area - intersection
-    eps = 1e-5
-    iou = tf.clip_by_value(intersection / (union + eps), 0.0 + eps, 1.0 - eps)
-    loss = tf.reduce_sum(((obj_true - iou) + (cx_loss + cy_loss)) * obj_true) * box_weight
+    iou = tf.clip_by_value(intersection / (union + 1e-5), 0.0, 1.0)
+    loss = tf.reduce_sum((obj_true - iou) * obj_true) * box_weight
     return loss / tf.cast(tf.shape(y_true)[0], dtype=y_pred.dtype)
 
 
