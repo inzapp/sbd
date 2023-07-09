@@ -341,33 +341,33 @@ class SBD:
         _strategy, _train_step, model, optimizer, loss_function, x, y_true, mask, num_output_layers, obj_alphas, obj_gammas, cls_alphas, cls_gammas, box_weight, label_smoothing, kd = args
         with tf.GradientTape() as tape:
             y_pred = model(x, training=True)
-            confidence_loss, bbox_loss, classification_loss = 0.0, 0.0, 0.0
+            obj_loss, box_loss, cls_loss = 0.0, 0.0, 0.0
             if num_output_layers == 1:
-                confidence_loss, bbox_loss, classification_loss = loss_function(
+                obj_loss, box_loss, cls_loss = loss_function(
                     y_true, y_pred, mask, obj_alphas[0], obj_gammas[0], cls_alphas[0], cls_gammas[0], box_weight, label_smoothing, kd)
             else:
                 for i in range(num_output_layers):
-                    _confidence_loss, _bbox_loss, _classification_loss = loss_function(
+                    _obj_loss, _box_loss, _cls_loss = loss_function(
                          y_true[i], y_pred[i], mask[i], obj_alphas[i], obj_gammas[i], cls_alphas[i], cls_gammas[i], box_weight, label_smoothing, kd)
-                    confidence_loss += _confidence_loss
-                    bbox_loss = bbox_loss + _bbox_loss if _bbox_loss != IGNORED_LOSS else IGNORED_LOSS
-                    classification_loss = classification_loss + _classification_loss if _classification_loss != IGNORED_LOSS else IGNORED_LOSS
-            loss = confidence_loss
-            if bbox_loss != IGNORED_LOSS:
-                loss += bbox_loss
-            if classification_loss != IGNORED_LOSS:
-                loss += classification_loss
+                    obj_loss += _obj_loss
+                    box_loss = box_loss + _box_loss if _box_loss != IGNORED_LOSS else IGNORED_LOSS
+                    cls_loss = cls_loss + _cls_loss if _cls_loss != IGNORED_LOSS else IGNORED_LOSS
+            loss = obj_loss
+            if box_loss != IGNORED_LOSS:
+                loss += box_loss
+            if cls_loss != IGNORED_LOSS:
+                loss += cls_loss
             gradients = tape.gradient(loss, model.trainable_variables)
         optimizer.apply_gradients(zip(gradients, model.trainable_variables))
-        return confidence_loss, bbox_loss, classification_loss
+        return obj_loss, box_loss, cls_loss
 
     def distributed_train_step(self, args):
         strategy, train_step, *_ = args
-        confidence_loss, bbox_loss, classification_loss = strategy.run(train_step, args=(args,))
-        confidence_loss = strategy.reduce(tf.distribute.ReduceOp.MEAN, confidence_loss, axis=None)
-        bbox_loss = strategy.reduce(tf.distribute.ReduceOp.MEAN, bbox_loss, axis=None)
-        classification_loss = strategy.reduce(tf.distribute.ReduceOp.MEAN, classification_loss, axis=None)
-        return confidence_loss, bbox_loss, classification_loss
+        obj_loss, box_loss, cls_loss = strategy.run(train_step, args=(args,))
+        obj_loss = strategy.reduce(tf.distribute.ReduceOp.MEAN, obj_loss, axis=None)
+        box_loss = strategy.reduce(tf.distribute.ReduceOp.MEAN, box_loss, axis=None)
+        cls_loss = strategy.reduce(tf.distribute.ReduceOp.MEAN, cls_loss, axis=None)
+        return obj_loss, box_loss, cls_loss
 
     def refresh(self, model, optimizer_str):
         sleep(0.2)
@@ -381,14 +381,14 @@ class SBD:
         return model, optimizer
 
     def build_loss_str(self, iteration_count, loss_vars):
-        confidence_loss, bbox_loss, classification_loss = loss_vars
+        obj_loss, box_loss, cls_loss = loss_vars
         kd = 'kd_' if self.teacher is not None else ''
         loss_str = f'\r[iteration_count : {iteration_count:6d}]'
-        loss_str += f' {kd}confidence_loss : {confidence_loss:>8.4f}'
-        if bbox_loss != IGNORED_LOSS:
-            loss_str += f', {kd}bbox_loss : {bbox_loss:>8.4f}'
-        if classification_loss != IGNORED_LOSS:
-            loss_str += f', {kd}classification_loss : {classification_loss:>8.4f}'
+        loss_str += f' {kd}obj_loss : {obj_loss:>8.4f}'
+        if box_loss != IGNORED_LOSS:
+            loss_str += f', {kd}box_loss : {box_loss:>8.4f}'
+        if cls_loss != IGNORED_LOSS:
+            loss_str += f', {kd}cls_loss : {cls_loss:>8.4f}'
         return loss_str
 
     def train(self):
