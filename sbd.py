@@ -43,7 +43,7 @@ class SBD:
         config = self.load_cfg(cfg_path)
         self.cfg_path = cfg_path
         self.devices = config['devices']
-        self.kd_teacher_model_path = None
+        self.kd_teacher_model_path = ''
         self.pretrained_model_path = config['pretrained_model_path']
         input_rows = config['input_rows']
         input_cols = config['input_cols']
