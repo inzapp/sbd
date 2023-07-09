@@ -1,0 +1,20 @@
+<svg width="114.7" height="20" viewBox="0 0 1147 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="docker: tensorflow">
+  <title>docker: tensorflow</title>
+  <linearGradient id="a" x2="0" y2="100%">
+    <stop offset="0" stop-opacity=".1" stop-color="#EEE"/>
+    <stop offset="1" stop-opacity=".1"/>
+  </linearGradient>
+  <mask id="m"><rect width="1147" height="200" rx="30" fill="#FFF"/></mask>
+  <g mask="url(#m)">
+    <rect width="471" height="200" fill="#555"/>
+    <rect width="676" height="200" fill="#E43" x="471"/>
+    <rect width="1147" height="200" fill="url(#a)"/>
+  </g>
+  <g aria-hidden="true" fill="#fff" text-anchor="start" font-family="Verdana,DejaVu Sans,sans-serif" font-size="110">
+    <text x="60" y="148" textLength="371" fill="#000" opacity="0.25">docker</text>
+    <text x="50" y="138" textLength="371">docker</text>
+    <text x="526" y="148" textLength="576" fill="#000" opacity="0.25">tensorflow</text>
+    <text x="516" y="138" textLength="576">tensorflow</text>
+  </g>
+  
+</svg>

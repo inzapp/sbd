@@ -1,0 +1,20 @@
+<svg width="60.2" height="20" viewBox="0 0 602 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="cuda: 10">
+  <title>cuda: 10</title>
+  <linearGradient id="a" x2="0" y2="100%">
+    <stop offset="0" stop-opacity=".1" stop-color="#EEE"/>
+    <stop offset="1" stop-opacity=".1"/>
+  </linearGradient>
+  <mask id="m"><rect width="602" height="200" rx="30" fill="#FFF"/></mask>
+  <g mask="url(#m)">
+    <rect width="362" height="200" fill="#555"/>
+    <rect width="240" height="200" fill="#08C" x="362"/>
+    <rect width="602" height="200" fill="url(#a)"/>
+  </g>
+  <g aria-hidden="true" fill="#fff" text-anchor="start" font-family="Verdana,DejaVu Sans,sans-serif" font-size="110">
+    <text x="60" y="148" textLength="262" fill="#000" opacity="0.25">cuda</text>
+    <text x="50" y="138" textLength="262">cuda</text>
+    <text x="417" y="148" textLength="140" fill="#000" opacity="0.25">10</text>
+    <text x="407" y="138" textLength="140">10</text>
+  </g>
+  
+</svg>
