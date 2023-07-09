@@ -19,33 +19,22 @@ limitations under the License.
 """
 import tensorflow as tf
 
-from ale import AbsoluteLogarithmicError
+from ale import AbsoluteLogarithmicError as ALE
 from tensorflow.python.framework.ops import convert_to_tensor_v2
 
 
-IGNORED_LOSS = -2147483647.9
-kd_ale = AbsoluteLogarithmicError(alpha=0.5, gamma=1.0)
+IGNORED_LOSS = -2147483640.0
 
 
-def __confidence_loss(y_true, y_pred, mask, alpha, gamma, kd):
+def _obj_loss(y_true, y_pred, pos_mask, mask, alpha, gamma, kd, eps):
     obj_true = y_true[:, :, :, 0]
     obj_pred = y_pred[:, :, :, 0]
-    if kd:
-        return tf.reduce_mean(kd_ale(obj_true, obj_pred))
-
-    ale = AbsoluteLogarithmicError(alpha=alpha, gamma=gamma)
-    loss = tf.reduce_sum(ale(obj_true, obj_pred) * mask[:, :, :, 0])
+    loss = tf.reduce_sum(ALE(alpha=alpha, gamma=gamma)(obj_true, obj_pred) * mask[:, :, :, 0])
     return loss / tf.cast(tf.shape(y_true)[0], dtype=y_pred.dtype)
 
 
-def __bbox_loss(y_true, y_pred, box_weight, kd, convex=True):
-    if kd:
-        box_true = y_true[:, :, :, 1:5]
-        box_pred = y_pred[:, :, :, 1:5]
-        return tf.reduce_mean(kd_ale(box_true, box_pred))
-
-    obj_true = y_true[:, :, :, 0]
-    obj_count = tf.cast(tf.reduce_sum(obj_true), y_pred.dtype)
+def _box_loss(y_true, y_pred, pos_mask, box_weight, kd, convex=True):
+    obj_count = tf.cast(tf.reduce_sum(pos_mask), y_pred.dtype)
     if obj_count == tf.constant(0.0):
         return 0.0
 
@@ -98,42 +87,27 @@ def __bbox_loss(y_true, y_pred, box_weight, kd, convex=True):
     else:
         union = y_true_area + y_pred_area - intersection
     iou = tf.clip_by_value(intersection / (union + 1e-5), 0.0, 1.0)
-    loss = tf.reduce_sum((obj_true - iou) * obj_true) * box_weight
+    loss = tf.reduce_sum((pos_mask - iou) * pos_mask) * box_weight
     return loss / tf.cast(tf.shape(y_true)[0], dtype=y_pred.dtype)
 
 
-def __classification_loss(y_true, y_pred, alpha, gamma, label_smoothing, kd):
-    if kd:
-        class_true = y_true[:, :, :, 5:]
-        class_pred = y_pred[:, :, :, 5:]
-        return tf.reduce_mean(kd_ale(class_true, class_pred))
-
-    obj_true = y_true[:, :, :, 0]
-    obj_count = tf.cast(tf.reduce_sum(obj_true), y_pred.dtype)
+def _cls_loss(y_true, y_pred, pos_mask, alpha, gamma, label_smoothing, kd, eps):
+    obj_count = tf.cast(tf.reduce_sum(pos_mask), y_pred.dtype)
     if obj_count == tf.constant(0.0):
         return 0.0
 
-    class_true = y_true[:, :, :, 5:]
-    class_pred = y_pred[:, :, :, 5:]
-    ale = AbsoluteLogarithmicError(alpha=alpha, gamma=gamma, label_smoothing=label_smoothing)
-    loss = tf.reduce_sum(tf.reduce_sum(ale(class_true, class_pred), axis=-1) * obj_true)
+    cls_true = y_true[:, :, :, 5:]
+    cls_pred = y_pred[:, :, :, 5:]
+    loss = tf.reduce_sum(tf.reduce_sum(ALE(alpha=alpha, gamma=gamma, label_smoothing=label_smoothing)(cls_true, cls_pred), axis=-1) * pos_mask)
     return loss / tf.cast(tf.shape(y_true)[0], dtype=y_pred.dtype)
 
 
-def confidence_loss(y_true, y_pred, mask, obj_alpha, obj_gamma, label_smoothing, kd):
+def sbd_loss(y_true, y_pred, mask, obj_alpha, obj_gamma, cls_alpha, cls_gamma, box_weight, label_smoothing, kd, eps=1e-7):
     y_pred = convert_to_tensor_v2(y_pred)
     y_true = tf.cast(y_true, y_pred.dtype)
-    return __confidence_loss(y_true, y_pred, mask, obj_alpha, obj_gamma, kd), IGNORED_LOSS, IGNORED_LOSS
-
-
-def confidence_with_bbox_loss(y_true, y_pred, mask, obj_alpha, obj_gamma, label_smoothing, kd):
-    y_pred = convert_to_tensor_v2(y_pred)
-    y_true = tf.cast(y_true, y_pred.dtype)
-    return __confidence_loss(y_true, y_pred, mask, obj_alpha, obj_gamma, kd), __bbox_loss(y_true, y_pred, kd), IGNORED_LOSS
-
-
-def sbd_loss(y_true, y_pred, mask, obj_alpha, obj_gamma, cls_alpha, cls_gamma, box_weight, label_smoothing, kd):
-    y_pred = convert_to_tensor_v2(y_pred)
-    y_true = tf.cast(y_true, y_pred.dtype)
-    return __confidence_loss(y_true, y_pred, mask, obj_alpha, obj_gamma, kd), __bbox_loss(y_true, y_pred, box_weight, kd), __classification_loss(y_true, y_pred, cls_alpha, cls_gamma, label_smoothing, kd)
+    pos_mask = tf.where(y_true[:, :, :, 0] == 1.0, 1.0, 0.0)
+    obj_loss = _obj_loss(y_true, y_pred, pos_mask, mask, obj_alpha, obj_gamma, kd, eps)
+    box_loss = _box_loss(y_true, y_pred, pos_mask, box_weight, kd)
+    cls_loss = _cls_loss(y_true, y_pred, pos_mask, cls_alpha, cls_gamma, label_smoothing, kd, eps)
+    return obj_loss, box_loss, cls_loss
 

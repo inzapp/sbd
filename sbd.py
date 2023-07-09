@@ -33,9 +33,9 @@ from box_colors import colors
 from keras_flops import get_flops
 from generator import DataGenerator
 from lr_scheduler import LRScheduler
+from loss import sbd_loss, IGNORED_LOSS
 from time import time, sleep, perf_counter
 from mAP_calculator import calc_mean_average_precision
-from loss import confidence_loss, confidence_with_bbox_loss, sbd_loss, IGNORED_LOSS
 
 
 class SBD:
