@@ -41,6 +41,8 @@ class DataGenerator:
         ignore_scale,
         virtual_anchor_iou_threshold,
         aug_scale,
+        aug_h_flip,
+        aug_v_flip,
         aug_brightness,
         aug_contrast,
         primary_device):
@@ -60,6 +62,8 @@ class DataGenerator:
         self.ignore_scale = ignore_scale
         self.virtual_anchor_iou_threshold = virtual_anchor_iou_threshold
         self.aug_scale = aug_scale
+        self.aug_h_flip = aug_h_flip
+        self.aug_v_flip = aug_v_flip
         self.primary_device = primary_device
         self.virtual_anchor_ws = []
         self.virtual_anchor_hs = []
@@ -344,6 +348,35 @@ class DataGenerator:
             scaled_label_lines.append(f'{class_index} {cx:.6f} {cy:.6f} {w:.6f} {h:.6f}\n')
         return scaled_img, scaled_label_lines
 
+    def random_flip(self, img, label_lines, aug_h_flip, aug_v_flip):
+        method = ''
+        if aug_h_flip and aug_v_flip:
+            method = 'a'
+        elif aug_h_flip:
+            method = 'h'
+        elif aug_v_flip:
+            method = 'v'
+
+        aug_method = np.random.choice(['h', 'v', 'a']) if method == 'a' else method
+        if aug_method == 'h':
+            img = cv2.flip(img, 1)
+        elif aug_method == 'v':
+            img = cv2.flip(img, 0)
+        elif aug_method == 'a':
+            img = cv2.flip(img, -1)
+
+        converted_label_lines = []
+        for line in label_lines:
+            class_index, cx, cy, w, h = list(map(float, line.split()))
+            class_index = int(class_index)
+            if aug_method in ['h', 'a']:
+                cx = 1.0 - cx
+            if aug_method in ['v', 'a']:
+                cy = 1.0 - cy
+            cx, cy, w, h = np.clip(np.array([cx, cy, w, h]), 0.0, 1.0)
+            converted_label_lines.append(f'{class_index} {cx:.6f} {cy:.6f} {w:.6f} {h:.6f}\n')
+        return img, converted_label_lines
+
     def convert_to_boxes(self, label_lines):
         def get_same_box_index(labeled_boxes, cx, cy, w, h):
             if self.multi_classification_at_same_box:
@@ -481,7 +514,7 @@ class DataGenerator:
                     offset_center_row = center_row + offset_y
                     offset_center_col = center_col + offset_x
                     if y[i][batch_index][offset_center_row][offset_center_col][0] == 0.0:
-                        if 0.0 < self.ignore_scale < 1.0:
+                        if 0.0 < self.ignore_scale <= 1.0:
                             half_scale = max(self.ignore_scale * 0.5, 1e-5)
                             object_heatmap = 1.0 - np.clip((np.abs(rr - center_row_f) / (h * half_scale)) ** 2 + (np.abs(cc - center_col_f) / (w * half_scale)) ** 2, 0.0, 1.0) ** 0.5
                             object_mask = np.where(object_heatmap == 0.0, 1.0, 0.0)
@@ -537,6 +570,8 @@ class DataGenerator:
                 continue
             if self.aug_scale < 1.0 and np.random.uniform() < 0.5:
                 img, label_lines = self.random_scale(img, label_lines, self.aug_scale)
+            if (self.aug_h_flip or self.aug_v_flip) and np.random.uniform() < 0.5:
+                img, label_lines = self.random_flip(img, label_lines, self.aug_h_flip, self.aug_v_flip)
             x = Util.preprocess(img)
             batch_x[i] = x
             if self.teacher is not None:
