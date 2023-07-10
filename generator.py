@@ -67,6 +67,7 @@ class DataGenerator:
         self.primary_device = primary_device
         self.virtual_anchor_ws = []
         self.virtual_anchor_hs = []
+        self.ws, self.hs = [], []
         self.img_index = 0
         self.pool = ThreadPoolExecutor(num_workers)
         np.random.shuffle(self.image_paths)
@@ -108,6 +109,9 @@ class DataGenerator:
         else:
             return False
 
+    def is_too_small_box(self, w, h):
+        return int(w * self.input_shape[1]) <= 3 and int(h * self.input_shape[0]) <= 3
+
     def check_label(self, image_paths, class_names, dataset_name):
         if self.teacher is not None:
             print(f'knowledge distillation training doesn\'t need label check, skip')
@@ -124,16 +128,22 @@ class DataGenerator:
         invalid_label_paths = set()
         not_found_label_paths = set()
         class_counts = np.zeros(shape=(num_classes,), dtype=np.int32)
+        ignored_box_count = 0
         for f in tqdm(fs, desc=f'label check in {dataset_name} data'):
             lines, label_path, exists = f.result()
             if not exists:
                 not_found_label_paths.add(label_path)
-            if len(not_found_label_paths) == 0:
-                for line in lines:
-                    class_index, cx, cy, w, h = list(map(float, line.split()))
-                    class_counts[int(class_index)] += 1
-                    if self.is_invalid_label(label_path, [class_index, cx, cy, w, h], num_classes):
-                        invalid_label_paths.add(label_path)
+                continue
+            for line in lines:
+                class_index, cx, cy, w, h = list(map(float, line.split()))
+                class_counts[int(class_index)] += 1
+                if self.is_invalid_label(label_path, [class_index, cx, cy, w, h], num_classes):
+                    invalid_label_paths.add(label_path)
+                if self.is_too_small_box(w, h):
+                    ignored_box_count += 1
+                elif self.num_output_layers > 1:
+                    self.ws.append(w)
+                    self.hs.append(h)
 
         if len(not_found_label_paths) > 0:
             print()
@@ -158,7 +168,11 @@ class DataGenerator:
             class_name = class_names[i]
             class_count = class_counts[i]
             print(f'{class_name:{max_class_name_len}s} : {class_count}')
-        print()
+
+        if dataset_name == 'train' and ignored_box_count > 0:
+            print(f'[Warning] Too small size (under 3x3 pixel) {ignored_box_count} box will not be trained\n')
+        else:
+            print()
 
     def get_iou_with_virtual_anchors(self, box):
         if self.num_output_layers == 1 or self.virtual_anchor_iou_threshold == 0.0:
@@ -202,46 +216,25 @@ class DataGenerator:
             print(f'training with va_iou_threshold 0.0 doesn\'t need virtual anchor, skip')
             return
 
-        fs = []
-        for path in self.image_paths:
-            fs.append(self.pool.submit(self.load_label, self.label_path(path)))
-        ignore_box_count = 0
-        labeled_boxes, ws, hs = [], [], []
-        for f in tqdm(fs, desc='load box size for calculating virtual anchor'):
-            lines, label_path, _ = f.result()
-            for line in lines:
-                class_index, cx, cy, w, h = list(map(float, line.split()))
-                is_w_valid = int(w * self.input_shape[1]) > 3
-                if is_w_valid:
-                    ws.append(w)
-                is_h_valid = int(h * self.input_shape[0]) > 3
-                if is_h_valid:
-                    hs.append(h)
-                if print_avg_iou:
-                    if is_w_valid and is_h_valid:
-                        labeled_boxes.append([cx, cy, w, h])
-                    else:
-                        ignore_box_count += 1
-        if ignore_box_count > 0:
-            print(f'[Warning] Too small size (under 3x3 pixel) {ignore_box_count} box will not be trained')
-
-        ws = np.asarray(ws).reshape((len(ws), 1)).astype('float32')
-        hs = np.asarray(hs).reshape((len(hs), 1)).astype('float32')
+        self.ws = np.asarray(self.ws).reshape((len(self.ws), 1)).astype('float32')
+        self.hs = np.asarray(self.hs).reshape((len(self.hs), 1)).astype('float32')
 
         max_iterations = 100
         num_cluster = self.num_output_layers
         criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, max_iterations, 1e-4)
 
         print('K-means clustering start')
-        w_sse, _, clustered_ws = cv2.kmeans(ws, num_cluster, None, criteria, max_iterations, cv2.KMEANS_RANDOM_CENTERS)
-        w_mse = w_sse / (float(len(ws)) + 1e-5)
-        h_sse, _, clustered_hs = cv2.kmeans(hs, num_cluster, None, criteria, max_iterations, cv2.KMEANS_RANDOM_CENTERS)
-        h_mse = h_sse / (float(len(hs)) + 1e-5)
+        w_sse, _, clustered_ws = cv2.kmeans(self.ws, num_cluster, None, criteria, max_iterations, cv2.KMEANS_RANDOM_CENTERS)
+        w_mse = w_sse / (float(len(self.ws)) + 1e-5)
+        h_sse, _, clustered_hs = cv2.kmeans(self.hs, num_cluster, None, criteria, max_iterations, cv2.KMEANS_RANDOM_CENTERS)
+        h_mse = h_sse / (float(len(self.hs)) + 1e-5)
         clustering_mse = (w_mse + h_mse) / 2.0
         print(f'clustered MSE(Mean Squared Error) : {clustering_mse:.4f}')
 
         self.virtual_anchor_ws = sorted(np.asarray(clustered_ws).reshape(-1), reverse=True)
         self.virtual_anchor_hs = sorted(np.asarray(clustered_hs).reshape(-1), reverse=True)
+        del self.ws
+        del self.hs
 
         print(f'virtual anchor : ', end='')
         for i in range(num_cluster):
@@ -254,6 +247,17 @@ class DataGenerator:
         print('\n')
 
         if print_avg_iou:
+            fs = []
+            for path in self.image_paths:
+                fs.append(self.pool.submit(self.load_label, self.label_path(path)))
+            labeled_boxes = []
+            for f in tqdm(fs, desc='load box data for calculating avg IoU'):
+                lines, label_path, _ = f.result()
+                for line in lines:
+                    class_index, cx, cy, w, h = list(map(float, line.split()))
+                    if not self.is_too_small_box(w, h):
+                        labeled_boxes.append([cx, cy, w, h])
+
             best_iou_sum = 0.0
             for box in tqdm(labeled_boxes, desc='average IoU with virtual anchors'):
                 iou_with_virtual_anchors = self.get_iou_with_virtual_anchors(box)
@@ -472,9 +476,7 @@ class DataGenerator:
         allocated_count = 0
         for b in labeled_boxes:
             class_indexes, cx, cy, w, h = b['class_indexes'], b['cx'], b['cy'], b['w'], b['h']
-            w_not_valid = int(w * self.input_shape[1]) <= 3
-            h_not_valid = int(h * self.input_shape[0]) <= 3
-            if w_not_valid and h_not_valid:
+            if self.is_too_small_box(w, h):
                 continue
 
             best_iou_indexes = self.get_iou_with_virtual_anchors([cx, cy, w, h])
