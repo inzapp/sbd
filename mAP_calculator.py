@@ -36,13 +36,12 @@ def load_label(image_path, unknown_class_index):
 
 def make_annotations_csv(image_paths, unknown_class_index):
     global g_annotations_csv_name
-    print('annotations csv creation start')
     fs = []
     pool = ThreadPoolExecutor(8)
     for path in image_paths:
         fs.append(pool.submit(load_label, path, unknown_class_index))
     csv = 'ImageID,LabelName,XMin,XMax,YMin,YMax\n'
-    for f in tqdm(fs):
+    for f in tqdm(fs, desc='annotations csv creation'):
         csv += f.result()
     with open(g_annotations_csv_name, 'wt') as f:
         f.writelines(csv)
@@ -61,7 +60,6 @@ def convert_boxes_to_csv_lines(path, boxes):
 
 def make_predictions_csv(model, image_paths, device):
     from sbd import SBD
-    print('predictions csv creation start')
     global g_predictions_csv_name
     fs = []
     input_channel = model.input_shape[1:][-1]
@@ -69,7 +67,7 @@ def make_predictions_csv(model, image_paths, device):
     for path in image_paths:
         fs.append(pool.submit(Util.load_img, path, input_channel))
     csv = 'ImageID,LabelName,Conf,XMin,XMax,YMin,YMax\n'
-    for f in tqdm(fs):
+    for f in tqdm(fs, desc='predictions csv creation'):
         img, _, path = f.result()
         boxes = SBD.predict(model, img, confidence_threshold=0.001, nms_iou_threshold=g_nms_iou_threshold, device=device)
         csv += convert_boxes_to_csv_lines(path, boxes)

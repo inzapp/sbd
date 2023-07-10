@@ -397,24 +397,22 @@ class SBD:
 
     def train(self):
         with self.device_context():
-            self.model.summary()
-            print(f'\ntrain on {len(self.train_image_paths)} samples.')
-            print(f'validate on {len(self.validation_image_paths)} samples.')
-
-            print('\nchecking label in train data...')
-            self.data_generator.check_label(self.train_image_paths, self.class_names)
-            print('\nchecking label in validation data...')
-            self.data_generator.check_label(self.validation_image_paths, self.class_names)
-            print('\ncalculating virtual anchor...')
+            self.data_generator.check_label(self.train_image_paths, self.class_names, 'train')
+            self.data_generator.check_label(self.validation_image_paths, self.class_names, 'validation')
             self.data_generator.calculate_virtual_anchor()
-            print('\ncalculating BPR(Best Possible Recall)...')
             self.data_generator.calculate_best_possible_recall()
             self.set_alpha_gamma()
-            print('\nstart test forward for checking forwarding time.')
+            print('start test forward for checking forwarding time.')
             if self.primary_device.find('gpu') > -1:
                 self.check_forwarding_time(self.model, device=self.primary_device)
             self.check_forwarding_time(self.model, device='/cpu:0')
             print()
+            print(f'input_shape : {self.model.input_shape}')
+            print(f'output_shape : {self.model.output_shape}\n')
+            print(f'model_type : {self.model_type}')
+            print(f'parameters : {self.model.count_params():,}\n')
+            print(f'train on {len(self.train_image_paths)} samples.')
+            print(f'validate on {len(self.validation_image_paths)} samples.\n')
             if self.teacher is not None and self.optimizer == 'sgd':
                 print(f'warning : SGD optimizer with knowledge distillation training may be bad choice, consider using Adam or RMSprop optimizer instead')
             if self.use_pretrained_model:
@@ -464,7 +462,7 @@ class SBD:
                 if iteration_count == self.iterations:
                     self.save_model_with_map()
                     self.remove_last_model()
-                    print('\n\ntrain end successfully')
+                    print('train end successfully')
                     return
 
     @staticmethod
@@ -760,6 +758,7 @@ class SBD:
         return save_path
 
     def save_model_with_map(self, dataset='validation', confidence_threshold=0.2, tp_iou_threshold=0.5, cached=False):
+        print()
         self.make_checkpoint_dir()
         mean_ap, f1_score, iou, tp, fp, fn, confidence, txt_content = self.calculate_map(
             dataset=dataset,
@@ -776,6 +775,7 @@ class SBD:
             with open(f'{self.checkpoint_path}/map.txt', 'wt') as f:
                 f.write(txt_content)
             print(f'new best model saved to [{best_model_path}]')
+        print()
 
     def training_view_function(self):
         """

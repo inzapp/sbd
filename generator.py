@@ -108,7 +108,7 @@ class DataGenerator:
         else:
             return False
 
-    def check_label(self, image_paths, class_names):
+    def check_label(self, image_paths, class_names, dataset_name):
         if self.teacher is not None:
             print(f'knowledge distillation training doesn\'t need label check, skip')
             return
@@ -124,7 +124,7 @@ class DataGenerator:
         invalid_label_paths = set()
         not_found_label_paths = set()
         class_counts = np.zeros(shape=(num_classes,), dtype=np.int32)
-        for f in tqdm(fs):
+        for f in tqdm(fs, desc=f'label check in {dataset_name} data'):
             lines, label_path, exists = f.result()
             if not exists:
                 not_found_label_paths.add(label_path)
@@ -153,12 +153,12 @@ class DataGenerator:
         if max_class_name_len == 0:
             max_class_name_len = 1
 
-        print(f'\nclass counts')
+        print(f'class counts')
         for i in range(len(class_counts)):
             class_name = class_names[i]
             class_count = class_counts[i]
             print(f'{class_name:{max_class_name_len}s} : {class_count}')
-        print('label check success')
+        print()
 
     def get_iou_with_virtual_anchors(self, box):
         if self.num_output_layers == 1 or self.virtual_anchor_iou_threshold == 0.0:
@@ -183,7 +183,7 @@ class DataGenerator:
             iou_with_virtual_anchors.append([layer_index, iou])
         return sorted(iou_with_virtual_anchors, key=lambda x: x[1], reverse=True)
 
-    def calculate_virtual_anchor(self):
+    def calculate_virtual_anchor(self, print_avg_iou=False):
         if self.num_output_layers == 1:  # one layer model doesn't need virtual anchor
             self.virtual_anchor_ws = [0.5]
             self.virtual_anchor_hs = [0.5]
@@ -207,7 +207,7 @@ class DataGenerator:
             fs.append(self.pool.submit(self.load_label, self.label_path(path)))
         ignore_box_count = 0
         labeled_boxes, ws, hs = [], [], []
-        for f in tqdm(fs):
+        for f in tqdm(fs, desc='load box size for calculating virtual anchor'):
             lines, label_path, _ = f.result()
             for line in lines:
                 class_index, cx, cy, w, h = list(map(float, line.split()))
@@ -217,10 +217,11 @@ class DataGenerator:
                 is_h_valid = int(h * self.input_shape[0]) > 3
                 if is_h_valid:
                     hs.append(h)
-                if is_w_valid and is_h_valid:
-                    labeled_boxes.append([cx, cy, w, h])
-                else:
-                    ignore_box_count += 1
+                if print_avg_iou:
+                    if is_w_valid and is_h_valid:
+                        labeled_boxes.append([cx, cy, w, h])
+                    else:
+                        ignore_box_count += 1
         if ignore_box_count > 0:
             print(f'[Warning] Too small size (under 3x3 pixel) {ignore_box_count} box will not be trained')
 
@@ -250,16 +251,16 @@ class DataGenerator:
                 print(f'{anchor_w:.4f}, {anchor_h:.4f}', end='')
             else:
                 print(f', {anchor_w:.4f}, {anchor_h:.4f}', end='')
-        print()
+        print('\n')
 
-        print('\naverage IoU with virtual anchors')
-        best_iou_sum = 0.0
-        for box in tqdm(labeled_boxes):
-            iou_with_virtual_anchors = self.get_iou_with_virtual_anchors(box)
-            best_iou = iou_with_virtual_anchors[0][1]
-            best_iou_sum += best_iou
-        avg_iou_with_virtual_anchor = best_iou_sum / (float(len(labeled_boxes)) + 1e-5)
-        print(f'average IoU with virtual anchor : {avg_iou_with_virtual_anchor:.4f}')
+        if print_avg_iou:
+            best_iou_sum = 0.0
+            for box in tqdm(labeled_boxes, desc='average IoU with virtual anchors'):
+                iou_with_virtual_anchors = self.get_iou_with_virtual_anchors(box)
+                best_iou = iou_with_virtual_anchors[0][1]
+                best_iou_sum += best_iou
+            avg_iou_with_virtual_anchor = best_iou_sum / (float(len(labeled_boxes)) + 1e-5)
+            print(f'average IoU : {avg_iou_with_virtual_anchor:.4f}\n')
 
     def calculate_best_possible_recall(self):
         if self.debug:
@@ -275,7 +276,7 @@ class DataGenerator:
 
         y_true_obj_count = 0
         box_count_in_real_data = 0
-        for f in tqdm(fs):
+        for f in tqdm(fs, desc='calculating BPR(Best Possible Recall)'):
             batch_y = [np.zeros(shape=(1,) + self.output_shapes[i][1:]) for i in range(self.num_output_layers)]
             batch_mask = [np.ones(shape=(1,) + self.output_shapes[i][1:]) for i in range(self.num_output_layers)]
             label_lines, _, _ = f.result()
@@ -292,11 +293,11 @@ class DataGenerator:
         best_possible_recall = y_true_obj_count / float(box_count_in_real_data)
         if best_possible_recall > 1.0:
             best_possible_recall = 1.0
-        print(f'\naverage obj count per image : {avg_obj_count_per_image:.4f}\n')
         print(f'ground truth obj count : {box_count_in_real_data}')
         print(f'train tensor obj count : {y_true_obj_count} ({trained_obj_rate:.2f}%)')
         print(f'not trained  obj count : {not_trained_obj_count} ({not_trained_obj_rate:.2f}%)')
         print(f'best possible recall   : {best_possible_recall:.4f}')
+        print(f'\naverage obj count per image : {avg_obj_count_per_image:.4f}\n')
 
     def random_scale(self, img, label_lines, min_scale):
         def overlay(img, overlay_img, start_x, start_y, channels):
