@@ -28,18 +28,18 @@ docker build --no-cache -t sbd -f Dockerfile.cuxxx .
 ./run_docker.sh
 ```
 
-Training
+Train
 ```bash
 python train.py --cfg cfg/cfg.yaml
 ```
 
-Detecting
+Detect
 ```bash
 # need hardware monitor or X11 forward for CLI system
 cd checkpoint/model_name/model_type/
 python ../../../detect.py # detect with validation data path in cfg.yaml
 python ../../../detect.py --dataset train # detect with train data path in cfg.yaml
-python ../../../detect.py --path "/your/images/path/" # user defined image path
+python ../../../detect.py --path "/your/images/path/dir" # user defined image path dir
 python ../../../detect.py --path "/your/images/path/image.jpg" # one image detection
 python ../../../detect.py --path "/your/video/path.mp4" # realtime video detection
 python ../../../detect.py --path "rtsp://foo/bar" # rtsp stream realtime detection
@@ -52,6 +52,12 @@ cd checkpoint/model_name/model_type/
 python ../../../map.py # calculate mAP with validation data in cfg.yaml
 python ../../../map.py --dataset train # calculate mAP with train data in cfg.yaml
 python ../../../map.py --conf 0.1 --iou 0.6 --cached # fast calculation using cached csv file for --conf, --iou. must run map.py at least once
+```
+
+Auto label
+```bash
+cd checkpoint/model_name/model_type/
+python ../../../auto_label.py --path "/your/image/path/dir" --conf 0.3 # save label with predicted result
 ```
 
 ## Introduction
