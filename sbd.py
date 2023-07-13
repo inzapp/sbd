@@ -672,13 +672,10 @@ class SBD:
                 cv2.putText(img, label_text, (x1 + padding - 1, y1 - baseline - padding), cv2.FONT_HERSHEY_DUPLEX, fontScale=font_scale, color=label_font_color, thickness=1, lineType=cv2.LINE_AA)
         return img
 
-    def predict_video(self, video_path, confidence_threshold=0.2, show_class_with_score=True, width=0, height=0):
-        """
-        Equal to the evaluate function. video path is required.
-        """
-        if not (os.path.exists(video_path) and os.path.isfile(video_path)):
-            Util.print_error_exit(f'video not found. video path : {video_path}')
-        cap = cv2.VideoCapture(video_path)
+    def predict_video(self, path, confidence_threshold=0.2, show_class_with_score=True, width=0, height=0):
+        if not path.startswith('rtsp://') and not (os.path.exists(path) and os.path.isfile(path)):
+            Util.print_error_exit(f'video not found. video path : {path}')
+        cap = cv2.VideoCapture(path)
         input_height, input_width, _ = self.model.input_shape[1:]
         view_width, view_height = 0, 0
         if width > 0 and height > 0:
@@ -701,18 +698,29 @@ class SBD:
         cap.release()
         cv2.destroyAllWindows()
 
-    def predict_images(self, dataset='validation', confidence_threshold=0.2, show_class_with_score=True, width=0, height=0):
-        """
-        Equal to the evaluate function. image paths are required.
-        """
+    def predict_images(self, dataset='validation', path='', confidence_threshold=0.2, show_class_with_score=True, width=0, height=0):
         input_height, input_width, input_channel = self.model.input_shape[1:]
-        if dataset == 'train':
-            image_paths = self.train_image_paths
-        elif dataset == 'validation':
-            image_paths = self.validation_image_paths
+        if path != '':
+            if not os.path.exists(path):
+                Util.print_error_exit(f'path not exists : [{path}]')
+            if os.path.isfile(path):
+                if path.endswith('.jpg'):
+                    image_paths = [path]
+                else:
+                    Util.print_error_exit('invalid extension. jpg is available extension only')
+            elif os.path.isdir(path):
+                image_paths = glob(f'{path}/*.jpg')
+            else:
+                Util.print_error_exit(f'invalid file format : [{path}]')
         else:
-            print(f'invalid dataset : [{dataset}]')
-            return
+            if dataset == 'train':
+                image_paths = self.train_image_paths
+            elif dataset == 'validation':
+                image_paths = self.validation_image_paths
+            else:
+                Util.print_error_exit(f'invalid dataset : [{dataset}], available dataset : [train, validation]')
+        if len(image_paths) == 0:
+            Util.print_error_exit('no image found')
 
         view_width, view_height = 0, 0
         if width > 0 and height > 0:
