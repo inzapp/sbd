@@ -713,12 +713,11 @@ class SBD:
             else:
                 Util.print_error_exit(f'invalid file format : [{path}]')
         else:
+            assert dataset in ['train', 'validation']
             if dataset == 'train':
                 image_paths = self.train_image_paths
             elif dataset == 'validation':
                 image_paths = self.validation_image_paths
-            else:
-                Util.print_error_exit(f'invalid dataset : [{dataset}], available dataset : [train, validation]')
         if len(image_paths) == 0:
             Util.print_error_exit('no image found')
 
