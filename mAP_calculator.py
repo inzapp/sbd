@@ -2,7 +2,6 @@ import os
 import numpy as np
 
 from tqdm import tqdm
-from util import Util
 from map_boxes import mean_average_precision_for_boxes
 from concurrent.futures.thread import ThreadPoolExecutor
 
@@ -60,6 +59,7 @@ def convert_boxes_to_csv_lines(path, boxes):
 
 def make_predictions_csv(model, image_paths, device):
     from sbd import SBD
+    from util import Util
     global g_predictions_csv_name
     fs = []
     input_channel = model.input_shape[1:][-1]
