@@ -35,9 +35,15 @@ python train.py --cfg cfg/cfg.yaml
 
 Detecting
 ```bash
+# need hardware monitor or X11 forward for CLI system
 cd checkpoint/model_name/model_type/
-python ../../../detect.py # need hardware monitor or X11 forward for CLI system
-python ../../../detect.py --video "/your/video/path.mp4" # realtime video detecting
+python ../../../detect.py # detect with validation data path in cfg.yaml
+python ../../../detect.py --dataset train # detect with train data path in cfg.yaml
+python ../../../detect.py --path "/your/images/path/" # user defined image path
+python ../../../detect.py --path "/your/images/path/image.jpg" # one image detection
+python ../../../detect.py --path "/your/video/path.mp4" # realtime video detection
+python ../../../detect.py --path "rtsp://foo/bar" # rtsp stream realtime detection
+python ../../../detect.py --path "rtsp://user:passsword@foo/bar" # case need authentication
 ```
 
 mAP
