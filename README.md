@@ -49,8 +49,9 @@ python ../../../detect.py --path "rtsp://user:passsword@foo/bar" # case need aut
 mAP
 ```bash
 cd checkpoint/model_name/model_type/
-python ../../../map.py
-python ../../../map.py --conf 0.1 --cached # fast calculate using saved csv files
+python ../../../map.py # calculate mAP with validation data in cfg.yaml
+python ../../../map.py --dataset train # calculate mAP with train data in cfg.yaml
+python ../../../map.py --conf 0.1 --iou 0.6 --cached # fast calculation using cached csv file for --conf, --iou. must run map.py at least once
 ```
 
 ## Introduction
