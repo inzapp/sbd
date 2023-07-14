@@ -60,6 +60,11 @@ cd checkpoint/model_name/model_type/
 python ../../../auto_label.py --path "/your/image/path/dir" --conf 0.3 # save label with predicted result
 ```
 
+ONNX export
+```bash
+./export.sh
+```
+
 ## Introduction
 SBD is a light and fast object detector
 
