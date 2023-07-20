@@ -50,7 +50,7 @@ class Model:
                 is_model_type_valid = False
             if p != 'p':
                 is_model_type_valid = False
-            if pyramid_scale not in [0, 1, 2, 3, 4, 5, 6]:
+            if pyramid_scale not in [2, 3, 4, 5, 6]:
                 is_model_type_valid = False
             if pyramid_scale == 6 and not self.p6:
                 is_model_type_valid = False
@@ -58,7 +58,7 @@ class Model:
         if not is_model_type_valid:
             Util.print_error_exit([
                 f'invalid model type => \'{model_type}\'',
-                f'model type must be combination of <backbone[n, s, m, l, x], num_output_layers[1, m], p, pyramid_scale[0, 1, 2, 3, 4, 5, 6(p6 only)]>',
+                f'model type must be combination of <backbone[n, s, m, l, x], num_output_layers[1, m], p, pyramid_scale[2, 3, 4, 5, 6(p6 only)]>',
                 f'  backbone : n, s, m, l, x',
                 f'  num output layers : 1, m(multi layer for given pyramid scale)',
                 f'  p : constant character for naming rule',
