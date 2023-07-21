@@ -83,14 +83,14 @@ class Model:
     """
     def n(self, num_output_layers, pyramid_scale):
         layer_infos = [
-            ['conv', 3, 8, 1],
-            ['conv', 3, 16, 1],
-            ['conv', 3, 32, 2],
-            ['csp', 3, 64, 3],
-            ['csp', 3, 128, 3],
-            ['csp', 3, 256, 3],
-            ['csp', 3, 256, 3],
-            ['head', -1, -1, -1],
+            ['conv', 3,  8, 1, 'relu'],
+            ['conv', 3, 16, 1, 'relu'],
+            ['conv', 3, 32, 2, 'relu'],
+            ['csp', 3,  64, 3, 'relu'],
+            ['csp', 3, 128, 3, 'relu'],
+            ['csp', 3, 256, 3, 'relu'],
+            ['csp', 3, 256, 3, 'relu'],
+            ['head', -1, -1, -1, 'relu'],
         ]
         return self.build_layers(layer_infos, num_output_layers, pyramid_scale)
 
@@ -105,14 +105,14 @@ class Model:
     """
     def s(self, num_output_layers, pyramid_scale):
         layer_infos = [
-            ['conv', 3, 16, 1],
-            ['conv', 3, 32, 1],
-            ['conv', 3, 64, 2],
-            ['csp', 3, 128, 3],
-            ['csp', 3, 256, 3],
-            ['csp', 3, 512, 3],
-            ['csp', 3, 512, 3],
-            ['head', -1, -1, -1],
+            ['conv', 3, 16, 1, 'relu'],
+            ['conv', 3, 32, 1, 'relu'],
+            ['conv', 3, 64, 2, 'relu'],
+            ['csp', 3, 128, 3, 'relu'],
+            ['csp', 3, 256, 3, 'relu'],
+            ['csp', 3, 512, 3, 'relu'],
+            ['csp', 3, 512, 3, 'relu'],
+            ['head', -1, -1, -1, 'relu'],
         ]
         return self.build_layers(layer_infos, num_output_layers, pyramid_scale)
 
@@ -127,14 +127,14 @@ class Model:
     """
     def m(self, num_output_layers, pyramid_scale):
         layer_infos = [
-            ['conv', 3, 16, 1],
-            ['conv', 3, 32, 1],
-            ['conv', 3, 64, 2],
-            ['csp', 3, 192, 4],
-            ['csp', 3, 384, 4],
-            ['csp', 3, 512, 4],
-            ['csp', 3, 512, 4],
-            ['head', -1, -1, -1],
+            ['conv', 3, 16, 1, 'relu'],
+            ['conv', 3, 32, 1, 'relu'],
+            ['conv', 3, 64, 2, 'relu'],
+            ['csp', 3, 192, 4, 'relu'],
+            ['csp', 3, 384, 4, 'relu'],
+            ['csp', 3, 512, 4, 'relu'],
+            ['csp', 3, 512, 4, 'relu'],
+            ['head', -1, -1, -1, 'relu'],
         ]
         return self.build_layers(layer_infos, num_output_layers, pyramid_scale)
 
@@ -149,14 +149,14 @@ class Model:
     """
     def l(self, num_output_layers, pyramid_scale):
         layer_infos = [
-            ['conv', 3, 16, 1],
-            ['conv', 3, 32, 1],
-            ['conv', 3, 64, 2],
-            ['csp', 3, 256, 5],
-            ['csp', 3, 384, 5],
-            ['csp', 3, 512, 5],
-            ['csp', 3, 512, 5],
-            ['head', -1, -1, -1],
+            ['conv', 3, 16, 1, 'relu'],
+            ['conv', 3, 32, 1, 'relu'],
+            ['conv', 3, 64, 2, 'relu'],
+            ['csp', 3, 256, 5, 'relu'],
+            ['csp', 3, 384, 5, 'relu'],
+            ['csp', 3, 512, 5, 'relu'],
+            ['csp', 3, 512, 5, 'relu'],
+            ['head', -1, -1, -1, 'relu'],
         ]
         return self.build_layers(layer_infos, num_output_layers, pyramid_scale)
 
@@ -171,14 +171,14 @@ class Model:
     """
     def x(self, num_output_layers, pyramid_scale):
         layer_infos = [
-            ['conv', 3, 32, 1],
-            ['conv', 3, 64, 2],
-            ['conv', 3, 128, 2],
-            ['csp', 3, 256, 6],
-            ['csp', 3, 512, 6],
-            ['csp', 3, 512, 6],
-            ['csp', 3, 512, 6],
-            ['head', -1, -1, -1],
+            ['conv', 3,  32, 1, 'relu'],
+            ['conv', 3,  64, 2, 'relu'],
+            ['conv', 3, 128, 2, 'relu'],
+            ['csp', 3,  256, 6, 'relu'],
+            ['csp', 3,  512, 6, 'relu'],
+            ['csp', 3,  512, 6, 'relu'],
+            ['csp', 3,  512, 6, 'relu'],
+            ['head', -1, -1, -1, 'relu'],
         ]
         return self.build_layers(layer_infos, num_output_layers, pyramid_scale)
 
@@ -189,15 +189,15 @@ class Model:
             layer_infos.pop(6)
         input_layer = tf.keras.layers.Input(shape=self.input_shape, name='sbd_input')
         x = input_layer
-        for i, (method, kernel_size, channel, depth) in enumerate(layer_infos):
+        for i, (method, kernel_size, channel, depth, activation) in enumerate(layer_infos):
             if method in ['conv', 'csp']:
                 if i > 0:
                     x = self.dropout(x)
                 if method == 'conv':
                     for _ in range(depth):
-                        x = self.conv_block(x, channel, kernel_size, activation='relu')
+                        x = self.conv_block(x, channel, kernel_size, activation)
                 else:
-                    x = self.csp_block(x, channel, kernel_size, depth, activation='relu')
+                    x = self.csp_block(x, channel, kernel_size, depth, activation)
                 features.append(x)
             elif method == 'head':
                 if self.p6:
@@ -210,7 +210,7 @@ class Model:
                     cs = list(reversed([v[2] for v in layer_infos]))[2:num_upscaling+2]
                     ds = list(reversed([v[3] for v in layer_infos]))[2:num_upscaling+2]
                     fs = list(reversed(features))[1:num_upscaling+1]
-                    x = self.fpn_block(x, ms, fs, cs, ks, ds, activation='relu', return_layers=num_output_layers == 'm')
+                    x = self.fpn_block(x, ms, fs, cs, ks, ds, activation, return_layers=num_output_layers == 'm')
                 if type(x) is not list:
                     x = [x]
             else:
