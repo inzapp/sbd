@@ -83,13 +83,13 @@ class Model:
     """
     def n(self, num_output_layers, pyramid_scale):
         layer_infos = [
-            ['conv', 3,  8, 1, 'relu'],
-            ['conv', 3, 16, 1, 'relu'],
-            ['conv', 3, 32, 2, 'relu'],
-            ['csp', 3,  64, 3, 'relu'],
-            ['csp', 3, 128, 3, 'relu'],
-            ['csp', 3, 256, 3, 'relu'],
-            ['csp', 3, 256, 3, 'relu'],
+            ['conv', 3,   8, 1, 'relu'],
+            ['conv', 3,  16, 1, 'relu'],
+            ['conv', 3,  32, 2, 'relu'],
+            ['csp',  3,  64, 3, 'relu'],
+            ['csp',  3, 128, 3, 'relu'],
+            ['csp',  3, 256, 3, 'relu'],
+            ['csp',  3, 256, 3, 'relu'],
             ['head', -1, -1, -1, 'relu'],
         ]
         return self.build_layers(layer_infos, num_output_layers, pyramid_scale)
@@ -105,13 +105,13 @@ class Model:
     """
     def s(self, num_output_layers, pyramid_scale):
         layer_infos = [
-            ['conv', 3, 16, 1, 'relu'],
-            ['conv', 3, 32, 1, 'relu'],
-            ['conv', 3, 64, 2, 'relu'],
-            ['csp', 3, 128, 3, 'relu'],
-            ['csp', 3, 256, 3, 'relu'],
-            ['csp', 3, 512, 3, 'relu'],
-            ['csp', 3, 512, 3, 'relu'],
+            ['conv', 3,  16, 1, 'relu'],
+            ['conv', 3,  32, 1, 'relu'],
+            ['conv', 3,  64, 2, 'relu'],
+            ['csp',  3, 128, 3, 'relu'],
+            ['csp',  3, 256, 3, 'relu'],
+            ['csp',  3, 512, 3, 'relu'],
+            ['csp',  3, 512, 3, 'relu'],
             ['head', -1, -1, -1, 'relu'],
         ]
         return self.build_layers(layer_infos, num_output_layers, pyramid_scale)
@@ -127,13 +127,13 @@ class Model:
     """
     def m(self, num_output_layers, pyramid_scale):
         layer_infos = [
-            ['conv', 3, 16, 1, 'relu'],
-            ['conv', 3, 32, 1, 'relu'],
-            ['conv', 3, 64, 2, 'relu'],
-            ['csp', 3, 192, 4, 'relu'],
-            ['csp', 3, 384, 4, 'relu'],
-            ['csp', 3, 512, 4, 'relu'],
-            ['csp', 3, 512, 4, 'relu'],
+            ['conv', 3,  16, 1, 'relu'],
+            ['conv', 3,  32, 1, 'relu'],
+            ['conv', 3,  64, 2, 'relu'],
+            ['csp',  3, 192, 4, 'relu'],
+            ['csp',  3, 384, 4, 'relu'],
+            ['csp',  3, 512, 4, 'relu'],
+            ['csp',  3, 512, 4, 'relu'],
             ['head', -1, -1, -1, 'relu'],
         ]
         return self.build_layers(layer_infos, num_output_layers, pyramid_scale)
@@ -149,13 +149,13 @@ class Model:
     """
     def l(self, num_output_layers, pyramid_scale):
         layer_infos = [
-            ['conv', 3, 16, 1, 'relu'],
-            ['conv', 3, 32, 1, 'relu'],
-            ['conv', 3, 64, 2, 'relu'],
-            ['csp', 3, 256, 5, 'relu'],
-            ['csp', 3, 384, 5, 'relu'],
-            ['csp', 3, 512, 5, 'relu'],
-            ['csp', 3, 512, 5, 'relu'],
+            ['conv', 3,  16, 1, 'relu'],
+            ['conv', 3,  32, 1, 'relu'],
+            ['conv', 3,  64, 2, 'relu'],
+            ['csp',  3, 256, 5, 'relu'],
+            ['csp',  3, 384, 5, 'relu'],
+            ['csp',  3, 512, 5, 'relu'],
+            ['csp',  3, 512, 5, 'relu'],
             ['head', -1, -1, -1, 'relu'],
         ]
         return self.build_layers(layer_infos, num_output_layers, pyramid_scale)
@@ -174,10 +174,10 @@ class Model:
             ['conv', 3,  32, 1, 'relu'],
             ['conv', 3,  64, 2, 'relu'],
             ['conv', 3, 128, 2, 'relu'],
-            ['csp', 3,  256, 6, 'relu'],
-            ['csp', 3,  512, 6, 'relu'],
-            ['csp', 3,  512, 6, 'relu'],
-            ['csp', 3,  512, 6, 'relu'],
+            ['csp',  3, 256, 6, 'relu'],
+            ['csp',  3, 512, 6, 'relu'],
+            ['csp',  3, 512, 6, 'relu'],
+            ['csp',  3, 512, 6, 'relu'],
             ['head', -1, -1, -1, 'relu'],
         ]
         return self.build_layers(layer_infos, num_output_layers, pyramid_scale)
