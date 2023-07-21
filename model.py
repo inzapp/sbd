@@ -268,18 +268,19 @@ class Model:
 
     def conv_block(self, x, filters, kernel_size, activation, bn=False):
         assert activation in self.available_activations, f'activation must be one of {self.available_activations}'
+        fuse_activation = False if bn else activation in self.fused_activations
         x = tf.keras.layers.Conv2D(
             filters=filters,
             kernel_size=kernel_size,
             kernel_initializer=self.kernel_initializer(),
             bias_initializer=self.bias_initializer(),
-            activation=activation if activation in self.fused_activations else 'linear',
+            activation=activation if fuse_activation else 'linear',
             padding='same',
             use_bias=not bn,
             kernel_regularizer=self.kernel_regularizer())(x)
         if bn:
             x = self.bn(x)
-        if activation not in self.fused_activations:
+        if not fuse_activation:
             x = self.activation(x, activation=activation)
         return x
 
@@ -291,7 +292,9 @@ class Model:
             name=name)(x)
 
     def activation(self, x, activation='linear'):
-        if activation == 'leaky':
+        if activation in self.fused_activations:
+            return tf.keras.layers.Activation(activation)(x)
+        elif activation == 'leaky':
             return tf.keras.layers.LeakyReLU(alpha=0.1)(x)
         elif activation in ['silu', 'swish']:
             x_sigmoid = tf.keras.layers.Activation('sigmoid')(x)
