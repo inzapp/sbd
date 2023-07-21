@@ -29,6 +29,8 @@ class Model:
         self.p6 = p6
         self.l2 = l2
         self.drop_rate = drop_rate
+        self.fused_activations = ['linear', 'relu', 'sigmoid', 'tanh', 'softplus']
+        self.available_activations = self.fused_activations + ['leaky', 'silu', 'swish', 'mish']
         self.models = dict()
         self.models['n'] = self.n
         self.models['s'] = self.s
@@ -254,7 +256,7 @@ class Model:
             output_layers.append(x)
         return output_layers if return_layers else x
 
-    def csp_block(self, x, filters, kernel_size, depth, bn=False, activation='none'):
+    def csp_block(self, x, filters, kernel_size, depth, activation, bn=False):
         half_filters = filters / 2
         x_0 = self.conv_block(x, half_filters, 1, bn=bn, activation=activation)
         x_1 = self.conv_block(x, half_filters, 1, bn=bn, activation=activation)
@@ -264,18 +266,21 @@ class Model:
         x = self.conv_block(x, filters, 1, bn=bn, activation=activation)
         return x
 
-    def conv_block(self, x, filters, kernel_size, bn=False, activation='none'):
+    def conv_block(self, x, filters, kernel_size, activation, bn=False):
+        assert activation in self.available_activations, f'activation must be one of {self.available_activations}'
         x = tf.keras.layers.Conv2D(
             filters=filters,
             kernel_size=kernel_size,
             kernel_initializer=self.kernel_initializer(),
             bias_initializer=self.bias_initializer(),
+            activation=activation if activation in self.fused_activations else 'linear',
             padding='same',
-            use_bias=False if bn else True,
+            use_bias=not bn,
             kernel_regularizer=self.kernel_regularizer())(x)
         if bn:
             x = self.bn(x)
-        x = self.activation(x, activation=activation)
+        if activation not in self.fused_activations:
+            x = self.activation(x, activation=activation)
         return x
 
     def detection_layer(self, x, name='sbd_output'):
@@ -285,10 +290,8 @@ class Model:
             activation='sigmoid',
             name=name)(x)
 
-    def activation(self, x, activation='none'):
-        if activation in ['relu', 'sigmoid', 'tanh', 'softplus']:
-            return tf.keras.layers.Activation(activation)(x)
-        elif activation == 'leaky':
+    def activation(self, x, activation='linear'):
+        if activation == 'leaky':
             return tf.keras.layers.LeakyReLU(alpha=0.1)(x)
         elif activation in ['silu', 'swish']:
             x_sigmoid = tf.keras.layers.Activation('sigmoid')(x)
@@ -297,11 +300,8 @@ class Model:
             x_softplus = tf.keras.layers.Activation('softplus')(x)
             softplus_tanh = tf.keras.layers.Activation('tanh')(x_softplus)
             return self.multiply([x, softplus_tanh])
-        elif activation == 'none':
-            return x
         else:
-            print(f'[FATAL] unknown activation : [{activation}]')
-            exit(-1)
+            Util.print_error_exit(f'unknown activation : [{activation}]')
 
     def bn(self, x):
         return tf.keras.layers.BatchNormalization(beta_initializer=self.bias_initializer(), fused=True)(x)
