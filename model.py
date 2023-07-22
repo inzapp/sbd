@@ -127,7 +127,7 @@ class Model:
     """
     def m(self, num_output_layers, pyramid_scale):
         layer_infos = [
-            ['conv', 3,  16, 1, 'relu'],
+            ['conv', 5,  16, 1, 'relu'],
             ['conv', 3,  32, 1, 'relu'],
             ['conv', 3,  64, 2, 'relu'],
             ['csp',  3, 192, 4, 'relu'],
@@ -149,7 +149,7 @@ class Model:
     """
     def l(self, num_output_layers, pyramid_scale):
         layer_infos = [
-            ['conv', 3,  16, 1, 'relu'],
+            ['conv', 5,  16, 1, 'relu'],
             ['conv', 3,  32, 1, 'relu'],
             ['conv', 3,  64, 2, 'relu'],
             ['csp',  3, 256, 5, 'relu'],
@@ -171,8 +171,8 @@ class Model:
     """
     def x(self, num_output_layers, pyramid_scale):
         layer_infos = [
-            ['conv', 3,  32, 1, 'relu'],
-            ['conv', 3,  64, 2, 'relu'],
+            ['conv', 5,  32, 1, 'relu'],
+            ['conv', 5,  64, 2, 'relu'],
             ['conv', 3, 128, 2, 'relu'],
             ['csp',  3, 256, 6, 'relu'],
             ['csp',  3, 512, 6, 'relu'],
@@ -190,8 +190,9 @@ class Model:
         input_layer = tf.keras.layers.Input(shape=self.input_shape, name='sbd_input')
         x = input_layer
         for i, (method, kernel_size, channel, depth, activation) in enumerate(layer_infos):
+            depth -= 1
             if method in ['conv', 'csp']:
-                if i > 0:
+                if i > 2:
                     x = self.dropout(x)
                 if method == 'conv':
                     for _ in range(depth):
@@ -216,7 +217,7 @@ class Model:
             else:
                 Util.print_error_exit(f'invalid layer info method : {method}, available method : [conv, csp, head]')
             if i < (6 if self.p6 else 5):
-                x = self.max_pool(x)
+                x = self.conv_block(x, channel, kernel_size, activation, strides=2)
 
         output_layers = []
         for i in range(len(x)):
@@ -266,10 +267,11 @@ class Model:
         x = self.conv_block(x, filters, 1, bn=bn, activation=activation)
         return x
 
-    def conv_block(self, x, filters, kernel_size, activation, bn=False):
+    def conv_block(self, x, filters, kernel_size, activation, strides=1, bn=False):
         assert activation in self.available_activations, f'activation must be one of {self.available_activations}'
         fuse_activation = False if bn else activation in self.fused_activations
         x = tf.keras.layers.Conv2D(
+            strides=strides,
             filters=filters,
             kernel_size=kernel_size,
             kernel_initializer=self.kernel_initializer(),
