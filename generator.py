@@ -100,10 +100,10 @@ class DataGenerator:
         if class_index < 0 or class_index >= num_classes:
             print(f'\ninvalid class index {int(class_index)} in num_classs {num_classes} : [{path}]')
             return True
-        elif cx < 0.0 or cx >= 1.0 or cy < 0.0 or cy >= 1.0:
+        elif cx <= 0.0 or cx >= 1.0 or cy <= 0.0 or cy >= 1.0:
             print(f'\ninvalid cx or cy. cx : {cx:.6f}, cy : {cy:.6f} : [{path}]')
             return True
-        elif w < 0.0 or w > 1.0 or h < 0.0 or h > 1.0:
+        elif w <= 0.0 or w > 1.0 or h <= 0.0 or h > 1.0:
             print(f'\ninvalid width or height. width : {w:.6f}, height : {h:.6f} : [{path}]')
             return True
         else:
