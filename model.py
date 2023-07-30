@@ -56,7 +56,7 @@ class Model:
                 is_model_type_valid = False
             if pyramid_scale == 6 and not self.p6:
                 is_model_type_valid = False
-                print('6 pyramid scale is only support with p6 model')
+                print('6 pyramid scale is only support with p6 model, change p6_model to True in cfg file')
         if not is_model_type_valid:
             Util.print_error_exit([
                 f'invalid model type => \'{model_type}\'',
