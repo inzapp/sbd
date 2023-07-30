@@ -88,6 +88,10 @@ class SBD:
         self.map_checkpoint_interval = config['map_checkpoint_interval']
         self.live_view_previous_time = time()
         self.checkpoint_path = None
+        self.annotations_csv_path_last = None
+        self.predictions_csv_path_last = None
+        self.annotations_csv_path_best = None
+        self.predictions_csv_path_best = None
         self.pretrained_iteration_count = 0
         self.best_mean_ap = 0.0
         warnings.filterwarnings(action='ignore')
@@ -242,6 +246,7 @@ class SBD:
                 inc += 1
             else:
                 break
+
         self.checkpoint_path = new_checkpoint_path
         self.make_checkpoint_dir()
         cfg_content = ''
@@ -254,6 +259,11 @@ class SBD:
         with open(f'{self.checkpoint_path}/cfg.yaml', 'wt') as f:
             f.writelines(cfg_content)
         sh.copy(self.class_names_file_path, self.checkpoint_path)
+
+        self.annotations_csv_path_last = f'{self.checkpoint_path}/annotations_last.csv'
+        self.predictions_csv_path_last = f'{self.checkpoint_path}/predictions_last.csv'
+        self.annotations_csv_path_best = f'{self.checkpoint_path}/annotations.csv'
+        self.predictions_csv_path_best = f'{self.checkpoint_path}/predictions.csv'
 
     def device_context(self):
         return tf.device(self.primary_device) if self.strategy is None else self.strategy.scope()
@@ -742,9 +752,13 @@ class SBD:
             if key == 27:
                 break
 
-    def calculate_map(self, dataset, confidence_threshold, tp_iou_threshold, cached):
+    def calculate_map(self, dataset, confidence_threshold, tp_iou_threshold, cached, annotations_csv_path='', predictions_csv_path=''):
         assert dataset in ['train', 'validation']
         image_paths = self.train_image_paths if dataset == 'train' else self.validation_image_paths
+        if annotations_csv_path == '':
+            annotations_csv_path = f'{self.checkpoint_path}/annotations_last.csv'
+        if predictions_csv_path == '':
+            predictions_csv_path = f'{self.checkpoint_path}/predictions_last.csv'
         return calc_mean_average_precision(
             model=self.model,
             image_paths=image_paths,
@@ -753,11 +767,17 @@ class SBD:
             confidence_threshold=confidence_threshold,
             tp_iou_threshold=tp_iou_threshold,
             classes_txt_path=self.class_names_file_path,
+            annotations_csv_path=annotations_csv_path,
+            predictions_csv_path=predictions_csv_path,
             cached=cached)
 
     def remove_last_model(self):
         for last_model_path in glob(f'{self.checkpoint_path}/last_*_iter.h5'):
             os.remove(last_model_path)
+        if os.path.exists(self.annotations_csv_path_last) and os.path.isfile(self.annotations_csv_path_last):
+            os.remove(self.annotations_csv_path_last)
+        if os.path.exists(self.predictions_csv_path_last) and os.path.isfile(self.predictions_csv_path_last):
+            os.remove(self.predictions_csv_path_last)
 
     def save_last_model(self, iteration_count):
         self.make_checkpoint_dir()
@@ -786,6 +806,8 @@ class SBD:
             self.model.save(best_model_path, include_optimizer=False)
             with open(f'{self.checkpoint_path}/map.txt', 'wt') as f:
                 f.write(txt_content)
+            sh.copy(self.annotations_csv_path_last, self.annotations_csv_path_best)
+            sh.copy(self.predictions_csv_path_last, self.predictions_csv_path_best)
             print(f'new best model saved to [{best_model_path}]')
         print()
 

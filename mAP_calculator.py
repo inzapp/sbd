@@ -33,8 +33,7 @@ def load_label(image_path, unknown_class_index):
     return csv
 
 
-def make_annotations_csv(image_paths, unknown_class_index):
-    global g_annotations_csv_name
+def make_annotations_csv(image_paths, unknown_class_index, csv_path):
     fs = []
     pool = ThreadPoolExecutor(8)
     for path in image_paths:
@@ -42,7 +41,7 @@ def make_annotations_csv(image_paths, unknown_class_index):
     csv = 'ImageID,LabelName,XMin,XMax,YMin,YMax\n'
     for f in tqdm(fs, desc='annotations csv creation'):
         csv += f.result()
-    with open(g_annotations_csv_name, 'wt') as f:
+    with open(csv_path, 'wt') as f:
         f.writelines(csv)
 
 
@@ -57,10 +56,9 @@ def convert_boxes_to_csv_lines(path, boxes):
     return csv
 
 
-def make_predictions_csv(model, image_paths, device):
+def make_predictions_csv(model, image_paths, device, csv_path):
     from sbd import SBD
     from util import Util
-    global g_predictions_csv_name
     fs = []
     input_channel = model.input_shape[1:][-1]
     pool = ThreadPoolExecutor(8)
@@ -71,18 +69,18 @@ def make_predictions_csv(model, image_paths, device):
         img, _, path = f.result()
         boxes = SBD.predict(model, img, confidence_threshold=0.001, nms_iou_threshold=g_nms_iou_threshold, device=device)
         csv += convert_boxes_to_csv_lines(path, boxes)
-    with open(g_predictions_csv_name, 'wt') as f:
+    with open(csv_path, 'wt') as f:
         f.writelines(csv)
 
 
-def calc_mean_average_precision(model, image_paths, device, unknown_class_index, confidence_threshold, tp_iou_threshold, classes_txt_path, cached):
+def calc_mean_average_precision(model, image_paths, device, unknown_class_index, confidence_threshold, tp_iou_threshold, classes_txt_path, annotations_csv_path, predictions_csv_path, cached):
     global g_iou_threshold, g_confidence_threshold, g_annotations_csv_name, g_predictions_csv_name
     if not cached:
-        make_annotations_csv(image_paths, unknown_class_index)
-        make_predictions_csv(model, image_paths, device)
+        make_annotations_csv(image_paths, unknown_class_index, annotations_csv_path)
+        make_predictions_csv(model, image_paths, device, predictions_csv_path)
     return mean_average_precision_for_boxes(
-        ann=g_annotations_csv_name,
-        pred=g_predictions_csv_name,
+        ann=annotations_csv_path,
+        pred=predictions_csv_path,
         confidence_threshold_for_f1=confidence_threshold,
         iou_threshold=tp_iou_threshold,
         classes_txt_path=classes_txt_path,

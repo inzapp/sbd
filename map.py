@@ -30,7 +30,10 @@ if __name__ == '__main__':
     parser.add_argument('--iou', type=float, default=0.5, help='true positive threshold for intersection over union')
     parser.add_argument('--conf', type=float, default=0.2, help='confidence threshold for detection')
     parser.add_argument('--dataset', type=str, default='validation', help='dataset name for mAP calculation. train or validation')
+    parser.add_argument('--truecsv', type=str, default='annotations.csv', help='annotations csv path for cached mAP calculation')
+    parser.add_argument('--predcsv', type=str, default='predictions.csv', help='predictions csv path for cached mAP calculation')
     args = parser.parse_args()
     sbd = SBD(cfg_path=args.cfg, training=False)
     sbd.load_model(args.model)
-    sbd.calculate_map(args.dataset, confidence_threshold=args.conf, tp_iou_threshold=args.iou, cached=args.cached)
+    sbd.calculate_map(args.dataset, confidence_threshold=args.conf, tp_iou_threshold=args.iou, cached=args.cached, annotations_csv_path=args.truecsv, predictions_csv_path=args.predcsv)
+
