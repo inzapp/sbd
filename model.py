@@ -71,16 +71,6 @@ class Model:
                 f'ex) xmp4 : xlarge backbone with multi output layer(2 output layer for pyramid sacle 4), 4 pyramid scale : output layer resolution is divided by 16(2^4) of input resolution'])
         return self.models[backbone](num_output_layers, pyramid_scale)
 
-    """
-    model_type : n1p3
-    shape : (384, 640, 1)
-    GFLOPs : 1.9766
-    parameters : 947,815
-    forwarding time in CV22
-        nx8x : 4.78ms
-        16x8x : 8.11ms
-        16x16x : 15.08ms
-    """
     def n(self, num_output_layers, pyramid_scale):
         layer_infos = [
             ['conv', 3,   8, 1, 'leaky'],
@@ -94,15 +84,6 @@ class Model:
         ]
         return self.build_layers(layer_infos, num_output_layers, pyramid_scale)
 
-    """
-    shape : (384, 640, 1)
-    GFLOPs : 7.8067
-    parameters : 3,785,159
-    forwarding time in CV22
-        nx8x : 15.28ms
-        16x8x : 28.12ms
-        16x16x : 55.61ms
-    """
     def s(self, num_output_layers, pyramid_scale):
         layer_infos = [
             ['conv', 3,  16, 1, 'leaky'],
@@ -116,15 +97,6 @@ class Model:
         ]
         return self.build_layers(layer_infos, num_output_layers, pyramid_scale)
 
-    """
-    shape : (384, 640, 1)
-    GFLOPs : 16.0880
-    parameters : 7,113,927
-    forwarding time in CV22
-        nx8x : 29.91ms
-        16x8x : 55.85ms
-        16x16x : 111.71ms
-    """
     def m(self, num_output_layers, pyramid_scale):
         layer_infos = [
             ['conv', 5,  16, 1, 'leaky'],
@@ -138,15 +110,6 @@ class Model:
         ]
         return self.build_layers(layer_infos, num_output_layers, pyramid_scale)
 
-    """
-    shape : (384, 640, 1)
-    GFLOPs : 24.6675
-    parameters : 9,319,495
-    forwarding time in CV22
-        nx8x : 44.38ms
-        16x8x : 84.73ms
-        16x16x : 169.54ms
-    """
     def l(self, num_output_layers, pyramid_scale):
         layer_infos = [
             ['conv', 5,  16, 1, 'leaky'],
@@ -160,15 +123,6 @@ class Model:
         ]
         return self.build_layers(layer_infos, num_output_layers, pyramid_scale)
 
-    """
-    shape : (384, 640, 1)
-    GFLOPs : 46.8271
-    parameters : 14,740,679
-    forwarding time in CV22
-        nx8x : 82.97ms
-        16x8x : 160.21ms
-        16x16x : 318.20ms
-    """
     def x(self, num_output_layers, pyramid_scale):
         layer_infos = [
             ['conv', 5,  32, 1, 'leaky'],
