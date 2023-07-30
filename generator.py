@@ -544,16 +544,18 @@ class DataGenerator:
                         allocated_count += 1
                         break
         if self.debug:
-            confidence_channel = y[i][batch_index, :, :, 0]
-            print(f'confidence_channel.shape : {confidence_channel.shape}')
-            mask_channel = mask[i][batch_index, :, :, 0]
-            print(f'mask_channel.shape : {mask_channel.shape}')
-            for class_index in range(self.num_classes):
-                class_channel = y[i][batch_index, :, :, 5+class_index]
-                cv2.imshow(f'class_{class_index}', cv2.resize(class_channel, (self.input_shape[1], self.input_shape[0]), interpolation=cv2.INTER_NEAREST))
-            cv2.imshow('confidence', cv2.resize(confidence_channel, (self.input_shape[1], self.input_shape[0]), interpolation=cv2.INTER_NEAREST))
-            cv2.imshow('mask', cv2.resize(mask_channel, (self.input_shape[1], self.input_shape[0]), interpolation=cv2.INTER_NEAREST))
-            print(f'allocated_count : {allocated_count}')
+            for i in range(self.num_output_layers):
+                print(f'\n[layer_index, batch_index] : [{i}, {batch_index}]')
+                confidence_channel = y[i][batch_index, :, :, 0]
+                print(f'confidence_channel[{i}][{batch_index}].shape : {confidence_channel.shape}')
+                mask_channel = mask[i][batch_index, :, :, 0]
+                print(f'mask_channel[{i}][{batch_index}].shape : {mask_channel.shape}')
+                for class_index in range(self.num_classes):
+                    class_channel = y[i][batch_index, :, :, 5+class_index]
+                    cv2.imshow(f'class_{class_index}[{i}]', cv2.resize(class_channel, (self.input_shape[1], self.input_shape[0]), interpolation=cv2.INTER_NEAREST))
+                cv2.imshow(f'confidence[{i}]', cv2.resize(confidence_channel, (self.input_shape[1], self.input_shape[0]), interpolation=cv2.INTER_NEAREST))
+                cv2.imshow(f'mask[{i}]', cv2.resize(mask_channel, (self.input_shape[1], self.input_shape[0]), interpolation=cv2.INTER_NEAREST))
+                print(f'allocated_count : {allocated_count}\n')
         return allocated_count
             
     def load(self):
