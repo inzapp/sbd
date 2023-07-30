@@ -179,19 +179,13 @@ class DataGenerator:
             return [[i, 1.0] for i in range(self.num_output_layers)]
 
         cx, cy, w, h = box
-        x1 = cx - (w * 0.5)
-        y1 = cy - (h * 0.5)
-        x2 = cx + (w * 0.5)
-        y2 = cy + (h * 0.5)
+        x1, y1, x2, y2 = Util.cxcywh2x1y1x2y2(cx, cy, w, h)
         labeled_box = np.clip(np.asarray([x1, y1, x2, y2]), 0.0, 1.0)
         iou_with_virtual_anchors = []
         for layer_index in range(self.num_output_layers):
             w = self.virtual_anchor_ws[layer_index]
             h = self.virtual_anchor_hs[layer_index]
-            x1 = cx - (w * 0.5)
-            y1 = cy - (h * 0.5)
-            x2 = cx + (w * 0.5)
-            y2 = cy + (h * 0.5)
+            x1, y1, x2, y2 = Util.cxcywh2x1y1x2y2(cx, cy, w, h)
             virtual_anchor_box = np.clip(np.asarray([x1, y1, x2, y2]), 0.0, 1.0)
             iou = Util.iou(labeled_box, virtual_anchor_box)
             iou_with_virtual_anchors.append([layer_index, iou])
