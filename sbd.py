@@ -153,6 +153,11 @@ class SBD:
                     f'student : {self.model.output_shape}'])
 
         if type(self.model.output_shape) == tuple:
+            if self.model_type[1] == 'm':
+                new_type = f'{self.model_type[0]}1{self.model_type[2:]}'
+                msg = f'{self.model_type} model with pyramid scale {self.model_type[3]} is same with {new_type}.'
+                msg += f' please use {new_type} instead to to clarify that model is one output layer'
+                Util.print_error_exit(msg)
             self.num_output_layers = 1
         else:
             self.num_output_layers = len(self.model.output_shape)
