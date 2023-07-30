@@ -479,7 +479,7 @@ class DataGenerator:
                     'iou': iou})
         return sorted(nearby_cells, key=lambda x: x['iou'], reverse=True)
 
-    def build_batch_tensor(self, labeled_boxes, y, mask, batch_index):
+    def build_batch_tensor(self, labeled_boxes, y, mask, batch_index, img=None):
         allocated_count = 0
         for b in labeled_boxes:
             class_indexes, cx, cy, w, h = b['class_indexes'], b['cx'], b['cy'], b['w'], b['h']
@@ -529,6 +529,11 @@ class DataGenerator:
                             object_heatmap = 1.0 - np.clip((np.abs(rr - center_row_f) / (h * half_scale)) ** 2 + (np.abs(cc - center_col_f) / (w * half_scale)) ** 2, 0.0, 1.0) ** 0.5
                             object_mask = np.where(object_heatmap == 0.0, 1.0, 0.0)
                             object_mask[offset_center_row][offset_center_col] = 1.0
+
+                            # confidence_channel = y[i][batch_index][:, :, 0]
+                            # confidence_indices = np.where(object_heatmap > confidence_channel)
+                            # confidence_channel[confidence_indices] = object_heatmap[confidence_indices]
+
                             confidence_mask_channel = mask[i][batch_index][:, :, 0]
                             confidence_mask_indices = np.where(object_mask < confidence_mask_channel)
                             confidence_mask_channel[confidence_mask_indices] = object_mask[confidence_mask_indices]
@@ -543,7 +548,10 @@ class DataGenerator:
                         is_box_allocated = True
                         allocated_count += 1
                         break
+
         if self.debug:
+            cv2.imshow('img', img)
+            print(f'img.shape : {img.shape}')
             for i in range(self.num_output_layers):
                 print(f'\n[layer_index, batch_index] : [{i}, {batch_index}]')
                 confidence_channel = y[i][batch_index, :, :, 0]
@@ -553,9 +561,25 @@ class DataGenerator:
                 for class_index in range(self.num_classes):
                     class_channel = y[i][batch_index, :, :, 5+class_index]
                     cv2.imshow(f'class_{class_index}[{i}]', cv2.resize(class_channel, (self.input_shape[1], self.input_shape[0]), interpolation=cv2.INTER_NEAREST))
-                cv2.imshow(f'confidence[{i}]', cv2.resize(confidence_channel, (self.input_shape[1], self.input_shape[0]), interpolation=cv2.INTER_NEAREST))
+                confidence_channel_img = cv2.resize(confidence_channel, (self.input_shape[1], self.input_shape[0]), interpolation=cv2.INTER_NEAREST)
+                cv2.imshow(f'confidence[{i}]', confidence_channel_img)
                 cv2.imshow(f'mask[{i}]', cv2.resize(mask_channel, (self.input_shape[1], self.input_shape[0]), interpolation=cv2.INTER_NEAREST))
+
+                if self.num_output_layers == 1:
+                    alpha = 0.4
+                    heatmap = np.clip(confidence_channel_img * 255.0, 0.0, 255.0).astype('uint8')
+                    heatmap = heatmap.reshape(heatmap.shape + (1,))
+                    heatmap = np.concatenate([heatmap, heatmap, heatmap], axis=-1)
+                    heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
+                    print(f'heatmap.shape : {heatmap.shape}')
+                    if self.input_shape[-1] == 1:
+                        img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+                    blended_img = cv2.addWeighted(img, alpha, heatmap, 1.0 - alpha, 0)
+                    cv2.imshow(f'heatmap[{i}]', blended_img)
                 print(f'allocated_count : {allocated_count}\n')
+            key = cv2.waitKey(0)
+            if key == 27:
+                exit(0)
         return allocated_count
             
     def load(self):
@@ -572,8 +596,6 @@ class DataGenerator:
             fs.append(self.pool.submit(Util.load_img, self.get_next_image_path(), self.input_channel))
         for i in range(len(fs)):
             img, _, path = fs[i].result()
-            if self.debug:
-                cv2.imshow('img', cv2.resize(cv2.cvtColor(img, cv2.COLOR_RGB2BGR) if self.input_channel == 3 else img, (self.input_shape[1], self.input_shape[0])))
             img = Util.resize(img, (self.input_width, self.input_height))
             img = self.transform(image=img)['image']
             label_lines, label_path, label_exists = self.load_label(self.label_path(path))
@@ -595,11 +617,7 @@ class DataGenerator:
                     batch_tx[i] = tx
             else:
                 labeled_boxes = self.convert_to_boxes(label_lines)
-                self.build_batch_tensor(labeled_boxes, batch_y, batch_mask, i)
-            if self.debug:
-                key = cv2.waitKey(0)
-                if key == 27:
-                    exit(0)
+                self.build_batch_tensor(labeled_boxes, batch_y, batch_mask, i, img if self.debug else None)
         if self.teacher is not None:
             from sbd import SBD
             batch_y = SBD.graph_forward(self.teacher, batch_x if batch_tx is None else batch_tx, self.primary_device)
