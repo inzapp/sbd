@@ -550,6 +550,8 @@ class DataGenerator:
                         break
 
         if self.debug:
+            if self.input_shape[-1] == 3:
+                img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
             cv2.imshow('img', img)
             print(f'img.shape : {img.shape}')
             for i in range(self.num_output_layers):
