@@ -93,6 +93,14 @@ class Util:
         return boxes
 
     @staticmethod
+    def cxcywh2x1y1x2y2(cx, cy, w, h):
+        x1 = cx - (w * 0.5)
+        y1 = cy - (h * 0.5)
+        x2 = cx + (w * 0.5)
+        y2 = cy + (h * 0.5)
+        return x1, y1, x2, y2
+
+    @staticmethod
     def iou(a, b):
         """
         Intersection of union function.

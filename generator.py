@@ -236,7 +236,7 @@ class DataGenerator:
         del self.ws
         del self.hs
 
-        print(f'virtual anchor : ', end='')
+        print('virtual anchor : ', end='')
         for i in range(num_cluster):
             anchor_w = self.virtual_anchor_ws[i]
             anchor_h = self.virtual_anchor_hs[i]
@@ -245,6 +245,19 @@ class DataGenerator:
             else:
                 print(f', {anchor_w:.4f}, {anchor_h:.4f}', end='')
         print('\n')
+
+        iou_between_va_sum = 0.0
+        print('IoU between virtual anchors')
+        for i in range(num_cluster - 1):
+            box_a = Util.cxcywh2x1y1x2y2(0.5, 0.5, self.virtual_anchor_ws[i], self.virtual_anchor_hs[i])
+            box_b = Util.cxcywh2x1y1x2y2(0.5, 0.5, self.virtual_anchor_ws[i+1], self.virtual_anchor_hs[i+1])
+            iou = Util.iou(box_a, box_b)
+            iou_between_va_sum += iou
+            print(f'va[{i}], va[{i+1}] => {iou:.4f}')
+        avg_iou_between_va = iou_between_va_sum / (num_cluster - 1)
+        print(f'average IoU between virtual anchor : {avg_iou_between_va:.4f}\n')
+        if avg_iou_between_va > 0.5:
+            print(f'[Warning] High IoU(>0.5) between virtual anchors may degrade mAP due to scale constraint. Consider using one output layer model instead\n')
 
         if print_avg_iou:
             fs = []
