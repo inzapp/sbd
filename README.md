@@ -61,7 +61,7 @@ python ../../../auto_label.py --path "/your/image/path/dir" --conf 0.3 # save la
 ```
 
 Multi GPU training
-```bash
+```yaml
 # cfg/cfg.yaml
 devices: [] # cpu training
 devices: [0] # one gpu training with device index 0
