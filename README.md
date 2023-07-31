@@ -60,6 +60,15 @@ cd checkpoint/model_name/model_type/
 python ../../../auto_label.py --path "/your/image/path/dir" --conf 0.3 # save label with predicted result
 ```
 
+Multi GPU training
+```bash
+# cfg/cfg.yaml
+devices: [] # cpu training
+devices: [0] # one gpu training with device index 0
+devices: [2, 3] # 2 GPU training with device index 2, 3
+devices: [0, 1, 2, 3] # 4 GPU training with device index 0, 1, 2, 3
+```
+
 ONNX export
 ```bash
 ./export.sh  # just copy and paste your model path for exporting
