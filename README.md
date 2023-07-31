@@ -141,4 +141,6 @@ p6_model: True
 
 p6 model has addtional downscaling block and use 64 strides so input resolution must be multiple of 64
 
-if p6_model: False in cfg.yaml, 32 strides is used by default
+6 pyramid scale is available only when p6_model is True
+
+if p6_model: False in cfg.yaml, p5(32 strides) is used by default
