@@ -131,7 +131,7 @@ output layers are added one by one from the lowest resolution layer
 
 For better understanding, take a model with model_type m1p2 as an example
 
-<img src="/md/model.png" width="700px"/>
+<img src="/md/model.png" width="850px"/>
 
 if you want to use p6 model, modify cfg.yaml as below
 
