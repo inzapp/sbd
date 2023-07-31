@@ -110,8 +110,11 @@ model_type: m1p2 # medium backbone one output layer model with pyramid scale 2
 The description of the model_type is as follows
 
 m : backbone type, available backbones : n(nano), s(small), m(medium), l(large), x(x-large)
+
 1 : 1 for one output layer model or m for multi layer model
+
 p : constant character for naming rule
+
 2 : pyramid scale value, 2 ~ 6(p6 only) is available
 
 available model type examples) n1p5, nmp3, s1p2, smp4, m1p3, mmp2, l1p4, lmp2, x1p5, xmp3
