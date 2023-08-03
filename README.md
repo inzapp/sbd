@@ -145,7 +145,7 @@ You can try lowering the paramid scale to save post processing time
 
 If the box size of the train data is very small to very large (like COCO), mp2 models can be helpful
 
-# P6
+## P6
 If you want to use p6 model, modify cfg.yaml as below
 
 ```yaml
@@ -162,7 +162,7 @@ When using the multi layer model,
 
 one output layer is added to reach the pyramid scale as the downscale block is added
 
-# Virtual anchor
+## Virtual anchor
 The virtual anchor is extracted from train data by K-means clustering
 
 Each output layer has one clustered box as an anchor,
@@ -173,7 +173,7 @@ Since it is used only during training and not during interference,
 
 there is no need to save the value of the virtual anchor separately
 
-# Scale constraint
+## Scale constraint
 ```txt
 We recommend va_iou_threshold value to 1.0 as default
 Setting the va_iou_threshold below 1.0 can destabilize training
