@@ -133,7 +133,20 @@ For better understanding, take a model with model_type m1p2 as an example
 
 <img src="/md/model.png" width="850px"/>
 
-if you want to use p6 model, modify cfg.yaml as below
+In most cases, 1p2 model type is recommended
+
+If the input resolution is very large, the pyramid scale of 2 has a very large output resolution
+
+In this case, you can test a p2 or lower pyramid scale to reduce post processing time
+
+Also, if the model learns from simple data and results in a high mAP
+
+You can try lowering the paramid scale to save post processing time
+
+If the box size of the train data is very small to very large (like COCO), mp2 models can be helpful
+
+# P6
+If you want to use p6 model, modify cfg.yaml as below
 
 ```yaml
 p6_model: True
@@ -143,4 +156,38 @@ p6 model has addtional downscaling block and use 64 strides so input resolution 
 
 6 pyramid scale is available only when p6_model is True
 
-if p6_model: False in cfg.yaml, p5(32 strides) is used by default
+If p6_model: False in cfg.yaml, p5(32 strides) is used by default
+
+When using the multi layer model,
+
+one output layer is added to reach the pyramid scale as the downscale block is added
+
+# Virtual anchor
+The virtual anchor is extracted from train data by K-means clustering
+
+Each output layer has one clustered box as an anchor,
+
+which determines the index of the output layer on which the object is to be learned by comparing IoU
+
+Since it is used only during training and not during interference,
+
+there is no need to save the value of the virtual anchor separately
+
+# Scale constraint
+```txt
+We recommend va_iou_threshold value to 1.0 as default
+Setting the va_iou_threshold below 1.0 can destabilize training
+Use only if there is a clear reason to lower the va_iou_threshold
+```
+
+When training the multi layer model, one object is assigned to one output layer
+
+This is called scale constraint, and scale constraint allow the model to train multi scale
+
+If the iou between virtual anchors is high, the scale constraint can degrade the model
+
+You can disable scale constraint by changing the value of va_iou_threshold in the cfg.yaml file
+
+```yaml
+va_iou_threshold: 1.0
+```
