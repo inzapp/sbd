@@ -174,12 +174,6 @@ Since it is used only during training and not during interference,
 there is no need to save the value of the virtual anchor separately
 
 ## Scale constraint
-```txt
-We recommend va_iou_threshold value to 1.0 as default
-Setting the va_iou_threshold below 1.0 can destabilize training
-Use only if there is a clear reason to lower the va_iou_threshold
-```
-
 When training the multi layer model, one object is assigned to one output layer
 
 This is called scale constraint, and scale constraint allow the model to train multi scale
@@ -189,5 +183,8 @@ If the iou between virtual anchors is high, the scale constraint can degrade the
 You can disable scale constraint by changing the value of va_iou_threshold in the cfg.yaml file
 
 ```yaml
+# We recommend va_iou_threshold value to 1.0 as default
+# Setting the va_iou_threshold below 1.0 can destabilize training
+# Use only if there is a clear reason to lower the va_iou_threshold
 va_iou_threshold: 1.0
 ```
