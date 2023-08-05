@@ -17,14 +17,14 @@
 Installation
 ```bash
 git clone https://github.com/inzapp/sbd
-cd sbd
 
 # local installation
+cd sbd
 python -m pip intall setup/requirements_cuda_xxx.txt
 
 # docker installation
-cd setup/
-docker build --no-cache -t sbd -f Dockerfile.cuxxx .
+docker pull inzapp/sbd:cu118 # in case of cuda version 11.8
+cd sbd/setup
 ./run_docker.sh
 ```
 
