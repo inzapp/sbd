@@ -1,0 +1,29 @@
+# Use base image
+FROM tensorflow/tensorflow:2.12.0-gpu
+
+# Install dependencies
+RUN apt update && apt install -y \
+    vim \
+    git \
+    python3.8 \
+    python3.8-distutils \
+    python3.8-venv \
+    libgl1-mesa-glx
+
+# Set up the virtual environment
+RUN mkdir -p /venv/
+RUN python3.8 -m venv /venv/sbd
+
+# Set the working directory
+WORKDIR /venv/sbd
+
+# Copy requirements file
+COPY ./requirements_cuda_118.txt .
+
+# Upgrade pip and install Python packages
+RUN . /venv/sbd/bin/activate && python -m pip install --upgrade pip && python -m pip install -r ./requirements_cuda_118.txt && deactivate
+COPY ./.bashrc /etc/bash.bashrc
+
+# Set the working directory
+RUN mkdir -p /sbd/
+WORKDIR /sbd
