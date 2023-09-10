@@ -528,14 +528,13 @@ class DataGenerator:
                             half_scale = max(self.ignore_scale * 0.5, 1e-5)
                             object_heatmap = 1.0 - np.clip((np.abs(rr - center_row_f) / (h * half_scale)) ** 2 + (np.abs(cc - center_col_f) / (w * half_scale)) ** 2, 0.0, 1.0) ** 0.5
                             object_mask = np.where(object_heatmap == 0.0, 1.0, 0.0)
-                            object_mask[offset_center_row][offset_center_col] = 1.0
 
                             # confidence_channel = y[i][batch_index][:, :, 0]
                             # confidence_indices = np.where(object_heatmap > confidence_channel)
                             # confidence_channel[confidence_indices] = object_heatmap[confidence_indices]
 
                             confidence_mask_channel = mask[i][batch_index][:, :, 0]
-                            confidence_mask_indices = np.where(object_mask < confidence_mask_channel)
+                            confidence_mask_indices = np.where(object_mask == 0.0)
                             confidence_mask_channel[confidence_mask_indices] = object_mask[confidence_mask_indices]
                         y[i][batch_index][offset_center_row][offset_center_col][0] = 1.0
                         y[i][batch_index][offset_center_row][offset_center_col][1] = cx_grid
@@ -548,6 +547,7 @@ class DataGenerator:
                         is_box_allocated = True
                         allocated_count += 1
                         break
+                mask[i][batch_index][:, :, 0][np.where(y[i][batch_index][:, :, 0] == 1.0)] = 1.0
 
         if self.debug:
             if self.input_shape[-1] == 3:
