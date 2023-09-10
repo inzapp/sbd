@@ -157,8 +157,11 @@ class Model:
             elif method == 'head':
                 if self.p6:
                     num_upscaling = 6 - pyramid_scale
+                    num_upscaling_spp = 4
                 else:
                     num_upscaling = 5 - pyramid_scale
+                    num_upscaling_spp = 3
+                # x = self.spp_block(x, list(reversed(features))[1:num_upscaling_spp+1], activation)
                 if num_upscaling > 0:
                     ms = list(reversed([v[0] for v in layer_infos]))[2:num_upscaling+2]
                     ks = list(reversed([v[1] for v in layer_infos]))[2:num_upscaling+2]
@@ -188,6 +191,17 @@ class Model:
         x = self.conv_block(x, reduced_channel, 7, bn=bn, activation=activation)
         x = self.conv_block(x, input_filters, 1, bn=bn, activation='sigmoid')
         return tf.keras.layers.Multiply()([x, input_layer])
+
+    def spp_block(self, x, layers, activation, bn=False):
+        pool_size = 2
+        spp_layers = [x]
+        channels = x.shape[-1]
+        for i in range(len(layers)):
+            spp_x = self.max_pool(layers[i], pool_size=pool_size)
+            spp_x = self.conv_block(spp_x, channels, 1, bn=bn, activation=activation)
+            spp_layers.append(spp_x)
+            pool_size *= 2
+        return self.add(spp_layers)
 
     def fpn_block(self, x, methods, layers, filters, kernel_sizes, depths, activation, bn=False, return_layers=False, mode='add'):
         assert mode in ['add', 'concat']
@@ -278,8 +292,8 @@ class Model:
         return tf.keras.layers.Dropout(self.drop_rate)(x) if self.drop_rate > 0.0 else x
 
     @staticmethod
-    def max_pool(x):
-        return tf.keras.layers.MaxPool2D()(x)
+    def max_pool(x, pool_size=2):
+        return tf.keras.layers.MaxPool2D(pool_size=(pool_size, pool_size))(x)
 
     @staticmethod
     def upsampling(x):
