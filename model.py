@@ -161,7 +161,7 @@ class Model:
                 else:
                     num_upscaling = 5 - pyramid_scale
                     num_upscaling_spp = 3
-                # x = self.spp_block(x, list(reversed(features))[1:num_upscaling_spp+1], activation)
+                x = self.spp_block(x, list(reversed(features))[1:num_upscaling_spp+1], activation)
                 if num_upscaling > 0:
                     ms = list(reversed([v[0] for v in layer_infos]))[2:num_upscaling+2]
                     ks = list(reversed([v[1] for v in layer_infos]))[2:num_upscaling+2]
