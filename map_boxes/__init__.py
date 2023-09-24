@@ -90,8 +90,9 @@ def _compute_ap(recall, precision):
     return ap
 
 
-def _print(msg, txt_content):
-    print(msg)
+def _print(msg, txt_content, verbose):
+    if verbose:
+        print(msg)
     txt_content += f'{msg}\n'
     return txt_content
 
@@ -106,7 +107,6 @@ def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_th
     :param classes_txt_path: class names file for show result. Default: ''
     :return: tuple, where first value is mAP and second values is dict with AP for each class.
     """
-
     class_names = []
     max_class_name_len = 1
     if classes_txt_path != '':
@@ -134,31 +134,26 @@ def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_th
     ann_unique = valid['ImageID'].unique()
     preds_unique = preds['ImageID'].unique()
 
-    print()
+    if verbose:
+        print()
     txt_content = ''
     unique_classes = list(map(str, valid['LabelName'].unique()))
-    if verbose:
-        txt_content = _print(f'Unique classes: {len(unique_classes)}', txt_content)
+    txt_content = _print(f'Unique classes: {len(unique_classes)}', txt_content, verbose)
 
-    if verbose:
-        txt_content = _print(f'Number of files in annotations: {len(ann_unique)}', txt_content)
-        txt_content = _print(f'Number of files in predictions: {len(preds_unique)}', txt_content)
+    txt_content = _print(f'Number of files in annotations: {len(ann_unique)}', txt_content, verbose)
+    txt_content = _print(f'Number of files in predictions: {len(preds_unique)}', txt_content, verbose)
 
     # Exclude files not in annotations!
     if exclude_not_in_annotations:
         preds = preds[preds['ImageID'].isin(ann_unique)]
         preds_unique = preds['ImageID'].unique()
-        if verbose:
-            txt_content = _print(f'Number of files in detection after reduction: {len(preds_unique)}', txt_content)
+        txt_content = _print(f'Number of files in detection after reduction: {len(preds_unique)}', txt_content, verbose)
 
     all_detections = get_detections(preds)
     all_annotations = get_real_annotations(valid)
-    # if verbose:
-    #     txt_content = _print('Detections length: {}'.format(len(all_detections)), txt_content)
-    #     txt_content = _print('Annotations length: {}'.format(len(all_annotations)), txt_content)
 
-    txt_content = _print(f'\nNMS iou threshold : {iou_threshold}', txt_content)
-    txt_content = _print(f'confidence threshold for tp, fp, fn calculate : {confidence_threshold_for_f1}', txt_content)
+    txt_content = _print(f'\nNMS iou threshold : {iou_threshold}', txt_content, verbose)
+    txt_content = _print(f'confidence threshold for tp, fp, fn calculate : {confidence_threshold_for_f1}', txt_content, verbose)
     total_tp_iou_sum = 0.0
     total_tp_confidence_sum = 0.0
     total_tp = 0
@@ -275,12 +270,11 @@ def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_th
         average_precision = _compute_ap(recall, precision)
         average_precisions[class_index_str] = average_precision, num_annotations
 
-        if verbose:
-            class_index = int(class_index_str)
-            class_name = f'class {class_index_str}'
-            if len(class_names) >= class_index + 1:
-                class_name = class_names[class_index]
-            txt_content = _print(f'{class_name:{max_class_name_len}s} ap : {average_precision:.4f}, obj count : {obj_count:6d}, tp : {tp:6d}, fp : {fp:6d}, fn : {fn:6d}, precision : {p:.4f}, recall : {r:.4f}, f1 : {f1:.4f}, iou : {tp_iou:.4f}, confidence : {tp_confidence:.4f}', txt_content)
+        class_index = int(class_index_str)
+        class_name = f'class {class_index_str}'
+        if len(class_names) >= class_index + 1:
+            class_name = class_names[class_index]
+        txt_content = _print(f'{class_name:{max_class_name_len}s} ap : {average_precision:.4f}, obj count : {obj_count:6d}, tp : {tp:6d}, fp : {fp:6d}, fn : {fn:6d}, precision : {p:.4f}, recall : {r:.4f}, f1 : {f1:.4f}, iou : {tp_iou:.4f}, confidence : {tp_confidence:.4f}', txt_content, verbose)
 
     present_classes = 0
     precision = 0
@@ -294,12 +288,7 @@ def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_th
     f1 = (2.0 * p * r) / (p + r + 1e-7)
     tp_iou = total_tp_iou_sum / (total_tp + 1e-7)
     tp_confidence = total_tp_confidence_sum / (total_tp + 1e-7)
-    if verbose:
-        class_name = f'total'
-        txt_content = _print(f'\n{class_name:{max_class_name_len}s} ap : {mean_ap:.4f}, obj count : {total_obj_count:6d}, tp : {total_tp:6d}, fp : {total_fp:6d}, fn : {total_fn:6d}, precision : {p:.4f}, recall : {r:.4f}, f1 : {f1:.4f}, iou : {tp_iou:.4f}, confidence : {tp_confidence:.4f}', txt_content)
-    # txt_content = _print(f'F1@{int(iou_threshold * 100)} : {f1:.4f}', txt_content)
-    # txt_content = _print(f'mAP@{int(iou_threshold * 100)} : {mean_ap:.4f}', txt_content)
-    # txt_content = _print(f'TP_IOU@{int(iou_threshold * 100)} : {tp_iou:.4f}', txt_content)
-    # txt_content = _print(f'TP_Confidence : {tp_confidence:.4f}', txt_content)
+    class_name = f'total'
+    txt_content = _print(f'\n{class_name:{max_class_name_len}s} ap : {mean_ap:.4f}, obj count : {total_obj_count:6d}, tp : {total_tp:6d}, fp : {total_fp:6d}, fn : {total_fn:6d}, precision : {p:.4f}, recall : {r:.4f}, f1 : {f1:.4f}, iou : {tp_iou:.4f}, confidence : {tp_confidence:.4f}', txt_content, verbose)
     return mean_ap, f1, tp_iou, total_tp, total_fp, total_obj_count - total_tp, tp_confidence, txt_content
 
