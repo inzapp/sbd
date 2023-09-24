@@ -752,7 +752,7 @@ class SBD:
             if key == 27:
                 break
 
-    def calculate_map(self, dataset, confidence_threshold, tp_iou_threshold, cached, annotations_csv_path='', predictions_csv_path=''):
+    def calculate_map(self, dataset, confidence_threshold, tp_iou_threshold, cached, find_best_threshold=False, annotations_csv_path='', predictions_csv_path=''):
         assert dataset in ['train', 'validation']
         image_paths = self.train_image_paths if dataset == 'train' else self.validation_image_paths
         if annotations_csv_path == '':
@@ -769,7 +769,8 @@ class SBD:
             classes_txt_path=self.class_names_file_path,
             annotations_csv_path=annotations_csv_path,
             predictions_csv_path=predictions_csv_path,
-            cached=cached)
+            cached=cached,
+            find_best_threshold=find_best_threshold)
 
     def remove_last_model(self):
         for last_model_path in glob(f'{self.checkpoint_path}/last_*_iter.h5'):
