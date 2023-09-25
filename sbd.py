@@ -636,10 +636,6 @@ class SBD:
             with open(get_label_path(path), 'wt') as file:
                 file.write(label_content)
 
-    def calc_gflops(self):
-        gflops = get_flops(self.model, batch_size=1) * 1e-9
-        print(f'\nGFLOPs : {gflops:.4f}')
-
     def is_background_color_bright(self, bgr):
         """
         Determine whether the color is bright or not.
