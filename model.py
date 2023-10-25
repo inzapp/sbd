@@ -99,7 +99,7 @@ class Model:
 
     def m(self, num_output_layers, pyramid_scale):
         layer_infos = [
-            ['conv', 5,  16, 1, 'leaky'],
+            ['conv', 3,  16, 1, 'leaky'],
             ['conv', 3,  32, 1, 'leaky'],
             ['conv', 3,  64, 2, 'leaky'],
             ['csp',  3, 192, 4, 'leaky'],
@@ -112,7 +112,7 @@ class Model:
 
     def l(self, num_output_layers, pyramid_scale):
         layer_infos = [
-            ['conv', 5,  16, 1, 'leaky'],
+            ['conv', 3,  16, 1, 'leaky'],
             ['conv', 3,  32, 1, 'leaky'],
             ['conv', 3,  64, 2, 'leaky'],
             ['csp',  3, 256, 5, 'leaky'],
@@ -125,8 +125,8 @@ class Model:
 
     def x(self, num_output_layers, pyramid_scale):
         layer_infos = [
-            ['conv', 5,  32, 1, 'leaky'],
-            ['conv', 5,  64, 2, 'leaky'],
+            ['conv', 3,  32, 1, 'leaky'],
+            ['conv', 3,  64, 2, 'leaky'],
             ['conv', 3, 128, 2, 'leaky'],
             ['csp',  3, 256, 6, 'leaky'],
             ['csp',  3, 512, 6, 'leaky'],
