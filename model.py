@@ -201,7 +201,7 @@ class Model:
             spp_x = self.conv_block(spp_x, channels, 1, bn=bn, activation=activation)
             spp_layers.append(spp_x)
             pool_size *= 2
-        return self.add(spp_layers)
+        return self.conv_block(self.add(spp_layers), channels, 1, bn=bn, activation=activation)
 
     def fpn_block(self, x, methods, layers, filters, kernel_sizes, depths, activation, bn=False, return_layers=False, mode='add'):
         assert mode in ['add', 'concat']
