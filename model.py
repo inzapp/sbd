@@ -150,7 +150,7 @@ class Model:
                     x = self.dropout(x)
                 if method == 'conv':
                     for _ in range(depth):
-                        x = self.conv_block(x, channel, kernel_size, activation)
+                        x = self.conv2d(x, channel, kernel_size, activation)
                 else:
                     x = self.csp_block(x, channel, kernel_size, depth, activation)
                 features.append(x)
@@ -174,7 +174,7 @@ class Model:
             else:
                 Util.print_error_exit(f'invalid layer info method : {method}, available method : [conv, csp, head]')
             if i < (6 if self.p6 else 5):
-                x = self.conv_block(x, channel, kernel_size, activation, strides=2)
+                x = self.conv2d(x, channel, kernel_size, activation, strides=2)
 
         output_layers = []
         for i in range(len(x)):
@@ -187,9 +187,9 @@ class Model:
         reduced_channel = input_filters // reduction_ratio
         if reduced_channel < 4:
             reduced_channel = 4
-        x = self.conv_block(x, reduced_channel, 1, bn=bn, activation=activation)
-        x = self.conv_block(x, reduced_channel, 7, bn=bn, activation=activation)
-        x = self.conv_block(x, input_filters, 1, bn=bn, activation='sigmoid')
+        x = self.conv2d(x, reduced_channel, 1, bn=bn, activation=activation)
+        x = self.conv2d(x, reduced_channel, 7, bn=bn, activation=activation)
+        x = self.conv2d(x, input_filters, 1, bn=bn, activation='sigmoid')
         return tf.keras.layers.Multiply()([x, input_layer])
 
     def spp_block(self, x, layers, activation, bn=False):
@@ -197,27 +197,27 @@ class Model:
         spp_layers = [x]
         channels = x.shape[-1]
         for i in range(len(layers)):
-            spp_x = self.max_pool(layers[i], pool_size=pool_size)
-            spp_x = self.conv_block(spp_x, channels, 1, bn=bn, activation=activation)
+            spp_x = self.maxpool2d(layers[i], pool_size=pool_size)
+            spp_x = self.conv2d(spp_x, channels, 1, bn=bn, activation=activation)
             spp_layers.append(spp_x)
             pool_size *= 2
-        return self.conv_block(self.add(spp_layers), channels, 1, bn=bn, activation=activation)
+        return self.conv2d(self.add(spp_layers), channels, 1, bn=bn, activation=activation)
 
     def fpn_block(self, x, methods, layers, filters, kernel_sizes, depths, activation, bn=False, return_layers=False, mode='add'):
         assert mode in ['add', 'concat']
         output_layers = [x]
         for i in range(len(layers)):
             if mode == 'add':
-                x = self.conv_block(x, filters[i], 1, bn=bn, activation=activation)
-                x = self.upsampling(x)
+                x = self.conv2d(x, filters[i], 1, bn=bn, activation=activation)
+                x = self.upsampling2d(x)
                 x = self.add([x, layers[i]])
             else:
-                x = self.upsampling(x)
+                x = self.upsampling2d(x)
                 x = self.concat([x, layers[i]])
-                x = self.conv_block(x, filters[i], 1, bn=bn, activation=activation)
+                x = self.conv2d(x, filters[i], 1, bn=bn, activation=activation)
             if methods[i] == 'conv':
                 for _ in range(depths[i]):
-                    x = self.conv_block(x, filters[i], kernel_sizes[i], activation=activation)
+                    x = self.conv2d(x, filters[i], kernel_sizes[i], activation=activation)
             elif methods[i] == 'csp':
                 x = self.csp_block(x, filters[i], kernel_sizes[i], depth=depths[i], activation=activation)
             else:
@@ -227,15 +227,15 @@ class Model:
 
     def csp_block(self, x, filters, kernel_size, depth, activation, bn=False):
         half_filters = filters / 2
-        x_0 = self.conv_block(x, half_filters, 1, bn=bn, activation=activation)
-        x_1 = self.conv_block(x, half_filters, 1, bn=bn, activation=activation)
+        x_0 = self.conv2d(x, half_filters, 1, bn=bn, activation=activation)
+        x_1 = self.conv2d(x, half_filters, 1, bn=bn, activation=activation)
         for _ in range(depth):
-            x_0 = self.conv_block(x_0, half_filters, kernel_size, bn=bn, activation=activation)
+            x_0 = self.conv2d(x_0, half_filters, kernel_size, bn=bn, activation=activation)
         x = self.concat([x_0, x_1])
-        x = self.conv_block(x, filters, 1, bn=bn, activation=activation)
+        x = self.conv2d(x, filters, 1, bn=bn, activation=activation)
         return x
 
-    def conv_block(self, x, filters, kernel_size, activation, strides=1, bn=False):
+    def conv2d(self, x, filters, kernel_size, activation, strides=1, bn=False):
         assert activation in self.available_activations, f'activation must be one of {self.available_activations}'
         fuse_activation = False if bn else activation in self.fused_activations
         x = tf.keras.layers.Conv2D(
@@ -292,11 +292,11 @@ class Model:
         return tf.keras.layers.Dropout(self.drop_rate)(x) if self.drop_rate > 0.0 else x
 
     @staticmethod
-    def max_pool(x, pool_size=2):
+    def maxpool2d(x, pool_size=2):
         return tf.keras.layers.MaxPool2D(pool_size=(pool_size, pool_size))(x)
 
     @staticmethod
-    def upsampling(x):
+    def upsampling2d(x):
         return tf.keras.layers.UpSampling2D()(x)
 
     @staticmethod
