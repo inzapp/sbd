@@ -29,6 +29,7 @@ class Model:
         self.p6 = p6
         self.l2 = l2
         self.drop_rate = drop_rate
+        self.activation = 'leaky'
         self.fused_activations = ['linear', 'relu', 'sigmoid', 'tanh', 'softplus']
         self.available_activations = self.fused_activations + ['leaky', 'silu', 'swish', 'mish']
         self.models = dict()
@@ -73,66 +74,66 @@ class Model:
 
     def n(self, num_output_layers, pyramid_scale):
         layer_infos = [
-            ['conv', 3,   8, 1, 'leaky'],
-            ['conv', 3,  16, 1, 'leaky'],
-            ['conv', 3,  32, 2, 'leaky'],
-            ['csp',  3,  64, 3, 'leaky'],
-            ['csp',  3, 128, 3, 'leaky'],
-            ['csp',  3, 256, 3, 'leaky'],
-            ['csp',  3, 256, 3, 'leaky'],
-            ['head', -1, -1, -1, 'leaky'],
+            ['conv', 3,   8, 1],
+            ['conv', 3,  16, 1],
+            ['conv', 3,  32, 2],
+            ['csp',  3,  64, 3],
+            ['csp',  3, 128, 3],
+            ['csp',  3, 256, 3],
+            ['csp',  3, 256, 3],
+            ['head', -1, -1, -1],
         ]
         return self.build_layers(layer_infos, num_output_layers, pyramid_scale)
 
     def s(self, num_output_layers, pyramid_scale):
         layer_infos = [
-            ['conv', 3,  16, 1, 'leaky'],
-            ['conv', 3,  32, 1, 'leaky'],
-            ['conv', 3,  64, 2, 'leaky'],
-            ['csp',  3, 128, 3, 'leaky'],
-            ['csp',  3, 256, 3, 'leaky'],
-            ['csp',  3, 512, 3, 'leaky'],
-            ['csp',  3, 512, 3, 'leaky'],
-            ['head', -1, -1, -1, 'leaky'],
+            ['conv', 3,  16, 1],
+            ['conv', 3,  32, 1],
+            ['conv', 3,  64, 2],
+            ['csp',  3, 128, 3],
+            ['csp',  3, 256, 3],
+            ['csp',  3, 512, 3],
+            ['csp',  3, 512, 3],
+            ['head', -1, -1, -1],
         ]
         return self.build_layers(layer_infos, num_output_layers, pyramid_scale)
 
     def m(self, num_output_layers, pyramid_scale):
         layer_infos = [
-            ['conv', 3,  16, 1, 'leaky'],
-            ['conv', 3,  32, 1, 'leaky'],
-            ['conv', 3,  64, 2, 'leaky'],
-            ['csp',  3, 192, 4, 'leaky'],
-            ['csp',  3, 384, 4, 'leaky'],
-            ['csp',  3, 512, 4, 'leaky'],
-            ['csp',  3, 512, 4, 'leaky'],
-            ['head', -1, -1, -1, 'leaky'],
+            ['conv', 3,  16, 1],
+            ['conv', 3,  32, 1],
+            ['conv', 3,  64, 2],
+            ['csp',  3, 192, 4],
+            ['csp',  3, 384, 4],
+            ['csp',  3, 512, 4],
+            ['csp',  3, 512, 4],
+            ['head', -1, -1, -1],
         ]
         return self.build_layers(layer_infos, num_output_layers, pyramid_scale)
 
     def l(self, num_output_layers, pyramid_scale):
         layer_infos = [
-            ['conv', 3,  16, 1, 'leaky'],
-            ['conv', 3,  32, 1, 'leaky'],
-            ['conv', 3,  64, 2, 'leaky'],
-            ['csp',  3, 256, 5, 'leaky'],
-            ['csp',  3, 384, 5, 'leaky'],
-            ['csp',  3, 512, 5, 'leaky'],
-            ['csp',  3, 512, 5, 'leaky'],
-            ['head', -1, -1, -1, 'leaky'],
+            ['conv', 3,  16, 1],
+            ['conv', 3,  32, 1],
+            ['conv', 3,  64, 2],
+            ['csp',  3, 256, 5],
+            ['csp',  3, 384, 5],
+            ['csp',  3, 512, 5],
+            ['csp',  3, 512, 5],
+            ['head', -1, -1, -1],
         ]
         return self.build_layers(layer_infos, num_output_layers, pyramid_scale)
 
     def x(self, num_output_layers, pyramid_scale):
         layer_infos = [
-            ['conv', 3,  32, 1, 'leaky'],
-            ['conv', 3,  64, 2, 'leaky'],
-            ['conv', 3, 128, 2, 'leaky'],
-            ['csp',  3, 256, 6, 'leaky'],
-            ['csp',  3, 512, 6, 'leaky'],
-            ['csp',  3, 512, 6, 'leaky'],
-            ['csp',  3, 512, 6, 'leaky'],
-            ['head', -1, -1, -1, 'leaky'],
+            ['conv', 3,  32, 1],
+            ['conv', 5,  64, 2],
+            ['conv', 3, 128, 2],
+            ['csp',  3, 256, 6],
+            ['csp',  3, 512, 6],
+            ['csp',  3, 512, 6],
+            ['csp',  3, 512, 6],
+            ['head', -1, -1, -1],
         ]
         return self.build_layers(layer_infos, num_output_layers, pyramid_scale)
 
@@ -143,16 +144,16 @@ class Model:
             layer_infos.pop(6)
         input_layer = tf.keras.layers.Input(shape=self.input_shape, name='sbd_input')
         x = input_layer
-        for i, (method, kernel_size, channel, depth, activation) in enumerate(layer_infos):
+        for i, (method, kernel_size, channel, depth) in enumerate(layer_infos):
             depth -= 1
             if method in ['conv', 'csp']:
                 if i > 2:
                     x = self.dropout(x)
                 if method == 'conv':
                     for _ in range(depth):
-                        x = self.conv2d(x, channel, kernel_size, activation)
+                        x = self.conv2d(x, channel, kernel_size, self.activation)
                 else:
-                    x = self.csp_block(x, channel, kernel_size, depth, activation)
+                    x = self.csp_block(x, channel, kernel_size, depth, self.activation)
                 features.append(x)
             elif method == 'head':
                 if self.p6:
@@ -161,20 +162,20 @@ class Model:
                 else:
                     num_upscaling = 5 - pyramid_scale
                     num_upscaling_spp = 3
-                x = self.spp_block(x, list(reversed(features))[1:num_upscaling_spp+1], activation)
+                # x = self.spp_block(x, list(reversed(features))[1:num_upscaling_spp+1], self.activation)
                 if num_upscaling > 0:
                     ms = list(reversed([v[0] for v in layer_infos]))[2:num_upscaling+2]
                     ks = list(reversed([v[1] for v in layer_infos]))[2:num_upscaling+2]
                     cs = list(reversed([v[2] for v in layer_infos]))[2:num_upscaling+2]
                     ds = list(reversed([v[3] for v in layer_infos]))[2:num_upscaling+2]
                     fs = list(reversed(features))[1:num_upscaling+1]
-                    x = self.fpn_block(x, ms, fs, cs, ks, ds, activation, return_layers=num_output_layers == 'm')
+                    x = self.fpn_block(x, ms, fs, cs, ks, ds, self.activation, return_layers=num_output_layers == 'm')
                 if type(x) is not list:
                     x = [x]
             else:
                 Util.print_error_exit(f'invalid layer info method : {method}, available method : [conv, csp, head]')
             if i < (6 if self.p6 else 5):
-                x = self.conv2d(x, channel, kernel_size, activation, strides=2)
+                x = self.conv2d(x, channel, kernel_size, self.activation, strides=2)
 
         output_layers = []
         for i in range(len(x)):
@@ -226,12 +227,13 @@ class Model:
         return output_layers if return_layers else x
 
     def csp_block(self, x, filters, kernel_size, depth, activation, bn=False):
-        half_filters = filters / 2
+        half_filters = filters // 2
         x_0 = self.conv2d(x, half_filters, 1, bn=bn, activation=activation)
-        x_1 = self.conv2d(x, half_filters, 1, bn=bn, activation=activation)
+        x_1 = self.conv2d(x, filters, 1, bn=bn, activation=activation)
         for _ in range(depth):
             x_0 = self.conv2d(x_0, half_filters, kernel_size, bn=bn, activation=activation)
-        x = self.concat([x_0, x_1])
+        x_0 = self.conv2d(x_0, filters, 1, bn=bn, activation=activation)
+        x = self.add([x_0, x_1])
         x = self.conv2d(x, filters, 1, bn=bn, activation=activation)
         return x
 
@@ -251,7 +253,7 @@ class Model:
         if bn:
             x = self.bn(x)
         if not fuse_activation:
-            x = self.activation(x, activation=activation)
+            x = self.act(x, activation=activation)
         return x
 
     def detection_layer(self, x, name='sbd_output'):
@@ -261,7 +263,7 @@ class Model:
             activation='sigmoid',
             name=name)(x)
 
-    def activation(self, x, activation='linear'):
+    def act(self, x, activation='linear'):
         if activation in self.fused_activations:
             return tf.keras.layers.Activation(activation)(x)
         elif activation == 'leaky':
