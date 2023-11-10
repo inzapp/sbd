@@ -219,13 +219,6 @@ class SBD:
             image_paths = glob(f'{image_path}/**/*.jpg', recursive=True)
         return image_paths
 
-    def get_zero_mod_batch_size(self, image_paths_length):
-        zero_mod_batch_size = 1
-        for i in range(1, 256, 1):
-            if image_paths_length % i == 0:
-                zero_mod_batch_size = i
-        return zero_mod_batch_size
-
     def load_cfg(self, cfg_path):
         if not os.path.exists(cfg_path):
             Util.print_error_exit(f'invalid cfg path. file not found : {cfg_path}')
