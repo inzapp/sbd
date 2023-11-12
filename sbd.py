@@ -26,9 +26,10 @@ import shutil as sh
 import silence_tensorflow.auto
 import tensorflow as tf
 
+from util import Util
 from glob import glob
 from model import Model
-from util import Util
+from eta import ETACalculator
 from box_colors import colors
 from keras_flops import get_flops
 from generator import DataGenerator
@@ -392,10 +393,10 @@ class SBD:
         os.remove(model_path)
         return model, optimizer
 
-    def build_loss_str(self, iteration_count, loss_vars):
+    def build_loss_str(self, progress_str, loss_vars):
         obj_loss, box_loss, cls_loss = loss_vars
         kd = 'kd_' if self.teacher is not None else ''
-        loss_str = f'\r[iteration_count : {iteration_count:6d}]'
+        loss_str = f'\r{progress_str}'
         loss_str += f' {kd}obj_loss : {obj_loss:>8.4f}'
         if box_loss != IGNORED_LOSS:
             loss_str += f', {kd}box_loss : {box_loss:>8.4f}'
@@ -404,6 +405,8 @@ class SBD:
         return loss_str
 
     def train(self):
+        if self.pretrained_iteration_count >= self.iterations:
+            Util.print_error_exit(f'pretrained iteration count {self.pretrained_iteration_count} is greater or equal than target iterations {self.iterations}')
         with self.device_context():
             self.data_generator.check_label(self.train_image_paths, self.class_names, 'train')
             self.data_generator.check_label(self.validation_image_paths, self.class_names, 'validation')
@@ -436,6 +439,8 @@ class SBD:
                 compute_gradient_tf = tf.function(self.distributed_train_step)
             self.model, optimizer = self.refresh(self.model, self.optimizer)
             lr_scheduler = LRScheduler(iterations=self.iterations, lr=self.lr, warm_up=self.warm_up, policy=self.lr_policy, decay_step=self.decay_step)
+            eta_calculator = ETACalculator(iterations=self.iterations, start_iteration=iteration_count)
+            eta_calculator.start()
             print(f'model will be save to {self.checkpoint_path}')
             while True:
                 batch_x, batch_y, mask = self.data_generator.load()
@@ -458,7 +463,8 @@ class SBD:
                     self.label_smoothing,
                     self.teacher is not None))
                 iteration_count += 1
-                print(self.build_loss_str(iteration_count, loss_vars), end='')
+                progress_str = eta_calculator.update(iteration_count)
+                print(self.build_loss_str(progress_str, loss_vars), end='')
                 warm_up_end = iteration_count >= int(self.iterations * self.warm_up)
                 if iteration_count % 2000 == 0:
                     self.save_last_model(iteration_count=iteration_count)
