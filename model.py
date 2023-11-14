@@ -23,13 +23,13 @@ from util import Util
 
 
 class Model:
-    def __init__(self, input_shape, output_channel, p6, l2, drop_rate):
+    def __init__(self, input_shape, output_channel, p6, l2, drop_rate, activation):
         self.input_shape = input_shape
         self.output_channel = output_channel
         self.p6 = p6
         self.l2 = l2
         self.drop_rate = drop_rate
-        self.activation = 'leaky'
+        self.activation = activation
         self.fused_activations = ['linear', 'relu', 'sigmoid', 'tanh', 'softplus']
         self.available_activations = self.fused_activations + ['leaky', 'silu', 'swish', 'mish']
         self.models = dict()

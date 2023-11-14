@@ -83,6 +83,7 @@ class SBD:
         self.lr_policy = config['lr_policy']
         self.model_name = config['model_name']
         self.model_type = config['model_type']
+        self.activation = config['activation']
         self.p6_model = config['p6_model']
         self.training_view = config['training_view']
         self.treat_unknown_as_class = config['treat_unknown_as_class']
@@ -147,7 +148,8 @@ class SBD:
                     output_channel=self.num_classes + 5,
                     p6=self.p6_model,
                     l2=self.l2,
-                    drop_rate=self.drop_rate).build(self.model_type)
+                    drop_rate=self.drop_rate,
+                    activation=self.activation).build(self.model_type)
 
         if self.kd_teacher_model_path.endswith('.h5') and training:
             self.load_teacher(self.kd_teacher_model_path)

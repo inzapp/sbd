@@ -8,6 +8,7 @@ input_cols: 416
 input_channels: 3
 model_name: coco
 model_type: m1p2
+activation: leaky
 p6_model: False
 optimizer: sgd
 lr_policy: step
