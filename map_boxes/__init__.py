@@ -97,6 +97,55 @@ def _print(msg, txt_content, verbose):
     return txt_content
 
 
+def calculate_f1_score(num_annotations, true_positives, false_positives, scores, tp_ious, tp_confidences, confidence_threshold):
+    false_positives_copy = np.array(false_positives)
+    true_positives_copy = np.array(true_positives)
+    scores_copy = np.array(scores)
+    tp_ious_copy = np.array(tp_ious)
+    tp_confidences_copy = np.array(tp_confidences)
+
+    # mask
+    tp_mask = np.where(scores_copy > confidence_threshold, 1, 0)
+    true_positives_over_threshold = true_positives_copy * tp_mask
+    false_positives_over_threshold = false_positives_copy * tp_mask
+    tp_ious_copy *= tp_mask
+    tp_iou_sum = np.sum(tp_ious_copy)
+    tp_confidences_copy *= tp_mask
+    tp_confidence_sum = np.sum(tp_confidences_copy)
+
+    # sort by score
+    indices = np.argsort(-scores_copy)
+    false_positives_copy = false_positives_copy[indices]
+    true_positives_copy = true_positives_copy[indices]
+
+    obj_count = int(num_annotations)
+    tp = int(np.sum(true_positives_over_threshold))
+    fp = int(np.sum(false_positives_over_threshold))
+    fn = obj_count - tp
+    eps = 1e-7
+    p = tp / (tp + fp + eps)
+    r = tp / (obj_count + eps)
+    f1 = (2.0 * p * r) / (p + r + eps)
+    tp_iou = tp_iou_sum / (tp + eps)
+    tp_confidence = tp_confidence_sum / (tp + eps)
+
+    ret = {}
+    ret['true_positives'] = true_positives_copy
+    ret['false_positives'] = false_positives_copy
+    ret['obj_count'] = obj_count
+    ret['tp_iou'] = tp_iou
+    ret['tp_iou_sum'] = tp_iou_sum
+    ret['tp_confidence'] = tp_confidence
+    ret['tp_confidence_sum'] = tp_confidence_sum
+    ret['tp'] = tp
+    ret['fp'] = fp
+    ret['fn'] = fn
+    ret['f1'] = f1
+    ret['p'] = p
+    ret['r'] = r
+    return ret
+
+
 def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_threshold_for_f1=0.25, exclude_not_in_annotations=False, verbose=True, classes_txt_path=''):
     """
     :param ann: path to CSV-file with annotations or numpy array of shape (N, 6)
@@ -221,39 +270,24 @@ def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_th
             average_precisions[class_index_str] = 0, 0
             continue
 
-        false_positives = np.array(false_positives)
-        true_positives = np.array(true_positives)
-        scores = np.array(scores)
-        tp_ious = np.array(tp_ious)
-        tp_confidences = np.array(tp_confidences)
-
-        # mask
-        tp_mask = np.where(scores > confidence_threshold_for_f1, 1, 0)
-        true_positives_over_threshold = true_positives * tp_mask
-        false_positives_over_threshold = false_positives * tp_mask
-        tp_ious *= tp_mask
-        tp_iou_sum = np.sum(tp_ious)
-        tp_confidences *= tp_mask
-        tp_confidence_sum = np.sum(tp_confidences)
-
-        # sort by score
-        indices = np.argsort(-scores)
-        false_positives = false_positives[indices]
-        true_positives = true_positives[indices]
-
-        obj_count = int(num_annotations)
-        tp = int(np.sum(true_positives_over_threshold))
-        fp = int(np.sum(false_positives_over_threshold))
-        fn = obj_count - tp
-        p = tp / (tp + fp + 1e-7)
-        r = tp / (obj_count + 1e-7)
-        f1 = (2.0 * p * r) / (p + r + 1e-7)
-        tp_iou = tp_iou_sum / (tp + 1e-7)
-        total_tp_iou_sum += tp_iou_sum
-        tp_confidence = tp_confidence_sum / (tp + 1e-7)
-        total_tp_confidence_sum += tp_confidence_sum
+        ret = calculate_f1_score(num_annotations, true_positives, false_positives, scores, tp_ious, tp_confidences, confidence_threshold_for_f1)
+        true_positives = ret['true_positives']
+        false_positives = ret['false_positives']
+        obj_count = ret['obj_count']
+        tp_iou = ret['tp_iou']
+        tp_iou_sum = ret['tp_iou_sum']
+        tp_confidence = ret['tp_confidence']
+        tp_confidence_sum = ret['tp_confidence_sum']
+        tp = ret['tp']
+        fp = ret['fp']
+        fn = ret['fn']
+        f1 = ret['f1']
+        p = ret['p']
+        r = ret['r']
 
         total_obj_count += obj_count
+        total_tp_iou_sum += tp_iou_sum
+        total_tp_confidence_sum += tp_confidence_sum
         total_tp += tp
         total_fp += fp
         total_fn += fn
