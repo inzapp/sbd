@@ -283,7 +283,7 @@ def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_th
                 class_confidence_threshold = i / 100.0
                 cur_ret = calculate_f1_score(num_annotations, true_positives, false_positives, scores, tp_ious, tp_confidences, class_confidence_threshold)
                 cur_f1 = cur_ret['f1']
-                if cur_f1 > best_f1:
+                if cur_f1 >= best_f1:
                     best_f1 = cur_f1
                     best_ret = cur_ret
                 else:
