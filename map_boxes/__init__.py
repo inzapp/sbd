@@ -338,13 +338,15 @@ def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_th
         if num_annotations > 0:
             present_classes += 1
             precision += average_precision
-    mean_ap = precision / (present_classes + 1e-7)
-    p = total_tp / (total_tp + total_fp + 1e-7)
-    r = total_tp / (total_obj_count + 1e-7)
-    f1 = (2.0 * p * r) / (p + r + 1e-7)
-    tp_iou = total_tp_iou_sum / (total_tp + 1e-7)
-    tp_confidence = total_tp_confidence_sum / (total_tp + 1e-7)
-    class_name = f'total'
-    txt_content = _print(f'\n{class_name:{max_class_name_len - 6}s} mAP@{iou_threshold:.2f}: {mean_ap:.4f}, Labels: {total_obj_count:6d}, TP: {total_tp:6d}, FP: {total_fp:6d}, FN: {total_fn:6d}, P: {p:.4f}, R: {r:.4f}, F1: {f1:.4f}, IoU: {tp_iou:.4f}, Confidence: {tp_confidence:.4f}', txt_content, verbose)
+
+    eps = 1e-7
+    mean_ap = precision / (present_classes + eps)
+    p = total_tp / (total_tp + total_fp + eps)
+    r = total_tp / (total_obj_count + eps)
+    f1 = (2.0 * p * r) / (p + r + eps)
+    tp_iou = total_tp_iou_sum / (total_tp + eps)
+    tp_confidence = total_tp_confidence_sum / (total_tp + eps)
+    class_name = 'total'
+    txt_content = _print(f'\n{class_name:{max_class_name_len}s} AP: {mean_ap:.4f}, Labels: {total_obj_count:6d}, TP: {total_tp:6d}, FP: {total_fp:6d}, FN: {total_fn:6d}, P: {p:.4f}, R: {r:.4f}, F1: {f1:.4f}, IoU: {tp_iou:.4f}, Confidence: {tp_confidence:.4f}', txt_content, verbose)
     return mean_ap, f1, tp_iou, total_tp, total_fp, total_obj_count - total_tp, tp_confidence, txt_content
 
