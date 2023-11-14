@@ -89,46 +89,14 @@ def calc_mean_average_precision(
     if not cached:
         make_annotations_csv(image_paths, unknown_class_index, annotations_csv_path)
         make_predictions_csv(model, image_paths, device, predictions_csv_path)
-    if find_best_threshold:
-        best_f1 = 0.0
-        best_ret = None
-        best_txt_content = None
-        best_confidence_threshold = 0.0
-        patience = 10
-        patience_count = 0
-        print('start find best confidence threshold for f1')
-        for i in range(1, 100, 1):
-            confidence_threshold = i / 100.0
-            ret = mean_average_precision_for_boxes(
-                ann=annotations_csv_path,
-                pred=predictions_csv_path,
-                confidence_threshold_for_f1=confidence_threshold,
-                iou_threshold=tp_iou_threshold,
-                classes_txt_path=classes_txt_path,
-                verbose=False)
-            mean_ap, f1, tp_iou, total_tp, total_fp, total_fn, tp_confidence, txt_content = ret
-            print(f'confidence threshold({confidence_threshold:.2f}) : {f1:.4f}')
-            if f1 > best_f1:
-                best_f1 = f1
-                best_ret = ret
-                best_txt_content = txt_content
-                best_confidence_threshold = confidence_threshold
-                patience_count = 0
-            else:
-                patience_count += 1
-                if patience_count == patience:
-                    break
-        print(f'\nbest confidence threshold for f1 : {best_confidence_threshold:.2f}\n')
-        print(best_txt_content)
-        return best_ret
-    else:
-        return mean_average_precision_for_boxes(
-            ann=annotations_csv_path,
-            pred=predictions_csv_path,
-            confidence_threshold_for_f1=confidence_threshold,
-            iou_threshold=tp_iou_threshold,
-            classes_txt_path=classes_txt_path,
-            verbose=True)
+    return mean_average_precision_for_boxes(
+        ann=annotations_csv_path,
+        pred=predictions_csv_path,
+        confidence_threshold_for_f1=confidence_threshold,
+        iou_threshold=tp_iou_threshold,
+        classes_txt_path=classes_txt_path,
+        find_best_threshold=find_best_threshold,
+        verbose=True)
 
 
 if __name__ == '__main__':
