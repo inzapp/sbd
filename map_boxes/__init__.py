@@ -130,6 +130,7 @@ def calculate_f1_score(num_annotations, true_positives, false_positives, scores,
     tp_confidence = tp_confidence_sum / (tp + eps)
 
     ret = {}
+    ret['confidence_threshold'] = confidence_threshold
     ret['true_positives'] = true_positives_copy
     ret['false_positives'] = false_positives_copy
     ret['obj_count'] = obj_count
@@ -146,7 +147,7 @@ def calculate_f1_score(num_annotations, true_positives, false_positives, scores,
     return ret
 
 
-def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_threshold_for_f1=0.25, exclude_not_in_annotations=False, verbose=True, classes_txt_path=''):
+def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_threshold_for_f1=0.25, exclude_not_in_annotations=False, verbose=True, find_best_threshold=False, classes_txt_path=''):
     """
     :param ann: path to CSV-file with annotations or numpy array of shape (N, 6)
     :param pred: path to CSV-file with predictions (detections) or numpy array of shape (N, 7)
@@ -202,7 +203,10 @@ def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_th
     all_annotations = get_real_annotations(valid)
 
     txt_content = _print(f'\nNMS iou threshold : {iou_threshold}', txt_content, verbose)
-    txt_content = _print(f'confidence threshold for tp, fp, fn calculate : {confidence_threshold_for_f1}', txt_content, verbose)
+    if find_best_threshold:
+        txt_content = _print(f'confidence threshold for tp, fp, fn calculate : best confidence policy per class', txt_content, verbose)
+    else:
+        txt_content = _print(f'confidence threshold for tp, fp, fn calculate : {confidence_threshold_for_f1}', txt_content, verbose)
     total_tp_iou_sum = 0.0
     total_tp_confidence_sum = 0.0
     total_tp = 0
@@ -270,20 +274,38 @@ def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_th
             average_precisions[class_index_str] = 0, 0
             continue
 
-        ret = calculate_f1_score(num_annotations, true_positives, false_positives, scores, tp_ious, tp_confidences, confidence_threshold_for_f1)
-        true_positives = ret['true_positives']
-        false_positives = ret['false_positives']
-        obj_count = ret['obj_count']
-        tp_iou = ret['tp_iou']
-        tp_iou_sum = ret['tp_iou_sum']
-        tp_confidence = ret['tp_confidence']
-        tp_confidence_sum = ret['tp_confidence_sum']
-        tp = ret['tp']
-        fp = ret['fp']
-        fn = ret['fn']
-        f1 = ret['f1']
-        p = ret['p']
-        r = ret['r']
+        ap_ret = calculate_f1_score(num_annotations, true_positives, false_positives, scores, tp_ious, tp_confidences, confidence_threshold_for_f1)
+        best_ret = ap_ret
+        if find_best_threshold:
+            best_f1 = 0.0
+            patience_count = 0
+            for i in range(99):
+                class_confidence_threshold = i / 100.0
+                cur_ret = calculate_f1_score(num_annotations, true_positives, false_positives, scores, tp_ious, tp_confidences, class_confidence_threshold)
+                cur_f1 = cur_ret['f1']
+                if cur_f1 > best_f1:
+                    best_f1 = cur_f1
+                    best_ret = cur_ret
+                else:
+                    patience_count += 1
+                    if patience_count == 5:
+                        break
+
+        true_positives = ap_ret['true_positives']  # use ap_ret
+        false_positives = ap_ret['false_positives']  # use ap_ret
+
+        confidence_threshold = best_ret['confidence_threshold']
+        obj_count = best_ret['obj_count']
+        tp_iou = best_ret['tp_iou']
+        tp_iou_sum = best_ret['tp_iou_sum']
+        tp_confidence = best_ret['tp_confidence']
+        tp_confidence_sum = best_ret['tp_confidence_sum']
+        tp = best_ret['tp']
+        fp = best_ret['fp']
+        fn = best_ret['fn']
+        f1 = best_ret['f1']
+        p = best_ret['p']
+        r = best_ret['r']
 
         total_obj_count += obj_count
         total_tp_iou_sum += tp_iou_sum
@@ -308,7 +330,7 @@ def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_th
         class_name = f'class {class_index_str}'
         if len(class_names) >= class_index + 1:
             class_name = class_names[class_index]
-        txt_content = _print(f'{class_name:{max_class_name_len}s} ap : {average_precision:.4f}, obj count : {obj_count:6d}, tp : {tp:6d}, fp : {fp:6d}, fn : {fn:6d}, precision : {p:.4f}, recall : {r:.4f}, f1 : {f1:.4f}, iou : {tp_iou:.4f}, confidence : {tp_confidence:.4f}', txt_content, verbose)
+        txt_content = _print(f'{class_name:{max_class_name_len}s} AP: {average_precision:.4f}, Labels: {obj_count:6d}, TP: {tp:6d}, FP: {fp:6d}, FN: {fn:6d}, P: {p:.4f}, R: {r:.4f}, F1: {f1:.4f}, IoU: {tp_iou:.4f}, Confidence: {tp_confidence:.4f}, Threshold: {confidence_threshold:.2f}', txt_content, verbose)
 
     present_classes = 0
     precision = 0
@@ -323,6 +345,6 @@ def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_th
     tp_iou = total_tp_iou_sum / (total_tp + 1e-7)
     tp_confidence = total_tp_confidence_sum / (total_tp + 1e-7)
     class_name = f'total'
-    txt_content = _print(f'\n{class_name:{max_class_name_len}s} ap : {mean_ap:.4f}, obj count : {total_obj_count:6d}, tp : {total_tp:6d}, fp : {total_fp:6d}, fn : {total_fn:6d}, precision : {p:.4f}, recall : {r:.4f}, f1 : {f1:.4f}, iou : {tp_iou:.4f}, confidence : {tp_confidence:.4f}', txt_content, verbose)
+    txt_content = _print(f'\n{class_name:{max_class_name_len - 6}s} mAP@{iou_threshold:.2f}: {mean_ap:.4f}, Labels: {total_obj_count:6d}, TP: {total_tp:6d}, FP: {total_fp:6d}, FN: {total_fn:6d}, P: {p:.4f}, R: {r:.4f}, F1: {f1:.4f}, IoU: {tp_iou:.4f}, Confidence: {tp_confidence:.4f}', txt_content, verbose)
     return mean_ap, f1, tp_iou, total_tp, total_fp, total_obj_count - total_tp, tp_confidence, txt_content
 
