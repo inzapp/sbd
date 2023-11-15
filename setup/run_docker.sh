@@ -13,7 +13,7 @@ if [[ ! " ${AVAILABLE_CUDA_VERSIONS[*]} " == *" $CUDA_VERSION "* ]]; then
     exit
 fi
 
-if [ "$(docker images | grep $REPOSITORY_NAME | awk '{print $1}')" == "$REPOSITORY_NAME" ]; then
+if [ "$(docker images | grep $REPOSITORY_NAME | grep $TAG | awk '{print $1}')" == "$REPOSITORY_NAME" ]; then
     docker run -u $(id -u):$(id -g) -d --name $CONTAINER_NAME -it --rm --gpus all -v $TRAIN_DATA_PATH:/train_data -v $SBD_PATH:/sbd $REPOSITORY_NAME:$TAG /bin/bash
 else
     echo "Docker image not found : $REPOSITORY_NAME:$TAG"
