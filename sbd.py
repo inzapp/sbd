@@ -508,10 +508,10 @@ class SBD:
         cx = (x_offset + cx) / tf.cast(cols, dtype=tf.float32)
         cy = (y_offset + cy) / tf.cast(rows, dtype=tf.float32)
 
-        xmin = cx - (w * 0.5)
-        ymin = cy - (h * 0.5)
-        xmax = cx + (w * 0.5)
-        ymax = cy + (h * 0.5)
+        xmin = tf.clip_by_value(cx - (w * 0.5), 0.0, 1.0)
+        ymin = tf.clip_by_value(cy - (h * 0.5), 0.0, 1.0)
+        xmax = tf.clip_by_value(cx + (w * 0.5), 0.0, 1.0)
+        ymax = tf.clip_by_value(cy + (h * 0.5), 0.0, 1.0)
 
         confidence = tf.expand_dims(confidence, axis=-1)
         xmin = tf.expand_dims(xmin, axis=-1)
