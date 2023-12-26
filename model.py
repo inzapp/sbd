@@ -74,10 +74,10 @@ class Model:
 
     def n(self, num_output_layers, pyramid_scale):
         layer_infos = [
-            ['conv', 3,   8, 1],
-            ['conv', 3,  16, 1],
-            ['conv', 3,  32, 2],
-            ['csp',  3,  64, 3],
+            ['conv', 3, 8, 1],
+            ['conv', 3, 16, 1],
+            ['conv', 3, 32, 2],
+            ['csp',  3, 64, 3],
             ['csp',  3, 128, 3],
             ['csp',  3, 256, 3],
             ['csp',  3, 256, 3],
@@ -87,52 +87,52 @@ class Model:
 
     def s(self, num_output_layers, pyramid_scale):
         layer_infos = [
-            ['conv', 3,  16, 1],
-            ['conv', 3,  32, 1],
-            ['conv', 3,  64, 2],
+            ['conv', 3, 16, 1],
+            ['conv', 3, 32, 1],
+            ['conv', 3, 64, 2],
             ['csp',  3, 128, 3],
-            ['csp',  3, 256, 3],
-            ['csp',  3, 512, 3],
-            ['csp',  3, 512, 3],
+            ['csp',  3, 256, 4],
+            ['csp',  3, 512, 5],
+            ['csp',  3, 512, 5],
             ['head', -1, -1, -1],
         ]
         return self.build_layers(layer_infos, num_output_layers, pyramid_scale)
 
     def m(self, num_output_layers, pyramid_scale):
         layer_infos = [
-            ['conv', 3,  16, 1],
-            ['conv', 3,  32, 1],
-            ['conv', 3,  64, 2],
-            ['csp',  3, 192, 4],
-            ['csp',  3, 384, 4],
-            ['csp',  3, 512, 4],
-            ['csp',  3, 512, 4],
+            ['conv', 3, 16, 1],
+            ['conv', 3, 32, 1],
+            ['conv', 3, 96, 2],
+            ['csp',  3, 192, 3],
+            ['csp',  3, 384, 5],
+            ['csp',  3, 512, 7],
+            ['csp',  3, 512, 7],
             ['head', -1, -1, -1],
         ]
         return self.build_layers(layer_infos, num_output_layers, pyramid_scale)
 
     def l(self, num_output_layers, pyramid_scale):
         layer_infos = [
-            ['conv', 3,  16, 1],
-            ['conv', 3,  32, 1],
-            ['conv', 3,  64, 2],
-            ['csp',  3, 256, 5],
-            ['csp',  3, 384, 5],
-            ['csp',  3, 512, 5],
-            ['csp',  3, 512, 5],
+            ['conv', 3, 24, 1],
+            ['conv', 3, 48, 2],
+            ['conv', 3, 96, 2],
+            ['csp',  3, 192, 4],
+            ['csp',  3, 384, 6],
+            ['csp',  3, 768, 8],
+            ['csp',  3, 768, 8],
             ['head', -1, -1, -1],
         ]
         return self.build_layers(layer_infos, num_output_layers, pyramid_scale)
 
     def x(self, num_output_layers, pyramid_scale):
         layer_infos = [
-            ['conv', 3,  32, 1],
-            ['conv', 5,  64, 2],
-            ['conv', 3, 128, 2],
-            ['csp',  3, 256, 6],
+            ['conv', 3, 32, 1],
+            ['conv', 3, 64, 2],
+            ['conv', 3, 128, 3],
+            ['csp',  3, 256, 4],
             ['csp',  3, 512, 6],
-            ['csp',  3, 512, 6],
-            ['csp',  3, 512, 6],
+            ['csp',  3, 1024, 8],
+            ['csp',  3, 1024, 8],
             ['head', -1, -1, -1],
         ]
         return self.build_layers(layer_infos, num_output_layers, pyramid_scale)
