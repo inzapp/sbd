@@ -413,7 +413,7 @@ class SBD:
             self.data_generator.check_label(self.train_image_paths, self.class_names, 'train')
             self.data_generator.check_label(self.validation_image_paths, self.class_names, 'validation')
             self.data_generator.calculate_virtual_anchor()
-            self.data_generator.calculate_best_possible_recall()
+            # self.data_generator.calculate_best_possible_recall()
             self.set_alpha_gamma()
             print('start test forward for checking forwarding time.')
             if self.primary_device.find('gpu') > -1:
