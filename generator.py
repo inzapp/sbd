@@ -94,14 +94,15 @@ class DataGenerator:
         return is_label_exists, label_path
 
     def load_label(self, label_path):
-        lines = []
+        labels = []
         label_exists = True
         if not (os.path.exists(label_path) and os.path.isfile(label_path)):
             label_exists = False
         if label_exists:
             with open(label_path, 'rt') as f:
                 lines = f.readlines()
-        return lines, label_path, label_exists
+                labels = [list(map(float, line.split())) for line in lines]
+        return labels, label_path, label_exists
 
     def is_invalid_label(self, path, label, num_classes):
         class_index, cx, cy, w, h = label
@@ -138,12 +139,12 @@ class DataGenerator:
         class_counts = np.zeros(shape=(num_classes,), dtype=np.int32)
         ignored_box_count = 0
         for f in tqdm(fs, desc=f'label check in {dataset_name} data'):
-            lines, label_path, exists = f.result()
+            labels, label_path, exists = f.result()
             if not exists:
                 not_found_label_paths.add(label_path)
                 continue
-            for line in lines:
-                class_index, cx, cy, w, h = list(map(float, line.split()))
+            for label in labels:
+                class_index, cx, cy, w, h = label
                 class_counts[int(class_index)] += 1
                 if self.is_invalid_label(label_path, [class_index, cx, cy, w, h], num_classes):
                     invalid_label_paths.add(label_path)
@@ -267,9 +268,9 @@ class DataGenerator:
                 fs.append(self.pool.submit(self.load_label, self.label_path(path)))
             labeled_boxes = []
             for f in tqdm(fs, desc='load box data for calculating avg IoU'):
-                lines, label_path, _ = f.result()
-                for line in lines:
-                    class_index, cx, cy, w, h = list(map(float, line.split()))
+                labels, label_path, _ = f.result()
+                for label in labels:
+                    class_index, cx, cy, w, h = label
                     if not self.is_too_small_box(w, h):
                         labeled_boxes.append([cx, cy, w, h])
 
@@ -298,8 +299,8 @@ class DataGenerator:
         for f in tqdm(fs, desc='calculating BPR(Best Possible Recall)'):
             batch_y = [np.zeros(shape=(1,) + self.output_shapes[i][1:]) for i in range(self.num_output_layers)]
             batch_mask = [np.ones(shape=(1,) + self.output_shapes[i][1:]) for i in range(self.num_output_layers)]
-            label_lines, _, _ = f.result()
-            labeled_boxes = self.convert_to_boxes(label_lines)
+            labels, _, _ = f.result()
+            labeled_boxes = self.convert_to_boxes(labels)
             box_count_in_real_data += len(labeled_boxes)
             allocated_count = self.build_batch_tensor(labeled_boxes, batch_y, batch_mask, 0)
             y_true_obj_count += allocated_count
@@ -318,7 +319,7 @@ class DataGenerator:
         print(f'best possible recall   : {best_possible_recall:.4f}')
         print(f'\naverage obj count per image : {avg_obj_count_per_image:.4f}\n')
 
-    def random_scale(self, img, label_lines, min_scale):
+    def random_scale(self, img, labels, min_scale):
         def overlay(img, overlay_img, start_x, start_y, channels):
             overlay_img_height, overlay_img_width = overlay_img.shape[:2]
             y_slice = slice(start_y, start_y + overlay_img_height)
@@ -354,9 +355,9 @@ class DataGenerator:
         roi_w = roi_x2 - roi_x1
         roi_h = roi_y2 - roi_y1
 
-        scaled_label_lines = []
-        for line in label_lines:
-            class_index, cx, cy, w, h = list(map(float, line.split()))
+        new_labels = []
+        for label in labels:
+            class_index, cx, cy, w, h = label
             class_index = int(class_index)
             cx *= roi_w
             cy *= roi_h
@@ -365,10 +366,10 @@ class DataGenerator:
             w *= roi_w
             h *= roi_h
             cx, cy, w, h = np.clip(np.array([cx, cy, w, h]), 0.0, 1.0)
-            scaled_label_lines.append(f'{class_index} {cx:.6f} {cy:.6f} {w:.6f} {h:.6f}\n')
-        return scaled_img, scaled_label_lines
+            new_labels.append([class_index, cx, cy, w, h])
+        return scaled_img, new_labels
 
-    def random_flip(self, img, label_lines, aug_h_flip, aug_v_flip):
+    def random_flip(self, img, labels, aug_h_flip, aug_v_flip):
         method = ''
         if aug_h_flip and aug_v_flip:
             method = 'a'
@@ -385,17 +386,17 @@ class DataGenerator:
         elif aug_method == 'a':
             img = cv2.flip(img, -1)
 
-        converted_label_lines = []
-        for line in label_lines:
-            class_index, cx, cy, w, h = list(map(float, line.split()))
+        new_labels = []
+        for label in labels:
+            class_index, cx, cy, w, h = label
             class_index = int(class_index)
             if aug_method in ['h', 'a']:
                 cx = 1.0 - cx
             if aug_method in ['v', 'a']:
                 cy = 1.0 - cy
             cx, cy, w, h = np.clip(np.array([cx, cy, w, h]), 0.0, 1.0)
-            converted_label_lines.append(f'{class_index} {cx:.6f} {cy:.6f} {w:.6f} {h:.6f}\n')
-        return img, converted_label_lines
+            new_labels.append([class_index, cx, cy, w, h])
+        return img, new_labels
 
     def random_mosaic(self, datas):
         np.random.shuffle(datas)
@@ -405,11 +406,11 @@ class DataGenerator:
         img_3 = cv2.resize(datas[3]['img'], (0, 0), fx=0.5, fy=0.5, interpolation=cv2.INTER_AREA)
         img = np.concatenate([np.concatenate([img_0, img_1], axis=1), np.concatenate([img_2, img_3], axis=1)], axis=0)
 
-        mosaic_label_lines = []
+        new_labels = []
         for i in range(len(datas)):
-            label_lines = datas[i]['label_lines']
-            for line in label_lines:
-                class_index, cx, cy, w, h = list(map(float, line.split()))
+            labels = datas[i]['labels']
+            for label in labels:
+                class_index, cx, cy, w, h = label
                 cx *= 0.5
                 cy *= 0.5
                 w *= 0.5
@@ -426,40 +427,40 @@ class DataGenerator:
                 else:
                     print(f'invalid mosaic index : {i}')
                 cx, cy, w, h = np.clip(np.array([cx, cy, w, h]), 0.0, 1.0)
-                mosaic_label_lines.append(f'{class_index} {cx:.6f} {cy:.6f} {w:.6f} {h:.6f}\n')
-        return img, mosaic_label_lines
+                new_labels.append([class_index, cx, cy, w, h])
+        return img, new_labels
 
-    def augment(self, img, label_lines, first_call):
+    def augment(self, img, labels, first_call):
         if self.aug_brightness > 0.0 or self.aug_contrast > 0.0:
             img = self.transform(image=img)['image']
 
         if (self.aug_h_flip or self.aug_v_flip) and np.random.uniform() < 0.5:
-            img, label_lines = self.random_flip(img, label_lines, self.aug_h_flip, self.aug_v_flip)
+            img, labels = self.random_flip(img, labels, self.aug_h_flip, self.aug_v_flip)
 
         if self.aug_scale < 1.0 and np.random.uniform() < 0.5:
-            img, label_lines = self.random_scale(img, label_lines, self.aug_scale)
+            img, labels = self.random_scale(img, labels, self.aug_scale)
 
         if first_call:
             if self.aug_mosaic > 0.0 and np.random.uniform() < self.aug_mosaic:
                 mosaic_data = self.load_batch_data(size=3, first_call=False)
-                mosaic_data.append({'img': img, 'label_lines': label_lines})
-                img, label_lines = self.random_mosaic(mosaic_data)
-        return img, label_lines
+                mosaic_data.append({'img': img, 'labels': labels})
+                img, labels = self.random_mosaic(mosaic_data)
+        return img, labels
 
-    def convert_to_boxes(self, label_lines):
+    def convert_to_boxes(self, labels):
         def get_same_box_index(labeled_boxes, cx, cy, w, h):
             if self.multi_classification_at_same_box:
-                box_str = f'{cx}_{cy}_{w}_{h}'
+                box_str = f'{cx:.6f}_{cy:.6f}_{w:.6f}_{h:.6f}'
                 for i in range(len(labeled_boxes)):
                     box_cx, box_cy, box_w, box_h = labeled_boxes[i]['cx'], labeled_boxes[i]['cy'], labeled_boxes[i]['w'], labeled_boxes[i]['h']
-                    cur_box_str = f'{box_cx}_{box_cy}_{box_w}_{box_h}'
+                    cur_box_str = f'{box_cx:.6f}_{box_cy:.6f}_{box_w:.6f}_{box_h:.6f}'
                     if cur_box_str == box_str:
                         return i
             return -1
 
         labeled_boxes = []
-        for line in label_lines:
-            class_index, cx, cy, w, h = list(map(float, line.split(' ')))
+        for label in labels:
+            class_index, cx, cy, w, h = label
             class_index = int(class_index)
             same_box_index = get_same_box_index(labeled_boxes, cx, cy, w, h)
             if same_box_index == -1:
@@ -648,12 +649,12 @@ class DataGenerator:
         for i in range(len(fs)):
             img, _, path = fs[i].result()
             img = Util.resize(img, (self.input_width, self.input_height))
-            label_lines, label_path, label_exists = self.load_label(self.label_path(path))
+            labels, label_path, label_exists = self.load_label(self.label_path(path))
             if not label_exists:
                 print(f'label not found : {label_path}')
                 continue
-            img, label_lines = self.augment(img, label_lines, first_call=first_call)
-            batch_data.append({'img': img, 'label_lines': label_lines})
+            img, labels = self.augment(img, labels, first_call=first_call)
+            batch_data.append({'img': img, 'labels': labels})
         return batch_data
             
     def load(self):
@@ -669,11 +670,11 @@ class DataGenerator:
         batch_data = self.load_batch_data(size=self.batch_size, first_call=True)
         for i in range(len(batch_data)):
             img = batch_data[i]['img']
-            label_lines = batch_data[i]['label_lines']
+            labels = batch_data[i]['labels']
             x = Util.preprocess(img)
             batch_x[i] = x
             if self.teacher is None:
-                labeled_boxes = self.convert_to_boxes(label_lines)
+                labeled_boxes = self.convert_to_boxes(labels)
                 self.build_batch_tensor(labeled_boxes, batch_y, batch_mask, i, img if self.debug else None)
             else:
                 tx = None
