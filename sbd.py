@@ -55,6 +55,7 @@ class SBD:
         ignore_scale = config['ignore_scale']
         virtual_anchor_iou_threshold = config['va_iou_threshold']
         aug_scale = config['aug_scale']
+        aug_mosaic = config['aug_mosaic']
         aug_h_flip = config['aug_h_flip']
         aug_v_flip = config['aug_v_flip']
         aug_brightness = config['aug_brightness']
@@ -184,6 +185,7 @@ class SBD:
             ignore_scale=ignore_scale,
             virtual_anchor_iou_threshold=virtual_anchor_iou_threshold,
             aug_scale=aug_scale,
+            aug_mosaic=aug_mosaic,
             aug_h_flip=aug_h_flip,
             aug_v_flip=aug_v_flip,
             aug_brightness=aug_brightness,
