@@ -382,21 +382,10 @@ class DataGenerator:
                 x2 = np.clip(x2, roi_x1, roi_x2)
                 y2 = np.clip(y2, roi_y1, roi_y2)
 
-                # x1 -= roi_x1
-                # y1 -= roi_y1
-                # x2 -= roi_x1
-                # y2 -= roi_y1
-
-                # x1 /= roi_w
-                # y1 /= roi_h
-                # x2 /= roi_w
-                # y2 /= roi_h
-
                 x1 = (x1 - roi_x1) / roi_w
                 y1 = (y1 - roi_y1) / roi_h
                 x2 = (x2 - roi_x1) / roi_w
                 y2 = (y2 - roi_y1) / roi_h
-
                 x1, y1, x2, y2 = np.clip(np.array([x1, y1, x2, y2]), 0.0, 1.0)
 
                 w = x2 - x1
