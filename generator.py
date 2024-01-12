@@ -319,7 +319,7 @@ class DataGenerator:
         print(f'best possible recall   : {best_possible_recall:.4f}')
         print(f'\naverage obj count per image : {avg_obj_count_per_image:.4f}\n')
 
-    def random_scale(self, img, labels, min_scale):
+    def random_scale(self, img, labels, scale_range):
         def overlay(img, overlay_img, start_x, start_y, channels):
             overlay_img_height, overlay_img_width = overlay_img.shape[:2]
             y_slice = slice(start_y, start_y + overlay_img_height)
@@ -330,43 +330,82 @@ class DataGenerator:
                 img[y_slice, x_slice, :] = overlay_img[:overlay_img_height, :overlay_img_width, :]
             return img
 
+        scale_range = max(scale_range, 0.01)
         max_scale = 1.0
+        min_scale = 1.0 - scale_range
         scale = np.random.uniform() * (max_scale - min_scale) + min_scale
-        img_height, img_width = img.shape[:2]
+        img_h, img_w = img.shape[:2]
         channels = 1
         if len(img.shape) == 3 and img.shape[-1] == 3:
             channels = 3
 
-        reduced_height, reduced_width = int(img_height * scale), int(img_width * scale)
-        reduced_img = cv2.resize(img, (0, 0), fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
-        if channels == 1:
-            black = np.zeros(shape=(self.input_shape[0], self.input_shape[1]), dtype=np.uint8)
-        else:
-            black = np.zeros(shape=(self.input_shape[0], self.input_shape[1], channels), dtype=np.uint8)
+        scaled_h, scaled_w = int(img_h * scale), int(img_w * scale)
+        start_x = np.random.randint(img_w - scaled_w)
+        start_y = np.random.randint(img_h - scaled_h)
 
-        start_x = np.random.randint(img_width - reduced_width)
-        start_y = np.random.randint(img_height - reduced_height)
-        scaled_img = overlay(black, reduced_img, start_x, start_y, channels)
-
-        roi_x1 = start_x / float(img_width)
-        roi_y1 = start_y / float(img_height)
-        roi_x2 = (start_x + reduced_width) / float(img_width)
-        roi_y2 = (start_y + reduced_height) / float(img_height)
+        roi_x1 = start_x / float(img_w)
+        roi_y1 = start_y / float(img_h)
+        roi_x2 = (start_x + scaled_w) / float(img_w)
+        roi_y2 = (start_y + scaled_h) / float(img_h)
         roi_w = roi_x2 - roi_x1
         roi_h = roi_y2 - roi_y1
 
         new_labels = []
-        for label in labels:
-            class_index, cx, cy, w, h = label
-            class_index = int(class_index)
-            cx *= roi_w
-            cy *= roi_h
-            cx += roi_x1
-            cy += roi_y1
-            w *= roi_w
-            h *= roi_h
-            cx, cy, w, h = np.clip(np.array([cx, cy, w, h]), 0.0, 1.0)
-            new_labels.append([class_index, cx, cy, w, h])
+        if np.random.uniform() < 0.5:  # downscale
+            reduced_img = cv2.resize(img, (0, 0), fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
+            if channels == 1:
+                black = np.zeros(shape=(self.input_shape[0], self.input_shape[1]), dtype=np.uint8)
+            else:
+                black = np.zeros(shape=(self.input_shape[0], self.input_shape[1], channels), dtype=np.uint8)
+
+            scaled_img = overlay(black, reduced_img, start_x, start_y, channels)
+            for label in labels:
+                class_index, cx, cy, w, h = label
+                class_index = int(class_index)
+                cx *= roi_w
+                cy *= roi_h
+                cx += roi_x1
+                cy += roi_y1
+                w *= roi_w
+                h *= roi_h
+                cx, cy, w, h = np.clip(np.array([cx, cy, w, h]), 0.0, 1.0)
+                new_labels.append([class_index, cx, cy, w, h])
+        else:  # upscale
+            scaled_img = cv2.resize(img[start_y:start_y+scaled_h, start_x:start_x+scaled_w], (img_w, img_h), cv2.INTER_LINEAR)
+            for label in labels:
+                class_index, cx, cy, w, h = label
+                class_index = int(class_index)
+                x1, y1, x2, y2 = Util.cxcywh2x1y1x2y2(cx, cy, w, h)
+
+                x1 = np.clip(x1, roi_x1, roi_x2)
+                y1 = np.clip(y1, roi_y1, roi_y2)
+                x2 = np.clip(x2, roi_x1, roi_x2)
+                y2 = np.clip(y2, roi_y1, roi_y2)
+
+                # x1 -= roi_x1
+                # y1 -= roi_y1
+                # x2 -= roi_x1
+                # y2 -= roi_y1
+
+                # x1 /= roi_w
+                # y1 /= roi_h
+                # x2 /= roi_w
+                # y2 /= roi_h
+
+                x1 = (x1 - roi_x1) / roi_w
+                y1 = (y1 - roi_y1) / roi_h
+                x2 = (x2 - roi_x1) / roi_w
+                y2 = (y2 - roi_y1) / roi_h
+
+                x1, y1, x2, y2 = np.clip(np.array([x1, y1, x2, y2]), 0.0, 1.0)
+
+                w = x2 - x1
+                h = y2 - y1
+                if w > 0.0 and h > 0.0:
+                    cx = x1 + (w * 0.5)
+                    cy = y1 + (h * 0.5)
+                    cx, cy, w, h = np.clip(np.array([cx, cy, w, h]), 0.0, 1.0)
+                    new_labels.append([class_index, cx, cy, w, h])
         return scaled_img, new_labels
 
     def random_flip(self, img, labels, aug_h_flip, aug_v_flip):
@@ -437,7 +476,7 @@ class DataGenerator:
         if (self.aug_h_flip or self.aug_v_flip) and np.random.uniform() < 0.5:
             img, labels = self.random_flip(img, labels, self.aug_h_flip, self.aug_v_flip)
 
-        if self.aug_scale < 1.0 and np.random.uniform() < 0.5:
+        if self.aug_scale > 0.0 and np.random.uniform() < 0.5:
             img, labels = self.random_scale(img, labels, self.aug_scale)
 
         if first_call:
@@ -445,6 +484,8 @@ class DataGenerator:
                 mosaic_data = self.load_batch_data(size=3, first_call=False)
                 mosaic_data.append({'img': img, 'labels': labels})
                 img, labels = self.random_mosaic(mosaic_data)
+                if self.aug_scale > 0.0 and np.random.uniform() < 0.5:
+                    img, labels = self.random_scale(img, labels, self.aug_scale)
         return img, labels
 
     def convert_to_boxes(self, labels):
@@ -610,8 +651,17 @@ class DataGenerator:
         if self.debug:
             if self.input_shape[-1] == 3:
                 img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
-            cv2.imshow('img', img)
             print(f'img.shape : {img.shape}')
+            cv2.imshow('img', img)
+            img_boxed = np.array(img)
+            for bb in labeled_boxes:
+                x1, y1, x2, y2 = Util.cxcywh2x1y1x2y2(bb['cx'], bb['cy'], bb['w'], bb['h'])
+                x1 = int(x1 * self.input_shape[1])
+                y1 = int(y1 * self.input_shape[0])
+                x2 = min(int(x2 * self.input_shape[1]), self.input_shape[1]-1)
+                y2 = min(int(y2 * self.input_shape[0]), self.input_shape[0]-1)
+                img_boxed = cv2.rectangle(img_boxed, (x1, y1), (x2, y2), (0, 0, 255), 1)
+            cv2.imshow('boxed', img_boxed)
             for i in range(self.num_output_layers):
                 print(f'\n[layer_index, batch_index] : [{i}, {batch_index}]')
                 confidence_channel = y[i][batch_index, :, :, 0]
