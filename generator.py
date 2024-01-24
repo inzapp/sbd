@@ -119,7 +119,7 @@ class DataGenerator:
             return False
 
     def is_too_small_box(self, w, h):
-        return int(w * self.input_shape[1]) <= 3 and int(h * self.input_shape[0]) <= 3
+        return int(w * self.input_shape[1]) <= 3 or int(h * self.input_shape[0]) <= 3
 
     def check_label(self, image_paths, class_names, dataset_name):
         if self.teacher is not None:
