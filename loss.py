@@ -33,7 +33,7 @@ def _obj_loss(y_true, y_pred, pos_mask, mask, alpha, gamma, kd, eps):
     return loss / tf.cast(tf.shape(y_true)[0], dtype=y_pred.dtype)
 
 
-def _box_loss(y_true, y_pred, pos_mask, box_weight, kd, convex=True):
+def _box_loss(y_true, y_pred, pos_mask, box_weight, kd):
     obj_count = tf.cast(tf.reduce_sum(pos_mask), y_pred.dtype)
     if obj_count == tf.constant(0.0):
         return 0.0
@@ -82,12 +82,14 @@ def _box_loss(y_true, y_pred, pos_mask, box_weight, kd, convex=True):
 
     y_true_area = w_true * h_true
     y_pred_area = w_pred * h_pred
-    if convex:
-        union = convex_width * convex_height
-    else:
-        union = y_true_area + y_pred_area - intersection
+    convex = convex_width * convex_height
+    union = y_true_area + y_pred_area - intersection
     iou = tf.clip_by_value(intersection / (union + 1e-5), 0.0, 1.0)
-    loss = tf.reduce_sum((pos_mask - iou) * pos_mask) * box_weight
+    convex_iou = tf.clip_by_value(intersection / (convex + 1e-5), 0.0, 1.0)
+    iou_loss = pos_mask - iou
+    convex_iou_loss = pos_mask - convex_iou
+    loss_t = iou_loss * iou + convex_iou_loss * (tf.ones_like(iou) - iou)
+    loss = tf.reduce_sum(loss_t * pos_mask) * box_weight
     return loss / tf.cast(tf.shape(y_true)[0], dtype=y_pred.dtype)
 
 
