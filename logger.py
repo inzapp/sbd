@@ -17,26 +17,35 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-import cv2
-import numpy as np
-import tensorflow as tf
 
 
-class Util:
+class Logger:
     def __init__(self):
         pass
 
     @staticmethod
-    def print_error_exit(msg):
+    def log(msg, header, end='\n'):
         msg_type = type(msg)
+        assert msg_type in [str, list]
         if msg_type is str:
-            msg = [msg]
-        msg_type = type(msg)
-        if msg_type is list:
-            print()
-            for s in msg:
-                print(f'[ERROR] {s}')
+            print(f'{header} {msg}', end=end)
         else:
-            print(f'[print_error_exit] msg print failure. invalid msg type : {msg_type}')
+            for i, s in enumerate(msg):
+                if i == 0:
+                    print(f'{header} {s}')
+                else:
+                    print(f'    {s}')
+
+    @staticmethod
+    def info(msg, end='\n'):
+        Logger.log(msg, header='\033[1;32m[INFO]\033[0m', end=end)
+
+    @staticmethod
+    def warn(msg, end='\n'):
+        Logger.log(msg, header='\033[1;33m[WARNING]\033[0m', end=end)
+
+    @staticmethod
+    def error(msg, end='\n'):
+        Logger.log(msg, header='\033[1;31m[ERROR]\033[0m', end=end)
         exit(-1)
 

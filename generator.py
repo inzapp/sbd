@@ -23,7 +23,7 @@ import numpy as np
 import albumentations as A
 
 from tqdm import tqdm
-from util import Util
+from logger import Logger
 from concurrent.futures.thread import ThreadPoolExecutor
 
 
@@ -107,13 +107,13 @@ class DataGenerator:
     def is_invalid_label(self, path, label, num_classes):
         class_index, cx, cy, w, h = label
         if class_index < 0 or class_index >= num_classes:
-            print(f'\ninvalid class index {int(class_index)} in num_classs {num_classes} : [{path}]')
+            Logger.warn(f'\ninvalid class index {int(class_index)} in num_classs {num_classes} : [{path}]')
             return True
         elif cx <= 0.0 or cx >= 1.0 or cy <= 0.0 or cy >= 1.0:
-            print(f'\ninvalid cx or cy. cx : {cx:.6f}, cy : {cy:.6f} : [{path}]')
+            Logger.warn(f'\ninvalid cx or cy. cx : {cx:.6f}, cy : {cy:.6f} : [{path}]')
             return True
         elif w <= 0.0 or w > 1.0 or h <= 0.0 or h > 1.0:
-            print(f'\ninvalid width or height. width : {w:.6f}, height : {h:.6f} : [{path}]')
+            Logger.warn(f'\ninvalid width or height. width : {w:.6f}, height : {h:.6f} : [{path}]')
             return True
         else:
             return False
@@ -123,7 +123,7 @@ class DataGenerator:
 
     def check_label(self, image_paths, class_names, dataset_name):
         if self.teacher is not None:
-            print(f'knowledge distillation training doesn\'t need label check, skip')
+            Logger.info(f'knowledge distillation training doesn\'t need label check, skip')
             return
 
         fs = []
@@ -133,7 +133,7 @@ class DataGenerator:
         num_classes = self.num_classes
         if self.unknown_class_index > -1:
             num_classes += 1
-            print(f'using unknown class with class index {self.unknown_class_index}')
+            Logger.info(f'using unknown class with class index {self.unknown_class_index}')
         invalid_label_paths = set()
         not_found_label_paths = set()
         class_counts = np.zeros(shape=(num_classes,), dtype=np.int32)
@@ -157,14 +157,14 @@ class DataGenerator:
         if len(not_found_label_paths) > 0:
             print()
             for label_path in list(not_found_label_paths):
-                print(f'label not found : {label_path}')
-            Util.print_error_exit(f'{len(not_found_label_paths)} labels not found')
+                Logger.warn(f'label not found : {label_path}')
+            Logger.error(f'{len(not_found_label_paths)} labels not found')
 
         if len(invalid_label_paths) > 0:
             print()
             for label_path in list(invalid_label_paths):
                 print(label_path)
-            Util.print_error_exit(f'{len(invalid_label_paths)} invalid label exists fix it')
+            Logger.error(f'{len(invalid_label_paths)} invalid label exists fix it')
 
         max_class_name_len = 0
         for name in class_names:
@@ -172,14 +172,14 @@ class DataGenerator:
         if max_class_name_len == 0:
             max_class_name_len = 1
 
-        print(f'class counts')
+        Logger.info(f'class counts')
         for i in range(len(class_counts)):
             class_name = class_names[i]
             class_count = class_counts[i]
-            print(f'{class_name:{max_class_name_len}s} : {class_count}')
+            Logger.info(f'{class_name:{max_class_name_len}s} : {class_count}')
 
         if dataset_name == 'train' and ignored_box_count > 0:
-            print(f'[Warning] Too small size (under 3x3 pixel) {ignored_box_count} box will not be trained\n')
+            Logger.warn(f'Too small size (under 3x3 pixel) {ignored_box_count} box will not be trained\n')
         else:
             print()
 
@@ -224,19 +224,19 @@ class DataGenerator:
         if self.num_output_layers == 1:  # one layer model doesn't need virtual anchor
             self.virtual_anchor_ws = [0.5]
             self.virtual_anchor_hs = [0.5]
-            print('skip calculating virtual anchor when output layer size is 1')
+            Logger.info('skip calculating virtual anchor when output layer size is 1')
             return
 
         if self.teacher is not None:
             self.virtual_anchor_ws = [0.5 for _ in range(self.num_output_layers)]
             self.virtual_anchor_hs = [0.5 for _ in range(self.num_output_layers)]
-            print(f'knowledge distillation training doesn\'t need virtual anchor, skip')
+            Logger.info(f'knowledge distillation training doesn\'t need virtual anchor, skip')
             return
 
         if self.virtual_anchor_iou_threshold == 0.0:
             self.virtual_anchor_ws = [0.5 for _ in range(self.num_output_layers)]
             self.virtual_anchor_hs = [0.5 for _ in range(self.num_output_layers)]
-            print(f'training with va_iou_threshold 0.0 doesn\'t need virtual anchor, skip')
+            Logger.info(f'training with va_iou_threshold 0.0 doesn\'t need virtual anchor, skip')
             return
 
         self.ws = np.asarray(self.ws).reshape((len(self.ws), 1)).astype('float32')
@@ -246,20 +246,20 @@ class DataGenerator:
         num_cluster = self.num_output_layers
         criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, max_iterations, 1e-4)
 
-        print('K-means clustering start')
+        Logger.info('K-means clustering start')
         w_sse, _, clustered_ws = cv2.kmeans(self.ws, num_cluster, None, criteria, max_iterations, cv2.KMEANS_RANDOM_CENTERS)
         w_mse = w_sse / (float(len(self.ws)) + 1e-5)
         h_sse, _, clustered_hs = cv2.kmeans(self.hs, num_cluster, None, criteria, max_iterations, cv2.KMEANS_RANDOM_CENTERS)
         h_mse = h_sse / (float(len(self.hs)) + 1e-5)
         clustering_mse = (w_mse + h_mse) / 2.0
-        print(f'clustered MSE(Mean Squared Error) : {clustering_mse:.4f}')
+        Logger.info(f'clustered MSE(Mean Squared Error) : {clustering_mse:.4f}')
 
         self.virtual_anchor_ws = sorted(np.asarray(clustered_ws).reshape(-1), reverse=True)
         self.virtual_anchor_hs = sorted(np.asarray(clustered_hs).reshape(-1), reverse=True)
         del self.ws
         del self.hs
 
-        print('virtual anchor : ', end='')
+        Logger.info('virtual anchor : ', end='')
         for i in range(num_cluster):
             anchor_w = self.virtual_anchor_ws[i]
             anchor_h = self.virtual_anchor_hs[i]
@@ -270,17 +270,17 @@ class DataGenerator:
         print('\n')
 
         iou_between_va_sum = 0.0
-        print('IoU between virtual anchors')
+        Logger.info('IoU between virtual anchors')
         for i in range(num_cluster - 1):
             box_a = self.cxcywh2x1y1x2y2(0.5, 0.5, self.virtual_anchor_ws[i], self.virtual_anchor_hs[i])
             box_b = self.cxcywh2x1y1x2y2(0.5, 0.5, self.virtual_anchor_ws[i+1], self.virtual_anchor_hs[i+1])
             iou = self.iou(box_a, box_b)
             iou_between_va_sum += iou
-            print(f'va[{i}], va[{i+1}] => {iou:.4f}')
+            Logger.info(f'va[{i}], va[{i+1}] => {iou:.4f}')
         avg_iou_between_va = iou_between_va_sum / (num_cluster - 1)
-        print(f'average IoU between virtual anchor : {avg_iou_between_va:.4f}\n')
+        Logger.info(f'average IoU between virtual anchor : {avg_iou_between_va:.4f}\n')
         if avg_iou_between_va > 0.5:
-            print(f'[Warning] High IoU(>0.5) between virtual anchors may degrade mAP due to scale constraint. Consider using one output layer model instead\n')
+            Logger.warn(f'High IoU(>0.5) between virtual anchors may degrade mAP due to scale constraint. Consider using one output layer model instead\n')
 
         if print_avg_iou:
             fs = []
@@ -300,14 +300,14 @@ class DataGenerator:
                 best_iou = iou_with_virtual_anchors[0][1]
                 best_iou_sum += best_iou
             avg_iou_with_virtual_anchor = best_iou_sum / (float(len(labeled_boxes)) + 1e-5)
-            print(f'average IoU : {avg_iou_with_virtual_anchor:.4f}\n')
+            Logger.info(f'average IoU : {avg_iou_with_virtual_anchor:.4f}\n')
 
     def calculate_best_possible_recall(self):
         if self.debug:
             return
 
         if self.teacher is not None:
-            print(f'knowledge distillation training doesn\'t need BPR, skip')
+            Logger.info(f'knowledge distillation training doesn\'t need BPR, skip')
             return
 
         fs = []
@@ -333,11 +333,11 @@ class DataGenerator:
         best_possible_recall = y_true_obj_count / float(box_count_in_real_data)
         if best_possible_recall > 1.0:
             best_possible_recall = 1.0
-        print(f'ground truth obj count : {box_count_in_real_data}')
-        print(f'train tensor obj count : {y_true_obj_count} ({trained_obj_rate:.2f}%)')
-        print(f'not trained  obj count : {not_trained_obj_count} ({not_trained_obj_rate:.2f}%)')
-        print(f'best possible recall   : {best_possible_recall:.4f}')
-        print(f'\naverage obj count per image : {avg_obj_count_per_image:.4f}\n')
+        Logger.info(f'ground truth obj count : {box_count_in_real_data}')
+        Logger.info(f'train tensor obj count : {y_true_obj_count} ({trained_obj_rate:.2f}%)')
+        Logger.info(f'not trained  obj count : {not_trained_obj_count} ({not_trained_obj_rate:.2f}%)')
+        Logger.info(f'best possible recall   : {best_possible_recall:.4f}')
+        Logger.info(f'average obj count per image : {avg_obj_count_per_image:.4f}\n')
 
     def resize(self, img, size):
         img_h, img_w = img.shape[:2]
@@ -481,7 +481,7 @@ class DataGenerator:
                     cx += 0.5
                     cy += 0.5
                 else:
-                    print(f'invalid mosaic index : {i}')
+                    Logger.warn(f'invalid mosaic index : {i}')
                 cx, cy, w, h = np.clip(np.array([cx, cy, w, h]), 0.0, 1.0)
                 new_labels.append([class_index, cx, cy, w, h])
         return img, new_labels
@@ -740,7 +740,7 @@ class DataGenerator:
             img = self.resize(img, (self.input_width, self.input_height))
             labels, label_path, label_exists = self.load_label(self.label_path(path))
             if not label_exists:
-                print(f'label not found : {label_path}')
+                Logger.warn(f'label not found : {label_path}')
                 continue
             img, labels = self.augment(img, labels, first_call=first_call)
             batch_data.append({'img': img, 'labels': labels})

@@ -19,7 +19,7 @@ limitations under the License.
 """
 import tensorflow as tf
 
-from util import Util
+from logger import Logger
 
 
 class Model:
@@ -57,9 +57,9 @@ class Model:
                 is_model_type_valid = False
             if pyramid_scale == 6 and not self.p6:
                 is_model_type_valid = False
-                print('6 pyramid scale is only support with p6 model, change p6_model to True in cfg file')
+                Logger.warn('6 pyramid scale is only support with p6 model, change p6_model to True in cfg file')
         if not is_model_type_valid:
-            Util.print_error_exit([
+            Logger.error([
                 f'invalid model type => \'{model_type}\'',
                 f'model type must be combination of <backbone[n, s, m, l, x], num_output_layers[1, m], p, pyramid_scale[2, 3, 4, 5, 6(p6 only)]>',
                 f'  backbone : n, s, m, l, x',
@@ -173,7 +173,7 @@ class Model:
                 if type(x) is not list:
                     x = [x]
             else:
-                Util.print_error_exit(f'invalid layer info method : {method}, available method : [conv, csp, head]')
+                Logger.error(f'invalid layer info method : {method}, available method : [conv, csp, head]')
             if i < (6 if self.p6 else 5):
                 x = self.conv2d(x, channel, kernel_size, self.activation, strides=2)
 
@@ -222,7 +222,7 @@ class Model:
             elif methods[i] == 'csp':
                 x = self.csp_block(x, filters[i], kernel_sizes[i], depth=depths[i], activation=activation)
             else:
-                Util.print_error_exit(f'invalid layer info method : {methods[i]}')
+                Logger.error(f'invalid layer info method : {methods[i]}')
             output_layers.append(x)
         return output_layers if return_layers else x
 
@@ -276,7 +276,7 @@ class Model:
             softplus_tanh = tf.keras.layers.Activation('tanh')(x_softplus)
             return self.multiply([x, softplus_tanh])
         else:
-            Util.print_error_exit(f'unknown activation : [{activation}]')
+            Logger.error(f'unknown activation : [{activation}]')
 
     def bn(self, x):
         return tf.keras.layers.BatchNormalization(beta_initializer=self.bias_initializer(), fused=True)(x)

@@ -26,10 +26,10 @@ import shutil as sh
 import silence_tensorflow.auto
 import tensorflow as tf
 
-from util import Util
 from glob import glob
 from tqdm import tqdm
 from model import Model
+from logger import Logger
 from eta import ETACalculator
 from box_colors import colors
 from keras_flops import get_flops
@@ -121,7 +121,7 @@ class SBD:
             available_gpu_indexes = list(map(int, [gpu.name[-1] for gpu in physical_devices]))
             for device_index in self.devices:
                 if device_index not in available_gpu_indexes:
-                    Util.print_error_exit(f'invalid gpu index {device_index}. available gpu index : {available_gpu_indexes}')
+                    Logger.error(f'invalid gpu index {device_index}. available gpu index : {available_gpu_indexes}')
                 for physical_device in physical_devices:
                     if int(physical_device.name[-1]) == device_index:
                         visible_devices.append(physical_device)
@@ -143,7 +143,7 @@ class SBD:
         input_shape = (input_rows, input_cols, self.input_channels)
         if not self.use_pretrained_model:
             if self.num_classes == 0:
-                Util.print_error_exit(f'classes file not found. file path : {self.class_names_file_path}')
+                Logger.error(f'classes file not found. file path : {self.class_names_file_path}')
             if self.optimizer == 'adam':
                 self.l2 = 0.0
             with self.device_context():
@@ -158,7 +158,7 @@ class SBD:
         if self.kd_teacher_model_path.endswith('.h5') and training:
             self.load_teacher(self.kd_teacher_model_path)
             if self.teacher.output_shape != self.model.output_shape:
-                Util.print_error_exit([
+                Logger.error([
                     f'output shape mismatch with teacher',
                     f'teacher : {self.teacher.output_shape}',
                     f'student : {self.model.output_shape}'])
@@ -167,8 +167,8 @@ class SBD:
             if self.model_type[1] == 'm':
                 new_type = f'{self.model_type[0]}1{self.model_type[2:]}'
                 msg = f'{self.model_type} model with pyramid scale {self.model_type[3]} is same with {new_type}.'
-                msg += f' please use {new_type} instead to to clarify that model is one output layer'
-                Util.print_error_exit(msg)
+                msg += f' use {new_type} instead to to clarify that model is one output layer'
+                Logger.error(msg)
             self.num_output_layers = 1
         else:
             self.num_output_layers = len(self.model.output_shape)
@@ -212,12 +212,12 @@ class SBD:
                             if unknown_class_index == -1:
                                 unknown_class_index = i
                             else:
-                                Util.print_error_exit(f'unknown class count in {class_names_file_path} must be 1')
+                                Logger.error(f'unknown class count in {class_names_file_path} must be 1')
                 num_classes = len(class_names)
                 if unknown_class_index > -1:
                     num_classes -= 1
                 if num_classes <= 0:
-                    Util.print_error_exit('cannot build model with unknown class only')
+                    Logger.error('cannot build model with unknown class only')
         return class_names, num_classes, unknown_class_index
 
     def init_image_paths(self, image_path):
@@ -232,7 +232,7 @@ class SBD:
 
     def load_cfg(self, cfg_path):
         if not self.is_file_exists(cfg_path):
-            Util.print_error_exit(f'invalid cfg path. file not found : {cfg_path}')
+            Logger.error(f'invalid cfg path. file not found : {cfg_path}')
         with open(cfg_path, 'rt') as f:
             config = yaml.load(f, Loader=yaml.FullLoader)
         return config
@@ -280,14 +280,14 @@ class SBD:
         if self.is_file_exists(model_path):
             self.teacher = self.load_model_with_device(model_path)
         else:
-            Util.print_error_exit(f'kd teacher model not found. model path : {model_path}')
+            Logger.error(f'kd teacher model not found. model path : {model_path}')
 
     def load_model(self, model_path):
         if self.is_file_exists(model_path):
             self.model = self.load_model_with_device(model_path)
             self.pretrained_iteration_count = self.parse_pretrained_iteration_count(model_path)
         else:
-            Util.print_error_exit(f'pretrained model not found. model path : {model_path}')
+            Logger.error(f'pretrained model not found. model path : {model_path}')
 
     def parse_pretrained_iteration_count(self, pretrained_model_path):
         iteration_count = 0
@@ -310,8 +310,7 @@ class SBD:
         elif optimizer_str == 'rmsprop':
             optimizer = tf.keras.optimizers.RMSprop(learning_rate=lr)
         else:
-            print(f'\n\nunknown optimizer : {optimizer_str}')
-            optimizer = None
+            Logger.error(f'unknown optimizer : {optimizer_str}, possible optimizers [sgd, adam, rmsprop]')
         return optimizer
 
     def convert_alpha_gamma_to_list(self, param, num_output_layers):
@@ -326,11 +325,11 @@ class SBD:
                     try:
                         float(val)
                     except:
-                        Util.print_error_exit(f'invalid alpha or gamma value value : {val}')
+                        Logger.error(f'invalid alpha or gamma value value : {val}')
             else:
-                Util.print_error_exit(f'list length of alpha is must be equal with models output layer count {num_output_layers}')
+                Logger.error(f'list length of alpha is must be equal with models output layer count {num_output_layers}')
         else:
-            Util.print_error_exit(f'invalid type ({param_type}) of alpha. type must be float or list')
+            Logger.error(f'invalid type ({param_type}) of alpha. type must be float or list')
         return params
 
     def set_alpha_gamma(self):
@@ -356,7 +355,7 @@ class SBD:
             SBD.graph_forward(model, noise[i], device)
         et = perf_counter()
         forwarding_time = ((et - st) / forward_count) * 1000.0
-        print(f'model forwarding time with {device[1:4]} : {forwarding_time:.2f} ms')
+        Logger.info(f'model forwarding time with {device[1:4]} : {forwarding_time:.2f} ms')
 
     def compute_gradient(self, args):
         _strategy, _train_step, model, optimizer, loss_function, x, y_true, mask, num_output_layers, obj_alphas, obj_gammas, cls_alphas, cls_gammas, box_weight, label_smoothing, kd = args
@@ -414,30 +413,30 @@ class SBD:
 
     def train(self):
         if self.pretrained_iteration_count >= self.iterations:
-            Util.print_error_exit(f'pretrained iteration count {self.pretrained_iteration_count} is greater or equal than target iterations {self.iterations}')
+            Logger.error(f'pretrained iteration count {self.pretrained_iteration_count} is greater or equal than target iterations {self.iterations}')
         with self.device_context():
             self.data_generator.check_label(self.train_image_paths, self.class_names, 'train')
             self.data_generator.check_label(self.validation_image_paths, self.class_names, 'validation')
             self.data_generator.calculate_virtual_anchor()
             # self.data_generator.calculate_best_possible_recall()
             self.set_alpha_gamma()
-            print('start test forward for checking forwarding time.')
+            Logger.info('start test forward for checking forwarding time.')
             if self.primary_device.find('gpu') > -1:
                 self.check_forwarding_time(self.model, device=self.primary_device)
             self.check_forwarding_time(self.model, device='/cpu:0')
             print()
-            print(f'input_shape : {self.model.input_shape}')
-            print(f'output_shape : {self.model.output_shape}\n')
-            print(f'model_type : {self.model_type}')
-            print(f'parameters : {self.model.count_params():,}\n')
-            print(f'train on {len(self.train_image_paths)} samples.')
-            print(f'validate on {len(self.validation_image_paths)} samples.\n')
+            Logger.info(f'input_shape : {self.model.input_shape}')
+            Logger.info(f'output_shape : {self.model.output_shape}\n')
+            Logger.info(f'model_type : {self.model_type}')
+            Logger.info(f'parameters : {self.model.count_params():,}\n')
+            Logger.info(f'train on {len(self.train_image_paths)} samples.')
+            Logger.info(f'validate on {len(self.validation_image_paths)} samples.\n')
             if self.teacher is not None and self.optimizer == 'sgd':
-                print(f'warning : SGD optimizer with knowledge distillation training may be bad choice, consider using Adam or RMSprop optimizer instead')
+                Logger.warn(f'SGD optimizer with knowledge distillation training may be bad choice, consider using Adam or RMSprop optimizer instead')
             if self.use_pretrained_model:
-                print(f'start training with pretrained model : {self.pretrained_model_path}')
+                Logger.info(f'start training with pretrained model : {self.pretrained_model_path}')
             else:
-                print('start training')
+                Logger.info('start training')
 
             self.init_checkpoint_dir()
             iteration_count = self.pretrained_iteration_count
@@ -449,7 +448,7 @@ class SBD:
             lr_scheduler = LRScheduler(iterations=self.iterations, lr=self.lr, warm_up=self.warm_up, policy=self.lr_policy, decay_step=self.decay_step)
             eta_calculator = ETACalculator(iterations=self.iterations, start_iteration=iteration_count)
             eta_calculator.start()
-            print(f'model will be save to {self.checkpoint_path}')
+            Logger.info(f'model will be save to {self.checkpoint_path}')
             while True:
                 batch_x, batch_y, mask = self.data_generator.load()
                 lr_scheduler.update(optimizer, iteration_count)
@@ -484,7 +483,7 @@ class SBD:
                 if iteration_count == self.iterations:
                     self.save_model_with_map()
                     self.remove_last_model()
-                    print('train end successfully')
+                    Logger.info('train end successfully')
                     return
 
     @tf.function
@@ -677,7 +676,7 @@ class SBD:
 
     def predict_video(self, path, confidence_threshold=0.2, show_class_with_score=True, width=0, height=0):
         if not path.startswith('rtsp://') and not self.is_file_exists(path):
-            Util.print_error_exit(f'video not found. video path : {path}')
+            Logger.error(f'video not found. video path : {path}')
         cap = cv2.VideoCapture(path)
         input_height, input_width, _ = self.model.input_shape[1:]
         view_width, view_height = 0, 0
@@ -688,7 +687,7 @@ class SBD:
         while True:
             frame_exist, bgr = cap.read()
             if not frame_exist:
-                print('frame not exists')
+                Logger.info('frame not exists')
                 break
             img = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY) if self.model.input.shape[-1] == 1 else cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
             boxes = self.predict(self.model, img, device=self.primary_device, confidence_threshold=confidence_threshold)
@@ -705,16 +704,16 @@ class SBD:
         input_height, input_width, input_channel = self.model.input_shape[1:]
         if path != '':
             if not os.path.exists(path):
-                Util.print_error_exit(f'path not exists : [{path}]')
+                Logger.error(f'path not exists : [{path}]')
             if os.path.isfile(path):
                 if path.endswith('.jpg'):
                     image_paths = [path]
                 else:
-                    Util.print_error_exit('invalid extension. jpg is available extension only')
+                    Logger.error('invalid extension. jpg is available extension only')
             elif os.path.isdir(path):
                 image_paths = glob(f'{path}/*.jpg')
             else:
-                Util.print_error_exit(f'invalid file format : [{path}]')
+                Logger.error(f'invalid file format : [{path}]')
         else:
             assert dataset in ['train', 'validation']
             if dataset == 'train':
@@ -722,7 +721,7 @@ class SBD:
             elif dataset == 'validation':
                 image_paths = self.validation_image_paths
         if len(image_paths) == 0:
-            Util.print_error_exit('no image found')
+            Logger.error('no image found')
 
         view_width, view_height = 0, 0
         if width > 0 and height > 0:
@@ -780,7 +779,6 @@ class SBD:
         return csv
 
     def make_predictions_csv(self, model, image_paths, device, csv_path):
-        from util import Util
         fs = []
         input_channel = model.input_shape[1:][-1]
         for path in image_paths:
@@ -863,7 +861,7 @@ class SBD:
                 f.write(txt_content)
             sh.copy(self.annotations_csv_path_last, self.annotations_csv_path_best)
             sh.copy(self.predictions_csv_path_last, self.predictions_csv_path_best)
-            print(f'new best model saved to [{best_model_path}]')
+            Logger.info(f'new best model saved to [{best_model_path}]')
         print()
 
     def training_view_function(self):
