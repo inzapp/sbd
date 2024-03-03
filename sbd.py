@@ -622,7 +622,7 @@ class SBD:
 
         fs = []
         for path in image_paths:
-            fs.append(self.pool.submit(self.data_generator.load_img, path, channel))
+            fs.append(self.pool.submit(self.data_generator.load_image, path))
 
         device = '/cpu:0' if cpu else self.primary_device
         for f in tqdm(fs):
@@ -731,7 +731,7 @@ class SBD:
             view_width, view_height = input_width, input_height
         for path in image_paths:
             print(f'image path : {path}')
-            img, bgr, _ = self.data_generator.load_img(path, input_channel, with_bgr=True)
+            img, bgr, _ = self.data_generator.load_image(path, with_bgr=True)
             boxes = self.predict(self.model, img, device=self.primary_device, verbose=True, confidence_threshold=confidence_threshold)
             bgr = self.data_generator.resize(bgr, (view_width, view_height))
             boxed_image = self.draw_box(bgr, boxes, show_class_with_score=show_class_with_score)
@@ -784,7 +784,7 @@ class SBD:
         fs = []
         input_channel = model.input_shape[1:][-1]
         for path in image_paths:
-            fs.append(self.pool.submit(self.data_generator.load_img, path, input_channel))
+            fs.append(self.pool.submit(self.data_generator.load_image, path))
         csv = 'ImageID,LabelName,Conf,XMin,XMax,YMin,YMax\n'
         for f in tqdm(fs, desc='predictions csv creation'):
             img, _, path = f.result()
@@ -874,7 +874,7 @@ class SBD:
                 img_path = np.random.choice(self.train_image_paths)
             else:
                 img_path = np.random.choice(self.validation_image_paths)
-            img, bgr, _ = self.data_generator.load_img(img_path, self.input_channels, with_bgr=True)
+            img, bgr, _ = self.data_generator.load_image(img_path, with_bgr=True)
             boxes = self.predict(self.model, img, device=self.primary_device)
             boxed_image = self.draw_box(bgr, boxes)
             cv2.imshow('training view', boxed_image)

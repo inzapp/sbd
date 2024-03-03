@@ -709,21 +709,21 @@ class DataGenerator:
                 exit(0)
         return allocated_count
 
-    def load_img(self, path, channel, with_bgr=False):
+    def load_image(self, path, with_bgr=False):
         bgr = None
         if with_bgr:
             img = cv2.imdecode(np.fromfile(path, dtype=np.uint8), cv2.IMREAD_COLOR)
             bgr = img.copy()
-            if channel == 1:
+            if self.input_shape[-1] == 1:
                 img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         else:
-            color_mode = cv2.IMREAD_GRAYSCALE if channel == 1 else cv2.IMREAD_COLOR
+            color_mode = cv2.IMREAD_GRAYSCALE if self.input_shape[-1] == 1 else cv2.IMREAD_COLOR
             img = cv2.imdecode(np.fromfile(path, dtype=np.uint8), color_mode)
-        if channel == 3:
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  # rb swap
         return img, bgr, path
 
     def preprocess(self, img, batch_axis=False):
+        if self.input_shape[-1] == 3:
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  # rb swap
         x = np.asarray(img).astype('float32') / 255.0
         if len(x.shape) == 2:
             x = x.reshape(x.shape + (1,))
@@ -734,7 +734,7 @@ class DataGenerator:
     def load_batch_data(self, size, first_call):
         batch_data, fs = [], []
         for _ in range(size):
-            fs.append(self.pool.submit(self.load_img, self.get_next_image_path(), self.input_channel))
+            fs.append(self.pool.submit(self.load_image, self.get_next_image_path()))
         for i in range(len(fs)):
             img, _, path = fs[i].result()
             img = self.resize(img, (self.input_width, self.input_height))
