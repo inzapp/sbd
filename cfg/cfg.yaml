@@ -7,7 +7,7 @@ input_rows: 416
 input_cols: 416
 input_channels: 3
 model_name: coco
-model_type: m1p2
+model_type: m1p3
 activation: leaky
 p6_model: False
 optimizer: sgd
@@ -21,7 +21,7 @@ cls_alpha: 0.5
 cls_gamma: 1.0
 box_weight: 1.0
 aug_scale: 0.5
-aug_mosaic: 0.5
+aug_mosaic: 0.2
 aug_h_flip: False
 aug_v_flip: False
 aug_contrast: 0.3
