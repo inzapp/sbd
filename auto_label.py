@@ -18,6 +18,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 import argparse
+
 from sbd import SBD
 
 
@@ -32,4 +33,4 @@ if __name__ == '__main__':
     args = parser.parse_args()
     sbd = SBD(cfg_path=args.cfg, training=False)
     sbd.load_model(args.model)
-    sbd.auto_label(model_path=args.model, image_path=args.path, confidence_threshold=args.conf, cpu=args.cpu, recursive=args.r)
+    sbd.auto_label(image_path=args.path, confidence_threshold=args.conf, cpu=args.cpu, recursive=args.r)

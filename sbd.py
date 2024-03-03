@@ -196,11 +196,14 @@ class SBD:
             primary_device=self.primary_device)
         np.set_printoptions(precision=6)
 
+    def is_file_exists(self, path):
+        return os.path.exists(path) and os.path.isfile(path)
+
     def init_class_names(self, class_names_file_path):
         class_names = []
         num_classes = 0
         unknown_class_index = -1
-        if os.path.exists(class_names_file_path) and os.path.isfile(class_names_file_path):
+        if self.is_file_exists(class_names_file_path):
             with open(class_names_file_path, 'rt') as classes_file:
                 class_names = [s.replace('\n', '') for s in classes_file.readlines()]
                 if not self.treat_unknown_as_class:
@@ -228,10 +231,8 @@ class SBD:
         return image_paths
 
     def load_cfg(self, cfg_path):
-        if not os.path.exists(cfg_path):
+        if not self.is_file_exists(cfg_path):
             Util.print_error_exit(f'invalid cfg path. file not found : {cfg_path}')
-        if not os.path.isfile(cfg_path):
-            Util.print_error_exit(f'invalid file format, is not file : {cfg_path}')
         with open(cfg_path, 'rt') as f:
             config = yaml.load(f, Loader=yaml.FullLoader)
         return config
@@ -276,13 +277,13 @@ class SBD:
         return model
 
     def load_teacher(self, model_path):
-        if os.path.exists(model_path) and os.path.isfile(model_path):
+        if self.is_file_exists(model_path):
             self.teacher = self.load_model_with_device(model_path)
         else:
             Util.print_error_exit(f'kd teacher model not found. model path : {model_path}')
 
     def load_model(self, model_path):
-        if os.path.exists(model_path) and os.path.isfile(model_path):
+        if self.is_file_exists(model_path):
             self.model = self.load_model_with_device(model_path)
             self.pretrained_iteration_count = self.parse_pretrained_iteration_count(model_path)
         else:
@@ -588,9 +589,7 @@ class SBD:
             print()
         return boxes
 
-    def auto_label(self, model_path, image_path, confidence_threshold, cpu, recursive):
-        from tqdm import tqdm
-        from concurrent.futures.thread import ThreadPoolExecutor
+    def auto_label(self, image_path, confidence_threshold, cpu, recursive):
         input_shape = self.model.input_shape[1:]
         channel = input_shape[-1]
 
@@ -603,12 +602,9 @@ class SBD:
         except sh.SameFileError:
             pass
 
-            return f'{path[:-4]}.txt'
-        def is_exists(path):
-            return os.path.exists(path) and os.path.isfile(path)
         fs = []
         for path in image_paths:
-            fs.append(self.pool.submit(is_exists, self.data_generator.label_path(path)))
+            fs.append(self.pool.submit(self.is_file_exists, self.data_generator.label_path(path)))
         label_file_count = 0
         for f in fs:
             if f.result():
@@ -637,8 +633,8 @@ class SBD:
                 cy = ymin + (h * 0.5)
                 cx, cy, w, h = np.clip(np.array([cx, cy, w, h]), 0.0, 1.0)
                 label_content += f'{class_index} {cx:.6f} {cy:.6f} {w:.6f} {h:.6f}\n'
-            with open(get_label_path(path), 'wt') as file:
-                file.write(label_content)
+            with open(self.data_generator.label_path(path), 'wt') as f_label:
+                f_label.write(label_content)
 
     def is_background_color_bright(self, bgr):
         """
@@ -688,7 +684,7 @@ class SBD:
         return img
 
     def predict_video(self, path, confidence_threshold=0.2, show_class_with_score=True, width=0, height=0):
-        if not path.startswith('rtsp://') and not (os.path.exists(path) and os.path.isfile(path)):
+        if not path.startswith('rtsp://') and not self.is_file_exists(path):
             Util.print_error_exit(f'video not found. video path : {path}')
         cap = cv2.VideoCapture(path)
         input_height, input_width, _ = self.model.input_shape[1:]
@@ -841,9 +837,9 @@ class SBD:
     def remove_last_model(self):
         for last_model_path in glob(f'{self.checkpoint_path}/last_*_iter.h5'):
             os.remove(last_model_path)
-        if os.path.exists(self.annotations_csv_path_last) and os.path.isfile(self.annotations_csv_path_last):
+        if self.is_file_exists(self.annotations_csv_path_last):
             os.remove(self.annotations_csv_path_last)
-        if os.path.exists(self.predictions_csv_path_last) and os.path.isfile(self.predictions_csv_path_last):
+        if self.is_file_exists(self.predictions_csv_path_last):
             os.remove(self.predictions_csv_path_last)
 
     def save_last_model(self, iteration_count):
