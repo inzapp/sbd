@@ -487,9 +487,8 @@ class SBD:
                     print('train end successfully')
                     return
 
-    @staticmethod
     @tf.function
-    def decode_bounding_box(output_tensor, confidence_threshold):
+    def decode_bounding_box(self, output_tensor, confidence_threshold):
         output_shape = tf.shape(output_tensor)
         rows, cols = output_shape[0], output_shape[1]
 
@@ -535,26 +534,32 @@ class SBD:
         with tf.device(device):
             return model(x, training=False)
 
-    @staticmethod
-    def predict(model, img, device, confidence_threshold=0.2, nms_iou_threshold=0.45, verbose=False):
-        """
-        Detect object in image using trained SBD model.
-        :param model: model for for forward image.
-        :param img: (width, height, channel) formatted image to be predicted.
-        :param device: cpu or gpu device.
-        :param confidence_threshold: threshold confidence score to detect object.
-        :param nms_iou_threshold: threshold to remove overlapped detection.
-        :param verbose: print detected box info if True.
-        :return: bounding boxes dictionary array sorted by x position.
-        each dictionary has class index and bbox info: [x1, y1, x2, y2].
-        """
+    def nms(self, boxes, nms_iou_threshold=0.45):
+        boxes = sorted(boxes, key=lambda x: x['confidence'], reverse=True)
+        for i in range(len(boxes) - 1):
+            if boxes[i]['discard']:
+                continue
+            for j in range(i + 1, len(boxes)):
+                if boxes[j]['discard'] or boxes[i]['class'] != boxes[j]['class']:
+                    continue
+                if self.data_generator.iou(boxes[i]['bbox_norm'], boxes[j]['bbox_norm']) > nms_iou_threshold:
+                    boxes[j]['discard'] = True
+
+        y_pred_copy = np.asarray(boxes.copy())
+        boxes = []
+        for i in range(len(y_pred_copy)):
+            if not y_pred_copy[i]['discard']:
+                boxes.append(y_pred_copy[i])
+        return boxes
+
+    def predict(self, model, img, device, confidence_threshold=0.2, verbose=False):
         input_shape = model.input_shape[1:]
         input_height, input_width = input_shape[:2]
         output_shape = model.output_shape
         num_output_layers = 1 if type(output_shape) == tuple else len(output_shape)
 
-        img = Util.resize(img, (input_width, input_height))
-        x = Util.preprocess(img, batch_axis=True)
+        img = self.data_generator.resize(img, (input_width, input_height))
+        x = self.data_generator.preprocess(img, batch_axis=True)
         y = SBD.graph_forward(model, x, device)
         if num_output_layers == 1:
             y = [y]
@@ -562,7 +567,7 @@ class SBD:
         boxes_before_nms_list = []
         for layer_index in range(num_output_layers):
             output_tensor = y[layer_index][0]
-            boxes_before_nms_list += list(SBD.decode_bounding_box(output_tensor, confidence_threshold).numpy())
+            boxes_before_nms_list += list(self.decode_bounding_box(output_tensor, confidence_threshold).numpy())
         boxes_before_nms_dicts = []
         for box in boxes_before_nms_list:
             confidence = float(box[0])
@@ -573,7 +578,7 @@ class SBD:
                 'bbox_norm': [x1, y1, x2, y2],
                 'class': class_index,
                 'discard': False})
-        boxes = Util.nms(boxes_before_nms_dicts, nms_iou_threshold)
+        boxes = self.nms(boxes_before_nms_dicts)
         if verbose:
             print(f'before nms box count : {len(boxes_before_nms_dicts)}')
             print(f'after  nms box count : {len(boxes)}')
@@ -617,7 +622,7 @@ class SBD:
 
         fs = []
         for path in image_paths:
-            fs.append(self.pool.submit(Util.load_img, path, channel))
+            fs.append(self.pool.submit(self.data_generator.load_img, path, channel))
 
         device = '/cpu:0' if cpu else self.primary_device
         for f in tqdm(fs):
@@ -637,26 +642,13 @@ class SBD:
                 f_label.write(label_content)
 
     def is_background_color_bright(self, bgr):
-        """
-        Determine whether the color is bright or not.
-        :param bgr: bgr scalar tuple.
-        :return: true if parameter color is bright and false if not.
-        """
         tmp = np.zeros((1, 1), dtype=np.uint8)
         tmp = cv2.cvtColor(tmp, cv2.COLOR_GRAY2BGR)
         cv2.rectangle(tmp, (0, 0), (1, 1), bgr, -1)
         tmp = cv2.cvtColor(tmp, cv2.COLOR_BGR2GRAY)
         return tmp[0][0] > 127
 
-    def bounding_box(self, img, boxes, font_scale=0.4, show_class_with_score=True):
-        """
-        draw bounding bbox using result of SBD.predict function.
-        :param img: image to be predicted.
-        :param boxes: result value of SBD.predict() function.
-        :param font_scale: scale of font.
-        :param show_class_with_score: draw bounding box with class and score label if True, else draw bounding box only
-        :return: image of bounding boxed.
-        """
+    def draw_box(self, img, boxes, font_scale=0.4, show_class_with_score=True):
         padding = 5
         if len(img.shape) == 2:
             img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
@@ -699,9 +691,9 @@ class SBD:
                 print('frame not exists')
                 break
             img = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY) if self.model.input.shape[-1] == 1 else cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
-            boxes = SBD.predict(self.model, img, device=self.primary_device, confidence_threshold=confidence_threshold)
-            bgr = Util.resize(bgr, (view_width, view_height))
-            boxed_image = self.bounding_box(bgr, boxes, show_class_with_score=show_class_with_score)
+            boxes = self.predict(self.model, img, device=self.primary_device, confidence_threshold=confidence_threshold)
+            bgr = self.data_generator.resize(bgr, (view_width, view_height))
+            boxed_image = self.draw_box(bgr, boxes, show_class_with_score=show_class_with_score)
             cv2.imshow('video', boxed_image)
             key = cv2.waitKey(1)
             if key == 27:
@@ -739,10 +731,10 @@ class SBD:
             view_width, view_height = input_width, input_height
         for path in image_paths:
             print(f'image path : {path}')
-            img, bgr, _ = Util.load_img(path, input_channel, with_bgr=True)
-            boxes = SBD.predict(self.model, img, device=self.primary_device, verbose=True, confidence_threshold=confidence_threshold)
-            bgr = Util.resize(bgr, (view_width, view_height))
-            boxed_image = self.bounding_box(bgr, boxes, show_class_with_score=show_class_with_score)
+            img, bgr, _ = self.data_generator.load_img(path, input_channel, with_bgr=True)
+            boxes = self.predict(self.model, img, device=self.primary_device, verbose=True, confidence_threshold=confidence_threshold)
+            bgr = self.data_generator.resize(bgr, (view_width, view_height))
+            boxed_image = self.draw_box(bgr, boxes, show_class_with_score=show_class_with_score)
             cv2.imshow('res', boxed_image)
             key = cv2.waitKey(0)
             if key == 27:
@@ -792,7 +784,7 @@ class SBD:
         fs = []
         input_channel = model.input_shape[1:][-1]
         for path in image_paths:
-            fs.append(self.pool.submit(Util.load_img, path, input_channel))
+            fs.append(self.pool.submit(self.data_generator.load_img, path, input_channel))
         csv = 'ImageID,LabelName,Conf,XMin,XMax,YMin,YMax\n'
         for f in tqdm(fs, desc='predictions csv creation'):
             img, _, path = f.result()
@@ -875,9 +867,6 @@ class SBD:
         print()
 
     def training_view_function(self):
-        """
-        During training, the image is forwarded in real time, showing the results are shown.
-        """
         cur_time = time()
         if cur_time - self.live_view_previous_time > 0.5:
             self.live_view_previous_time = cur_time
@@ -885,9 +874,9 @@ class SBD:
                 img_path = np.random.choice(self.train_image_paths)
             else:
                 img_path = np.random.choice(self.validation_image_paths)
-            img, bgr, _ = Util.load_img(img_path, self.input_channels, with_bgr=True)
+            img, bgr, _ = self.data_generator.load_img(img_path, self.input_channels, with_bgr=True)
             boxes = self.predict(self.model, img, device=self.primary_device)
-            boxed_image = self.bounding_box(bgr, boxes)
+            boxed_image = self.draw_box(bgr, boxes)
             cv2.imshow('training view', boxed_image)
             cv2.waitKey(1)
 

@@ -183,20 +183,40 @@ class DataGenerator:
         else:
             print()
 
+    def iou(self, a, b):
+        a_x_min, a_y_min, a_x_max, a_y_max = a
+        b_x_min, b_y_min, b_x_max, b_y_max = b
+        intersection_width = min(a_x_max, b_x_max) - max(a_x_min, b_x_min)
+        intersection_height = min(a_y_max, b_y_max) - max(a_y_min, b_y_min)
+        if intersection_width <= 0 or intersection_height <= 0:
+            return 0.0
+        intersection_area = intersection_width * intersection_height
+        a_area = abs((a_x_max - a_x_min) * (a_y_max - a_y_min))
+        b_area = abs((b_x_max - b_x_min) * (b_y_max - b_y_min))
+        union_area = a_area + b_area - intersection_area
+        return intersection_area / (float(union_area) + 1e-5)
+
+    def cxcywh2x1y1x2y2(self, cx, cy, w, h):
+        x1 = cx - (w * 0.5)
+        y1 = cy - (h * 0.5)
+        x2 = cx + (w * 0.5)
+        y2 = cy + (h * 0.5)
+        return x1, y1, x2, y2
+
     def get_iou_with_virtual_anchors(self, box):
         if self.num_output_layers == 1 or self.virtual_anchor_iou_threshold == 0.0:
             return [[i, 1.0] for i in range(self.num_output_layers)]
 
         cx, cy, w, h = box
-        x1, y1, x2, y2 = Util.cxcywh2x1y1x2y2(cx, cy, w, h)
+        x1, y1, x2, y2 = self.cxcywh2x1y1x2y2(cx, cy, w, h)
         labeled_box = np.clip(np.asarray([x1, y1, x2, y2]), 0.0, 1.0)
         iou_with_virtual_anchors = []
         for layer_index in range(self.num_output_layers):
             w = self.virtual_anchor_ws[layer_index]
             h = self.virtual_anchor_hs[layer_index]
-            x1, y1, x2, y2 = Util.cxcywh2x1y1x2y2(cx, cy, w, h)
+            x1, y1, x2, y2 = self.cxcywh2x1y1x2y2(cx, cy, w, h)
             virtual_anchor_box = np.clip(np.asarray([x1, y1, x2, y2]), 0.0, 1.0)
-            iou = Util.iou(labeled_box, virtual_anchor_box)
+            iou = self.iou(labeled_box, virtual_anchor_box)
             iou_with_virtual_anchors.append([layer_index, iou])
         return sorted(iou_with_virtual_anchors, key=lambda x: x[1], reverse=True)
 
@@ -252,9 +272,9 @@ class DataGenerator:
         iou_between_va_sum = 0.0
         print('IoU between virtual anchors')
         for i in range(num_cluster - 1):
-            box_a = Util.cxcywh2x1y1x2y2(0.5, 0.5, self.virtual_anchor_ws[i], self.virtual_anchor_hs[i])
-            box_b = Util.cxcywh2x1y1x2y2(0.5, 0.5, self.virtual_anchor_ws[i+1], self.virtual_anchor_hs[i+1])
-            iou = Util.iou(box_a, box_b)
+            box_a = self.cxcywh2x1y1x2y2(0.5, 0.5, self.virtual_anchor_ws[i], self.virtual_anchor_hs[i])
+            box_b = self.cxcywh2x1y1x2y2(0.5, 0.5, self.virtual_anchor_ws[i+1], self.virtual_anchor_hs[i+1])
+            iou = self.iou(box_a, box_b)
             iou_between_va_sum += iou
             print(f'va[{i}], va[{i+1}] => {iou:.4f}')
         avg_iou_between_va = iou_between_va_sum / (num_cluster - 1)
@@ -319,6 +339,14 @@ class DataGenerator:
         print(f'best possible recall   : {best_possible_recall:.4f}')
         print(f'\naverage obj count per image : {avg_obj_count_per_image:.4f}\n')
 
+    def resize(self, img, size):
+        img_h, img_w = img.shape[:2]
+        if img_h > size[0] or img_w > size[1]:
+            img = cv2.resize(img, size, interpolation=cv2.INTER_AREA)
+        else:
+            img = cv2.resize(img, size, interpolation=cv2.INTER_LINEAR)
+        return img
+
     def random_scale(self, img, labels, scale_range):
         def overlay(img, overlay_img, start_x, start_y, channels):
             overlay_img_height, overlay_img_width = overlay_img.shape[:2]
@@ -375,7 +403,7 @@ class DataGenerator:
             for label in labels:
                 class_index, cx, cy, w, h = label
                 class_index = int(class_index)
-                x1, y1, x2, y2 = Util.cxcywh2x1y1x2y2(cx, cy, w, h)
+                x1, y1, x2, y2 = self.cxcywh2x1y1x2y2(cx, cy, w, h)
 
                 x1 = np.clip(x1, roi_x1, roi_x2)
                 y1 = np.clip(y1, roi_y1, roi_y2)
@@ -558,7 +586,7 @@ class DataGenerator:
                         cx_nearby_raw + (w * 0.5),
                         cy_nearby_raw + (h * 0.5)]
                     box_nearby = np.clip(np.array(box_nearby), 0.0, 1.0)
-                    iou = Util.iou(box_origin, box_nearby) - 1e-4  # subtract small value for give center grid to first priority
+                    iou = self.iou(box_origin, box_nearby) - 1e-4  # subtract small value for give center grid to first priority
                 nearby_cells.append({
                     'offset_y': offset_y,
                     'offset_x': offset_x,
@@ -644,7 +672,7 @@ class DataGenerator:
             cv2.imshow('img', img)
             img_boxed = np.array(img)
             for bb in labeled_boxes:
-                x1, y1, x2, y2 = Util.cxcywh2x1y1x2y2(bb['cx'], bb['cy'], bb['w'], bb['h'])
+                x1, y1, x2, y2 = self.cxcywh2x1y1x2y2(bb['cx'], bb['cy'], bb['w'], bb['h'])
                 x1 = int(x1 * self.input_shape[1])
                 y1 = int(y1 * self.input_shape[0])
                 x2 = min(int(x2 * self.input_shape[1]), self.input_shape[1]-1)
@@ -681,13 +709,35 @@ class DataGenerator:
                 exit(0)
         return allocated_count
 
+    def load_img(self, path, channel, with_bgr=False):
+        bgr = None
+        if with_bgr:
+            img = cv2.imdecode(np.fromfile(path, dtype=np.uint8), cv2.IMREAD_COLOR)
+            bgr = img.copy()
+            if channel == 1:
+                img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        else:
+            color_mode = cv2.IMREAD_GRAYSCALE if channel == 1 else cv2.IMREAD_COLOR
+            img = cv2.imdecode(np.fromfile(path, dtype=np.uint8), color_mode)
+        if channel == 3:
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  # rb swap
+        return img, bgr, path
+
+    def preprocess(self, img, batch_axis=False):
+        x = np.asarray(img).astype('float32') / 255.0
+        if len(x.shape) == 2:
+            x = x.reshape(x.shape + (1,))
+        if batch_axis:
+            x = x.reshape((1,) + x.shape)
+        return x
+
     def load_batch_data(self, size, first_call):
         batch_data, fs = [], []
         for _ in range(size):
-            fs.append(self.pool.submit(Util.load_img, self.get_next_image_path(), self.input_channel))
+            fs.append(self.pool.submit(self.load_img, self.get_next_image_path(), self.input_channel))
         for i in range(len(fs)):
             img, _, path = fs[i].result()
-            img = Util.resize(img, (self.input_width, self.input_height))
+            img = self.resize(img, (self.input_width, self.input_height))
             labels, label_path, label_exists = self.load_label(self.label_path(path))
             if not label_exists:
                 print(f'label not found : {label_path}')
@@ -710,7 +760,7 @@ class DataGenerator:
         for i in range(len(batch_data)):
             img = batch_data[i]['img']
             labels = batch_data[i]['labels']
-            x = Util.preprocess(img)
+            x = self.preprocess(img)
             batch_x[i] = x
             if self.teacher is None:
                 labeled_boxes = self.convert_to_boxes(labels)
@@ -720,7 +770,7 @@ class DataGenerator:
                 if self.input_shape != self.teacher.input_shape[1:]:
                     tw = self.teacher.input_shape[1:][1]
                     th = self.teacher.input_shape[1:][0]
-                    tx = Util.preprocess(Util.resize(img, (tw, th)))
+                    tx = self.preprocess(self.resize(img, (tw, th)))
                     batch_tx[i] = tx
         if self.teacher is not None:
             from sbd import SBD
