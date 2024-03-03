@@ -18,6 +18,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 import argparse
+
 from sbd import SBD
 
 
@@ -36,7 +37,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     sbd = SBD(cfg_path=args.cfg, training=False)
     sbd.load_model(args.model)
-    sbd.calculate_map(
+    sbd.evaluate(
         dataset=args.dataset,
         confidence_threshold=args.conf,
         tp_iou_threshold=args.iou,

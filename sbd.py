@@ -28,6 +28,7 @@ import tensorflow as tf
 
 from util import Util
 from glob import glob
+from tqdm import tqdm
 from model import Model
 from eta import ETACalculator
 from box_colors import colors
@@ -36,7 +37,8 @@ from generator import DataGenerator
 from lr_scheduler import LRScheduler
 from loss import sbd_loss, IGNORED_LOSS
 from time import time, sleep, perf_counter
-from mAP_calculator import calc_mean_average_precision
+from map_boxes import mean_average_precision_for_boxes
+from concurrent.futures.thread import ThreadPoolExecutor
 
 
 class SBD:
@@ -102,6 +104,7 @@ class SBD:
         self.use_pretrained_model = False
         self.model, self.teacher = None, None
         self.class_names, self.num_classes, self.unknown_class_index = self.init_class_names(self.class_names_file_path)
+        self.pool = ThreadPoolExecutor(8)
 
         assert type(self.devices) is list
         self.strategy = None
@@ -600,14 +603,12 @@ class SBD:
         except sh.SameFileError:
             pass
 
-        def get_label_path(path):
             return f'{path[:-4]}.txt'
         def is_exists(path):
             return os.path.exists(path) and os.path.isfile(path)
-        pool = ThreadPoolExecutor(8)
         fs = []
         for path in image_paths:
-            fs.append(pool.submit(is_exists, get_label_path(path)))
+            fs.append(self.pool.submit(is_exists, self.data_generator.label_path(path)))
         label_file_count = 0
         for f in fs:
             if f.result():
@@ -620,7 +621,7 @@ class SBD:
 
         fs = []
         for path in image_paths:
-            fs.append(pool.submit(Util.load_img, path, channel))
+            fs.append(self.pool.submit(Util.load_img, path, channel))
 
         device = '/cpu:0' if cpu else self.primary_device
         for f in tqdm(fs):
@@ -751,14 +752,80 @@ class SBD:
             if key == 27:
                 break
 
-    def calculate_map(self, dataset, confidence_threshold, tp_iou_threshold, cached, find_best_threshold=False, annotations_csv_path='', predictions_csv_path=''):
+    def load_label_csv(self, image_path, unknown_class_index):
+        csv = ''
+        label_path = f'{image_path[:-4]}.txt'
+        basename = os.path.basename(image_path)
+        with open(label_path, 'rt') as f:
+            lines = f.readlines()
+        for line in lines:
+            class_index, cx, cy, w, h = list(map(float, line.split()))
+            class_index = int(class_index)
+            if class_index == unknown_class_index:
+                continue
+            xmin = cx - w * 0.5
+            ymin = cy - h * 0.5
+            xmax = cx + w * 0.5
+            ymax = cy + h * 0.5
+            xmin, ymin, xmax, ymax = np.clip(np.array([xmin, ymin, xmax, ymax]), 0.0, 1.0)
+            csv += f'{basename},{class_index},{xmin:.6f},{xmax:.6f},{ymin:.6f},{ymax:.6f}\n'
+        return csv
+
+    def make_annotations_csv(self, image_paths, unknown_class_index, csv_path):
+        fs = []
+        for path in image_paths:
+            fs.append(self.pool.submit(self.load_label_csv, path, unknown_class_index))
+        csv = 'ImageID,LabelName,XMin,XMax,YMin,YMax\n'
+        for f in tqdm(fs, desc='annotations csv creation'):
+            csv += f.result()
+        with open(csv_path, 'wt') as f:
+            f.writelines(csv)
+
+    def convert_boxes_to_csv_lines(self, path, boxes):
+        csv = ''
+        for b in boxes:
+            basename = os.path.basename(path)
+            confidence = b['confidence']
+            class_index = b['class']
+            xmin, ymin, xmax, ymax = b['bbox_norm']
+            csv += f'{basename},{class_index},{confidence:.6f},{xmin:.6f},{xmax:.6f},{ymin:.6f},{ymax:.6f}\n'
+        return csv
+
+    def make_predictions_csv(self, model, image_paths, device, csv_path):
+        from util import Util
+        fs = []
+        input_channel = model.input_shape[1:][-1]
+        for path in image_paths:
+            fs.append(self.pool.submit(Util.load_img, path, input_channel))
+        csv = 'ImageID,LabelName,Conf,XMin,XMax,YMin,YMax\n'
+        for f in tqdm(fs, desc='predictions csv creation'):
+            img, _, path = f.result()
+            boxes = self.predict(model, img, confidence_threshold=0.001, device=device)
+            csv += self.convert_boxes_to_csv_lines(path, boxes)
+        with open(csv_path, 'wt') as f:
+            f.writelines(csv)
+
+    def calc_mean_average_precision(self, model, image_paths, device, unknown_class_index, confidence_threshold, tp_iou_threshold, classes_txt_path, annotations_csv_path, predictions_csv_path, cached, find_best_threshold):
+        if not cached:
+            self.make_annotations_csv(image_paths, unknown_class_index, annotations_csv_path)
+            self.make_predictions_csv(model, image_paths, device, predictions_csv_path)
+        return mean_average_precision_for_boxes(
+            ann=annotations_csv_path,
+            pred=predictions_csv_path,
+            confidence_threshold_for_f1=confidence_threshold,
+            iou_threshold=tp_iou_threshold,
+            classes_txt_path=classes_txt_path,
+            find_best_threshold=find_best_threshold,
+            verbose=True)
+
+    def evaluate(self, dataset, confidence_threshold, tp_iou_threshold, cached, find_best_threshold=False, annotations_csv_path='', predictions_csv_path=''):
         assert dataset in ['train', 'validation']
         image_paths = self.train_image_paths if dataset == 'train' else self.validation_image_paths
         if annotations_csv_path == '':
             annotations_csv_path = f'{self.checkpoint_path}/annotations_last.csv'
         if predictions_csv_path == '':
             predictions_csv_path = f'{self.checkpoint_path}/predictions_last.csv'
-        return calc_mean_average_precision(
+        return self.calc_mean_average_precision(
             model=self.model,
             image_paths=image_paths,
             device=self.primary_device,
@@ -792,7 +859,7 @@ class SBD:
     def save_model_with_map(self, dataset='validation', confidence_threshold=0.2, tp_iou_threshold=0.5, cached=False):
         print()
         self.make_checkpoint_dir()
-        mean_ap, f1_score, iou, tp, fp, fn, confidence, txt_content = self.calculate_map(
+        mean_ap, f1_score, iou, tp, fp, fn, confidence, txt_content = self.evaluate(
             dataset=dataset,
             confidence_threshold=confidence_threshold,
             tp_iou_threshold=tp_iou_threshold,
@@ -823,7 +890,7 @@ class SBD:
             else:
                 img_path = np.random.choice(self.validation_image_paths)
             img, bgr, _ = Util.load_img(img_path, self.input_channels, with_bgr=True)
-            boxes = SBD.predict(self.model, img, device=self.primary_device)
+            boxes = self.predict(self.model, img, device=self.primary_device)
             boxed_image = self.bounding_box(bgr, boxes)
             cv2.imshow('training view', boxed_image)
             cv2.waitKey(1)
