@@ -56,12 +56,14 @@ class SBD:
         multi_classification_at_same_box = config['multi_classification_at_same_box']
         ignore_scale = config['ignore_scale']
         virtual_anchor_iou_threshold = config['va_iou_threshold']
+        aug_noise = config['aug_noise']
         aug_scale = config['aug_scale']
         aug_mosaic = config['aug_mosaic']
         aug_h_flip = config['aug_h_flip']
         aug_v_flip = config['aug_v_flip']
-        aug_brightness = config['aug_brightness']
         aug_contrast = config['aug_contrast']
+        aug_brightness = config['aug_brightness']
+        aug_snowstorm = config['aug_snowstorm']
         batch_size = config['batch_size']
         num_workers = config['num_workers']
         self.class_names_file_path = config['class_names_file_path']
@@ -187,12 +189,14 @@ class SBD:
             multi_classification_at_same_box=multi_classification_at_same_box,
             ignore_scale=ignore_scale,
             virtual_anchor_iou_threshold=virtual_anchor_iou_threshold,
+            aug_noise=aug_noise,
             aug_scale=aug_scale,
             aug_mosaic=aug_mosaic,
             aug_h_flip=aug_h_flip,
             aug_v_flip=aug_v_flip,
-            aug_brightness=aug_brightness,
             aug_contrast=aug_contrast,
+            aug_brightness=aug_brightness,
+            aug_snowstorm=aug_snowstorm,
             primary_device=self.primary_device)
         np.set_printoptions(precision=6)
 

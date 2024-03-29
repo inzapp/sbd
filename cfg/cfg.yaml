@@ -20,12 +20,14 @@ obj_gamma: 1.0
 cls_alpha: 0.5
 cls_gamma: 1.0
 box_weight: 1.0
+aug_noise: 0.0
 aug_scale: 0.5
 aug_mosaic: 0.2
 aug_h_flip: False
 aug_v_flip: False
 aug_contrast: 0.3
 aug_brightness: 0.3
+aug_snowstorm: 0.0
 warm_up: 0.5
 momentum: 0.9
 smoothing: 0.05

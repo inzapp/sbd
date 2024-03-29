@@ -40,17 +40,21 @@ class DataGenerator:
         multi_classification_at_same_box,
         ignore_scale,
         virtual_anchor_iou_threshold,
+        aug_noise,
         aug_scale,
         aug_mosaic,
         aug_h_flip,
         aug_v_flip,
-        aug_brightness,
         aug_contrast,
+        aug_brightness,
+        aug_snowstorm,
         primary_device):
-        assert 0.0 <= aug_brightness <= 1.0
-        assert 0.0 <= aug_contrast <= 1.0
+        assert 0.0 <= aug_noise <= 1.0
         assert 0.0 <= aug_scale <= 1.0
         assert 0.0 <= aug_mosaic <= 1.0
+        assert 0.0 <= aug_contrast <= 1.0
+        assert 0.0 <= aug_brightness <= 1.0
+        assert 0.0 <= aug_snowstorm <= 1.0
         self.debug = False
         self.teacher = teacher
         self.image_paths = image_paths
@@ -66,12 +70,14 @@ class DataGenerator:
         self.multi_classification_at_same_box = multi_classification_at_same_box
         self.ignore_scale = ignore_scale
         self.virtual_anchor_iou_threshold = virtual_anchor_iou_threshold
+        self.aug_noise = aug_noise
         self.aug_scale = aug_scale
         self.aug_mosaic = aug_mosaic
         self.aug_h_flip = aug_h_flip
         self.aug_v_flip = aug_v_flip
-        self.aug_brightness = aug_brightness
         self.aug_contrast = aug_contrast
+        self.aug_brightness = aug_brightness
+        self.aug_snowstorm = aug_snowstorm
         self.primary_device = primary_device
         self.virtual_anchor_ws = []
         self.virtual_anchor_hs = []
@@ -80,7 +86,11 @@ class DataGenerator:
         self.pool = ThreadPoolExecutor(num_workers)
         np.random.shuffle(self.image_paths)
         self.transform = A.Compose([
-            A.RandomBrightnessContrast(p=0.5, brightness_limit=aug_brightness, contrast_limit=aug_contrast),
+            A.ToGray(p=0.01),
+            A.RandomBrightnessContrast(brightness_limit=aug_brightness, contrast_limit=0.0, p=0.5),
+            A.Lambda(name='random_noise', image=self.random_noise, p=0.5),
+            A.Lambda(name='random_contrast', image=self.random_contrast, p=0.5),
+            A.Lambda(name='random_snowstorm', image=self.random_snowstorm, p=self.aug_snowstorm),
             A.GaussianBlur(p=0.5, blur_limit=(5, 5))
         ])
 
@@ -239,8 +249,8 @@ class DataGenerator:
             Logger.info(f'training with va_iou_threshold 0.0 doesn\'t need virtual anchor, skip')
             return
 
-        self.ws = np.asarray(self.ws).reshape((len(self.ws), 1)).astype('float32')
-        self.hs = np.asarray(self.hs).reshape((len(self.hs), 1)).astype('float32')
+        self.ws = np.asarray(self.ws).reshape((len(self.ws), 1)).astype(np.float32)
+        self.hs = np.asarray(self.hs).reshape((len(self.hs), 1)).astype(np.float32)
 
         max_iterations = 100
         num_cluster = self.num_output_layers
@@ -345,6 +355,59 @@ class DataGenerator:
             img = cv2.resize(img, size, interpolation=cv2.INTER_AREA)
         else:
             img = cv2.resize(img, size, interpolation=cv2.INTER_LINEAR)
+        return img
+
+    def random_noise(self, img, **kwargs):
+        if self.aug_noise > 0.0:
+            img = np.array(img).astype(np.float32)
+            noise_power = np.random.uniform() * (self.aug_noise * 255.0)
+            img_h, img_w = img.shape[:2]
+            img = img.reshape((img_h, img_w, -1))
+            img += np.random.uniform(-noise_power, noise_power, size=(img_h, img_w, self.input_channel))
+            img = np.clip(img, 0.0, 255.0).astype(np.uint8)
+        return img
+
+    def random_contrast(self, img, **kwargs):
+        if self.aug_contrast > 0.0:
+            power = np.random.uniform() * self.aug_contrast
+            img_f = np.asarray(img).astype(np.float32)
+            img_f += (127.5 - img_f) * power
+            img = np.clip(img_f, 0.0, 255.0).astype(np.uint8)
+        return img
+
+    def random_snowstorm(self, img, **kwargs):
+        img_h, img_w = img.shape[:2]
+        num_snowflakes_range = (50, 200)
+        snowflake_length_range = (10, max(min(img_w, img_h) // 3, 10))
+        curvature_range = (1, 15)
+        direction_angle_range = (-50, 50)
+        color_range = (180, 230)
+        thickness_range = (1, max(min(img_w, img_h) // 192, 2))
+
+        num_snowflakes = np.random.randint(num_snowflakes_range[0], num_snowflakes_range[1])
+        for _ in range(num_snowflakes):
+            snowflake_length = np.random.randint(snowflake_length_range[0], snowflake_length_range[1])
+            curvature = np.random.randint(curvature_range[0], curvature_range[1])
+            x = np.random.randint(0, img_w - snowflake_length)
+            y = np.random.randint(0, img_h - snowflake_length)
+
+            start_x = x
+            end_x = x + snowflake_length
+            start_y = y + snowflake_length // 2
+
+            num_points = snowflake_length * 2
+            t = np.linspace(0, 1, num_points)
+            curve = curvature * np.sin(np.pi * t)
+
+            direction_angle = np.random.randint(direction_angle_range[0], direction_angle_range[1])
+            snowflake_points = np.column_stack((np.linspace(start_x, end_x, num_points), start_y + curve))
+            rotation_matrix = cv2.getRotationMatrix2D((img_w // 2, img_h // 2), direction_angle, 1)
+            snowflake_points = cv2.transform(np.array([snowflake_points]), rotation_matrix)[0]
+
+            color_val = np.random.randint(color_range[0], color_range[1])
+            thickness = np.random.randint(thickness_range[0], thickness_range[1])
+            color = (color_val, color_val, color_val)
+            cv2.polylines(img, [snowflake_points.astype(np.int32)], isClosed=False, color=color, thickness=thickness)
         return img
 
     def random_scale(self, img, labels, scale_range):
@@ -610,8 +673,8 @@ class DataGenerator:
                 output_rows = float(self.output_shapes[i][1])
                 output_cols = float(self.output_shapes[i][2])
                 rr, cc = np.meshgrid(np.arange(output_rows), np.arange(output_cols), indexing='ij')
-                rr = np.asarray(rr).astype('float32') / (np.max(rr) + 1)
-                cc = np.asarray(cc).astype('float32') / (np.max(cc) + 1)
+                rr = np.asarray(rr).astype(np.float32) / (np.max(rr) + 1)
+                cc = np.asarray(cc).astype(np.float32) / (np.max(cc) + 1)
                 center_row = int(cy * output_rows)
                 center_col = int(cx * output_cols)
                 center_row_f = int(cy * output_rows) / output_rows
@@ -694,7 +757,7 @@ class DataGenerator:
 
                 if self.num_output_layers == 1:
                     alpha = 0.4
-                    heatmap = np.clip(confidence_channel_img * 255.0, 0.0, 255.0).astype('uint8')
+                    heatmap = np.clip(confidence_channel_img * 255.0, 0.0, 255.0).astype(np.uint8)
                     heatmap = heatmap.reshape(heatmap.shape + (1,))
                     heatmap = np.concatenate([heatmap, heatmap, heatmap], axis=-1)
                     heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
@@ -724,7 +787,7 @@ class DataGenerator:
     def preprocess(self, img, batch_axis=False):
         if self.input_shape[-1] == 3:
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  # rb swap
-        x = np.asarray(img).astype('float32') / 255.0
+        x = np.asarray(img).astype(np.float32) / 255.0
         if len(x.shape) == 2:
             x = x.reshape(x.shape + (1,))
         if batch_axis:
