@@ -371,7 +371,11 @@ class DataGenerator:
         if self.aug_contrast > 0.0:
             power = np.random.uniform() * self.aug_contrast
             img_f = np.asarray(img).astype(np.float32)
-            img_f += (127.5 - img_f) * power
+            contrast_offset = (127.5 - img_f) * power
+            if np.random.uniform() < 0.5:
+                img_f += contrast_offset
+            else:
+                img_f -= contrast_offset
             img = np.clip(img_f, 0.0, 255.0).astype(np.uint8)
         return img
 
@@ -729,8 +733,6 @@ class DataGenerator:
                 mask[i][batch_index][:, :, 0][np.where(y[i][batch_index][:, :, 0] == 1.0)] = 1.0
 
         if self.debug:
-            if self.input_shape[-1] == 3:
-                img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
             print(f'img.shape : {img.shape}')
             cv2.imshow('img', img)
             img_boxed = np.array(img)
@@ -740,7 +742,7 @@ class DataGenerator:
                 y1 = int(y1 * self.input_shape[0])
                 x2 = min(int(x2 * self.input_shape[1]), self.input_shape[1]-1)
                 y2 = min(int(y2 * self.input_shape[0]), self.input_shape[0]-1)
-                img_boxed = cv2.rectangle(img_boxed, (x1, y1), (x2, y2), (0, 0, 255), 1)
+                img_boxed = cv2.rectangle(img_boxed, (x1, y1), (x2, y2), (0, 255, 0), 1)
             cv2.imshow('boxed', img_boxed)
             for i in range(self.num_output_layers):
                 print(f'\n[layer_index, batch_index] : [{i}, {batch_index}]')
