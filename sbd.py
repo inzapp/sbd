@@ -68,6 +68,7 @@ class SBD:
         num_workers = config['num_workers']
         self.class_names_file_path = config['class_names_file_path']
         self.lr = config['lr']
+        self.lrf = config['lrf']
         self.obj_alpha_param = config['obj_alpha']
         self.obj_gamma_param = config['obj_gamma']
         self.cls_alpha_param = config['cls_alpha']
@@ -82,7 +83,6 @@ class SBD:
         self.momentum = config['momentum']
         self.label_smoothing = config['smoothing']
         self.warm_up = config['warm_up']
-        self.decay_step = config['decay_step']
         self.iterations = config['iterations']
         self.optimizer = config['optimizer'].lower()
         self.lr_policy = config['lr_policy']
@@ -449,7 +449,7 @@ class SBD:
             if self.strategy is not None:
                 compute_gradient_tf = tf.function(self.distributed_train_step)
             self.model, optimizer = self.refresh(self.model, self.optimizer)
-            lr_scheduler = LRScheduler(iterations=self.iterations, lr=self.lr, warm_up=self.warm_up, policy=self.lr_policy, decay_step=self.decay_step)
+            lr_scheduler = LRScheduler(iterations=self.iterations, lr=self.lr, lrf=self.lrf, warm_up=self.warm_up, policy=self.lr_policy)
             eta_calculator = ETACalculator(iterations=self.iterations, start_iteration=iteration_count)
             eta_calculator.start()
             Logger.info(f'model will be save to {self.checkpoint_path}')
