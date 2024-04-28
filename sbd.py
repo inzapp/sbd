@@ -66,6 +66,7 @@ class SBD:
         aug_snowstorm = config['aug_snowstorm']
         batch_size = config['batch_size']
         num_workers = config['num_workers']
+        max_q_size = config['max_q_size']
         self.class_names_file_path = config['class_names_file_path']
         self.lr = config['lr']
         self.lrf = config['lrf']
@@ -185,6 +186,7 @@ class SBD:
             output_shape=self.model.output_shape,
             batch_size=batch_size,
             num_workers=num_workers,
+            max_q_size=max_q_size,
             unknown_class_index=self.unknown_class_index,
             multi_classification_at_same_box=multi_classification_at_same_box,
             ignore_scale=ignore_scale,
@@ -435,6 +437,8 @@ class SBD:
             Logger.info(f'parameters : {self.model.count_params():,}\n')
             Logger.info(f'train on {len(self.train_image_paths)} samples.')
             Logger.info(f'validate on {len(self.validation_image_paths)} samples.\n')
+
+            self.data_generator.start()
             if self.teacher is not None and self.optimizer == 'sgd':
                 Logger.warn(f'SGD optimizer with knowledge distillation training may be bad choice, consider using Adam or RMSprop optimizer instead')
             if self.use_pretrained_model:
@@ -487,6 +491,7 @@ class SBD:
                 if iteration_count == self.iterations:
                     self.save_model_with_map()
                     self.remove_last_model()
+                    self.data_generator.stop()
                     Logger.info('train end successfully')
                     return
 

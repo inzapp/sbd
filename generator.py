@@ -18,12 +18,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 import os
+import sys
 import cv2
+import signal
+import threading
 import numpy as np
 import albumentations as A
 
 from tqdm import tqdm
+from time import sleep
 from logger import Logger
+from collections import deque
 from concurrent.futures.thread import ThreadPoolExecutor
 
 
@@ -36,6 +41,7 @@ class DataGenerator:
         output_shape,
         batch_size,
         num_workers,
+        max_q_size,
         unknown_class_index,
         multi_classification_at_same_box,
         ignore_scale,
@@ -55,6 +61,7 @@ class DataGenerator:
         assert 0.0 <= aug_contrast <= 1.0
         assert 0.0 <= aug_brightness <= 1.0
         assert 0.0 <= aug_snowstorm <= 1.0
+        assert max_q_size >= batch_size
         self.debug = False
         self.teacher = teacher
         self.image_paths = image_paths
@@ -83,6 +90,13 @@ class DataGenerator:
         self.virtual_anchor_hs = []
         self.ws, self.hs = [], []
         self.img_index = 0
+        self.lock = threading.Lock()
+        self.max_q_size = max_q_size
+        self.q_thread = threading.Thread(target=self.load_xy_into_q)
+        self.q_thread.daemon = True
+        self.q = deque()
+        self.q_thread_running = False
+        self.q_indexes = list(range(self.max_q_size))
         self.pool = ThreadPoolExecutor(num_workers)
         np.random.shuffle(self.image_paths)
         self.transform = A.Compose([
@@ -327,8 +341,8 @@ class DataGenerator:
         y_true_obj_count = 0
         box_count_in_real_data = 0
         for f in tqdm(fs, desc='calculating BPR(Best Possible Recall)'):
-            batch_y = [np.zeros(shape=(1,) + self.output_shapes[i][1:]) for i in range(self.num_output_layers)]
-            batch_mask = [np.ones(shape=(1,) + self.output_shapes[i][1:]) for i in range(self.num_output_layers)]
+            batch_y = [np.zeros(shape=self.output_shapes[i][1:]) for i in range(self.num_output_layers)]
+            batch_mask = [np.ones(shape=self.output_shapes[i][1:]) for i in range(self.num_output_layers)]
             labels, _, _ = f.result()
             labeled_boxes = self.convert_to_boxes(labels)
             box_count_in_real_data += len(labeled_boxes)
@@ -553,7 +567,7 @@ class DataGenerator:
                 new_labels.append([class_index, cx, cy, w, h])
         return img, new_labels
 
-    def augment(self, img, labels, first_call):
+    def augment(self, img, labels, mosaic):
         if self.aug_brightness > 0.0 or self.aug_contrast > 0.0:
             img = self.transform(image=img)['image']
 
@@ -563,9 +577,9 @@ class DataGenerator:
         if self.aug_scale > 0.0 and np.random.uniform() < 0.5:
             img, labels = self.random_scale(img, labels, self.aug_scale)
 
-        if first_call:
+        if mosaic:
             if self.aug_mosaic > 0.0 and np.random.uniform() < self.aug_mosaic:
-                mosaic_data = self.load_batch_data(size=3, first_call=False)
+                mosaic_data = self.load_image_with_label(size=3, mosaic=False)
                 mosaic_data.append({'img': img, 'labels': labels})
                 img, labels = self.random_mosaic(mosaic_data)
                 if self.aug_scale > 0.0 and np.random.uniform() < 0.5:
@@ -662,7 +676,7 @@ class DataGenerator:
                     'iou': iou})
         return sorted(nearby_cells, key=lambda x: x['iou'], reverse=True)
 
-    def build_batch_tensor(self, labeled_boxes, y, mask, batch_index, img=None):
+    def build_batch_tensor(self, labeled_boxes, y, mask, img=None):
         allocated_count = 0
         for b in labeled_boxes:
             class_indexes, cx, cy, w, h = b['class_indexes'], b['cx'], b['cy'], b['w'], b['h']
@@ -696,7 +710,7 @@ class DataGenerator:
                     cy_raw=cy,
                     w=w,
                     h=h,
-                    center_only=y[i][batch_index][center_row][center_col][0] == 0.0)
+                    center_only=y[i][center_row][center_col][0] == 0.0)
                 for grid in nearby_grids:
                     if grid['iou'] < 0.8:
                         break
@@ -706,31 +720,31 @@ class DataGenerator:
                     cy_grid = grid['cy_grid']
                     offset_center_row = center_row + offset_y
                     offset_center_col = center_col + offset_x
-                    if y[i][batch_index][offset_center_row][offset_center_col][0] == 0.0:
+                    if y[i][offset_center_row][offset_center_col][0] == 0.0:
                         if 0.0 < self.ignore_scale <= 1.0:
                             half_scale = max(self.ignore_scale * 0.5, 1e-5)
                             object_heatmap = 1.0 - np.clip((np.abs(rr - center_row_f) / (h * half_scale)) ** 2 + (np.abs(cc - center_col_f) / (w * half_scale)) ** 2, 0.0, 1.0) ** 0.5
                             object_mask = np.where(object_heatmap == 0.0, 1.0, 0.0)
 
-                            # confidence_channel = y[i][batch_index][:, :, 0]
+                            # confidence_channel = y[i][:, :, 0]
                             # confidence_indices = np.where(object_heatmap > confidence_channel)
                             # confidence_channel[confidence_indices] = object_heatmap[confidence_indices]
 
-                            confidence_mask_channel = mask[i][batch_index][:, :, 0]
+                            confidence_mask_channel = mask[i][:, :, 0]
                             confidence_mask_indices = np.where(object_mask == 0.0)
                             confidence_mask_channel[confidence_mask_indices] = object_mask[confidence_mask_indices]
-                        y[i][batch_index][offset_center_row][offset_center_col][0] = 1.0
-                        y[i][batch_index][offset_center_row][offset_center_col][1] = cx_grid
-                        y[i][batch_index][offset_center_row][offset_center_col][2] = cy_grid
-                        y[i][batch_index][offset_center_row][offset_center_col][3] = w
-                        y[i][batch_index][offset_center_row][offset_center_col][4] = h
+                        y[i][offset_center_row][offset_center_col][0] = 1.0
+                        y[i][offset_center_row][offset_center_col][1] = cx_grid
+                        y[i][offset_center_row][offset_center_col][2] = cy_grid
+                        y[i][offset_center_row][offset_center_col][3] = w
+                        y[i][offset_center_row][offset_center_col][4] = h
                         for class_index in class_indexes:
                             if class_index != self.unknown_class_index:
-                                y[i][batch_index][center_row][center_col][class_index+5] = 1.0
+                                y[i][center_row][center_col][class_index+5] = 1.0
                         is_box_allocated = True
                         allocated_count += 1
                         break
-                mask[i][batch_index][:, :, 0][np.where(y[i][batch_index][:, :, 0] == 1.0)] = 1.0
+                mask[i][:, :, 0][np.where(y[i][:, :, 0] == 1.0)] = 1.0
 
         if self.debug:
             print(f'img.shape : {img.shape}')
@@ -745,17 +759,17 @@ class DataGenerator:
                 img_boxed = cv2.rectangle(img_boxed, (x1, y1), (x2, y2), (0, 255, 0), 1)
             cv2.imshow('boxed', img_boxed)
             for i in range(self.num_output_layers):
-                print(f'\n[layer_index, batch_index] : [{i}, {batch_index}]')
-                confidence_channel = y[i][batch_index, :, :, 0]
-                print(f'confidence_channel[{i}][{batch_index}].shape : {confidence_channel.shape}')
-                mask_channel = mask[i][batch_index, :, :, 0]
-                print(f'mask_channel[{i}][{batch_index}].shape : {mask_channel.shape}')
-                for class_index in range(self.num_classes):
-                    class_channel = y[i][batch_index, :, :, 5+class_index]
-                    cv2.imshow(f'class_{class_index}[{i}]', cv2.resize(class_channel, (self.input_shape[1], self.input_shape[0]), interpolation=cv2.INTER_NEAREST))
+                print(f'\nlayer_index : {i}')
+                confidence_channel = y[i][:, :, 0]
+                print(f'confidence_channel[{i}]shape : {confidence_channel.shape}')
+                mask_channel = mask[i][:, :, 0]
+                print(f'mask_channel[{i}].shape : {mask_channel.shape}')
+                # for class_index in range(self.num_classes):
+                #     class_channel = y[i][:, :, 5+class_index]
+                #     cv2.imshow(f'class_{class_index}[{i}]', cv2.resize(class_channel, (self.input_shape[1], self.input_shape[0]), interpolation=cv2.INTER_NEAREST))
                 confidence_channel_img = cv2.resize(confidence_channel, (self.input_shape[1], self.input_shape[0]), interpolation=cv2.INTER_NEAREST)
-                cv2.imshow(f'confidence[{i}]', confidence_channel_img)
-                cv2.imshow(f'mask[{i}]', cv2.resize(mask_channel, (self.input_shape[1], self.input_shape[0]), interpolation=cv2.INTER_NEAREST))
+                # cv2.imshow(f'confidence[{i}]', confidence_channel_img)
+                # cv2.imshow(f'mask[{i}]', cv2.resize(mask_channel, (self.input_shape[1], self.input_shape[0]), interpolation=cv2.INTER_NEAREST))
 
                 if self.num_output_layers == 1:
                     alpha = 0.4
@@ -771,7 +785,7 @@ class DataGenerator:
                 print(f'allocated_count : {allocated_count}\n')
             key = cv2.waitKey(0)
             if key == 27:
-                exit(0)
+                self.signal_handler(None, None)
         return allocated_count
 
     def load_image(self, path, with_bgr=False):
@@ -796,8 +810,16 @@ class DataGenerator:
             x = x.reshape((1,) + x.shape)
         return x
 
-    def load_batch_data(self, size, first_call):
-        batch_data, fs = [], []
+    def get_next_image_path(self):
+        path = self.image_paths[self.img_index]
+        self.img_index += 1
+        if self.img_index == len(self.image_paths):
+            self.img_index = 0
+            np.random.shuffle(self.image_paths)
+        return path
+
+    def load_image_with_label(self, size, mosaic):
+        data, fs = [], []
         for _ in range(size):
             fs.append(self.pool.submit(self.load_image, self.get_next_image_path()))
         for i in range(len(fs)):
@@ -807,51 +829,82 @@ class DataGenerator:
             if not label_exists:
                 Logger.warn(f'label not found : {label_path}')
                 continue
-            img, labels = self.augment(img, labels, first_call=first_call)
-            batch_data.append({'img': img, 'labels': labels})
-        return batch_data
-            
-    def load(self):
-        fs = []
-        batch_x = np.zeros(shape=(self.batch_size,) + self.input_shape, dtype=np.float32)
-        batch_tx, batch_y, batch_mask = None, None, None
-        if self.teacher is None:
-            batch_y = [np.zeros(shape=(self.batch_size,) + self.output_shapes[i][1:], dtype=np.float32) for i in range(self.num_output_layers)]
-            batch_mask = [np.ones(shape=(self.batch_size,) + self.output_shapes[i][1:], dtype=np.float32) for i in range(self.num_output_layers)]
-        else:
-            if self.input_shape != self.teacher.input_shape[1:]:
-                batch_tx = np.zeros(shape=(self.batch_size,) + self.teacher.input_shape[1:], dtype=np.float32)
-        batch_data = self.load_batch_data(size=self.batch_size, first_call=True)
-        for i in range(len(batch_data)):
-            img = batch_data[i]['img']
-            labels = batch_data[i]['labels']
-            x = self.preprocess(img)
-            batch_x[i] = x
-            if self.teacher is None:
-                labeled_boxes = self.convert_to_boxes(labels)
-                self.build_batch_tensor(labeled_boxes, batch_y, batch_mask, i, img if self.debug else None)
-            else:
-                tx = None
-                if self.input_shape != self.teacher.input_shape[1:]:
-                    tw = self.teacher.input_shape[1:][1]
-                    th = self.teacher.input_shape[1:][0]
-                    tx = self.preprocess(self.resize(img, (tw, th)))
-                    batch_tx[i] = tx
-        if self.teacher is not None:
-            from sbd import SBD
-            batch_y = SBD.graph_forward(self.teacher, batch_x if batch_tx is None else batch_tx, self.primary_device)
-            batch_mask = [1.0 for _ in range(self.num_output_layers)]
-        if self.num_output_layers == 1:
-            if self.teacher is None:
-                batch_y = batch_y[0]
-            batch_mask = batch_mask[0]
-        return batch_x, batch_y, batch_mask
+            img, labels = self.augment(img, labels, mosaic=mosaic)
+            data.append({'img': img, 'labels': labels})
+        return data
 
-    def get_next_image_path(self):
-        path = self.image_paths[self.img_index]
-        self.img_index += 1
-        if self.img_index == len(self.image_paths):
-            self.img_index = 0
-            np.random.shuffle(self.image_paths)
-        return path
+    def signal_handler(self, sig, frame):
+        Logger.info('SIGINT signal detected, please wait until the end of the thread')
+        self.stop()
+        sys.exit(0)
+
+    def start(self):
+        if self.debug:
+            return
+        self.q_thread_running = True
+        self.q_thread.start()
+        signal.signal(signal.SIGINT, self.signal_handler)
+        while True:
+            sleep(1.0)
+            percentage = (len(self.q) / self.max_q_size) * 100.0
+            Logger.info(f'prefetching training data... {percentage:.1f}%')
+            with self.lock:
+                if len(self.q) >= self.max_q_size:
+                    break
+
+    def stop(self):
+        if self.q_thread_running:
+            self.q_thread_running = False
+            while self.q_thread.is_alive():
+                sleep(0.1)
+
+    def load_xy(self):
+        y = [np.zeros(shape=self.output_shapes[i][1:], dtype=np.float32) for i in range(self.num_output_layers)]
+        mask = [np.ones(shape=self.output_shapes[i][1:], dtype=np.float32) for i in range(self.num_output_layers)]
+        img_with_label = self.load_image_with_label(size=1, mosaic=True)
+        img = img_with_label[0]['img']
+        labels = img_with_label[0]['labels']
+        x = self.preprocess(img)
+        labeled_boxes = self.convert_to_boxes(labels)
+        self.build_batch_tensor(labeled_boxes, y, mask, img if self.debug else None)
+        return x, y, mask
+            
+    def load_xy_into_q(self):
+        while self.q_thread_running:
+            x, y, mask = self.load_xy()
+            with self.lock:
+                if len(self.q) == self.max_q_size:
+                    self.q.popleft()
+                self.q.append((x, y, mask))
+
+    def load(self):
+        batch_x = []
+        if self.num_output_layers == 1:
+            batch_y, batch_m = [], []
+        else:
+            batch_y = [[] for _ in range(self.num_output_layers)]
+            batch_m = [[] for _ in range(self.num_output_layers)]
+        for i in np.random.choice(self.q_indexes, self.batch_size, replace=False):
+            with self.lock:
+                if self.debug:
+                    x, y, m = self.load_xy()
+                else:
+                    x, y, m = self.q[i]
+                batch_x.append(np.array(x))
+                if self.num_output_layers == 1:
+                    batch_y.append(np.array(y))
+                    batch_m.append(np.array(m))
+                else:
+                    for j in range(self.num_output_layers):
+                        batch_y[j].append(np.array(y[j]))
+                        batch_m[j].append(np.array(m[j]))
+        batch_x = np.asarray(batch_x).reshape((self.batch_size,) + self.input_shape).astype(np.float32)
+        if self.num_output_layers == 1:
+            batch_y = np.asarray(batch_y).reshape((self.batch_size,) + self.output_shapes[0][1:]).astype(np.float32)
+            batch_m = np.asarray(batch_m).reshape((self.batch_size,) + self.output_shapes[0][1:]).astype(np.float32)
+        else:
+            for i in range(self.num_output_layers):
+                batch_y[i] = np.asarray(batch_y[i]).reshape((self.batch_size,) + self.output_shapes[i][1:]).astype(np.float32)
+                batch_m[i] = np.asarray(batch_m[i]).reshape((self.batch_size,) + self.output_shapes[i][1:]).astype(np.float32)
+        return batch_x, batch_y, batch_m
 
