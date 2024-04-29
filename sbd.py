@@ -131,6 +131,7 @@ class SBD:
                 self.strategy = tf.distribute.MirroredStrategy(devices=[f'/gpu:{i}' for i in self.devices])
             self.primary_device = f'/gpu:{self.devices[0]}'
             os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
+            os.environ['NCCL_P2P_DISABLE'] = '1'
         tf.config.set_visible_devices(visible_devices, 'GPU')
 
         if self.pretrained_model_path.endswith('.h5') and training:
