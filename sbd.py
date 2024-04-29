@@ -46,7 +46,6 @@ class SBD:
         config = self.load_cfg(cfg_path)
         self.cfg_path = cfg_path
         self.devices = config['devices']
-        self.kd_teacher_model_path = ''
         self.pretrained_model_path = config['pretrained_model_path']
         input_rows = config['input_rows']
         input_cols = config['input_cols']
@@ -105,7 +104,7 @@ class SBD:
         warnings.filterwarnings(action='ignore')
 
         self.use_pretrained_model = False
-        self.model, self.teacher = None, None
+        self.model = None
         self.class_names, self.num_classes, self.unknown_class_index = self.init_class_names(self.class_names_file_path)
         self.pool = ThreadPoolExecutor(8)
 
@@ -158,14 +157,6 @@ class SBD:
                     drop_rate=self.drop_rate,
                     activation=self.activation).build(self.model_type)
 
-        if self.kd_teacher_model_path.endswith('.h5') and training:
-            self.load_teacher(self.kd_teacher_model_path)
-            if self.teacher.output_shape != self.model.output_shape:
-                Logger.error([
-                    f'output shape mismatch with teacher',
-                    f'teacher : {self.teacher.output_shape}',
-                    f'student : {self.model.output_shape}'])
-
         if type(self.model.output_shape) == tuple:
             if self.model_type[1] == 'm':
                 new_type = f'{self.model_type[0]}1{self.model_type[2:]}'
@@ -180,7 +171,6 @@ class SBD:
         self.validation_image_paths = self.init_image_paths(validation_image_path)
 
         self.data_generator = DataGenerator(
-            teacher=self.teacher,
             image_paths=self.train_image_paths,
             input_shape=input_shape,
             output_shape=self.model.output_shape,
@@ -282,12 +272,6 @@ class SBD:
             model = tf.keras.models.load_model(model_path, compile=False)
         return model
 
-    def load_teacher(self, model_path):
-        if self.is_file_exists(model_path):
-            self.teacher = self.load_model_with_device(model_path)
-        else:
-            Logger.error(f'kd teacher model not found. model path : {model_path}')
-
     def load_model(self, model_path):
         if self.is_file_exists(model_path):
             self.model = self.load_model_with_device(model_path)
@@ -364,17 +348,17 @@ class SBD:
         Logger.info(f'model forwarding time with {device[1:4]} : {forwarding_time:.2f} ms')
 
     def compute_gradient(self, args):
-        _strategy, _train_step, model, optimizer, loss_function, x, y_true, mask, num_output_layers, obj_alphas, obj_gammas, cls_alphas, cls_gammas, box_weight, label_smoothing, kd = args
+        _strategy, _train_step, model, optimizer, loss_function, x, y_true, mask, num_output_layers, obj_alphas, obj_gammas, cls_alphas, cls_gammas, box_weight, label_smoothing = args
         with tf.GradientTape() as tape:
             y_pred = model(x, training=True)
             obj_loss, box_loss, cls_loss = 0.0, 0.0, 0.0
             if num_output_layers == 1:
                 obj_loss, box_loss, cls_loss = loss_function(
-                    y_true, y_pred, mask, obj_alphas[0], obj_gammas[0], cls_alphas[0], cls_gammas[0], box_weight, label_smoothing, kd)
+                    y_true, y_pred, mask, obj_alphas[0], obj_gammas[0], cls_alphas[0], cls_gammas[0], box_weight, label_smoothing)
             else:
                 for i in range(num_output_layers):
                     _obj_loss, _box_loss, _cls_loss = loss_function(
-                         y_true[i], y_pred[i], mask[i], obj_alphas[i], obj_gammas[i], cls_alphas[i], cls_gammas[i], box_weight, label_smoothing, kd)
+                         y_true[i], y_pred[i], mask[i], obj_alphas[i], obj_gammas[i], cls_alphas[i], cls_gammas[i], box_weight, label_smoothing)
                     obj_loss += _obj_loss
                     box_loss = box_loss + _box_loss if _box_loss != IGNORED_LOSS else IGNORED_LOSS
                     cls_loss = cls_loss + _cls_loss if _cls_loss != IGNORED_LOSS else IGNORED_LOSS
@@ -408,13 +392,12 @@ class SBD:
 
     def build_loss_str(self, progress_str, loss_vars):
         obj_loss, box_loss, cls_loss = loss_vars
-        kd = 'kd_' if self.teacher is not None else ''
         loss_str = f'\r{progress_str}'
-        loss_str += f' {kd}obj_loss : {obj_loss:>8.4f}'
+        loss_str += f' obj_loss : {obj_loss:>8.4f}'
         if box_loss != IGNORED_LOSS:
-            loss_str += f', {kd}box_loss : {box_loss:>8.4f}'
+            loss_str += f', box_loss : {box_loss:>8.4f}'
         if cls_loss != IGNORED_LOSS:
-            loss_str += f', {kd}cls_loss : {cls_loss:>8.4f}'
+            loss_str += f', cls_loss : {cls_loss:>8.4f}'
         return loss_str
 
     def train(self):
@@ -439,8 +422,6 @@ class SBD:
             Logger.info(f'validate on {len(self.validation_image_paths)} samples.\n')
 
             self.data_generator.start()
-            if self.teacher is not None and self.optimizer == 'sgd':
-                Logger.warn(f'SGD optimizer with knowledge distillation training may be bad choice, consider using Adam or RMSprop optimizer instead')
             if self.use_pretrained_model:
                 Logger.info(f'start training with pretrained model : {self.pretrained_model_path}')
             else:
@@ -475,8 +456,7 @@ class SBD:
                     self.cls_alphas,
                     self.cls_gammas,
                     self.box_weight,
-                    self.label_smoothing,
-                    self.teacher is not None))
+                    self.label_smoothing))
                 iteration_count += 1
                 progress_str = eta_calculator.update(iteration_count)
                 print(self.build_loss_str(progress_str, loss_vars), end='')

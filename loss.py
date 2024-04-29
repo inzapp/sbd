@@ -26,14 +26,14 @@ from tensorflow.python.framework.ops import convert_to_tensor_v2
 IGNORED_LOSS = -2147483640.0
 
 
-def _obj_loss(y_true, y_pred, pos_mask, mask, alpha, gamma, kd, eps):
+def _obj_loss(y_true, y_pred, pos_mask, mask, alpha, gamma, eps):
     obj_true = y_true[:, :, :, 0]
     obj_pred = y_pred[:, :, :, 0]
     loss = tf.reduce_sum(ALE(alpha=alpha, gamma=gamma)(obj_true, obj_pred) * mask[:, :, :, 0])
     return loss / tf.cast(tf.shape(y_true)[0], dtype=y_pred.dtype)
 
 
-def _box_loss(y_true, y_pred, pos_mask, box_weight, kd):
+def _box_loss(y_true, y_pred, pos_mask, box_weight):
     obj_count = tf.cast(tf.reduce_sum(pos_mask), y_pred.dtype)
     if obj_count == tf.constant(0.0):
         return 0.0
@@ -93,7 +93,7 @@ def _box_loss(y_true, y_pred, pos_mask, box_weight, kd):
     return loss / tf.cast(tf.shape(y_true)[0], dtype=y_pred.dtype)
 
 
-def _cls_loss(y_true, y_pred, pos_mask, alpha, gamma, label_smoothing, kd, eps):
+def _cls_loss(y_true, y_pred, pos_mask, alpha, gamma, label_smoothing, eps):
     obj_count = tf.cast(tf.reduce_sum(pos_mask), y_pred.dtype)
     if obj_count == tf.constant(0.0):
         return 0.0
@@ -104,12 +104,12 @@ def _cls_loss(y_true, y_pred, pos_mask, alpha, gamma, label_smoothing, kd, eps):
     return loss / tf.cast(tf.shape(y_true)[0], dtype=y_pred.dtype)
 
 
-def sbd_loss(y_true, y_pred, mask, obj_alpha, obj_gamma, cls_alpha, cls_gamma, box_weight, label_smoothing, kd, eps=1e-7):
+def sbd_loss(y_true, y_pred, mask, obj_alpha, obj_gamma, cls_alpha, cls_gamma, box_weight, label_smoothing, eps=1e-7):
     y_pred = convert_to_tensor_v2(y_pred)
     y_true = tf.cast(y_true, y_pred.dtype)
     pos_mask = tf.where(y_true[:, :, :, 0] == 1.0, 1.0, 0.0)
-    obj_loss = _obj_loss(y_true, y_pred, pos_mask, mask, obj_alpha, obj_gamma, kd, eps)
-    box_loss = _box_loss(y_true, y_pred, pos_mask, box_weight, kd)
-    cls_loss = _cls_loss(y_true, y_pred, pos_mask, cls_alpha, cls_gamma, label_smoothing, kd, eps)
+    obj_loss = _obj_loss(y_true, y_pred, pos_mask, mask, obj_alpha, obj_gamma, eps)
+    box_loss = _box_loss(y_true, y_pred, pos_mask, box_weight)
+    cls_loss = _cls_loss(y_true, y_pred, pos_mask, cls_alpha, cls_gamma, label_smoothing, eps)
     return obj_loss, box_loss, cls_loss
 

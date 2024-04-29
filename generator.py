@@ -35,7 +35,6 @@ from concurrent.futures.thread import ThreadPoolExecutor
 class DataGenerator:
     def __init__(
         self,
-        teacher,
         image_paths,
         input_shape,
         output_shape,
@@ -63,7 +62,6 @@ class DataGenerator:
         assert 0.0 <= aug_snowstorm <= 1.0
         assert max_q_size >= batch_size
         self.debug = False
-        self.teacher = teacher
         self.image_paths = image_paths
         self.input_shape = input_shape
         self.input_height, self.input_width, self.input_channel = input_shape
@@ -146,10 +144,6 @@ class DataGenerator:
         return int(w * self.input_shape[1]) <= 3 or int(h * self.input_shape[0]) <= 3
 
     def check_label(self, image_paths, class_names, dataset_name):
-        if self.teacher is not None:
-            Logger.info(f'knowledge distillation training doesn\'t need label check, skip')
-            return
-
         fs = []
         for path in image_paths:
             fs.append(self.pool.submit(self.load_label, self.label_path(path)))
@@ -251,12 +245,6 @@ class DataGenerator:
             Logger.info('skip calculating virtual anchor when output layer size is 1')
             return
 
-        if self.teacher is not None:
-            self.virtual_anchor_ws = [0.5 for _ in range(self.num_output_layers)]
-            self.virtual_anchor_hs = [0.5 for _ in range(self.num_output_layers)]
-            Logger.info(f'knowledge distillation training doesn\'t need virtual anchor, skip')
-            return
-
         if self.virtual_anchor_iou_threshold == 0.0:
             self.virtual_anchor_ws = [0.5 for _ in range(self.num_output_layers)]
             self.virtual_anchor_hs = [0.5 for _ in range(self.num_output_layers)]
@@ -328,10 +316,6 @@ class DataGenerator:
 
     def calculate_best_possible_recall(self):
         if self.debug:
-            return
-
-        if self.teacher is not None:
-            Logger.info(f'knowledge distillation training doesn\'t need BPR, skip')
             return
 
         fs = []
@@ -834,6 +818,7 @@ class DataGenerator:
         return data
 
     def signal_handler(self, sig, frame):
+        print()
         Logger.info('SIGINT signal detected, please wait until the end of the thread')
         self.stop()
         sys.exit(0)
@@ -850,6 +835,7 @@ class DataGenerator:
             Logger.info(f'prefetching training data... {percentage:.1f}%')
             with self.lock:
                 if len(self.q) >= self.max_q_size:
+                    print()
                     break
 
     def stop(self):
