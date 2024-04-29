@@ -330,7 +330,7 @@ class DataGenerator:
             labels, _, _ = f.result()
             labeled_boxes = self.convert_to_boxes(labels)
             box_count_in_real_data += len(labeled_boxes)
-            allocated_count = self.build_batch_tensor(labeled_boxes, batch_y, batch_mask, 0)
+            allocated_count = self.build_gt_tensor(labeled_boxes, batch_y, batch_mask, 0)
             y_true_obj_count += allocated_count
 
         avg_obj_count_per_image = box_count_in_real_data / float(len(self.image_paths))
@@ -660,7 +660,7 @@ class DataGenerator:
                     'iou': iou})
         return sorted(nearby_cells, key=lambda x: x['iou'], reverse=True)
 
-    def build_batch_tensor(self, labeled_boxes, y, mask, img=None):
+    def build_gt_tensor(self, labeled_boxes, y, mask, img=None):
         allocated_count = 0
         for b in labeled_boxes:
             class_indexes, cx, cy, w, h = b['class_indexes'], b['cx'], b['cy'], b['w'], b['h']
@@ -852,7 +852,7 @@ class DataGenerator:
         labels = img_with_label[0]['labels']
         x = self.preprocess(img)
         labeled_boxes = self.convert_to_boxes(labels)
-        self.build_batch_tensor(labeled_boxes, y, mask, img if self.debug else None)
+        self.build_gt_tensor(labeled_boxes, y, mask, img if self.debug else None)
         return x, y, mask
             
     def load_xy_into_q(self):
