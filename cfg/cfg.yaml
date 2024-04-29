@@ -36,7 +36,7 @@ ignore_scale: 0.0
 va_iou_threshold: 1.0
 batch_size: 4
 num_workers: 8
-max_q_size: 512
+max_q_size: 1024
 iterations: 1000000
 map_checkpoint_interval: 0
 training_view: False
