@@ -467,11 +467,13 @@ class SBD:
                     if self.training_view:
                         self.training_view_function()
                     if self.map_checkpoint_interval > 0 and iteration_count % self.map_checkpoint_interval == 0 and iteration_count < self.iterations:
+                        self.data_generator.pause()
                         self.save_model_with_map()
+                        self.data_generator.resume()
                 if iteration_count == self.iterations:
+                    self.data_generator.stop()
                     self.save_model_with_map()
                     self.remove_last_model()
-                    self.data_generator.stop()
                     Logger.info('train end successfully')
                     return
 

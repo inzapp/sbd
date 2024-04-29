@@ -94,6 +94,7 @@ class DataGenerator:
         self.q_thread.daemon = True
         self.q = deque()
         self.q_thread_running = False
+        self.q_thread_pause = False
         self.q_indexes = list(range(self.max_q_size))
         self.pool = ThreadPoolExecutor(num_workers)
         np.random.shuffle(self.image_paths)
@@ -844,6 +845,14 @@ class DataGenerator:
             while self.q_thread.is_alive():
                 sleep(0.1)
 
+    def pause(self):
+        if self.q_thread_running:
+            self.q_thread_pause = True
+
+    def resume(self):
+        if self.q_thread_running:
+            self.q_thread_pause = False
+
     def load_xy(self):
         y = [np.zeros(shape=self.output_shapes[i][1:], dtype=np.float32) for i in range(self.num_output_layers)]
         mask = [np.ones(shape=self.output_shapes[i][1:], dtype=np.float32) for i in range(self.num_output_layers)]
@@ -857,11 +866,14 @@ class DataGenerator:
             
     def load_xy_into_q(self):
         while self.q_thread_running:
-            x, y, mask = self.load_xy()
-            with self.lock:
-                if len(self.q) == self.max_q_size:
-                    self.q.popleft()
-                self.q.append((x, y, mask))
+            if self.q_thread_pause:
+                sleep(1.0)
+            else:
+                x, y, mask = self.load_xy()
+                with self.lock:
+                    if len(self.q) == self.max_q_size:
+                        self.q.popleft()
+                    self.q.append((x, y, mask))
 
     def load(self):
         batch_x = []
