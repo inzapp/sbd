@@ -19,7 +19,7 @@ limitations under the License.
 """
 import tensorflow as tf
 
-from ale import AbsoluteLogarithmicError as ALE
+from ace import AdaptiveCrossentropy as ACE
 from tensorflow.python.framework.ops import convert_to_tensor_v2
 
 
@@ -29,7 +29,7 @@ IGNORED_LOSS = -2147483640.0
 def _obj_loss(y_true, y_pred, pos_mask, mask, alpha, gamma, eps):
     obj_true = y_true[:, :, :, 0]
     obj_pred = y_pred[:, :, :, 0]
-    loss = tf.reduce_sum(ALE(alpha=alpha, gamma=gamma)(obj_true, obj_pred) * mask[:, :, :, 0])
+    loss = tf.reduce_sum(ACE(alpha=alpha, gamma=gamma)(obj_true, obj_pred) * mask[:, :, :, 0])
     return loss / tf.cast(tf.shape(y_true)[0], dtype=y_pred.dtype)
 
 
@@ -100,7 +100,7 @@ def _cls_loss(y_true, y_pred, pos_mask, alpha, gamma, label_smoothing, eps):
 
     cls_true = y_true[:, :, :, 5:]
     cls_pred = y_pred[:, :, :, 5:]
-    loss = tf.reduce_sum(tf.reduce_sum(ALE(alpha=alpha, gamma=gamma, label_smoothing=label_smoothing)(cls_true, cls_pred), axis=-1) * pos_mask)
+    loss = tf.reduce_sum(tf.reduce_sum(ACE(alpha=alpha, gamma=gamma, label_smoothing=label_smoothing)(cls_true, cls_pred), axis=-1) * pos_mask)
     return loss / tf.cast(tf.shape(y_true)[0], dtype=y_pred.dtype)
 
 
