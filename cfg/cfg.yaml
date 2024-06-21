@@ -31,7 +31,7 @@ aug_brightness: 0.3
 aug_snowstorm: 0.0
 warm_up: 0.5
 momentum: 0.9
-smoothing: 0.05
+smoothing: 0.0
 ignore_scale: 0.0
 va_iou_threshold: 1.0
 batch_size: 4
