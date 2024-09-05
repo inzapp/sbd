@@ -95,7 +95,7 @@ class DataGenerator:
         self.q = deque()
         self.q_thread_running = False
         self.q_thread_pause = False
-        self.q_indexes = list(range(self.max_q_size))
+        self.q_indices = list(range(self.max_q_size))
         self.pool = ThreadPoolExecutor(num_workers)
         np.random.shuffle(self.image_paths)
         self.transform = A.Compose([
@@ -882,7 +882,7 @@ class DataGenerator:
         else:
             batch_y = [[] for _ in range(self.num_output_layers)]
             batch_m = [[] for _ in range(self.num_output_layers)]
-        for i in np.random.choice(self.q_indexes, self.batch_size, replace=False):
+        for i in np.random.choice(self.q_indices, self.batch_size, replace=False):
             with self.lock:
                 if self.debug:
                     x, y, m = self.load_xy()
