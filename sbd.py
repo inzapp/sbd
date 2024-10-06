@@ -461,7 +461,7 @@ class SBD:
                 iteration_count += 1
                 progress_str = eta_calculator.update(iteration_count)
                 print(self.build_loss_str(progress_str, loss_vars), end='')
-                warm_up_end = iteration_count >= int(self.iterations * self.warm_up)
+                warm_up_end = iteration_count >= lr_scheduler.warm_up_iterations
                 if iteration_count % 2000 == 0:
                     self.save_last_model(iteration_count=iteration_count)
                 if warm_up_end:
