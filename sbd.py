@@ -543,14 +543,14 @@ class SBD:
                 boxes.append(y_pred_copy[i])
         return boxes
 
-    def predict(self, model, img, device, confidence_threshold=0.2, verbose=False):
+    def predict(self, model, img, device, confidence_threshold=0.2, verbose=False, heatmap=True):
         input_shape = model.input_shape[1:]
-        input_height, input_width = input_shape[:2]
+        input_rows, input_cols = input_shape[:2]
         output_shape = model.output_shape
         num_output_layers = 1 if type(output_shape) == tuple else len(output_shape)
 
-        img = self.data_generator.resize(img, (input_width, input_height))
-        x = self.data_generator.preprocess(img, batch_axis=True)
+        img_resized = self.data_generator.resize(img, (input_cols, input_rows))
+        x = self.data_generator.preprocess(img_resized, batch_axis=True)
         y = SBD.graph_forward(model, x, device)
         if num_output_layers == 1:
             y = [y]
@@ -559,6 +559,7 @@ class SBD:
         for layer_index in range(num_output_layers):
             output_tensor = y[layer_index][0]
             boxes_before_nms_list += list(self.decode_bounding_box(output_tensor, confidence_threshold).numpy())
+
         boxes_before_nms_dicts = []
         for box in boxes_before_nms_list:
             confidence = float(box[0])
@@ -569,6 +570,7 @@ class SBD:
                 'bbox_norm': [x1, y1, x2, y2],
                 'class': class_index,
                 'discard': False})
+
         boxes = self.nms(boxes_before_nms_dicts)
         if verbose:
             print(f'before nms box count : {len(boxes_before_nms_dicts)}')
@@ -583,7 +585,15 @@ class SBD:
                 print(f'bbox(normalized) : {np.array(bbox_norm)}')
                 print()
             print()
-        return boxes
+
+        if heatmap:
+            if num_output_layers == 1:
+                objectness = y[0][:, :, :, 0][0]
+                img = self.data_generator.blend_heatmap(img, objectness)
+            else:
+                Logger.warn('heatmap is only possible with one output layer model, flag is ignored')
+
+        return img, boxes
 
     def auto_label(self, image_path, confidence_threshold, cpu, recursive):
         input_shape = self.model.input_shape[1:]
@@ -617,8 +627,8 @@ class SBD:
 
         device = '/cpu:0' if cpu else self.primary_device
         for f in tqdm(fs):
-            img, _, path = f.result()
-            boxes = self.predict(self.model, img, device, confidence_threshold=confidence_threshold)
+            img, path = f.result()
+            _, boxes = self.predict(self.model, img, device, confidence_threshold=confidence_threshold)
             label_content = ''
             for box in boxes:
                 class_index = box['class']
@@ -666,7 +676,7 @@ class SBD:
                 cv2.putText(img, label_text, (x1 + padding - 1, y1 - baseline - padding), cv2.FONT_HERSHEY_DUPLEX, fontScale=font_scale, color=label_font_color, thickness=1, lineType=cv2.LINE_AA)
         return img
 
-    def predict_video(self, path, confidence_threshold=0.2, show_class_with_score=True, width=0, height=0):
+    def predict_video(self, path, confidence_threshold=0.2, show_class_with_score=True, width=0, height=0, heatmap=False):
         if not path.startswith('rtsp://') and not self.is_file_exists(path):
             Logger.error(f'video not found. video path : {path}')
         cap = cv2.VideoCapture(path)
@@ -677,14 +687,13 @@ class SBD:
         else:
             view_width, view_height = input_width, input_height
         while True:
-            frame_exist, bgr = cap.read()
+            frame_exist, img_bgr = cap.read()
             if not frame_exist:
                 Logger.info('frame not exists')
                 break
-            img = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY) if self.model.input.shape[-1] == 1 else cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
-            boxes = self.predict(self.model, img, device=self.primary_device, confidence_threshold=confidence_threshold)
-            bgr = self.data_generator.resize(bgr, (view_width, view_height))
-            boxed_image = self.draw_box(bgr, boxes, show_class_with_score=show_class_with_score)
+            img, boxes = self.predict(self.model, img_bgr, device=self.primary_device, confidence_threshold=confidence_threshold, heatmap=heatmap)
+            img = self.data_generator.resize(img, (view_width, view_height))
+            boxed_image = self.draw_box(img, boxes, show_class_with_score=show_class_with_score)
             cv2.imshow('video', boxed_image)
             key = cv2.waitKey(1)
             if key == 27:
@@ -692,7 +701,7 @@ class SBD:
         cap.release()
         cv2.destroyAllWindows()
 
-    def predict_images(self, dataset='validation', path='', confidence_threshold=0.2, show_class_with_score=True, width=0, height=0):
+    def predict_images(self, dataset='validation', path='', confidence_threshold=0.2, show_class_with_score=True, width=0, height=0, heatmap=False):
         input_height, input_width, input_channel = self.model.input_shape[1:]
         if path != '':
             if not os.path.exists(path):
@@ -722,10 +731,10 @@ class SBD:
             view_width, view_height = input_width, input_height
         for path in image_paths:
             print(f'image path : {path}')
-            img, bgr, _ = self.data_generator.load_image(path, with_bgr=True)
-            boxes = self.predict(self.model, img, device=self.primary_device, verbose=True, confidence_threshold=confidence_threshold)
-            bgr = self.data_generator.resize(bgr, (view_width, view_height))
-            boxed_image = self.draw_box(bgr, boxes, show_class_with_score=show_class_with_score)
+            img, _ = self.data_generator.load_image(path)
+            img, boxes = self.predict(self.model, img, device=self.primary_device, verbose=True, confidence_threshold=confidence_threshold, heatmap=heatmap)
+            img = self.data_generator.resize(img, (view_width, view_height))
+            boxed_image = self.draw_box(img, boxes, show_class_with_score=show_class_with_score)
             cv2.imshow('res', boxed_image)
             key = cv2.waitKey(0)
             if key == 27:
@@ -777,8 +786,8 @@ class SBD:
             fs.append(self.pool.submit(self.data_generator.load_image, path))
         csv = 'ImageID,LabelName,Conf,XMin,XMax,YMin,YMax\n'
         for f in tqdm(fs, desc='predictions csv creation'):
-            img, _, path = f.result()
-            boxes = self.predict(model, img, confidence_threshold=0.001, device=device)
+            img, path = f.result()
+            _, boxes = self.predict(model, img, confidence_threshold=0.001, device=device)
             csv += self.convert_boxes_to_csv_lines(path, boxes)
         with open(csv_path, 'wt') as f:
             f.writelines(csv)
@@ -864,9 +873,9 @@ class SBD:
                 img_path = np.random.choice(self.train_image_paths)
             else:
                 img_path = np.random.choice(self.validation_image_paths)
-            img, bgr, _ = self.data_generator.load_image(img_path, with_bgr=True)
-            boxes = self.predict(self.model, img, device=self.primary_device)
-            boxed_image = self.draw_box(bgr, boxes)
+            img, _ = self.data_generator.load_image(img_path)
+            img, boxes = self.predict(self.model, img, device=self.primary_device)
+            boxed_image = self.draw_box(img, boxes)
             cv2.imshow('training view', boxed_image)
             cv2.waitKey(1)
 

@@ -661,6 +661,27 @@ class DataGenerator:
                     'iou': iou})
         return sorted(nearby_cells, key=lambda x: x['iou'], reverse=True)
 
+    def blend_heatmap(self, img, objectness, alpha=0.4):
+        img = np.asarray(img)
+        objectness = np.asarray(objectness)
+
+        img_h, img_w = img.shape[:2]
+        objectness_h, objectness_w = objectness.shape[:2]
+
+        objectness_img = np.clip(objectness * 255.0, 0.0, 255.0).astype(np.uint8).reshape((objectness_h, objectness_w, 1))
+        objectness_img = cv2.cvtColor(objectness_img, cv2.COLOR_GRAY2BGR)
+        objectness_img = cv2.resize(objectness_img, (img_w, img_h), interpolation=cv2.INTER_NEAREST)
+
+        heatmap = cv2.applyColorMap(objectness_img, cv2.COLORMAP_JET)
+
+        img = img.reshape((img_h, img_w, -1))
+        if img.shape[-1] == 1:
+            img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+
+        blended_img = cv2.addWeighted(img, alpha, heatmap, 1.0 - alpha, 0)
+
+        return blended_img
+
     def build_gt_tensor(self, labeled_boxes, y, mask, img=None):
         allocated_count = 0
         for b in labeled_boxes:
@@ -745,47 +766,37 @@ class DataGenerator:
             cv2.imshow('boxed', img_boxed)
             for i in range(self.num_output_layers):
                 print(f'\nlayer_index : {i}')
-                confidence_channel = y[i][:, :, 0]
-                print(f'confidence_channel[{i}]shape : {confidence_channel.shape}')
+                objectness = y[i][:, :, 0]
+                print(f'objectness[{i}]shape : {objectness.shape}')
                 mask_channel = mask[i][:, :, 0]
                 print(f'mask_channel[{i}].shape : {mask_channel.shape}')
                 # for class_index in range(self.num_classes):
                 #     class_channel = y[i][:, :, 5+class_index]
                 #     cv2.imshow(f'class_{class_index}[{i}]', cv2.resize(class_channel, (self.input_shape[1], self.input_shape[0]), interpolation=cv2.INTER_NEAREST))
-                confidence_channel_img = cv2.resize(confidence_channel, (self.input_shape[1], self.input_shape[0]), interpolation=cv2.INTER_NEAREST)
-                # cv2.imshow(f'confidence[{i}]', confidence_channel_img)
+                objectness_img = cv2.resize(objectness, (self.input_shape[1], self.input_shape[0]), interpolation=cv2.INTER_NEAREST)
+                # cv2.imshow(f'confidence[{i}]', objectness_img)
                 # cv2.imshow(f'mask[{i}]', cv2.resize(mask_channel, (self.input_shape[1], self.input_shape[0]), interpolation=cv2.INTER_NEAREST))
 
                 if self.num_output_layers == 1:
-                    alpha = 0.4
-                    heatmap = np.clip(confidence_channel_img * 255.0, 0.0, 255.0).astype(np.uint8)
-                    heatmap = heatmap.reshape(heatmap.shape + (1,))
-                    heatmap = np.concatenate([heatmap, heatmap, heatmap], axis=-1)
-                    heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
-                    print(f'heatmap.shape : {heatmap.shape}')
-                    if self.input_shape[-1] == 1:
-                        img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
-                    blended_img = cv2.addWeighted(img, alpha, heatmap, 1.0 - alpha, 0)
+                    blended_img = self.blend_heatmap(img, objectness)
                     cv2.imshow(f'heatmap[{i}]', blended_img)
+
                 print(f'allocated_count : {allocated_count}\n')
             key = cv2.waitKey(0)
             if key == 27:
                 self.signal_handler(None, None)
         return allocated_count
 
-    def load_image(self, path, with_bgr=False):
-        bgr = None
-        if with_bgr:
-            img = cv2.imdecode(np.fromfile(path, dtype=np.uint8), cv2.IMREAD_COLOR)
-            bgr = img.copy()
-            if self.input_shape[-1] == 1:
-                img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        else:
-            color_mode = cv2.IMREAD_GRAYSCALE if self.input_shape[-1] == 1 else cv2.IMREAD_COLOR
-            img = cv2.imdecode(np.fromfile(path, dtype=np.uint8), color_mode)
-        return img, bgr, path
+    def load_image(self, path, gray=False):
+        color_mode = cv2.IMREAD_GRAYSCALE if gray else cv2.IMREAD_COLOR
+        img = cv2.imdecode(np.fromfile(path, dtype=np.uint8), color_mode)
+        img_h, img_w = img.shape[:2]
+        img = np.asarray(img).reshape((img_h, img_w, -1))
+        return img, path
 
     def preprocess(self, img, batch_axis=False):
+        if self.input_shape[-1] == 1 and img.shape[-1] == 3:
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         if self.input_shape[-1] == 3:
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  # rb swap
         x = np.asarray(img).astype(np.float32) / 255.0
@@ -806,9 +817,9 @@ class DataGenerator:
     def load_image_with_label(self, size, mosaic):
         data, fs = [], []
         for _ in range(size):
-            fs.append(self.pool.submit(self.load_image, self.get_next_image_path()))
+            fs.append(self.pool.submit(self.load_image, self.get_next_image_path(), gray=self.input_shape[-1] == 1))
         for i in range(len(fs)):
-            img, _, path = fs[i].result()
+            img, path = fs[i].result()
             img = self.resize(img, (self.input_width, self.input_height))
             labels, label_path, label_exists = self.load_label(self.label_path(path))
             if not label_exists:
