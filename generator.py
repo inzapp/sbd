@@ -735,6 +735,11 @@ class DataGenerator:
                             # confidence_channel = y[i][:, :, 0]
                             # confidence_indices = np.where(object_heatmap > confidence_channel)
                             # confidence_channel[confidence_indices] = object_heatmap[confidence_indices]
+                            # for class_index in class_indexes:
+                            #     if class_index != self.unknown_class_index:
+                            #         class_channel = y[i][:, :, class_index+5]
+                            #         class_indices = np.where(object_heatmap > class_channel)
+                            #         class_channel[class_indices] = object_heatmap[class_indices]
 
                             confidence_mask_channel = mask[i][:, :, 0]
                             confidence_mask_indices = np.where(object_mask == 0.0)
