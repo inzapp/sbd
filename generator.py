@@ -116,7 +116,11 @@ class DataGenerator:
             is_label_exists = True
         return is_label_exists, label_path
 
-    def load_label(self, label_path):
+    def remove_duplicate_labels(self, labels):
+        unique_labels = set(tuple(label) for label in labels)
+        return [list(label) for label in unique_labels]
+
+    def load_label(self, label_path, remove_duplicate=True):
         labels = []
         label_exists = True
         if not (os.path.exists(label_path) and os.path.isfile(label_path)):
@@ -124,7 +128,9 @@ class DataGenerator:
         if label_exists:
             with open(label_path, 'rt') as f:
                 lines = f.readlines()
-                labels = [list(map(float, line.split())) for line in lines]
+            labels = [list(map(float, line.split())) for line in lines]
+            if remove_duplicate:
+                labels = self.remove_duplicate_labels(labels)
         return labels, label_path, label_exists
 
     def is_invalid_label(self, path, label, num_classes):
@@ -147,22 +153,30 @@ class DataGenerator:
     def check_label(self, image_paths, class_names, dataset_name):
         fs = []
         for path in image_paths:
-            fs.append(self.pool.submit(self.load_label, self.label_path(path)))
+            fs.append(self.pool.submit(self.load_label, self.label_path(path), remove_duplicate=False))
 
         num_classes = self.num_classes
         if self.unknown_class_index > -1:
             num_classes += 1
             Logger.info(f'using unknown class with class index {self.unknown_class_index}')
+
         invalid_label_paths = set()
+        duplicate_label_paths = set()
         not_found_label_paths = set()
         class_counts = np.zeros(shape=(num_classes,), dtype=np.int32)
         ignored_box_count = 0
+
         for f in tqdm(fs, desc=f'label check in {dataset_name} data'):
             labels, label_path, exists = f.result()
             if not exists:
                 not_found_label_paths.add(label_path)
                 continue
-            for label in labels:
+
+            unique_labels = self.remove_duplicate_labels(labels)
+            if len(unique_labels) < len(labels):
+                duplicate_label_paths.add((label_path, len(labels) - len(unique_labels)))
+
+            for label in unique_labels:
                 class_index, cx, cy, w, h = label
                 class_counts[int(class_index)] += 1
                 if self.is_invalid_label(label_path, [class_index, cx, cy, w, h], num_classes):
@@ -178,6 +192,11 @@ class DataGenerator:
             for label_path in list(not_found_label_paths):
                 Logger.warn(f'label not found : {label_path}')
             Logger.error(f'{len(not_found_label_paths)} labels not found')
+
+        if len(duplicate_label_paths) > 0:
+            print()
+            for label_path, duplicate_count in list(duplicate_label_paths):
+                Logger.warn(f'{duplicate_count} duplicate labels removed : {label_path}')
 
         if len(invalid_label_paths) > 0:
             print()
