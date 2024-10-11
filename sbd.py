@@ -693,8 +693,8 @@ class SBD:
                 break
             img, boxes = self.predict(self.model, img_bgr, device=self.primary_device, confidence_threshold=confidence_threshold, heatmap=heatmap)
             img = self.data_generator.resize(img, (view_width, view_height))
-            boxed_image = self.draw_box(img, boxes, show_class_with_score=show_class_with_score)
-            cv2.imshow('video', boxed_image)
+            img = self.draw_box(img, boxes, show_class_with_score=show_class_with_score)
+            cv2.imshow('video', img)
             key = cv2.waitKey(1)
             if key == 27:
                 exit(0)
@@ -875,7 +875,7 @@ class SBD:
                 img_path = np.random.choice(self.validation_image_paths)
             img, _ = self.data_generator.load_image(img_path)
             img, boxes = self.predict(self.model, img, device=self.primary_device, heatmap=True)
-            boxed_image = self.draw_box(img, boxes)
+            img = self.draw_box(img, boxes)
             cv2.imshow('training view', img)
             cv2.waitKey(1)
 
