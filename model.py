@@ -38,38 +38,74 @@ class Model:
         self.models['m'] = self.m
         self.models['l'] = self.l
         self.models['x'] = self.x
+        self.available_backbones = list(self.models.keys())
+        self.available_num_output_layers = ['1', 'm']
+        self.available_pyramid_scales = [2, 3, 4, 5, 6]
+        self.default_model_type = '1p3'
+
+    def is_model_type_valid(self, model_type):
+        if type(model_type) != str:
+            return False
+
+        model_type = model_type.lower()
+
+        if len(model_type) == 1:
+            if model_type in self.available_backbones:
+                model_type += self.default_model_type
+            else:
+                return False
+
+        if len(model_type) != 4:
+            return False
+
+        backbone, num_output_layers, p, pyramid_scale = list(model_type)
+
+        if backbone not in self.available_backbones:
+            return False
+
+        if num_output_layers not in self.available_num_output_layers:
+            return False
+
+        if p != 'p':
+            return False
+
+        if not pyramid_scale.isdigit():
+            return False
+
+        pyramid_scale = int(pyramid_scale)
+
+        if pyramid_scale not in self.available_pyramid_scales:
+            return False
+
+        if num_output_layers == 'm':
+            if (self.p6 and pyramid_scale == 6) or (not self.p6 and pyramid_scale == 5):
+                valid_type = f'{backbone}1p{pyramid_scale}'
+                Logger.error(f'{model_type} is same with {valid_type}, change model type to {valid_type} for clear usage')
+
+        if pyramid_scale == 6 and not self.p6:
+            Logger.warn('6 pyramid scale is only support with p6 model, change p6_model to true in cfg file, model will be built with 5 pyramid scale')
+
+        return backbone, num_output_layers, pyramid_scale
 
     def build(self, model_type):
-        is_model_type_valid = type(model_type) is str and len(model_type) == 4
-        model_type = model_type.lower()
-        if is_model_type_valid:
-            backbone = model_type[0]
-            num_output_layers = model_type[1]
-            p = model_type[2]
-            pyramid_scale = int(model_type[3])
-            if backbone not in list(self.models.keys()):
-                is_model_type_valid = False
-            if num_output_layers not in ['1', 'm']:
-                is_model_type_valid = False
-            if p != 'p':
-                is_model_type_valid = False
-            if pyramid_scale not in [2, 3, 4, 5, 6]:
-                is_model_type_valid = False
-            if pyramid_scale == 6 and not self.p6:
-                is_model_type_valid = False
-                Logger.warn('6 pyramid scale is only support with p6 model, change p6_model to True in cfg file')
-        if not is_model_type_valid:
+        valid = self.is_model_type_valid(model_type)
+        if not valid:
             Logger.error([
-                f'invalid model type => \'{model_type}\'',
-                f'model type must be combination of <backbone[n, s, m, l, x], num_output_layers[1, m], p, pyramid_scale[2, 3, 4, 5, 6(p6 only)]>',
-                f'  backbone : n, s, m, l, x',
-                f'  num output layers : 1, m(multi layer for given pyramid scale)',
-                f'  p : constant character for naming rule',
-                f'  pyramid scale : scale value for feature pyramid. max resolution scale of output layers',
+                f'invalid model type => {model_type}',
+                f'model type must be in {self.available_backbones} or custom model type',
                 f'',
-                f'ex) n1p3 : nano backbone with one output layer, 3 pyramid scale : output layer resolution is divided by 8(2^3) of input resolution',
-                f'ex) lmp2 : large backbone with multi output layer(4 output layer for pyramid sacle 2), 2 pyramid scale : output layer resolution is divided by 4(2^2) of input resolution',
-                f'ex) xmp4 : xlarge backbone with multi output layer(2 output layer for pyramid sacle 4), 4 pyramid scale : output layer resolution is divided by 16(2^4) of input resolution'])
+                r'custom model type is string for combination of "{backbone}{num_output_layers}{p}{pyramid_scale}"',
+                f'  backbone : {self.available_backbones}',
+                f'  num_output_layers : {self.available_num_output_layers}, m for multi output layers for given pyramid scale',
+                f'  p : constant character p for naming rule',
+                f'  pyramid_scale : scale value for feature pyramid. max resolution scale of output layers',
+                f'',
+                f'  if use default model type{self.available_backbones} model will be built with {self.default_model_type} type as default',
+                f'',
+                f'  ex) n1p3 : nano backbone with one output layer, 3 pyramid scale : output layer resolution is divided by 8(2^3) of input resolution',
+                f'  ex) smp4 : small backbone with multi output layer(2 output layer for pyramid sacle 4), 4 pyramid scale : output layer resolution is divided by 16(2^4) of input resolution',
+                f'  ex) xmp2 : x-large backbone with multi output layer(4 output layer for pyramid sacle 4), 4 pyramid scale : output layer resolution is divided by 4(2^2) of input resolution'])
+        backbone, num_output_layers, pyramid_scale = valid
         return self.models[backbone](num_output_layers, pyramid_scale)
 
     def n(self, num_output_layers, pyramid_scale):
@@ -216,6 +252,7 @@ class Model:
                 x = self.upsampling2d(x)
                 x = self.concat([x, layers[i]])
                 x = self.conv2d(x, filters[i], 1, bn=bn, activation=activation)
+            x = self.bn(x)
             if methods[i] == 'conv':
                 for _ in range(depths[i]):
                     x = self.conv2d(x, filters[i], kernel_sizes[i], activation=activation)
@@ -234,6 +271,7 @@ class Model:
             x_0 = self.conv2d(x_0, half_filters, kernel_size, bn=bn, activation=activation)
         x_0 = self.conv2d(x_0, filters, 1, bn=bn, activation=activation)
         x = self.add([x_0, x_1])
+        x = self.bn(x)
         x = self.conv2d(x, filters, 1, bn=bn, activation=activation)
         return x
 
