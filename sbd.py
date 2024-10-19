@@ -585,8 +585,6 @@ class SBD:
             if num_output_layers == 1:
                 objectness = y[0][:, :, :, 0][0]
                 img = self.data_generator.blend_heatmap(img, objectness)
-            else:
-                Logger.warn('heatmap is only possible with one output layer model, flag is ignored')
 
         return img, boxes
 
