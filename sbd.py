@@ -316,6 +316,7 @@ class SBD(CheckpointManager):
 
     def init_checkpoint_dir_extra(self):
         self.cfg.save(f'{self.checkpoint_path}/cfg.yaml')
+        sh.copy(self.cfg.class_names_file_path, f'{self.checkpoint_path}/classes.txt')
 
     def check_forwarding_time(self, model, context, name):
         input_shape = model.input_shape[1:]
