@@ -23,9 +23,6 @@ from ace import AdaptiveCrossentropy as ACE
 from tensorflow.python.framework.ops import convert_to_tensor_v2
 
 
-IGNORED_LOSS = -2147483640.0
-
-
 def _obj_loss(y_true, y_pred, pos_mask, mask, alpha, gamma, eps):
     obj_true = y_true[:, :, :, 0]
     obj_pred = y_pred[:, :, :, 0]

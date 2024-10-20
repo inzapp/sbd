@@ -40,12 +40,12 @@ from glob import glob
 from tqdm import tqdm
 from model import Model
 from logger import Logger
+from loss import sbd_loss
 from eta import ETACalculator
 from box_colors import colors
 from keras_flops import get_flops
 from generator import DataGenerator
 from lr_scheduler import LRScheduler
-from loss import sbd_loss, IGNORED_LOSS
 from ckpt_manager import CheckpointManager
 from time import time, sleep, perf_counter
 from map_boxes import mean_average_precision_for_boxes
@@ -335,31 +335,27 @@ class SBD(CheckpointManager):
         forwarding_time = ((et - st) / forward_count) * 1000.0
         Logger.info(f'model forwarding time with {name} : {forwarding_time:.2f} ms')
 
+    @tf.function
     def compute_gradient(self, args):
-        _strategy, _train_step, model, optimizer, loss_function, x, y_true, mask, num_output_layers, obj_alpha, obj_gamma, cls_alpha, cls_gamma, box_weight, label_smoothing = args
+        _, _, model, optimizer, loss_function, x, y_true, mask, num_output_layers, obj_alpha, obj_gamma, cls_alpha, cls_gamma, box_weight, label_smoothing = args
         with tf.GradientTape() as tape:
             y_pred = model(x, training=True)
             obj_loss, box_loss, cls_loss = 0.0, 0.0, 0.0
             if num_output_layers == 1:
-                obj_loss, box_loss, cls_loss = loss_function(
-                    y_true, y_pred, mask, obj_alpha, obj_gamma, cls_alpha, cls_gamma, box_weight, label_smoothing)
+                obj_loss, box_loss, cls_loss = loss_function(y_true, y_pred, mask, obj_alpha, obj_gamma, cls_alpha, cls_gamma, box_weight, label_smoothing)
             else:
                 for i in range(num_output_layers):
-                    _obj_loss, _box_loss, _cls_loss = loss_function(
-                         y_true[i], y_pred[i], mask[i], obj_alpha, obj_gamma, cls_alpha, cls_gamma, box_weight, label_smoothing)
+                    _obj_loss, _box_loss, _cls_loss = loss_function(y_true[i], y_pred[i], mask[i], obj_alpha, obj_gamma, cls_alpha, cls_gamma, box_weight, label_smoothing)
                     obj_loss += _obj_loss
-                    box_loss = box_loss + _box_loss if _box_loss != IGNORED_LOSS else IGNORED_LOSS
-                    cls_loss = cls_loss + _cls_loss if _cls_loss != IGNORED_LOSS else IGNORED_LOSS
-            loss = obj_loss
-            if box_loss != IGNORED_LOSS:
-                loss += box_loss
-            if cls_loss != IGNORED_LOSS:
-                loss += cls_loss
+                    box_loss += _box_loss
+                    cls_loss += _cls_loss
+            loss = obj_loss + box_loss + cls_loss
             gradients = tape.gradient(loss, model.trainable_variables)
         optimizer.apply_gradients(zip(gradients, model.trainable_variables))
         return obj_loss, box_loss, cls_loss
 
-    def distributed_train_step(self, args):
+    @tf.function
+    def compute_gradient_distributed(self, args):
         strategy, train_step, *_ = args
         obj_loss, box_loss, cls_loss = strategy.run(train_step, args=(args,))
         obj_loss = strategy.reduce(tf.distribute.ReduceOp.MEAN, obj_loss, axis=None)
@@ -371,10 +367,8 @@ class SBD(CheckpointManager):
         obj_loss, box_loss, cls_loss = loss_vars
         loss_str = f'\r{progress_str}'
         loss_str += f' obj_loss : {obj_loss:>8.4f}'
-        if box_loss != IGNORED_LOSS:
-            loss_str += f', box_loss : {box_loss:>8.4f}'
-        if cls_loss != IGNORED_LOSS:
-            loss_str += f', cls_loss : {cls_loss:>8.4f}'
+        loss_str += f', box_loss : {box_loss:>8.4f}'
+        loss_str += f', cls_loss : {cls_loss:>8.4f}'
         return loss_str
 
     def load_label_csv(self, image_path, unknown_class_index):
@@ -762,10 +756,10 @@ class SBD(CheckpointManager):
 
         self.init_checkpoint_dir(model_name=self.cfg.model_name, model_type=self.cfg.model_type, extra_function=self.init_checkpoint_dir_extra)
         iteration_count = self.pretrained_iteration_count
-        train_step = tf.function(self.compute_gradient)
-        compute_gradient_tf = train_step
-        if self.strategy is not None:
-            compute_gradient_tf = tf.function(self.distributed_train_step)
+        if len(self.cfg.devices) <= 1:
+            train_step = self.compute_gradient
+        else:
+            train_step = self.compute_gradient_distributed
         lr_scheduler = LRScheduler(iterations=self.cfg.iterations, lr=self.cfg.lr, lrf=self.cfg.lrf, warm_up=self.cfg.warm_up, policy=self.cfg.lr_policy)
         eta_calculator = ETACalculator(iterations=self.cfg.iterations, start_iteration=iteration_count)
         eta_calculator.start()
@@ -773,9 +767,9 @@ class SBD(CheckpointManager):
         while True:
             batch_x, batch_y, mask = self.train_data_generator.load()
             lr_scheduler.update(self.optimizer, iteration_count)
-            loss_vars = compute_gradient_tf((
+            loss_vars = train_step((
                 self.strategy,
-                train_step,
+                self.compute_gradient,
                 self.model,
                 self.optimizer,
                 sbd_loss,
