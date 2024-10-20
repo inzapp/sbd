@@ -496,7 +496,10 @@ class SBD(CheckpointManager):
             img, boxes = self.predict(self.model, img, context=self.primary_context, heatmap=True)
             img = self.draw_box(img, boxes)
             cv2.imshow('progress', img)
-            cv2.waitKey(1)
+            key = cv2.waitKey(1)
+            if key == 27:
+                self.cfg.show_progress = False
+                cv2.destroyAllWindows()
 
     @tf.function
     def decode_bounding_box(self, output_tensor, confidence_threshold):
