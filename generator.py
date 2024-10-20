@@ -25,6 +25,7 @@ import threading
 import numpy as np
 import albumentations as A
 
+from glob import glob
 from tqdm import tqdm
 from time import sleep
 from logger import Logger
@@ -33,82 +34,64 @@ from concurrent.futures.thread import ThreadPoolExecutor
 
 
 class DataGenerator:
-    def __init__(
-        self,
-        image_paths,
-        input_shape,
-        output_shape,
-        batch_size,
-        num_workers,
-        max_q_size,
-        unknown_class_index,
-        multi_classification_at_same_box,
-        ignore_scale,
-        virtual_anchor_iou_threshold,
-        aug_noise,
-        aug_scale,
-        aug_mosaic,
-        aug_h_flip,
-        aug_v_flip,
-        aug_contrast,
-        aug_brightness,
-        aug_snowstorm,
-        primary_device):
-        assert 0.0 <= aug_noise <= 1.0
-        assert 0.0 <= aug_scale <= 1.0
-        assert 0.0 <= aug_mosaic <= 1.0
-        assert 0.0 <= aug_contrast <= 1.0
-        assert 0.0 <= aug_brightness <= 1.0
-        assert 0.0 <= aug_snowstorm <= 1.0
-        assert max_q_size >= batch_size
-        self.debug = False
-        self.image_paths = image_paths
-        self.input_shape = input_shape
-        self.input_height, self.input_width, self.input_channel = input_shape
+    def __init__(self, cfg, output_shape, class_names, unknown_class_index, training=False, debug=False):
+        assert 0.0 <= cfg.aug_noise <= 1.0
+        assert 0.0 <= cfg.aug_scale <= 1.0
+        assert 0.0 <= cfg.aug_mosaic <= 1.0
+        assert 0.0 <= cfg.aug_contrast <= 1.0
+        assert 0.0 <= cfg.aug_brightness <= 1.0
+        assert 0.0 <= cfg.aug_snowstorm <= 1.0
+        self.cfg = cfg
+        self.training = training
+        self.debug = debug
+        self.data_paths = self.get_data_paths()
         self.output_shapes = output_shape
         if type(self.output_shapes) == tuple:
             self.output_shapes = [self.output_shapes]
         self.num_classes = self.output_shapes[0][-1] - 5
-        self.batch_size = batch_size
+        self.class_names = class_names
         self.unknown_class_index = unknown_class_index
         self.num_output_layers = len(self.output_shapes)
-        self.multi_classification_at_same_box = multi_classification_at_same_box
-        self.ignore_scale = ignore_scale
-        self.virtual_anchor_iou_threshold = virtual_anchor_iou_threshold
-        self.aug_noise = aug_noise
-        self.aug_scale = aug_scale
-        self.aug_mosaic = aug_mosaic
-        self.aug_h_flip = aug_h_flip
-        self.aug_v_flip = aug_v_flip
-        self.aug_contrast = aug_contrast
-        self.aug_brightness = aug_brightness
-        self.aug_snowstorm = aug_snowstorm
-        self.primary_device = primary_device
+
+        self.data_index = 0
         self.virtual_anchor_ws = []
         self.virtual_anchor_hs = []
         self.ws, self.hs = [], []
-        self.img_index = 0
         self.lock = threading.Lock()
-        self.max_q_size = max_q_size
         self.q_thread = threading.Thread(target=self.load_xy_into_q)
         self.q_thread.daemon = True
         self.q = deque()
         self.q_thread_running = False
         self.q_thread_pause = False
-        self.q_indices = list(range(self.max_q_size))
-        self.pool = ThreadPoolExecutor(num_workers)
-        np.random.shuffle(self.image_paths)
+        self.q_indices = list(range(self.cfg.max_q_size))
+        self.pool = ThreadPoolExecutor(8)
+        np.random.shuffle(self.data_paths)
         self.transform = A.Compose([
             A.ToGray(p=0.01),
-            A.RandomBrightnessContrast(brightness_limit=aug_brightness, contrast_limit=0.0, p=0.5),
-            A.Lambda(name='random_noise', image=self.random_noise, p=0.5),
-            A.Lambda(name='random_contrast', image=self.random_contrast, p=0.5),
-            A.Lambda(name='random_snowstorm', image=self.random_snowstorm, p=self.aug_snowstorm),
+            A.RandomBrightnessContrast(brightness_limit=self.cfg.aug_brightness, contrast_limit=0.0, p=0.5),
+            A.Lambda(name='augment_noise', image=self.augment_noise, p=0.5),
+            A.Lambda(name='augment_contrast', image=self.augment_contrast, p=0.5),
+            A.Lambda(name='augment_snowstorm', image=self.augment_snowstorm, p=self.cfg.aug_snowstorm),
             A.GaussianBlur(p=0.5, blur_limit=(5, 5))
         ])
 
-    def label_path(self, image_path):
-        return f'{image_path[:-4]}.txt'
+    def get_data_paths(self):
+        if self.training:
+            data_path = self.cfg.train_data_path
+        else:
+            data_path = self.cfg.validation_data_path
+
+        if data_path.endswith('.txt'):
+            with open(data_path, 'rt') as f:
+                data_paths = f.readlines()
+            for i in range(len(data_paths)):
+                data_paths[i] = data_paths[i].replace('\n', '')
+        else:
+            data_paths = glob(f'{data_path}/**/*.jpg', recursive=True)
+        return data_paths
+
+    def label_path(self, data_path):
+        return f'{data_path[:-4]}.txt'
 
     def is_label_exists(self, label_path):
         is_label_exists = False
@@ -148,11 +131,11 @@ class DataGenerator:
             return False
 
     def is_too_small_box(self, w, h):
-        return int(w * self.input_shape[1]) <= 3 or int(h * self.input_shape[0]) <= 3
+        return int(w * self.cfg.input_cols) <= 3 or int(h * self.cfg.input_rows) <= 3
 
-    def check_label(self, image_paths, class_names, dataset_name):
+    def check_label(self):
         fs = []
-        for path in image_paths:
+        for path in self.data_paths:
             fs.append(self.pool.submit(self.load_label, self.label_path(path), remove_duplicate=False))
 
         num_classes = self.num_classes
@@ -166,6 +149,7 @@ class DataGenerator:
         class_counts = np.zeros(shape=(num_classes,), dtype=np.int32)
         ignored_box_count = 0
 
+        dataset_name = 'train' if self.training else 'validation'
         for f in tqdm(fs, desc=f'label check in {dataset_name} data'):
             labels, label_path, exists = f.result()
             if not exists:
@@ -205,14 +189,14 @@ class DataGenerator:
             Logger.error(f'{len(invalid_label_paths)} invalid label exists fix it')
 
         max_class_name_len = 0
-        for name in class_names:
+        for name in self.class_names:
             max_class_name_len = max(max_class_name_len, len(name))
         if max_class_name_len == 0:
             max_class_name_len = 1
 
         Logger.info(f'class counts')
         for i in range(len(class_counts)):
-            class_name = class_names[i]
+            class_name = self.class_names[i]
             class_count = class_counts[i]
             Logger.info(f'{class_name:{max_class_name_len}s} : {class_count}')
 
@@ -242,7 +226,7 @@ class DataGenerator:
         return x1, y1, x2, y2
 
     def get_iou_with_virtual_anchors(self, box):
-        if self.num_output_layers == 1 or self.virtual_anchor_iou_threshold == 0.0:
+        if self.num_output_layers == 1 or self.cfg.va_iou_threshold == 0.0:
             return [[i, 1.0] for i in range(self.num_output_layers)]
 
         cx, cy, w, h = box
@@ -265,7 +249,7 @@ class DataGenerator:
             Logger.info('skip calculating virtual anchor when output layer size is 1')
             return
 
-        if self.virtual_anchor_iou_threshold == 0.0:
+        if self.cfg.va_iou_threshold == 0.0:
             self.virtual_anchor_ws = [0.5 for _ in range(self.num_output_layers)]
             self.virtual_anchor_hs = [0.5 for _ in range(self.num_output_layers)]
             Logger.info(f'training with va_iou_threshold 0.0 doesn\'t need virtual anchor, skip')
@@ -312,11 +296,11 @@ class DataGenerator:
         avg_iou_between_va = iou_between_va_sum / (num_cluster - 1)
         Logger.info(f'average IoU between virtual anchor : {avg_iou_between_va:.4f}\n')
         if avg_iou_between_va > 0.5:
-            Logger.warn(f'High IoU(>0.5) between virtual anchors may degrade mAP due to scale constraint. Consider using one output layer model instead\n')
+            Logger.warn(f'high IoU(>0.5) between virtual anchors may degrade mAP due to scale constraint. consider using one output layer model instead\n')
 
         if print_avg_iou:
             fs = []
-            for path in self.image_paths:
+            for path in self.data_paths:
                 fs.append(self.pool.submit(self.load_label, self.label_path(path)))
             labeled_boxes = []
             for f in tqdm(fs, desc='load box data for calculating avg IoU'):
@@ -339,7 +323,7 @@ class DataGenerator:
             return
 
         fs = []
-        for path in self.image_paths:
+        for path in self.data_paths:
             fs.append(self.pool.submit(self.load_label, self.label_path(path)))
 
         y_true_obj_count = 0
@@ -353,7 +337,7 @@ class DataGenerator:
             allocated_count = self.build_gt_tensor(labeled_boxes, batch_y, batch_mask, 0)
             y_true_obj_count += allocated_count
 
-        avg_obj_count_per_image = box_count_in_real_data / float(len(self.image_paths))
+        avg_obj_count_per_image = box_count_in_real_data / float(len(self.data_paths))
         y_true_obj_count = int(y_true_obj_count)
         not_trained_obj_count = box_count_in_real_data - (box_count_in_real_data if y_true_obj_count > box_count_in_real_data else y_true_obj_count)
         trained_obj_rate = y_true_obj_count / box_count_in_real_data * 100.0
@@ -375,19 +359,19 @@ class DataGenerator:
             img = cv2.resize(img, size, interpolation=cv2.INTER_LINEAR)
         return img
 
-    def random_noise(self, img, **kwargs):
-        if self.aug_noise > 0.0:
+    def augment_noise(self, img, **kwargs):
+        if self.cfg.aug_noise > 0.0:
             img = np.array(img).astype(np.float32)
-            noise_power = np.random.uniform() * (self.aug_noise * 255.0)
+            noise_power = np.random.uniform() * (self.cfg.aug_noise * 255.0)
             img_h, img_w = img.shape[:2]
             img = img.reshape((img_h, img_w, -1))
-            img += np.random.uniform(-noise_power, noise_power, size=(img_h, img_w, self.input_channel))
+            img += np.random.uniform(-noise_power, noise_power, size=(img_h, img_w, self.cfg.input_channels))
             img = np.clip(img, 0.0, 255.0).astype(np.uint8)
         return img
 
-    def random_contrast(self, img, **kwargs):
-        if self.aug_contrast > 0.0:
-            power = np.random.uniform() * self.aug_contrast
+    def augment_contrast(self, img, **kwargs):
+        if self.cfg.aug_contrast > 0.0:
+            power = np.random.uniform() * self.cfg.aug_contrast
             img_f = np.asarray(img).astype(np.float32)
             contrast_offset = (127.5 - img_f) * power
             if np.random.uniform() < 0.5:
@@ -397,7 +381,7 @@ class DataGenerator:
             img = np.clip(img_f, 0.0, 255.0).astype(np.uint8)
         return img
 
-    def random_snowstorm(self, img, **kwargs):
+    def augment_snowstorm(self, img, **kwargs):
         img_h, img_w = img.shape[:2]
         num_snowflakes_range = (50, 200)
         snowflake_length_range = (10, max(min(img_w, img_h) // 3, 10))
@@ -432,15 +416,15 @@ class DataGenerator:
             cv2.polylines(img, [snowflake_points.astype(np.int32)], isClosed=False, color=color, thickness=thickness)
         return img
 
-    def random_scale(self, img, labels, scale_range):
+    def augment_scale(self, img, labels, scale_range):
         def overlay(img, overlay_img, start_x, start_y, channels):
-            overlay_img_height, overlay_img_width = overlay_img.shape[:2]
-            y_slice = slice(start_y, start_y + overlay_img_height)
-            x_slice = slice(start_x, start_x + overlay_img_width)
+            overlay_img_h, overlay_img_w = overlay_img.shape[:2]
+            y_slice = slice(start_y, start_y + overlay_img_h)
+            x_slice = slice(start_x, start_x + overlay_img_w)
             if channels == 1:
-                img[y_slice, x_slice] = overlay_img[:overlay_img_height, :overlay_img_width]
+                img[y_slice, x_slice] = overlay_img[:overlay_img_h, :overlay_img_w]
             else:
-                img[y_slice, x_slice, :] = overlay_img[:overlay_img_height, :overlay_img_width, :]
+                img[y_slice, x_slice, :] = overlay_img[:overlay_img_h, :overlay_img_w, :]
             return img
 
         scale_range = max(scale_range, 0.01)
@@ -467,9 +451,9 @@ class DataGenerator:
         if np.random.uniform() < 0.5:  # downscale
             reduced_img = cv2.resize(img, (0, 0), fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
             if channels == 1:
-                black = np.zeros(shape=(self.input_shape[0], self.input_shape[1]), dtype=np.uint8)
+                black = np.zeros(shape=(self.cfg.input_rows, self.cfg.input_cols), dtype=np.uint8)
             else:
-                black = np.zeros(shape=(self.input_shape[0], self.input_shape[1], channels), dtype=np.uint8)
+                black = np.zeros(shape=(self.cfg.input_rows, self.cfg.input_cols, channels), dtype=np.uint8)
 
             scaled_img = overlay(black, reduced_img, start_x, start_y, channels)
             for label in labels:
@@ -510,7 +494,7 @@ class DataGenerator:
                     new_labels.append([class_index, cx, cy, w, h])
         return scaled_img, new_labels
 
-    def random_flip(self, img, labels, aug_h_flip, aug_v_flip):
+    def augment_flip(self, img, labels, aug_h_flip, aug_v_flip):
         method = ''
         if aug_h_flip and aug_v_flip:
             method = 'a'
@@ -572,27 +556,27 @@ class DataGenerator:
         return img, new_labels
 
     def augment(self, img, labels, mosaic):
-        if self.aug_brightness > 0.0 or self.aug_contrast > 0.0:
+        if self.cfg.aug_brightness > 0.0 or self.cfg.aug_contrast > 0.0:
             img = self.transform(image=img)['image']
 
-        if (self.aug_h_flip or self.aug_v_flip) and np.random.uniform() < 0.5:
-            img, labels = self.random_flip(img, labels, self.aug_h_flip, self.aug_v_flip)
+        if (self.cfg.aug_h_flip or self.cfg.aug_v_flip) and np.random.uniform() < 0.5:
+            img, labels = self.augment_flip(img, labels, self.cfg.aug_h_flip, self.cfg.aug_v_flip)
 
-        if self.aug_scale > 0.0 and np.random.uniform() < 0.5:
-            img, labels = self.random_scale(img, labels, self.aug_scale)
+        if self.cfg.aug_scale > 0.0 and np.random.uniform() < 0.5:
+            img, labels = self.augment_scale(img, labels, self.cfg.aug_scale)
 
         if mosaic:
-            if self.aug_mosaic > 0.0 and np.random.uniform() < self.aug_mosaic:
+            if self.cfg.aug_mosaic > 0.0 and np.random.uniform() < self.cfg.aug_mosaic:
                 mosaic_data = self.load_image_with_label(size=3, mosaic=False)
                 mosaic_data.append({'img': img, 'labels': labels})
                 img, labels = self.random_mosaic(mosaic_data)
-                if self.aug_scale > 0.0 and np.random.uniform() < 0.5:
-                    img, labels = self.random_scale(img, labels, self.aug_scale)
+                if self.cfg.aug_scale > 0.0 and np.random.uniform() < 0.5:
+                    img, labels = self.augment_scale(img, labels, self.cfg.aug_scale)
         return img, labels
 
     def convert_to_boxes(self, labels):
         def get_same_box_index(labeled_boxes, cx, cy, w, h):
-            if self.multi_classification_at_same_box:
+            if self.cfg.multi_classification_at_same_box:
                 box_str = f'{cx:.6f}_{cy:.6f}_{w:.6f}_{h:.6f}'
                 for i in range(len(labeled_boxes)):
                     box_cx, box_cy, box_w, box_h = labeled_boxes[i]['cx'], labeled_boxes[i]['cy'], labeled_boxes[i]['w'], labeled_boxes[i]['h']
@@ -711,7 +695,7 @@ class DataGenerator:
             best_iou_indexes = self.get_iou_with_virtual_anchors([cx, cy, w, h])
             is_box_allocated = False
             for i, virtual_anchor_iou in best_iou_indexes:
-                if is_box_allocated and virtual_anchor_iou < self.virtual_anchor_iou_threshold:
+                if is_box_allocated and virtual_anchor_iou < self.cfg.va_iou_threshold:
                     break
                 output_rows = float(self.output_shapes[i][1])
                 output_cols = float(self.output_shapes[i][2])
@@ -746,8 +730,8 @@ class DataGenerator:
                     offset_center_row = center_row + offset_y
                     offset_center_col = center_col + offset_x
                     if y[i][offset_center_row][offset_center_col][0] == 0.0:
-                        if 0.0 < self.ignore_scale <= 1.0:
-                            half_scale = max(self.ignore_scale * 0.5, 1e-5)
+                        if 0.0 < self.cfg.ignore_scale <= 1.0:
+                            half_scale = max(self.cfg.ignore_scale * 0.5, 1e-5)
                             object_heatmap = 1.0 - np.clip((np.abs(rr - center_row_f) / (h * half_scale)) ** 2 + (np.abs(cc - center_col_f) / (w * half_scale)) ** 2, 0.0, 1.0) ** 0.5
                             object_mask = np.where(object_heatmap == 0.0, 1.0, 0.0)
 
@@ -782,10 +766,10 @@ class DataGenerator:
             img_boxed = np.array(img)
             for bb in labeled_boxes:
                 x1, y1, x2, y2 = self.cxcywh2x1y1x2y2(bb['cx'], bb['cy'], bb['w'], bb['h'])
-                x1 = int(x1 * self.input_shape[1])
-                y1 = int(y1 * self.input_shape[0])
-                x2 = min(int(x2 * self.input_shape[1]), self.input_shape[1]-1)
-                y2 = min(int(y2 * self.input_shape[0]), self.input_shape[0]-1)
+                x1 = int(x1 * self.cfg.input_cols)
+                y1 = int(y1 * self.cfg.input_rows)
+                x2 = min(int(x2 * self.cfg.input_cols), self.cfg.input_cols-1)
+                y2 = min(int(y2 * self.cfg.input_rows), self.cfg.input_rows-1)
                 img_boxed = cv2.rectangle(img_boxed, (x1, y1), (x2, y2), (0, 255, 0), 1)
             cv2.imshow('boxed', img_boxed)
             for i in range(self.num_output_layers):
@@ -796,10 +780,10 @@ class DataGenerator:
                 print(f'mask_channel[{i}].shape : {mask_channel.shape}')
                 # for class_index in range(self.num_classes):
                 #     class_channel = y[i][:, :, 5+class_index]
-                #     cv2.imshow(f'class_{class_index}[{i}]', cv2.resize(class_channel, (self.input_shape[1], self.input_shape[0]), interpolation=cv2.INTER_NEAREST))
-                objectness_img = cv2.resize(objectness, (self.input_shape[1], self.input_shape[0]), interpolation=cv2.INTER_NEAREST)
+                #     cv2.imshow(f'class_{class_index}[{i}]', cv2.resize(class_channel, (self.cfg.input_cols, self.cfg.input_rows), interpolation=cv2.INTER_NEAREST))
+                objectness_img = cv2.resize(objectness, (self.cfg.input_cols, self.cfg.input_rows), interpolation=cv2.INTER_NEAREST)
                 # cv2.imshow(f'confidence[{i}]', objectness_img)
-                # cv2.imshow(f'mask[{i}]', cv2.resize(mask_channel, (self.input_shape[1], self.input_shape[0]), interpolation=cv2.INTER_NEAREST))
+                # cv2.imshow(f'mask[{i}]', cv2.resize(mask_channel, (self.cfg.input_cols, self.cfg.input_rows), interpolation=cv2.INTER_NEAREST))
 
                 if self.num_output_layers == 1:
                     blended_img = self.blend_heatmap(img, objectness)
@@ -814,14 +798,12 @@ class DataGenerator:
     def load_image(self, path, gray=False):
         color_mode = cv2.IMREAD_GRAYSCALE if gray else cv2.IMREAD_COLOR
         img = cv2.imdecode(np.fromfile(path, dtype=np.uint8), color_mode)
-        img_h, img_w = img.shape[:2]
-        img = np.asarray(img).reshape((img_h, img_w, -1))
         return img, path
 
     def preprocess(self, img, batch_axis=False):
-        if self.input_shape[-1] == 1 and img.shape[-1] == 3:
+        if self.cfg.input_channels == 1 and img.shape[-1] == 3:
             img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        if self.input_shape[-1] == 3:
+        if self.cfg.input_channels == 3:
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  # rb swap
         x = np.asarray(img).astype(np.float32) / 255.0
         if len(x.shape) == 2:
@@ -830,26 +812,27 @@ class DataGenerator:
             x = x.reshape((1,) + x.shape)
         return x
 
-    def get_next_image_path(self):
-        path = self.image_paths[self.img_index]
-        self.img_index += 1
-        if self.img_index == len(self.image_paths):
-            self.img_index = 0
-            np.random.shuffle(self.image_paths)
+    def next_data_path(self):
+        path = self.data_paths[self.data_index]
+        self.data_index += 1
+        if self.data_index == len(self.data_paths):
+            self.data_index = 0
+            np.random.shuffle(self.data_paths)
         return path
 
     def load_image_with_label(self, size, mosaic):
         data, fs = [], []
         for _ in range(size):
-            fs.append(self.pool.submit(self.load_image, self.get_next_image_path(), gray=self.input_shape[-1] == 1))
+            fs.append(self.pool.submit(self.load_image, self.next_data_path(), gray=self.cfg.input_channels == 1))
         for i in range(len(fs)):
             img, path = fs[i].result()
-            img = self.resize(img, (self.input_width, self.input_height))
+            img = self.resize(img, (self.cfg.input_cols, self.cfg.input_rows))
             labels, label_path, label_exists = self.load_label(self.label_path(path))
             if not label_exists:
                 Logger.warn(f'label not found : {label_path}')
                 continue
-            img, labels = self.augment(img, labels, mosaic=mosaic)
+            if self.training:
+                img, labels = self.augment(img, labels, mosaic=mosaic)
             data.append({'img': img, 'labels': labels})
         return data
 
@@ -867,10 +850,10 @@ class DataGenerator:
         signal.signal(signal.SIGINT, self.signal_handler)
         while True:
             sleep(1.0)
-            percentage = (len(self.q) / self.max_q_size) * 100.0
+            percentage = (len(self.q) / self.cfg.max_q_size) * 100.0
             Logger.info(f'prefetching training data... {percentage:.1f}%')
             with self.lock:
-                if len(self.q) >= self.max_q_size:
+                if len(self.q) >= self.cfg.max_q_size:
                     print()
                     break
 
@@ -906,7 +889,7 @@ class DataGenerator:
             else:
                 x, y, mask = self.load_xy()
                 with self.lock:
-                    if len(self.q) == self.max_q_size:
+                    if len(self.q) == self.cfg.max_q_size:
                         self.q.popleft()
                     self.q.append((x, y, mask))
 
@@ -917,7 +900,7 @@ class DataGenerator:
         else:
             batch_y = [[] for _ in range(self.num_output_layers)]
             batch_m = [[] for _ in range(self.num_output_layers)]
-        for i in np.random.choice(self.q_indices, self.batch_size, replace=False):
+        for i in np.random.choice(self.q_indices, self.cfg.batch_size, replace=False):
             with self.lock:
                 if self.debug:
                     x, y, m = self.load_xy()
@@ -931,13 +914,13 @@ class DataGenerator:
                     for j in range(self.num_output_layers):
                         batch_y[j].append(np.array(y[j]))
                         batch_m[j].append(np.array(m[j]))
-        batch_x = np.asarray(batch_x).reshape((self.batch_size,) + self.input_shape).astype(np.float32)
+        batch_x = np.asarray(batch_x).reshape((self.cfg.batch_size, self.cfg.input_rows, self.cfg.input_cols, self.cfg.input_channels)).astype(np.float32)
         if self.num_output_layers == 1:
-            batch_y = np.asarray(batch_y).reshape((self.batch_size,) + self.output_shapes[0][1:]).astype(np.float32)
-            batch_m = np.asarray(batch_m).reshape((self.batch_size,) + self.output_shapes[0][1:]).astype(np.float32)
+            batch_y = np.asarray(batch_y).reshape((self.cfg.batch_size,) + self.output_shapes[0][1:]).astype(np.float32)
+            batch_m = np.asarray(batch_m).reshape((self.cfg.batch_size,) + self.output_shapes[0][1:]).astype(np.float32)
         else:
             for i in range(self.num_output_layers):
-                batch_y[i] = np.asarray(batch_y[i]).reshape((self.batch_size,) + self.output_shapes[i][1:]).astype(np.float32)
-                batch_m[i] = np.asarray(batch_m[i]).reshape((self.batch_size,) + self.output_shapes[i][1:]).astype(np.float32)
+                batch_y[i] = np.asarray(batch_y[i]).reshape((self.cfg.batch_size,) + self.output_shapes[i][1:]).astype(np.float32)
+                batch_m[i] = np.asarray(batch_m[i]).reshape((self.cfg.batch_size,) + self.output_shapes[i][1:]).astype(np.float32)
         return batch_x, batch_y, batch_m
 

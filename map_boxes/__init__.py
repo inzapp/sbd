@@ -147,7 +147,7 @@ def calculate_f1_score(num_annotations, true_positives, false_positives, scores,
     return ret
 
 
-def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_threshold_for_f1=0.25, exclude_not_in_annotations=False, verbose=True, find_best_threshold=False, classes_txt_path=''):
+def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_threshold_for_f1=0.25, exclude_not_in_annotations=False, verbose=True, find_best_threshold=False, classes_txt_path='', return_extra_data=False):
     """
     :param ann: path to CSV-file with annotations or numpy array of shape (N, 6)
     :param pred: path to CSV-file with predictions (detections) or numpy array of shape (N, 7)
@@ -351,5 +351,8 @@ def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_th
     tp_confidence = total_tp_confidence_sum / (total_tp + eps)
     class_name = 'total'
     txt_content = _print(f'\n{class_name:{max_class_name_len}s} AP: {mean_ap:.4f}, Labels: {total_obj_count:6d}, TP: {total_tp:6d}, FP: {total_fp:6d}, FN: {total_fn:6d}, P: {p:.4f}, R: {r:.4f}, F1: {f1:.4f}, IoU: {tp_iou:.4f}, Confidence: {tp_confidence:.4f}', txt_content, verbose)
-    return mean_ap, f1, tp_iou, total_tp, total_fp, total_obj_count - total_tp, tp_confidence, txt_content
+    if return_extra_data:
+        return mean_ap, f1, tp_iou, total_tp, total_fp, total_obj_count - total_tp, tp_confidence, txt_content
+    else:
+        return mean_ap, txt_content
 

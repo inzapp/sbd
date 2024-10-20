@@ -19,18 +19,19 @@ limitations under the License.
 """
 import argparse
 
-from sbd import SBD
+from sbd import SBD, TrainingConfig
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--cfg', type=str, default='cfg.yaml', help='path of training configuration file')
-    parser.add_argument('--model', type=str, default='best.h5', help='pretrained model path for detection')
+    parser.add_argument('--model', type=str, default='auto', help='pretrained model path for detection')
     parser.add_argument('--path', type=str, required=True, default='PATH_WAS_NOT_GIVEN', help='image dir path for auto labeling')
     parser.add_argument('--conf', type=float, default=0.3, help='confidence threshold for detection')
     parser.add_argument('--cpu', action='store_true', help='run with cpu device')
     parser.add_argument('--r', action='store_true', help='save auto label with recursively')
     args = parser.parse_args()
-    sbd = SBD(cfg_path=args.cfg, training=False)
-    sbd.load_model(args.model)
+    cfg = TrainingConfig(cfg_path=args.cfg)
+    cfg.set_config('pretrained_model_path', args.model)
+    sbd = SBD(cfg=cfg)
     sbd.auto_label(image_path=args.path, confidence_threshold=args.conf, cpu=args.cpu, recursive=args.r)

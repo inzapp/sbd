@@ -23,13 +23,10 @@ from logger import Logger
 
 
 class Model:
-    def __init__(self, input_shape, output_channel, p6, l2, drop_rate, activation):
-        self.input_shape = input_shape
-        self.output_channel = output_channel
-        self.p6 = p6
-        self.l2 = l2
-        self.drop_rate = drop_rate
-        self.activation = activation
+    def __init__(self, cfg, num_classes):
+        self.cfg = cfg
+        self.num_classes = num_classes
+        self.input_shape = (self.cfg.input_rows, self.cfg.input_cols, self.cfg.input_channels)
         self.fused_activations = ['linear', 'relu', 'sigmoid', 'tanh', 'softplus']
         self.available_activations = self.fused_activations + ['leaky', 'silu', 'swish', 'mish']
         self.models = dict()
@@ -78,16 +75,16 @@ class Model:
             return False
 
         if num_output_layers == 'm':
-            if (self.p6 and pyramid_scale == 6) or (not self.p6 and pyramid_scale == 5):
+            if (self.cfg.p6_model and pyramid_scale == 6) or (not self.cfg.p6_model and pyramid_scale == 5):
                 valid_type = f'{backbone}1p{pyramid_scale}'
                 Logger.error(f'{model_type} is same with {valid_type}, change model type to {valid_type} for clear usage')
 
-        if pyramid_scale == 6 and not self.p6:
+        if pyramid_scale == 6 and not self.cfg.p6_model:
             Logger.warn('6 pyramid scale is only support with p6 model, change p6_model to true in cfg file, model will be built with 5 pyramid scale')
 
         return backbone, num_output_layers, pyramid_scale
 
-    def build(self, model_type):
+    def build(self, strategy, optimizer, model_type):
         valid = self.is_model_type_valid(model_type)
         if not valid:
             Logger.error([
@@ -106,7 +103,10 @@ class Model:
                 f'  ex) smp4 : small backbone with multi output layer(2 output layer for pyramid sacle 4), 4 pyramid scale : output layer resolution is divided by 16(2^4) of input resolution',
                 f'  ex) xmp2 : x-large backbone with multi output layer(4 output layer for pyramid sacle 4), 4 pyramid scale : output layer resolution is divided by 4(2^2) of input resolution'])
         backbone, num_output_layers, pyramid_scale = valid
-        return self.models[backbone](num_output_layers, pyramid_scale)
+        with strategy.scope():
+            model = self.models[backbone](num_output_layers, pyramid_scale)
+            model.compile(optimizer=optimizer)
+        return model
 
     def n(self, num_output_layers, pyramid_scale):
         layer_infos = [
@@ -176,7 +176,7 @@ class Model:
     def build_layers(self, layer_infos, num_output_layers, pyramid_scale):
         assert len(layer_infos) == 8 and layer_infos[-1][0] == 'head'
         features = []
-        if not self.p6:
+        if not self.cfg.p6_model:
             layer_infos.pop(6)
         input_layer = tf.keras.layers.Input(shape=self.input_shape, name='sbd_input')
         x = input_layer
@@ -187,31 +187,31 @@ class Model:
                     x = self.dropout(x)
                 if method == 'conv':
                     for _ in range(depth):
-                        x = self.conv2d(x, channel, kernel_size, self.activation)
+                        x = self.conv2d(x, channel, kernel_size, self.cfg.activation)
                 else:
-                    x = self.csp_block(x, channel, kernel_size, depth, self.activation)
+                    x = self.csp_block(x, channel, kernel_size, depth, self.cfg.activation)
                 features.append(x)
             elif method == 'head':
-                if self.p6:
+                if self.cfg.p6_model:
                     num_upscaling = 6 - pyramid_scale
                     num_upscaling_spp = 4
                 else:
                     num_upscaling = 5 - pyramid_scale
                     num_upscaling_spp = 3
-                # x = self.spp_block(x, list(reversed(features))[1:num_upscaling_spp+1], self.activation)
+                # x = self.spp_block(x, list(reversed(features))[1:num_upscaling_spp+1], self.cfg.activation)
                 if num_upscaling > 0:
                     ms = list(reversed([v[0] for v in layer_infos]))[2:num_upscaling+2]
                     ks = list(reversed([v[1] for v in layer_infos]))[2:num_upscaling+2]
                     cs = list(reversed([v[2] for v in layer_infos]))[2:num_upscaling+2]
                     ds = list(reversed([v[3] for v in layer_infos]))[2:num_upscaling+2]
                     fs = list(reversed(features))[1:num_upscaling+1]
-                    x = self.fpn_block(x, ms, fs, cs, ks, ds, self.activation, return_layers=num_output_layers == 'm')
+                    x = self.fpn_block(x, ms, fs, cs, ks, ds, self.cfg.activation, return_layers=num_output_layers == 'm')
                 if type(x) is not list:
                     x = [x]
             else:
                 Logger.error(f'invalid layer info method : {method}, available method : [conv, csp, head]')
-            if i < (6 if self.p6 else 5):
-                x = self.conv2d(x, channel, kernel_size, self.activation, strides=2)
+            if i < (6 if self.cfg.p6_model else 5):
+                x = self.conv2d(x, channel, kernel_size, self.cfg.activation, strides=2)
 
         output_layers = []
         for i in range(len(x)):
@@ -296,7 +296,7 @@ class Model:
 
     def detection_layer(self, x, name='sbd_output'):
         return tf.keras.layers.Conv2D(
-            filters=self.output_channel,
+            filters=self.num_classes + 5,
             kernel_size=1,
             activation='sigmoid',
             name=name)(x)
@@ -326,10 +326,10 @@ class Model:
         return tf.keras.initializers.zeros()
 
     def kernel_regularizer(self):
-        return tf.keras.regularizers.l2(l2=self.l2) if self.l2 > 0.0 else None
+        return tf.keras.regularizers.l2(l2=self.cfg.l2) if self.cfg.l2 > 0.0 else None
 
     def dropout(self, x):
-        return tf.keras.layers.Dropout(self.drop_rate)(x) if self.drop_rate > 0.0 else x
+        return tf.keras.layers.Dropout(self.cfg.dropout)(x) if self.cfg.dropout > 0.0 else x
 
     @staticmethod
     def maxpool2d(x, pool_size=2):

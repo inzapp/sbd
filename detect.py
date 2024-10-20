@@ -19,13 +19,13 @@ limitations under the License.
 """
 import argparse
 
-from sbd import SBD
+from sbd import SBD, TrainingConfig
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--cfg', type=str, default='cfg.yaml', help='path of training configuration file')
-    parser.add_argument('--model', type=str, default='best.h5', help='pretrained model path for detection')
+    parser.add_argument('--model', type=str, default='auto', help='pretrained model path for detection')
     parser.add_argument('--conf', type=float, default=0.2, help='confidence threshold for detection')
     parser.add_argument('--path', type=str, default='', help='image or video path for detection')
     parser.add_argument('--width', type=int, default=0, help='width for showing detection result')
@@ -34,8 +34,9 @@ if __name__ == '__main__':
     parser.add_argument('--dataset', type=str, default='validation', help='dataset name for prediction. train or validation')
     parser.add_argument('--heatmap', action='store_true', help='show objectness heatmap blended image')
     args = parser.parse_args()
-    sbd = SBD(cfg_path=args.cfg, training=False)
-    sbd.load_model(args.model)
+    cfg = TrainingConfig(cfg_path=args.cfg)
+    cfg.set_config('pretrained_model_path', args.model)
+    sbd = SBD(cfg=cfg)
     if args.path.endswith('.mp4') or args.path.startswith('rtsp://'):
         sbd.predict_video(path=args.path, confidence_threshold=args.conf, show_class_with_score=not args.noclass, width=args.width, height=args.height, heatmap=args.heatmap)
     else:

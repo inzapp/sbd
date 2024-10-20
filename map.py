@@ -19,14 +19,13 @@ limitations under the License.
 """
 import argparse
 
-from sbd import SBD
+from sbd import SBD, TrainingConfig
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--cfg', type=str, default='cfg.yaml', help='path of training configuration file')
-    parser.add_argument('--model', type=str, default='best.h5', help='pretrained model path for detection')
-    parser.add_argument('--save', action='store_true', help='save another model with calculated mAP result naming')
+    parser.add_argument('--model', type=str, default='auto', help='pretrained model path for detection')
     parser.add_argument('--cached', action='store_true', help='use pre-saved csv files for mAP calculation')
     parser.add_argument('--find-best-threshold', action='store_true', help='find best confidence threshold for f1 score')
     parser.add_argument('--iou', type=float, default=0.5, help='true positive threshold for intersection over union')
@@ -35,8 +34,9 @@ if __name__ == '__main__':
     parser.add_argument('--truecsv', type=str, default='annotations.csv', help='annotations csv path for cached mAP calculation')
     parser.add_argument('--predcsv', type=str, default='predictions.csv', help='predictions csv path for cached mAP calculation')
     args = parser.parse_args()
-    sbd = SBD(cfg_path=args.cfg, training=False)
-    sbd.load_model(args.model)
+    cfg = TrainingConfig(cfg_path=args.cfg)
+    cfg.set_config('pretrained_model_path', args.model)
+    sbd = SBD(cfg=cfg)
     sbd.evaluate(
         dataset=args.dataset,
         confidence_threshold=args.conf,
