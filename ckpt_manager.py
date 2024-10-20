@@ -106,7 +106,7 @@ class CheckpointManager:
     def get_last_model_path(self, path):
         model_path = None
         paths = glob(f'{path}/last*.h5')
-        if len(path) > 0:
+        if len(paths) > 0:
             model_path = paths[0]
         return model_path
 
@@ -131,7 +131,7 @@ class CheckpointManager:
     def get_best_model_path(self, path):
         model_path = None
         paths = glob(f'{path}/best*.h5')
-        if len(path) > 0:
+        if len(paths) > 0:
             model_path = paths[0]
         return model_path
 
