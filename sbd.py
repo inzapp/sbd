@@ -55,9 +55,9 @@ from concurrent.futures.thread import ThreadPoolExecutor
 class TrainingConfig:
     def __init__(self, cfg_path):
         self.__d = self.load(cfg_path)
-        self.set_attribute()
+        self.sync_attribute()
 
-    def set_attribute(self):
+    def sync_attribute(self):
         for key, value in self.__d.items():
             setattr(self, key, value)
 
@@ -74,7 +74,7 @@ class TrainingConfig:
 
     def set_config(self, key, value):
         self.__d[key] = value
-        self.set_attribute()
+        setattr(self, key, value)
 
     def load(self, cfg_path):
         cfg = None
