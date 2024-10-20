@@ -429,7 +429,7 @@ class DataGenerator:
 
         scale_range = max(scale_range, 0.01)
         max_scale = 1.0
-        min_scale = 1.0 - scale_range
+        min_scale = scale_range
         scale = np.random.uniform() * (max_scale - min_scale) + min_scale
         img_h, img_w = img.shape[:2]
         channels = 1
