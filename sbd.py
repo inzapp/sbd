@@ -506,6 +506,8 @@ class SBD(CheckpointManager):
     def decode_bounding_box(self, output_tensor, confidence_threshold):
         output_shape = tf.shape(output_tensor)
         rows, cols = output_shape[0], output_shape[1]
+        rows_f = tf.cast(rows, dtype=tf.float32)
+        cols_f = tf.cast(cols, dtype=tf.float32)
 
         confidence = output_tensor[:, :, 0]
         max_class_score = tf.reduce_max(output_tensor[:, :, 5:], axis=-1)
@@ -518,15 +520,10 @@ class SBD(CheckpointManager):
         w = output_tensor[:, :, 3]
         h = output_tensor[:, :, 4]
 
-        x_range = tf.range(cols, dtype=tf.float32)
-        x_offset = tf.broadcast_to(x_range, shape=tf.shape(cx))
+        x_grid, y_grid = tf.meshgrid(tf.range(cols_f), tf.range(rows_f), indexing='xy')
 
-        y_range = tf.range(rows, dtype=tf.float32)
-        y_range = tf.reshape(y_range, shape=(rows, 1))
-        y_offset = tf.broadcast_to(y_range, shape=tf.shape(cy))
-
-        cx = (x_offset + cx) / tf.cast(cols, dtype=tf.float32)
-        cy = (y_offset + cy) / tf.cast(rows, dtype=tf.float32)
+        cx = (x_grid + cx) / cols_f
+        cy = (y_grid + cy) / rows_f
 
         xmin = tf.clip_by_value(cx - (w * 0.5), 0.0, 1.0)
         ymin = tf.clip_by_value(cy - (h * 0.5), 0.0, 1.0)
@@ -539,7 +536,7 @@ class SBD(CheckpointManager):
         xmax = tf.expand_dims(xmax, axis=-1)
         ymax = tf.expand_dims(ymax, axis=-1)
         max_class_index = tf.expand_dims(max_class_index, axis=-1)
-        result_tensor = tf.concat([confidence, ymin, xmin, ymax, xmax, max_class_index], axis=-1)
+        result_tensor = tf.concat([confidence, xmin, ymin, xmax, ymax, max_class_index], axis=-1)
         boxes_before_nms = tf.gather_nd(result_tensor, over_confidence_indices)
         return boxes_before_nms
 
@@ -579,25 +576,25 @@ class SBD(CheckpointManager):
         if num_output_layers == 1:
             y = [y]
 
-        boxes_before_nms_list = []
+        proposals = []
         for layer_index in range(num_output_layers):
             output_tensor = y[layer_index][0]
-            boxes_before_nms_list += list(self.decode_bounding_box(output_tensor, confidence_threshold).numpy())
+            proposals += list(self.decode_bounding_box(output_tensor, confidence_threshold).numpy())
 
-        boxes_before_nms_dicts = []
-        for box in boxes_before_nms_list:
+        proposal_dicts = []
+        for box in proposals:
             confidence = float(box[0])
-            y1, x1, y2, x2 = np.clip(np.array(list(map(float, box[1:5]))), 0.0, 1.0)
+            x1, y1, x2, y2 = np.clip(np.array(list(map(float, box[1:5]))), 0.0, 1.0)
             class_index = int(box[5])
-            boxes_before_nms_dicts.append({
+            proposal_dicts.append({
                 'confidence': confidence,
                 'bbox_norm': [x1, y1, x2, y2],
                 'class': class_index,
                 'discard': False})
 
-        boxes = self.nms(boxes_before_nms_dicts)
+        boxes = self.nms(proposal_dicts)
         if verbose:
-            print(f'before nms box count : {len(boxes_before_nms_dicts)}')
+            print(f'before nms box count : {len(proposal_dicts)}')
             print(f'after  nms box count : {len(boxes)}')
             print()
             for box_info in boxes:
