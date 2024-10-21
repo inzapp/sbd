@@ -45,7 +45,6 @@ class Model:
             return False
 
         model_type = model_type.lower()
-
         if len(model_type) == 1:
             if model_type in self.available_backbones:
                 model_type += self.default_model_type
@@ -56,7 +55,6 @@ class Model:
             return False
 
         backbone, num_output_layers, p, pyramid_scale = list(model_type)
-
         if backbone not in self.available_backbones:
             return False
 
@@ -70,7 +68,6 @@ class Model:
             return False
 
         pyramid_scale = int(pyramid_scale)
-
         if pyramid_scale not in self.available_pyramid_scales:
             return False
 
@@ -81,7 +78,6 @@ class Model:
 
         if pyramid_scale == 6 and not self.cfg.p6_model:
             Logger.warn('6 pyramid scale is only support with p6 model, change p6_model to true in cfg file, model will be built with 5 pyramid scale')
-
         return backbone, num_output_layers, pyramid_scale
 
     def build(self, strategy, optimizer, model_type):
