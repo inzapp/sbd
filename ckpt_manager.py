@@ -77,9 +77,9 @@ class CheckpointManager:
                     new_checkpoint_path = f'checkpoint/{model_name}/{model_type}'
             else:
                 if model_type == '':
-                    new_checkpoint_path = f'checkpoint/{model_name}_{inc}'
+                    new_checkpoint_path = f'checkpoint/{model_name}{inc}'
                 else:
-                    new_checkpoint_path = f'checkpoint/{model_name}/{model_type}_{inc}'
+                    new_checkpoint_path = f'checkpoint/{model_name}/{model_type}{inc}'
             if os.path.exists(new_checkpoint_path) and os.path.isdir(new_checkpoint_path):
                 inc += 1
             else:
