@@ -65,7 +65,8 @@ class DataGenerator:
         self.q_thread_pause = False
         self.q_indices = list(range(self.cfg.max_q_size))
         self.pool = ThreadPoolExecutor(8)
-        np.random.shuffle(self.data_paths)
+        if self.training:
+            np.random.shuffle(self.data_paths)
         self.transform = A.Compose([
             A.ToGray(p=0.01),
             A.RandomBrightnessContrast(brightness_limit=self.cfg.aug_brightness, contrast_limit=0.0, p=0.5),
