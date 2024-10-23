@@ -366,6 +366,8 @@ class SBD(CheckpointManager):
 
     def build_loss_str(self, progress_str, loss_vars):
         obj_loss, box_loss, cls_loss = loss_vars
+        if np.isnan(obj_loss) or np.isnan(box_loss) or np.isnan(cls_loss):
+            Logger.error(f'\ntraining exited caused by nan loss => obj_loss({obj_loss:.4f}), box_loss({box_loss:.4f}), cls_loss({cls_loss:.4f})')
         loss_str = f'\r{progress_str}'
         loss_str += f' obj_loss : {obj_loss:>8.4f}'
         loss_str += f', box_loss : {box_loss:>8.4f}'
@@ -435,9 +437,8 @@ class SBD(CheckpointManager):
         if predictions_csv_path == '':
             predictions_csv_path = f'{self.checkpoint_path}/predictions.csv'
 
-        image_paths = self.train_data_generator.data_paths if dataset == 'train' else self.validation_data_generator.data_paths
-
         if not cached:
+            image_paths = self.train_data_generator.data_paths if dataset == 'train' else self.validation_data_generator.data_paths
             self.make_annotations_csv(image_paths, self.unknown_class_index, annotations_csv_path)
             self.make_predictions_csv(self.model, image_paths, self.primary_context, predictions_csv_path)
 
