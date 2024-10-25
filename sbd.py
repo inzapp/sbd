@@ -229,13 +229,12 @@ class SBD(CheckpointManager):
     def get_context(self, user_devices):
         strategy = None
         primary_context = None
-        cpu_context = tf.device('/cpu:0')
+        tf.keras.backend.clear_session()
         if len(user_devices) == 0:
             tf.config.set_visible_devices([], 'GPU')
             primary_context = tf.device('/cpu:0')
             strategy = tf.distribute.get_strategy()
         else:
-            tf.keras.backend.clear_session()
             tf.config.set_soft_device_placement(True)
             physical_devices = tf.config.list_physical_devices('GPU')
 
@@ -255,7 +254,7 @@ class SBD(CheckpointManager):
                 strategy = tf.distribute.get_strategy()
             else:
                 strategy = tf.distribute.MirroredStrategy(devices=[f'/gpu:{i}' for i in user_devices])
-        return strategy, primary_context, cpu_context
+        return strategy, primary_context, tf.device('/cpu:0')
 
     def get_optimizer(self, strategy, optimizer_str, lr, momentum, lr_policy):
         available_optimizer_strs = ['sgd', 'adam']
