@@ -635,7 +635,7 @@ class SBD(CheckpointManager):
             cv2.imshow('video', img)
             key = cv2.waitKey(1)
             if key == 27:
-                exit(0)
+                break
         cap.release()
         cv2.destroyAllWindows()
 
