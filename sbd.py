@@ -32,6 +32,7 @@ tf.autograph.set_verbosity(3)
 
 import cv2
 import yaml
+import threading
 import numpy as np
 import shutil as sh
 import tensorflow as tf
@@ -654,6 +655,22 @@ class SBD(CheckpointManager):
 
         return img, boxes
 
+    def read_video_frame_into_q(self, video_path, frame_queue, read_flag_list, thread_end_flag_list, lock):
+        cap = cv2.VideoCapture(video_path)
+        while read_flag_list[0]:
+            frame_exist, bgr = cap.read()
+            if not frame_exist:
+                break
+            with lock:
+                if len(frame_queue) == 0:
+                    frame_queue.append(bgr)
+                else:
+                    frame_queue[0] = bgr
+            sleep(0)
+        cap.release()
+        Logger.info('receive thread VideoCapture release success')
+        thread_end_flag_list[0] = True
+
     def detect(self, path='', dataset='validation', confidence_threshold=0.2, tp_iou_threshold=0.5, show_class=True, width=0, height=0, heatmap=False):
         image_paths = []
         if path == '':
@@ -706,7 +723,7 @@ class SBD(CheckpointManager):
                 key = cv2.waitKey(0)
                 if key == 27:
                     break
-        else:
+        elif detect_type == 'video':
             cap = cv2.VideoCapture(path)
             while True:
                 frame_exist, img_bgr = cap.read()
@@ -721,6 +738,36 @@ class SBD(CheckpointManager):
                 if key == 27:
                     break
             cap.release()
+            cv2.destroyAllWindows()
+        else:
+            rtsp_url = path
+            lock, frame_queue, read_flag_list, thread_end_flag_list = threading.Lock(), [], [True], [False]
+            receive_thread = threading.Thread(target=self.read_video_frame_into_q, args=(rtsp_url, frame_queue, read_flag_list, thread_end_flag_list, lock))
+            receive_thread.daemon = True
+            receive_thread.start()
+            while True:
+                if thread_end_flag_list[0]:
+                    break
+                img_bgr = None
+                with lock:
+                    if frame_queue:
+                        img_bgr = frame_queue[0].copy()
+                if img_bgr is None:
+                    Logger.info(f'wait for receive thread initializing...')
+                    sleep(0.5)
+                    continue
+
+                img, boxes = self.predict(self.model, img_bgr, context=self.primary_context, confidence_threshold=confidence_threshold, heatmap=heatmap)
+                img = self.train_data_generator.resize(img, (view_width, view_height))
+                img = self.draw_box(img, boxes, show_class=show_class)
+                cv2.imshow('rtsp', img)
+                key = cv2.waitKey(1)
+                if key == 27:
+                    read_flag_list[0] = False
+                    while not thread_end_flag_list[0]:
+                        Logger.info('wait for receive thread end...')
+                        sleep(0.5)
+                    break
             cv2.destroyAllWindows()
 
     def auto_label(self, image_path, confidence_threshold, cpu, recursive):
