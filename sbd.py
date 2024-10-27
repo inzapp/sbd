@@ -103,10 +103,7 @@ class TrainingConfig:
         d['lrf'] = self.__get_value_from_yaml(cfg, 'lrf', 0.05, float, required=False)
         d['l2'] = self.__get_value_from_yaml(cfg, 'l2', 0.0005, float, required=False)
         d['dropout'] = self.__get_value_from_yaml(cfg, 'dropout', 0.0, float, required=False)
-        d['obj_alpha'] = self.__get_value_from_yaml(cfg, 'obj_alpha', 0.75, float, required=False)
-        d['obj_gamma'] = self.__get_value_from_yaml(cfg, 'obj_gamma', 1.0, float, required=False)
-        d['cls_alpha'] = self.__get_value_from_yaml(cfg, 'cls_alpha', 0.5, float, required=False)
-        d['cls_gamma'] = self.__get_value_from_yaml(cfg, 'cls_gamma', 1.0, float, required=False)
+        d['cls_balance'] = self.__get_value_from_yaml(cfg, 'cls_balance', 0.0, float, required=False)
         d['box_weight'] = self.__get_value_from_yaml(cfg, 'box_weight', 1.0, float, required=False)
         d['aug_noise'] = self.__get_value_from_yaml(cfg, 'aug_noise', 0.0, float, required=False)
         d['aug_scale'] = self.__get_value_from_yaml(cfg, 'aug_scale', 0.5, float, required=False)
@@ -337,15 +334,15 @@ class SBD(CheckpointManager):
 
     @tf.function
     def compute_gradient(self, args):
-        _, _, model, optimizer, loss_function, x, y_true, mask, num_output_layers, obj_alpha, obj_gamma, cls_alpha, cls_gamma, box_weight, label_smoothing = args
+        _, _, model, optimizer, loss_function, x, y_true, extra, num_output_layers, box_weight, label_smoothing = args
         with tf.GradientTape() as tape:
             y_pred = model(x, training=True)
             obj_loss, box_loss, cls_loss = 0.0, 0.0, 0.0
             if num_output_layers == 1:
-                obj_loss, box_loss, cls_loss = loss_function(y_true, y_pred, mask, obj_alpha, obj_gamma, cls_alpha, cls_gamma, box_weight, label_smoothing)
+                obj_loss, box_loss, cls_loss = loss_function(y_true, y_pred, extra, box_weight, label_smoothing)
             else:
                 for i in range(num_output_layers):
-                    _obj_loss, _box_loss, _cls_loss = loss_function(y_true[i], y_pred[i], mask[i], obj_alpha, obj_gamma, cls_alpha, cls_gamma, box_weight, label_smoothing)
+                    _obj_loss, _box_loss, _cls_loss = loss_function(y_true[i], y_pred[i], extra[i], box_weight, label_smoothing)
                     obj_loss += _obj_loss
                     box_loss += _box_loss
                     cls_loss += _cls_loss
@@ -766,7 +763,7 @@ class SBD(CheckpointManager):
         eta_calculator.start()
         Logger.info(f'model will be save to {self.checkpoint_path}')
         while True:
-            batch_x, batch_y, mask = self.train_data_generator.load()
+            batch_x, batch_y, batch_extra = self.train_data_generator.load()
             lr_scheduler.update(self.optimizer, iteration_count)
             loss_vars = train_step((
                 self.strategy,
@@ -776,12 +773,8 @@ class SBD(CheckpointManager):
                 sbd_loss,
                 batch_x,
                 batch_y,
-                mask,
+                batch_extra,
                 self.num_output_layers,
-                self.cfg.obj_alpha,
-                self.cfg.obj_gamma,
-                self.cfg.cls_alpha,
-                self.cfg.cls_gamma,
                 self.cfg.box_weight,
                 self.cfg.smoothing))
 

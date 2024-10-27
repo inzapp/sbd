@@ -65,6 +65,9 @@ class DataGenerator:
         self.q_thread_pause = False
         self.q_indices = list(range(self.cfg.max_q_size))
         self.pool = ThreadPoolExecutor(8)
+
+        self.class_weights = None
+        self.use_class_weights = self.training and self.cfg.cls_balance > 0.0
         if self.training:
             np.random.shuffle(self.data_paths)
         self.transform = A.Compose([
@@ -134,6 +137,15 @@ class DataGenerator:
     def is_too_small_box(self, w, h):
         return int(w * self.cfg.input_cols) <= 3 or int(h * self.cfg.input_rows) <= 3
 
+    def calculate_class_weights(self, class_counts_param, gamma):
+        class_counts = np.array(class_counts_param, dtype=np.float32)
+        class_counts[class_counts == 0] = np.max(class_counts)
+        weights = 1.0 / class_counts
+        weights = weights ** gamma
+        median_weight = np.median(weights)
+        weights = weights / median_weight
+        return weights
+
     def check_label(self):
         fs = []
         for path in self.data_paths:
@@ -195,14 +207,26 @@ class DataGenerator:
         if max_class_name_len == 0:
             max_class_name_len = 1
 
-        Logger.info(f'class counts')
+        if self.use_class_weights:
+            self.class_weights = self.calculate_class_weights(class_counts, self.cfg.cls_balance)
+
+        class_count_txts = []
+        if self.use_class_weights:
+            class_count_txts.append(f'{dataset_name} data class count(class balance gamma {self.cfg.cls_balance})')
+        else:
+            class_count_txts.append(f'{dataset_name} data class count')
+
         for i in range(len(class_counts)):
             class_name = self.class_names[i]
             class_count = class_counts[i]
-            Logger.info(f'{class_name:{max_class_name_len}s} : {class_count}')
+            if self.use_class_weights:
+                class_count_txts.append(f'{class_name:{max_class_name_len}s} : {class_count} => {self.class_weights[i]:.2f}')
+            else:
+                class_count_txts.append(f'{class_name:{max_class_name_len}s} : {class_count}')
+        Logger.info(class_count_txts)
 
         if dataset_name == 'train' and ignored_box_count > 0:
-            Logger.warn(f'Too small size (under 3x3 pixel) {ignored_box_count} box will not be trained\n')
+            Logger.warn(f'Too small size (under 3 pixel) {ignored_box_count} box will not be trained\n')
         else:
             print()
 
@@ -331,11 +355,11 @@ class DataGenerator:
         box_count_in_real_data = 0
         for f in tqdm(fs, desc='calculating BPR(Best Possible Recall)'):
             batch_y = [np.zeros(shape=self.output_shapes[i][1:]) for i in range(self.num_output_layers)]
-            batch_mask = [np.ones(shape=self.output_shapes[i][1:]) for i in range(self.num_output_layers)]
+            batch_extra = [np.ones(shape=self.output_shapes[i][1:]) for i in range(self.num_output_layers)]
             labels, _, _ = f.result()
             labeled_boxes = self.convert_to_boxes(labels)
             box_count_in_real_data += len(labeled_boxes)
-            allocated_count = self.build_gt_tensor(labeled_boxes, batch_y, batch_mask, 0)
+            allocated_count = self.build_gt_tensor(labeled_boxes, batch_y, batch_extra, 0)
             y_true_obj_count += allocated_count
 
         avg_obj_count_per_image = box_count_in_real_data / float(len(self.data_paths))
@@ -683,10 +707,9 @@ class DataGenerator:
             img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
 
         blended_img = cv2.addWeighted(img, alpha, heatmap, 1.0 - alpha, 0)
-
         return blended_img
 
-    def build_gt_tensor(self, labeled_boxes, y, mask, img=None):
+    def build_gt_tensor(self, labeled_boxes, y, extra, img=None):
         allocated_count = 0
         for b in labeled_boxes:
             class_indexes, cx, cy, w, h = b['class_indexes'], b['cx'], b['cy'], b['w'], b['h']
@@ -745,7 +768,7 @@ class DataGenerator:
                             #         class_indices = np.where(object_heatmap > class_channel)
                             #         class_channel[class_indices] = object_heatmap[class_indices]
 
-                            confidence_mask_channel = mask[i][:, :, 0]
+                            confidence_mask_channel = extra[i][:, :, 0]
                             confidence_mask_indices = np.where(object_mask == 0.0)
                             confidence_mask_channel[confidence_mask_indices] = object_mask[confidence_mask_indices]
                         y[i][offset_center_row][offset_center_col][0] = 1.0
@@ -759,7 +782,12 @@ class DataGenerator:
                         is_box_allocated = True
                         allocated_count += 1
                         break
-                mask[i][:, :, 0][np.where(y[i][:, :, 0] == 1.0)] = 1.0
+                extra[i][:, :, 0][np.where(y[i][:, :, 0] == 1.0)] = 1.0
+
+        if self.use_class_weights:
+            for i in range(len(y)):
+                for class_index in range(self.num_classes):
+                    extra[i][:, :, class_index+5] = self.class_weights[class_index]
 
         if self.debug:
             print(f'img.shape : {img.shape}')
@@ -777,14 +805,14 @@ class DataGenerator:
                 print(f'\nlayer_index : {i}')
                 objectness = y[i][:, :, 0]
                 print(f'objectness[{i}]shape : {objectness.shape}')
-                mask_channel = mask[i][:, :, 0]
+                mask_channel = extra[i][:, :, 0]
                 print(f'mask_channel[{i}].shape : {mask_channel.shape}')
                 # for class_index in range(self.num_classes):
                 #     class_channel = y[i][:, :, 5+class_index]
                 #     cv2.imshow(f'class_{class_index}[{i}]', cv2.resize(class_channel, (self.cfg.input_cols, self.cfg.input_rows), interpolation=cv2.INTER_NEAREST))
                 objectness_img = cv2.resize(objectness, (self.cfg.input_cols, self.cfg.input_rows), interpolation=cv2.INTER_NEAREST)
                 # cv2.imshow(f'confidence[{i}]', objectness_img)
-                # cv2.imshow(f'mask[{i}]', cv2.resize(mask_channel, (self.cfg.input_cols, self.cfg.input_rows), interpolation=cv2.INTER_NEAREST))
+                # cv2.imshow(f'extra[{i}]', cv2.resize(mask_channel, (self.cfg.input_cols, self.cfg.input_rows), interpolation=cv2.INTER_NEAREST))
 
                 if self.num_output_layers == 1:
                     blended_img = self.blend_heatmap(img, objectness)
@@ -874,33 +902,33 @@ class DataGenerator:
 
     def load_xy(self):
         y = [np.zeros(shape=self.output_shapes[i][1:], dtype=np.float32) for i in range(self.num_output_layers)]
-        mask = [np.ones(shape=self.output_shapes[i][1:], dtype=np.float32) for i in range(self.num_output_layers)]
+        extra = [np.ones(shape=self.output_shapes[i][1:], dtype=np.float32) for i in range(self.num_output_layers)]
         img_with_label = self.load_image_with_label(size=1, mosaic=True)
         img = img_with_label[0]['img']
         labels = img_with_label[0]['labels']
         x = self.preprocess(img)
         labeled_boxes = self.convert_to_boxes(labels)
-        self.build_gt_tensor(labeled_boxes, y, mask, img if self.debug else None)
-        return x, y, mask
+        self.build_gt_tensor(labeled_boxes, y, extra, img if self.debug else None)
+        return x, y, extra
             
     def load_xy_into_q(self):
         while self.q_thread_running:
             if self.q_thread_pause:
                 sleep(1.0)
             else:
-                x, y, mask = self.load_xy()
+                x, y, extra = self.load_xy()
                 with self.lock:
                     if len(self.q) == self.cfg.max_q_size:
                         self.q.popleft()
-                    self.q.append((x, y, mask))
+                    self.q.append((x, y, extra))
 
     def load(self):
         batch_x = []
         if self.num_output_layers == 1:
-            batch_y, batch_m = [], []
+            batch_y, batch_e = [], []
         else:
             batch_y = [[] for _ in range(self.num_output_layers)]
-            batch_m = [[] for _ in range(self.num_output_layers)]
+            batch_e = [[] for _ in range(self.num_output_layers)]
         for i in np.random.choice(self.q_indices, self.cfg.batch_size, replace=False):
             with self.lock:
                 if self.debug:
@@ -910,18 +938,18 @@ class DataGenerator:
                 batch_x.append(np.array(x))
                 if self.num_output_layers == 1:
                     batch_y.append(np.array(y))
-                    batch_m.append(np.array(m))
+                    batch_e.append(np.array(m))
                 else:
                     for j in range(self.num_output_layers):
                         batch_y[j].append(np.array(y[j]))
-                        batch_m[j].append(np.array(m[j]))
+                        batch_e[j].append(np.array(m[j]))
         batch_x = np.asarray(batch_x).reshape((self.cfg.batch_size, self.cfg.input_rows, self.cfg.input_cols, self.cfg.input_channels)).astype(np.float32)
         if self.num_output_layers == 1:
             batch_y = np.asarray(batch_y).reshape((self.cfg.batch_size,) + self.output_shapes[0][1:]).astype(np.float32)
-            batch_m = np.asarray(batch_m).reshape((self.cfg.batch_size,) + self.output_shapes[0][1:]).astype(np.float32)
+            batch_e = np.asarray(batch_e).reshape((self.cfg.batch_size,) + self.output_shapes[0][1:]).astype(np.float32)
         else:
             for i in range(self.num_output_layers):
                 batch_y[i] = np.asarray(batch_y[i]).reshape((self.cfg.batch_size,) + self.output_shapes[i][1:]).astype(np.float32)
-                batch_m[i] = np.asarray(batch_m[i]).reshape((self.cfg.batch_size,) + self.output_shapes[i][1:]).astype(np.float32)
-        return batch_x, batch_y, batch_m
+                batch_e[i] = np.asarray(batch_e[i]).reshape((self.cfg.batch_size,) + self.output_shapes[i][1:]).astype(np.float32)
+        return batch_x, batch_y, batch_e
 

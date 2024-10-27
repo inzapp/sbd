@@ -16,10 +16,7 @@ lr: 0.001
 lrf: 0.05
 l2: 0.0005
 dropout: 0.0
-obj_alpha: 0.75
-obj_gamma: 1.0
-cls_alpha: 0.5
-cls_gamma: 1.0
+cls_balance: 0.0
 box_weight: 1.0
 aug_noise: 0.0
 aug_scale: 0.5
