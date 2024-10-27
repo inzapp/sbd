@@ -214,6 +214,7 @@ def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_th
     total_fn = 0
     total_obj_count = 0
     average_precisions = {}
+    best_confidence_thresholds = []
     for _, class_index_str in enumerate(sorted(unique_classes, key=lambda x: int(x))):
         # Negative class
         if str(class_index_str) == 'nan':
@@ -298,6 +299,8 @@ def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_th
         false_positives = ap_ret['false_positives']  # use ap_ret
 
         confidence_threshold = best_ret['confidence_threshold']
+        if find_best_threshold:
+            best_confidence_thresholds.append(confidence_threshold)
         obj_count = best_ret['obj_count']
         tp_iou = best_ret['tp_iou']
         tp_iou_sum = best_ret['tp_iou_sum']
@@ -354,5 +357,5 @@ def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_th
     if return_extra_data:
         return mean_ap, f1, tp_iou, total_tp, total_fp, total_obj_count - total_tp, tp_confidence, txt_content
     else:
-        return mean_ap, txt_content
+        return mean_ap, txt_content, best_confidence_thresholds
 

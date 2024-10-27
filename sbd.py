@@ -158,20 +158,20 @@ class SBD(CheckpointManager):
 
         is_train_data_path_valid = True
         if self.cfg.train_data_path.endswith('.txt'):
-            if not self.is_valid_path(self.cfg.train_data_path, path_type='file'):
+            if not self.is_path_valid(self.cfg.train_data_path, path_type='file'):
                 is_train_data_path_valid = False
         else:
-            if not self.is_valid_path(self.cfg.train_data_path, path_type='dir'):
+            if not self.is_path_valid(self.cfg.train_data_path, path_type='dir'):
                 is_train_data_path_valid = False
         if not is_train_data_path_valid:
             Logger.error(f'train data path is not valid : {self.cfg.train_data_path}')
 
         is_validation_data_path_valid = True
         if self.cfg.validation_data_path.endswith('.txt'):
-            if not self.is_valid_path(self.cfg.validation_data_path, path_type='file'):
+            if not self.is_path_valid(self.cfg.validation_data_path, path_type='file'):
                 is_validation_data_path_valid = False
         else:
-            if not self.is_valid_path(self.cfg.validation_data_path, path_type='dir'):
+            if not self.is_path_valid(self.cfg.validation_data_path, path_type='dir'):
                 is_validation_data_path_valid = False
         if not is_validation_data_path_valid:
             Logger.error(f'validation data path is not valid : {self.cfg.validation_data_path}')
@@ -179,7 +179,7 @@ class SBD(CheckpointManager):
         self.strategy, self.primary_context, self.cpu_context = self.get_context(self.cfg.devices)
         self.optimizer = self.get_optimizer(self.strategy, self.cfg.optimizer, self.cfg.lr, self.cfg.momentum, self.cfg.lr_policy)
 
-        if not self.is_valid_path(self.cfg.class_names_file_path, path_type='file'):
+        if not self.is_path_valid(self.cfg.class_names_file_path, path_type='file'):
             Logger.error(f'class_names_file_path is not valid : {self.cfg.class_names_file_path}')
 
         self.class_names, self.num_classes, self.unknown_class_index = self.get_class_infos(self.cfg.class_names_file_path)
@@ -209,6 +209,11 @@ class SBD(CheckpointManager):
             class_names=self.class_names,
             unknown_class_index=self.unknown_class_index)
 
+        self.last_annotations_csv_path = None
+        self.last_predictions_csv_path = None
+        self.best_annotations_csv_path = None
+        self.best_predictions_csv_path = None
+
     def set_global_seed(self, seed=42):
         random.seed(seed)
         np.random.seed(seed)
@@ -216,7 +221,7 @@ class SBD(CheckpointManager):
         tf.random.set_seed(seed)
         Logger.info(f'global seed fixed to {seed}')
 
-    def is_valid_path(self, path, path_type):
+    def is_path_valid(self, path, path_type):
         assert path_type in ['file', 'dir']
         if path_type == 'file':
             return (path is not None) and os.path.exists(path) and os.path.isfile(path)
@@ -277,7 +282,7 @@ class SBD(CheckpointManager):
                 self.cfg.set_config('pretrained_model_path', auto_model_path)
                 path = auto_model_path
 
-        if not self.is_valid_path(path, path_type='file'):
+        if not self.is_path_valid(path, path_type='file'):
             Logger.error(f'model not found : {self.cfg.pretrained_model_path}')
 
         with strategy.scope():
@@ -422,31 +427,69 @@ class SBD(CheckpointManager):
         with open(csv_path, 'wt') as f:
             f.writelines(csv)
 
-    def save_best_model_extra_data(self, txt_content):
+    def save_best_model_extra_data(self, txt_content, best_confidence_thresholds=None):
         with open(f'{self.checkpoint_path}/map.txt', 'wt') as f:
             f.write(txt_content)
+        if self.is_path_valid(self.last_annotations_csv_path, path_type='file'):
+            sh.copy(self.last_annotations_csv_path, self.best_annotations_csv_path)
+        if self.is_path_valid(self.last_predictions_csv_path, path_type='file'):
+            sh.copy(self.last_predictions_csv_path, self.best_predictions_csv_path)
+        if best_confidence_thresholds:
+            threshold_content = ''
+            for i, threshold in enumerate(best_confidence_thresholds):
+                if i == 0:
+                    threshold_content += f'{threshold:.2f}'
+                else:
+                    threshold_content += f', {threshold:.2f}'
+            threshold_content += '\n'
+            best_thresholds_path = f'{self.checkpoint_path}/thresholds.txt'
+            with open(best_thresholds_path, 'wt') as f:
+                f.write(threshold_content)
+            Logger.info(f'best f1 score class confidence thresholds saved to {best_thresholds_path}')
 
-    def evaluate(self, dataset='validation', cached=False, confidence_threshold=0.2, tp_iou_threshold=0.5, annotations_csv_path='', predictions_csv_path='', find_best_threshold=False):
+    def remove_last_extra_data(self):
+        os.remove(self.last_annotations_csv_path)
+        os.remove(self.last_predictions_csv_path)
+
+    def evaluate(self,
+            dataset='validation',
+            cached=False,
+            confidence_threshold=0.2,
+            tp_iou_threshold=0.5,
+            annotations_csv_path='',
+            predictions_csv_path='',
+            find_best_threshold=False,
+            verbose=True):
         assert dataset in ['train', 'validation']
         if annotations_csv_path == '':
-            annotations_csv_path = f'{self.checkpoint_path}/annotations.csv'
+            annotations_csv_path = self.last_annotations_csv_path
         if predictions_csv_path == '':
-            predictions_csv_path = f'{self.checkpoint_path}/predictions.csv'
+            predictions_csv_path = self.last_predictions_csv_path
 
         if not cached:
             image_paths = self.train_data_generator.data_paths if dataset == 'train' else self.validation_data_generator.data_paths
             self.make_annotations_csv(image_paths, self.unknown_class_index, annotations_csv_path)
             self.make_predictions_csv(self.model, image_paths, self.primary_context, predictions_csv_path)
 
-        mean_ap, txt_content = mean_average_precision_for_boxes(
+        mean_ap, txt_content, best_thresholds = mean_average_precision_for_boxes(
             ann=annotations_csv_path,
             pred=predictions_csv_path,
             confidence_threshold_for_f1=confidence_threshold,
             iou_threshold=tp_iou_threshold,
             classes_txt_path=self.cfg.class_names_file_path,
             find_best_threshold=find_best_threshold,
-            verbose=True)
-        return mean_ap, txt_content
+            verbose=verbose)
+        return mean_ap, txt_content, best_thresholds
+
+    def save_best_thresholds(self):
+        Logger.info('searching best f1 score class confidence thresholds...')
+        _, txt_content, best_confidence_thresholds = self.evaluate(
+            cached=True,
+            verbose=False,
+            annotations_csv_path=self.best_annotations_csv_path,
+            predictions_csv_path=self.best_predictions_csv_path,
+            find_best_threshold=True)
+        self.save_best_model_extra_data(txt_content, best_confidence_thresholds=best_confidence_thresholds)
 
     def is_background_color_bright(self, bgr):
         tmp = np.zeros((1, 1), dtype=np.uint8)
@@ -612,7 +655,7 @@ class SBD(CheckpointManager):
         return img, boxes
 
     def predict_video(self, path, confidence_threshold=0.2, show_class_with_score=True, width=0, height=0, heatmap=False):
-        if not path.startswith('rtsp://') and not self.is_valid_path(path, path_type='file'):
+        if not path.startswith('rtsp://') and not self.is_path_valid(path, path_type='file'):
             Logger.error(f'video not found. video path : {path}')
         cap = cv2.VideoCapture(path)
         input_height, input_width, _ = self.model.input_shape[1:]
@@ -690,7 +733,7 @@ class SBD(CheckpointManager):
 
         fs = []
         for path in image_paths:
-            fs.append(self.pool.submit(self.is_valid_path, self.train_data_generator.label_path(path), 'file'))
+            fs.append(self.pool.submit(self.is_path_valid, self.train_data_generator.label_path(path), 'file'))
         label_file_count = 0
         for f in fs:
             if f.result():
@@ -753,6 +796,11 @@ class SBD(CheckpointManager):
             Logger.info('start training')
 
         self.init_checkpoint_dir(model_name=self.cfg.model_name, model_type=self.cfg.model_type, extra_function=self.init_checkpoint_dir_extra)
+        self.last_annotations_csv_path = f'{self.checkpoint_path}/.annotations.csv'
+        self.last_predictions_csv_path = f'{self.checkpoint_path}/.predictions.csv'
+        self.best_annotations_csv_path = f'{self.checkpoint_path}/annotations.csv'
+        self.best_predictions_csv_path = f'{self.checkpoint_path}/predictions.csv'
+
         iteration_count = self.pretrained_iteration_count
         if len(self.cfg.devices) <= 1:
             train_step = self.compute_gradient
@@ -791,7 +839,7 @@ class SBD(CheckpointManager):
                     self.train_data_generator.resume()
                 if iteration_count % self.cfg.checkpoint_interval == 0:
                     self.train_data_generator.pause()
-                    mean_ap, txt_content = self.evaluate()
+                    mean_ap, txt_content, _ = self.evaluate()
                     best_model_path = self.save_best_model(self.model, iteration_count, metric=mean_ap, mode='max', content=f'_mAP_{mean_ap:.4f}')
                     if best_model_path:
                         self.save_best_model_extra_data(txt_content=txt_content)
@@ -801,7 +849,9 @@ class SBD(CheckpointManager):
                     self.train_data_generator.resume()
             if iteration_count == self.cfg.iterations:
                 self.train_data_generator.stop()
+                self.save_best_thresholds()
                 self.remove_last_model()
+                self.remove_last_extra_data()
                 Logger.info('train end successfully')
                 return
 
