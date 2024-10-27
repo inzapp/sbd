@@ -30,15 +30,12 @@ if __name__ == '__main__':
     parser.add_argument('--path', type=str, default='', help='image or video path for detection')
     parser.add_argument('--width', type=int, default=0, help='width for showing detection result')
     parser.add_argument('--height', type=int, default=0, help='height for showing detection result')
-    parser.add_argument('--noclass', action='store_true', help='not showing class label with confidence score')
+    parser.add_argument('--hide-class', action='store_true', help='not showing class label with confidence score')
     parser.add_argument('--dataset', type=str, default='validation', help='dataset name for prediction. train or validation')
     parser.add_argument('--heatmap', action='store_true', help='show objectness heatmap blended image')
     args = parser.parse_args()
     cfg = TrainingConfig(cfg_path=args.cfg)
     cfg.set_config('pretrained_model_path', args.model)
     sbd = SBD(cfg=cfg)
-    if args.path.endswith('.mp4') or args.path.startswith('rtsp://'):
-        sbd.predict_video(path=args.path, confidence_threshold=args.conf, show_class_with_score=not args.noclass, width=args.width, height=args.height, heatmap=args.heatmap)
-    else:
-        sbd.predict_images(dataset=args.dataset, path=args.path, confidence_threshold=args.conf, show_class_with_score=not args.noclass, width=args.width, height=args.height, heatmap=args.heatmap)
+    sbd.detect(path=args.path, confidence_threshold=args.conf, show_class=not args.hide_class, width=args.width, height=args.height, heatmap=args.heatmap)
 

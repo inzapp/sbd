@@ -498,7 +498,7 @@ class SBD(CheckpointManager):
         tmp = cv2.cvtColor(tmp, cv2.COLOR_BGR2GRAY)
         return tmp[0][0] > 127
 
-    def draw_box(self, img, boxes, font_scale=0.4, show_class_with_score=True):
+    def draw_box(self, img, boxes, font_scale=0.4, show_class=True):
         padding = 5
         if len(img.shape) == 2:
             img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
@@ -520,7 +520,7 @@ class SBD(CheckpointManager):
             l_size, baseline = cv2.getTextSize(label_text, cv2.FONT_HERSHEY_DUPLEX, font_scale, 1)
             bw, bh = l_size[0] + (padding * 2), l_size[1] + (padding * 2) + baseline
             cv2.rectangle(img, (x1, y1), (x2, y2), label_background_color, 1)
-            if show_class_with_score:
+            if show_class:
                 cv2.rectangle(img, (x1 - 1, y1 - bh), (x1 - 1 + bw, y1), label_background_color, -1)
                 cv2.putText(img, label_text, (x1 + padding - 1, y1 - baseline - padding), cv2.FONT_HERSHEY_DUPLEX, fontScale=font_scale, color=label_font_color, thickness=1, lineType=cv2.LINE_AA)
         return img
@@ -654,69 +654,74 @@ class SBD(CheckpointManager):
 
         return img, boxes
 
-    def predict_video(self, path, confidence_threshold=0.2, show_class_with_score=True, width=0, height=0, heatmap=False):
-        if not path.startswith('rtsp://') and not self.is_path_valid(path, path_type='file'):
-            Logger.error(f'video not found. video path : {path}')
-        cap = cv2.VideoCapture(path)
-        input_height, input_width, _ = self.model.input_shape[1:]
-        view_width, view_height = 0, 0
-        if width > 0 and height > 0:
-            view_width, view_height = width, height
-        else:
-            view_width, view_height = input_width, input_height
-        while True:
-            frame_exist, img_bgr = cap.read()
-            if not frame_exist:
-                Logger.info('frame not exists')
-                break
-            img, boxes = self.predict(self.model, img_bgr, context=self.primary_context, confidence_threshold=confidence_threshold, heatmap=heatmap)
-            img = self.train_data_generator.resize(img, (view_width, view_height))
-            img = self.draw_box(img, boxes, show_class_with_score=show_class_with_score)
-            cv2.imshow('video', img)
-            key = cv2.waitKey(1)
-            if key == 27:
-                break
-        cap.release()
-        cv2.destroyAllWindows()
-
-    def predict_images(self, dataset='validation', path='', confidence_threshold=0.2, show_class_with_score=True, width=0, height=0, heatmap=False):
-        input_height, input_width, input_channel = self.model.input_shape[1:]
-        if path != '':
-            if not os.path.exists(path):
-                Logger.error(f'path not exists : [{path}]')
-            if os.path.isfile(path):
-                if path.endswith('.jpg'):
-                    image_paths = [path]
-                else:
-                    Logger.error('invalid extension. jpg is available extension only')
-            elif os.path.isdir(path):
-                image_paths = glob(f'{path}/*.jpg')
-            else:
-                Logger.error(f'invalid file format : [{path}]')
-        else:
+    def detect(self, path='', dataset='validation', confidence_threshold=0.2, tp_iou_threshold=0.5, show_class=True, width=0, height=0, heatmap=False):
+        image_paths = []
+        if path == '':
             assert dataset in ['train', 'validation']
             if dataset == 'train':
                 image_paths = self.train_data_generator.data_paths
             elif dataset == 'validation':
                 image_paths = self.validation_data_generator.data_paths
-        if len(image_paths) == 0:
-            Logger.error('no image found')
+            if len(image_paths) == 0:
+                Logger.error('no images found')
+            detect_type = 'image'
+        else:
+            if path.endswith('.mp4'):
+                if not self.is_path_valid(path, path_type='file'):
+                    Logger.error(f'file not found : {path}')
+                detect_type = 'video'
+            elif path.startswith('rtsp://'):
+                detect_type = 'rtsp'
+            else:
+                if not os.path.exists(path):
+                    Logger.error(f'path not exists : {path}')
+                if os.path.isfile(path):
+                    if path.endswith('.jpg'):
+                        image_paths = [path]
+                    else:
+                        Logger.error('invalid extension. jpg is available extension only')
+                elif os.path.isdir(path):
+                    image_paths = glob(f'{path}/**/*.jpg', recursive=True)
+                else:
+                    Logger.error(f'invalid file format : [{path}]')
+                detect_type = 'image'
 
         view_width, view_height = 0, 0
         if width > 0 and height > 0:
             view_width, view_height = width, height
         else:
+            input_height, input_width, _ = self.model.input_shape[1:]
             view_width, view_height = input_width, input_height
-        for path in image_paths:
-            print(f'image path : {path}')
-            img, _ = self.train_data_generator.load_image(path)
-            img, boxes = self.predict(self.model, img, context=self.primary_context, verbose=True, confidence_threshold=confidence_threshold, heatmap=heatmap)
-            img = self.train_data_generator.resize(img, (view_width, view_height))
-            img = self.draw_box(img, boxes, show_class_with_score=show_class_with_score)
-            cv2.imshow('res', img)
-            key = cv2.waitKey(0)
-            if key == 27:
-                break
+
+        assert detect_type in ['image', 'video', 'rtsp']
+
+        if detect_type == 'image':
+            for path in image_paths:
+                print(f'image path : {path}')
+                img, _ = self.train_data_generator.load_image(path)
+                img, boxes = self.predict(self.model, img, context=self.primary_context, verbose=True, confidence_threshold=confidence_threshold, heatmap=heatmap)
+                img = self.train_data_generator.resize(img, (view_width, view_height))
+                img = self.draw_box(img, boxes, show_class=show_class)
+                cv2.imshow('res', img)
+                key = cv2.waitKey(0)
+                if key == 27:
+                    break
+        else:
+            cap = cv2.VideoCapture(path)
+            while True:
+                frame_exist, img_bgr = cap.read()
+                if not frame_exist:
+                    Logger.info('frame not exists')
+                    break
+                img, boxes = self.predict(self.model, img_bgr, context=self.primary_context, confidence_threshold=confidence_threshold, heatmap=heatmap)
+                img = self.train_data_generator.resize(img, (view_width, view_height))
+                img = self.draw_box(img, boxes, show_class=show_class)
+                cv2.imshow('video', img)
+                key = cv2.waitKey(1)
+                if key == 27:
+                    break
+            cap.release()
+            cv2.destroyAllWindows()
 
     def auto_label(self, image_path, confidence_threshold, cpu, recursive):
         input_shape = self.model.input_shape[1:]
