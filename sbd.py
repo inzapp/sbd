@@ -834,9 +834,7 @@ class SBD(CheckpointManager):
                 self.save_last_model(self.model, iteration_count=iteration_count)
             if warm_up_end:
                 if self.cfg.show_progress:
-                    self.train_data_generator.pause()
                     self.show_progress()
-                    self.train_data_generator.resume()
                 if iteration_count % self.cfg.checkpoint_interval == 0:
                     self.train_data_generator.pause()
                     mean_ap, txt_content, _ = self.evaluate()
