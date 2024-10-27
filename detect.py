@@ -33,9 +33,17 @@ if __name__ == '__main__':
     parser.add_argument('--hide-class', action='store_true', help='not showing class label with confidence score')
     parser.add_argument('--dataset', type=str, default='validation', help='dataset name for prediction. train or validation')
     parser.add_argument('--heatmap', action='store_true', help='show objectness heatmap blended image')
+    parser.add_argument('--thresholds', type=str, default='thresholds.txt', help='path of best f1 score confidence thresholds')
     args = parser.parse_args()
     cfg = TrainingConfig(cfg_path=args.cfg)
     cfg.set_config('pretrained_model_path', args.model)
     sbd = SBD(cfg=cfg)
-    sbd.detect(path=args.path, confidence_threshold=args.conf, show_class=not args.hide_class, width=args.width, height=args.height, heatmap=args.heatmap)
+    sbd.detect(
+        path=args.path,
+        confidence_threshold=args.conf,
+        show_class=not args.hide_class,
+        width=args.width,
+        height=args.height,
+        heatmap=args.heatmap,
+        thresholds_path=args.thresholds)
 

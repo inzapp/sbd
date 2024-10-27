@@ -617,21 +617,28 @@ class SBD(CheckpointManager):
         if num_output_layers == 1:
             y = [y]
 
+        if type(confidence_threshold) is list:
+            confidence_thresholds = confidence_threshold
+        else:
+            confidence_thresholds = [confidence_threshold for _ in range(self.num_classes)]
+        confidence_threshold_min = min(confidence_thresholds)
+
         proposals = []
         for layer_index in range(num_output_layers):
             output_tensor = y[layer_index][0]
-            proposals += list(self.decode_bounding_box(output_tensor, confidence_threshold).numpy())
+            proposals += list(self.decode_bounding_box(output_tensor, confidence_threshold_min).numpy())
 
         proposal_dicts = []
         for box in proposals:
             confidence = float(box[0])
             x1, y1, x2, y2 = np.clip(np.array(list(map(float, box[1:5]))), 0.0, 1.0)
             class_index = int(box[5])
-            proposal_dicts.append({
-                'confidence': confidence,
-                'bbox_norm': [x1, y1, x2, y2],
-                'class': class_index,
-                'discard': False})
+            if confidence > confidence_thresholds[class_index]:
+                proposal_dicts.append({
+                    'confidence': confidence,
+                    'bbox_norm': [x1, y1, x2, y2],
+                    'class': class_index,
+                    'discard': False})
 
         boxes = self.nms(proposal_dicts)
         if verbose:
@@ -671,7 +678,7 @@ class SBD(CheckpointManager):
         Logger.info('receive thread VideoCapture release success')
         thread_end_flag_list[0] = True
 
-    def detect(self, path='', dataset='validation', confidence_threshold=0.2, tp_iou_threshold=0.5, show_class=True, width=0, height=0, heatmap=False):
+    def detect(self, path='', dataset='validation', confidence_threshold=0.2, tp_iou_threshold=0.5, show_class=True, width=0, height=0, heatmap=False, thresholds_path=''):
         image_paths = []
         if path == '':
             assert dataset in ['train', 'validation']
@@ -710,8 +717,23 @@ class SBD(CheckpointManager):
             input_height, input_width, _ = self.model.input_shape[1:]
             view_width, view_height = input_width, input_height
 
-        assert detect_type in ['image', 'video', 'rtsp']
+        if thresholds_path != '':
+            if self.is_path_valid(thresholds_path, path_type='file'):
+                with open(thresholds_path, 'rt') as f:
+                    line = f.readlines()[0]
+                best_confidence_thresholds = list(map(float, line.split(',')))
+                best_confidence_thresholds_len = len(best_confidence_thresholds)
+                if best_confidence_thresholds_len != self.num_classes:
+                    Logger.error(f'best_confidence_thresholds length({best_confidence_thresholds_len} is not matched with num_classes({self.num_classes}))')
+                confidence_threshold = best_confidence_thresholds
+                info_content = [f'best confidence threshold load success => {thresholds_path}']
+                for i, class_name in enumerate(self.class_names):
+                    info_content.append(f'{class_name} : {best_confidence_thresholds[i]:.2f}')
+                Logger.info(info_content)
+            else:
+                Logger.error(f'file not found : {thresholds_path}')
 
+        assert detect_type in ['image', 'video', 'rtsp']
         if detect_type == 'image':
             for path in image_paths:
                 print(f'image path : {path}')
