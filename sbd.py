@@ -731,7 +731,7 @@ class SBD(CheckpointManager):
                     info_content.append(f'{class_name} : {best_confidence_thresholds[i]:.2f}')
                 Logger.info(info_content)
             else:
-                Logger.error(f'file not found : {thresholds_path}')
+                Logger.info(f'{thresholds_path} not found. confidence threshold will be {confidence_threshold:.2f}')
 
         assert detect_type in ['image', 'video', 'rtsp']
         if detect_type == 'image':
