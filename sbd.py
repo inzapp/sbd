@@ -776,7 +776,7 @@ class SBD(CheckpointManager):
                         img_bgr = frame_queue[0].copy()
                 if img_bgr is None:
                     Logger.info(f'wait for receive thread initializing...')
-                    sleep(0.5)
+                    sleep(1.0)
                     continue
 
                 img, boxes = self.predict(self.model, img_bgr, context=self.primary_context, confidence_threshold=confidence_threshold, heatmap=heatmap)
@@ -788,7 +788,7 @@ class SBD(CheckpointManager):
                     read_flag_list[0] = False
                     while not thread_end_flag_list[0]:
                         Logger.info('wait for receive thread end...')
-                        sleep(0.5)
+                        sleep(1.0)
                     break
             cv2.destroyAllWindows()
 
