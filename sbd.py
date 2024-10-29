@@ -644,15 +644,11 @@ class SBD(CheckpointManager):
         if verbose:
             print(f'before nms box count : {len(proposal_dicts)}')
             print(f'after  nms box count : {len(boxes)}')
-            print()
             for box_info in boxes:
                 class_index = box_info['class']
                 confidence = box_info['confidence']
-                bbox_norm = box_info['bbox_norm']
-                print(f'class index : {class_index}')
-                print(f'confidence : {confidence:.4f}')
-                print(f'bbox(normalized) : {np.array(bbox_norm)}')
-                print()
+                x1, y1, x2, y2 = box_info['bbox_norm']
+                print(f'confidence({confidence:.4f}), bbox({x1:.6f}, {y1:.6f}, {x2:.6f}, {y2:.6f}), class({self.class_names[class_index]})')
             print()
 
         if heatmap:
