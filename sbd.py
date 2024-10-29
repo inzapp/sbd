@@ -177,7 +177,7 @@ class SBD(CheckpointManager):
         if not is_validation_data_path_valid:
             Logger.error(f'validation data path is not valid : {self.cfg.validation_data_path}')
 
-        self.strategy, self.primary_context, self.cpu_context = self.get_context(self.cfg.devices)
+        self.strategy, self.primary_context = self.get_context(self.cfg.devices)
         self.optimizer = self.get_optimizer(self.strategy, self.cfg.optimizer, self.cfg.lr, self.cfg.momentum, self.cfg.lr_policy)
 
         if not self.is_path_valid(self.cfg.class_names_file_path, path_type='file'):
@@ -257,7 +257,7 @@ class SBD(CheckpointManager):
                 strategy = tf.distribute.get_strategy()
             else:
                 strategy = tf.distribute.MirroredStrategy(devices=[f'/gpu:{i}' for i in user_devices])
-        return strategy, primary_context, tf.device('/cpu:0')
+        return strategy, primary_context
 
     def get_optimizer(self, strategy, optimizer_str, lr, momentum, lr_policy):
         available_optimizer_strs = ['sgd', 'adam']
@@ -850,9 +850,7 @@ class SBD(CheckpointManager):
         self.train_data_generator.calculate_virtual_anchor()
         # self.train_data_generator.calculate_best_possible_recall()
         Logger.info('start test forward for checking forwarding time')
-        if len(self.cfg.devices) > 0:
-            self.check_forwarding_time(self.model, context=self.primary_context, name='gpu')
-        self.check_forwarding_time(self.model, context=self.cpu_context, name='cpu')
+        self.check_forwarding_time(self.model, context=self.primary_context, name='gpu' if len(self.cfg.devices) > 0 else 'cpu')
 
         print()
         self.cfg.print_cfg()
