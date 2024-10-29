@@ -678,7 +678,20 @@ class SBD(CheckpointManager):
         Logger.info('receive thread VideoCapture release success')
         thread_end_flag_list[0] = True
 
-    def detect(self, path='', dataset='validation', confidence_threshold=0.2, tp_iou_threshold=0.5, show_class=True, width=0, height=0, heatmap=False, thresholds_path=''):
+    def load_best_thresholds(self, thresholds_path):
+        with open(thresholds_path, 'rt') as f:
+            line = f.readlines()[0]
+        best_confidence_thresholds = list(map(float, line.split(',')))
+        best_confidence_thresholds_len = len(best_confidence_thresholds)
+        if best_confidence_thresholds_len != self.num_classes:
+            Logger.error(f'best_confidence_thresholds length({best_confidence_thresholds_len} is not matched with num_classes({self.num_classes}))')
+        info_content = [f'best confidence threshold load success => {thresholds_path}']
+        for i, class_name in enumerate(self.class_names):
+            info_content.append(f'{class_name} : {best_confidence_thresholds[i]:.2f}')
+        Logger.info(info_content)
+        return best_confidence_thresholds
+
+    def detect(self, path='', dataset='validation', confidence_threshold=0.2, tp_iou_threshold=0.5, show_class=True, width=0, height=0, heatmap=False, thresholds_path='', save_label=False):
         image_paths = []
         if path == '':
             assert dataset in ['train', 'validation']
@@ -719,17 +732,7 @@ class SBD(CheckpointManager):
 
         if thresholds_path != '':
             if self.is_path_valid(thresholds_path, path_type='file'):
-                with open(thresholds_path, 'rt') as f:
-                    line = f.readlines()[0]
-                best_confidence_thresholds = list(map(float, line.split(',')))
-                best_confidence_thresholds_len = len(best_confidence_thresholds)
-                if best_confidence_thresholds_len != self.num_classes:
-                    Logger.error(f'best_confidence_thresholds length({best_confidence_thresholds_len} is not matched with num_classes({self.num_classes}))')
-                confidence_threshold = best_confidence_thresholds
-                info_content = [f'best confidence threshold load success => {thresholds_path}']
-                for i, class_name in enumerate(self.class_names):
-                    info_content.append(f'{class_name} : {best_confidence_thresholds[i]:.2f}')
-                Logger.info(info_content)
+                confidence_threshold = self.load_best_thresholds(thresholds_path)
             else:
                 Logger.info(f'{thresholds_path} not found. confidence threshold will be {confidence_threshold:.2f}')
 
@@ -792,14 +795,17 @@ class SBD(CheckpointManager):
                     break
             cv2.destroyAllWindows()
 
-    def auto_label(self, image_path, confidence_threshold, cpu, recursive):
+    def auto_label(self, image_path, confidence_threshold, thresholds_path):
         input_shape = self.model.input_shape[1:]
         channel = input_shape[-1]
 
-        if recursive:
-            image_paths = glob(f'{image_path}/**/*.jpg', recursive=True)
-        else:
-            image_paths = glob(f'{image_path}/*.jpg', recursive=False)
+        if thresholds_path != '':
+            if self.is_path_valid(thresholds_path, path_type='file'):
+                confidence_threshold = self.load_best_thresholds(thresholds_path)
+            else:
+                Logger.info(f'{thresholds_path} not found. confidence threshold will be {confidence_threshold:.2f}')
+
+        image_paths = glob(f'{image_path}/**/*.jpg', recursive=True)
         try:
             sh.copy(self.cfg.class_names_file_path, f'{image_path}/classes.txt')
         except sh.SameFileError:
@@ -822,10 +828,10 @@ class SBD(CheckpointManager):
         for path in image_paths:
             fs.append(self.pool.submit(self.train_data_generator.load_image, path))
 
-        context = self.cpu_context if cpu else self.primary_context
         for f in tqdm(fs):
             img, path = f.result()
-            _, boxes = self.predict(self.model, img, context, confidence_threshold=confidence_threshold)
+            _, boxes = self.predict(self.model, img, self.primary_context, confidence_threshold=confidence_threshold)
+            boxes = sorted(boxes, key=lambda x: ((x['bbox_norm'][2] - x['bbox_norm'][0]) * (x['bbox_norm'][3] - x['bbox_norm'][1])), reverse=True)  # sort by area desc
             label_content = ''
             for box in boxes:
                 class_index = box['class']
