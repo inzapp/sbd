@@ -26,7 +26,7 @@ aug_v_flip: false
 aug_contrast: 0.3
 aug_brightness: 0.3
 aug_snowstorm: 0.0
-warm_up: 0.5
+warm_up: 1000
 momentum: 0.9
 smoothing: 0.0
 ignore_scale: 0.0
