@@ -40,6 +40,7 @@ if __name__ == '__main__':
     sbd = SBD(cfg=cfg)
     sbd.detect(
         path=args.path,
+        dataset=args.dataset,
         confidence_threshold=args.conf,
         show_class=not args.hide_class,
         width=args.width,
