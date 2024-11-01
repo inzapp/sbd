@@ -33,12 +33,13 @@ def _obj_loss(y_true, y_pred, pos_mask, extra, eps):
     num_pos = tf.reduce_sum(pos_mask)
     num_neg = tf.reduce_sum(neg_mask)
 
-    loss = 0.0
+    obj_pos_loss = 0.0
+    obj_neg_loss = 0.0
     if num_pos > 0.0:
-        loss += tf.reduce_sum(ACE()(obj_true, obj_pred) * pos_mask) / num_pos
+        obj_pos_loss = tf.reduce_sum(ACE()(obj_true, obj_pred) * pos_mask)
     if num_neg > 0.0:
-        loss += tf.reduce_sum(ACE()(obj_true, obj_pred) * neg_mask) * tf.sqrt(1.0 / num_neg)
-    return loss
+        obj_neg_loss = tf.reduce_sum(ACE()(obj_true, obj_pred) * neg_mask)
+    return obj_pos_loss, obj_neg_loss, num_pos, num_neg
 
 
 def _box_loss(y_true, y_pred, pos_mask, box_weight, loss_type='ciou'):
@@ -125,7 +126,7 @@ def _box_loss(y_true, y_pred, pos_mask, box_weight, loss_type='ciou'):
             ciou_term = (center_distance / (convex_diagonal_length + 1e-5)) + (alpha * v)
             loss = pos_mask - iou + ciou_term
 
-    loss = tf.reduce_sum(loss * pos_mask) / num_pos
+    loss = tf.reduce_sum(loss * pos_mask)
     return loss * box_weight
 
 
@@ -138,7 +139,7 @@ def _cls_loss(y_true, y_pred, pos_mask, extra, label_smoothing, eps):
     cls_pred = y_pred[:, :, :, 5:]
     cls_weight = extra[:, :, :, 5:]
 
-    loss = tf.reduce_sum(tf.reduce_sum(ACE(label_smoothing=label_smoothing)(cls_true, cls_pred) * cls_weight, axis=-1) * pos_mask) / num_pos
+    loss = tf.reduce_sum(tf.reduce_sum(ACE(label_smoothing=label_smoothing)(cls_true, cls_pred) * cls_weight, axis=-1) * pos_mask)
     return loss
 
 
@@ -146,8 +147,8 @@ def sbd_loss(y_true, y_pred, extra, box_weight, label_smoothing, eps=1e-7):
     y_pred = convert_to_tensor_v2(y_pred)
     y_true = tf.cast(y_true, y_pred.dtype)
     pos_mask = tf.where(y_true[:, :, :, 0] == 1.0, 1.0, 0.0)
-    obj_loss = _obj_loss(y_true, y_pred, pos_mask, extra, eps)
+    obj_pos_loss, obj_neg_loss, num_pos, num_neg = _obj_loss(y_true, y_pred, pos_mask, extra, eps)
     box_loss = _box_loss(y_true, y_pred, pos_mask, box_weight)
     cls_loss = _cls_loss(y_true, y_pred, pos_mask, extra, label_smoothing, eps)
-    return obj_loss, box_loss, cls_loss
+    return obj_pos_loss, obj_neg_loss, num_pos, num_neg, box_loss, cls_loss
 

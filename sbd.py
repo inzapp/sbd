@@ -343,15 +343,27 @@ class SBD(CheckpointManager):
         _, _, model, optimizer, loss_function, x, y_true, extra, num_output_layers, box_weight, label_smoothing = args
         with tf.GradientTape() as tape:
             y_pred = model(x, training=True)
-            obj_loss, box_loss, cls_loss = 0.0, 0.0, 0.0
+            obj_loss, obj_pos_loss, obj_neg_loss, box_loss, cls_loss, num_pos, num_neg = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
             if num_output_layers == 1:
-                obj_loss, box_loss, cls_loss = loss_function(y_true, y_pred, extra, box_weight, label_smoothing)
-            else:
-                for i in range(num_output_layers):
-                    _obj_loss, _box_loss, _cls_loss = loss_function(y_true[i], y_pred[i], extra[i], box_weight, label_smoothing)
-                    obj_loss += _obj_loss
+                y_true = [y_true]
+                y_pred = [y_pred]
+                extra = [extra]
+            for i in range(num_output_layers):
+                _obj_pos_loss, _obj_neg_loss, _num_pos, _num_neg, _box_loss, _cls_loss = loss_function(y_true[i], y_pred[i], extra[i], box_weight, label_smoothing)
+                num_pos += _num_pos
+                num_neg += _num_neg
+                if _num_pos > 0.0:
+                    obj_pos_loss += _obj_pos_loss
                     box_loss += _box_loss
                     cls_loss += _cls_loss
+                if _num_neg > 0.0:
+                    obj_neg_loss += _obj_neg_loss
+            if num_pos > 0.0:
+                obj_loss += obj_pos_loss / num_pos
+                box_loss /= num_pos
+                cls_loss /= num_pos
+            if num_neg > 0.0:
+                obj_loss += obj_neg_loss * tf.sqrt(1.0 / num_neg)
             loss = obj_loss + box_loss + cls_loss
             gradients = tape.gradient(loss, model.trainable_variables)
         optimizer.apply_gradients(zip(gradients, model.trainable_variables))
