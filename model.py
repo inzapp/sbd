@@ -194,7 +194,7 @@ class Model:
                 else:
                     num_upscaling = 5 - pyramid_scale
                     num_upscaling_spp = 3
-                # x = self.spp_block(x, list(reversed(features))[1:num_upscaling_spp+1], self.cfg.activation)
+                # x = self.feature_fusion_block(x, list(reversed(features))[1:num_upscaling_spp+1], self.cfg.activation)
                 if num_upscaling > 0:
                     ms = list(reversed([v[0] for v in layer_infos]))[2:num_upscaling+2]
                     ks = list(reversed([v[1] for v in layer_infos]))[2:num_upscaling+2]
@@ -223,18 +223,18 @@ class Model:
         x = self.conv2d(x, reduced_channel, 1, bn=bn, activation=activation)
         x = self.conv2d(x, reduced_channel, 7, bn=bn, activation=activation)
         x = self.conv2d(x, input_filters, 1, bn=bn, activation='sigmoid')
-        return tf.keras.layers.Multiply()([x, input_layer])
+        return self.multiply([x, input_layer])
 
-    def spp_block(self, x, layers, activation, bn=False):
+    def feature_fusion_block(self, x, layers, activation, bn=False):
         pool_size = 2
-        spp_layers = [x]
+        fusion_layers = [x]
         channels = x.shape[-1]
         for i in range(len(layers)):
-            spp_x = self.maxpool2d(layers[i], pool_size=pool_size)
-            spp_x = self.conv2d(spp_x, channels, 1, bn=bn, activation=activation)
-            spp_layers.append(spp_x)
+            fusion_x = self.maxpooling2d(layers[i], pool_size=pool_size)
+            fusion_x = self.conv2d(fusion_x, channels, 1, bn=bn, activation=activation)
+            fusion_layers.append(fusion_x)
             pool_size *= 2
-        return self.conv2d(self.add(spp_layers), channels, 1, bn=bn, activation=activation)
+        return self.conv2d(self.bn(self.add(fusion_layers)), channels, 1, bn=bn, activation=activation)
 
     def fpn_block(self, x, methods, layers, filters, kernel_sizes, depths, activation, bn=False, return_layers=False, mode='add'):
         assert mode in ['add', 'concat']
@@ -328,7 +328,7 @@ class Model:
         return tf.keras.layers.Dropout(self.cfg.dropout)(x) if self.cfg.dropout > 0.0 else x
 
     @staticmethod
-    def maxpool2d(x, pool_size=2):
+    def maxpooling2d(x, pool_size=2):
         return tf.keras.layers.MaxPool2D(pool_size=(pool_size, pool_size))(x)
 
     @staticmethod
