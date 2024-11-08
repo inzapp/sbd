@@ -867,8 +867,9 @@ class DataGenerator:
 
     def signal_handler(self, sig, frame):
         print()
-        Logger.info('SIGINT signal detected, please wait until the end of the thread')
+        Logger.info(f'{signal.Signals(sig).name} signal detected, please wait until the end of the thread')
         self.stop()
+        Logger.info(f'exit successfully')
         sys.exit(0)
 
     def start(self):
@@ -877,6 +878,7 @@ class DataGenerator:
         self.q_thread_running = True
         self.q_thread.start()
         signal.signal(signal.SIGINT, self.signal_handler)
+        signal.signal(signal.SIGTERM, self.signal_handler)
         while True:
             sleep(1.0)
             percentage = (len(self.q) / self.cfg.max_q_size) * 100.0

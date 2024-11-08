@@ -936,6 +936,6 @@ class SBD(CheckpointManager):
                 self.save_best_thresholds()
                 self.remove_last_model()
                 self.remove_last_extra_data()
-                Logger.info('train end successfully')
+                Logger.info('training end successfully')
                 return
 
