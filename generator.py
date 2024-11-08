@@ -821,7 +821,7 @@ class DataGenerator:
                 print(f'allocated_count : {allocated_count}\n')
             key = cv2.waitKey(0)
             if key == 27:
-                self.signal_handler(None, None)
+                self.signal_handler(signal.SIGINT, None)
         return allocated_count
 
     def load_image(self, path, gray=False):
