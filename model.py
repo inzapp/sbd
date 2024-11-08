@@ -176,10 +176,10 @@ class Model:
             layer_infos.pop(6)
         input_layer = tf.keras.layers.Input(shape=self.input_shape, name='sbd_input')
         x = input_layer
-        for i, (method, kernel_size, channel, depth) in enumerate(layer_infos):
+        for p, (method, kernel_size, channel, depth) in enumerate(layer_infos):
             depth -= 1
             if method in ['conv', 'csp']:
-                if i > 2:
+                if p >= 3:
                     x = self.dropout(x)
                 if method == 'conv':
                     for _ in range(depth):
@@ -206,7 +206,7 @@ class Model:
                     x = [x]
             else:
                 Logger.error(f'invalid layer info method : {method}, available method : [conv, csp, head]')
-            if i < (6 if self.cfg.p6_model else 5):
+            if p < (6 if self.cfg.p6_model else 5):
                 x = self.conv2d(x, channel, kernel_size, self.cfg.activation, strides=2)
 
         output_layers = []
@@ -214,14 +214,12 @@ class Model:
             output_layers.append(self.detection_layer(x[i], f'sbd_output_{i}'))
         return tf.keras.models.Model(input_layer, output_layers if type(output_layers) is list else output_layers[0])
 
-    def spatial_attention_block(self, x, activation, bn=False, reduction_ratio=16):
+    def hybrid_attention_block(self, x, activation, bn=False):
         input_layer = x
         input_filters = input_layer.shape[-1]
-        reduced_channel = input_filters // reduction_ratio
-        if reduced_channel < 4:
-            reduced_channel = 4
-        x = self.conv2d(x, reduced_channel, 1, bn=bn, activation=activation)
-        x = self.conv2d(x, reduced_channel, 7, bn=bn, activation=activation)
+        reduced_filters = max(input_filters // 16, 2)
+        x = self.conv2d(x, reduced_filters, 1, bn=bn, activation=activation)
+        x = self.conv2d(x, reduced_filters, 7, bn=bn, activation=activation)
         x = self.conv2d(x, input_filters, 1, bn=bn, activation='sigmoid')
         return self.multiply([x, input_layer])
 
