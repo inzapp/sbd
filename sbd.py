@@ -118,7 +118,7 @@ class TrainingConfig:
         d['warm_up'] = float(warm_up) if 0.0 <= warm_up <= 1.0 else int(warm_up)
         d['momentum'] = self.__get_value_from_yaml(cfg, 'momentum', 0.9, float, required=False)
         d['smoothing'] = self.__get_value_from_yaml(cfg, 'smoothing', 0.0, float, required=False)
-        d['ignore_scale'] = self.__get_value_from_yaml(cfg, 'ignore_scale', 0.0, float, required=False)
+        d['heatmap_scale'] = self.__get_value_from_yaml(cfg, 'heatmap_scale', 0.0, float, required=False)
         d['va_iou_threshold'] = self.__get_value_from_yaml(cfg, 'va_iou_threshold', 0.0, float, required=False)
         d['batch_size'] = self.__get_value_from_yaml(cfg, 'batch_size', 4, int, required=False)
         d['max_q_size'] = self.__get_value_from_yaml(cfg, 'max_q_size', 1024, int, required=False)

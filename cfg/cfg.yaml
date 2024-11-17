@@ -29,7 +29,7 @@ aug_snowstorm: 0.0
 warm_up: 1000
 momentum: 0.9
 smoothing: 0.0
-ignore_scale: 0.0
+heatmap_scale: 0.0
 va_iou_threshold: 1.0
 batch_size: 4
 max_q_size: 1024
