@@ -91,9 +91,9 @@ class LRScheduler:
     def __schedule_step_decay(self, optimizer, iteration_count):
         if self.warm_up_iterations > 0 and iteration_count <= self.warm_up_iterations:
             lr = self.__warm_up_lr(iteration_count, self.warm_up_iterations)
-        elif iteration_count >= int(self.iterations * 0.9):
+        elif iteration_count >= int(self.iterations * 0.92):
             lr = self.lr * self.step_weight ** 2.0
-        elif iteration_count >= int(self.iterations * 0.8):
+        elif iteration_count >= int(self.iterations * 0.75):
             lr = self.lr * self.step_weight
         else:
             lr = self.lr
