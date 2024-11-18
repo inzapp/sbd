@@ -3,8 +3,8 @@ pretrained_model_path: null
 train_data_path: /train_data/coco/train
 validation_data_path: /train_data/coco/validation
 class_names_file_path: /train_data/coco/train/classes.txt
-input_rows: 416
-input_cols: 416
+input_rows: 640
+input_cols: 640
 input_channels: 3
 model_name: coco
 model_type: m
@@ -13,7 +13,7 @@ p6_model: false
 optimizer: sgd
 lr_policy: step
 lr: 0.001
-lrf: 0.05
+lrf: 0.01
 l2: 0.0005
 dropout: 0.0
 cls_balance: 0.0
@@ -21,7 +21,7 @@ box_weight: 7.5
 aug_noise: 0.0
 aug_scale: 0.5
 aug_mosaic: 0.2
-aug_h_flip: false
+aug_h_flip: true
 aug_v_flip: false
 aug_contrast: 0.3
 aug_brightness: 0.3
@@ -33,7 +33,7 @@ heatmap_scale: 0.0
 va_iou_threshold: 1.0
 batch_size: 4
 max_q_size: 1024
-iterations: 1000000
+iterations: 354000
 checkpoint_interval: 0
 show_progress: false
 treat_unknown_as_class: false
