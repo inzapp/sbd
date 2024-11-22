@@ -109,10 +109,10 @@ class Model:
             ['conv', 3, 8, 1],
             ['conv', 3, 16, 1],
             ['conv', 3, 32, 2],
-            ['csp',  3, 64, 3],
-            ['csp',  3, 128, 3],
-            ['csp',  3, 256, 3],
-            ['csp',  3, 256, 3],
+            ['lcsp', 3, 64, 3],
+            ['lcsp', 3, 128, 3],
+            ['lcsp', 3, 256, 3],
+            ['lcsp', 3, 256, 3],
             ['head', -1, -1, -1],
         ]
         return self.build_layers(layer_infos, num_output_layers, pyramid_scale)
@@ -122,10 +122,10 @@ class Model:
             ['conv', 3, 16, 1],
             ['conv', 3, 32, 1],
             ['conv', 3, 64, 2],
-            ['csp',  3, 128, 3],
-            ['csp',  3, 256, 4],
-            ['csp',  3, 512, 5],
-            ['csp',  3, 512, 5],
+            ['lcsp', 3, 128, 3],
+            ['lcsp', 3, 256, 4],
+            ['lcsp', 3, 512, 5],
+            ['lcsp', 3, 512, 5],
             ['head', -1, -1, -1],
         ]
         return self.build_layers(layer_infos, num_output_layers, pyramid_scale)
@@ -135,10 +135,10 @@ class Model:
             ['conv', 3, 16, 1],
             ['conv', 3, 32, 1],
             ['conv', 3, 96, 2],
-            ['csp',  3, 192, 3],
-            ['csp',  3, 384, 5],
-            ['csp',  3, 512, 7],
-            ['csp',  3, 512, 7],
+            ['lcsp', 3, 192, 3],
+            ['lcsp', 3, 384, 5],
+            ['lcsp', 3, 512, 7],
+            ['lcsp', 3, 512, 7],
             ['head', -1, -1, -1],
         ]
         return self.build_layers(layer_infos, num_output_layers, pyramid_scale)
@@ -148,10 +148,10 @@ class Model:
             ['conv', 3, 24, 1],
             ['conv', 3, 48, 2],
             ['conv', 3, 96, 2],
-            ['csp',  3, 192, 4],
-            ['csp',  3, 384, 6],
-            ['csp',  3, 768, 8],
-            ['csp',  3, 768, 8],
+            ['lcsp', 3, 192, 4],
+            ['lcsp', 3, 384, 6],
+            ['lcsp', 3, 768, 8],
+            ['lcsp', 3, 768, 8],
             ['head', -1, -1, -1],
         ]
         return self.build_layers(layer_infos, num_output_layers, pyramid_scale)
@@ -161,10 +161,10 @@ class Model:
             ['conv', 3, 32, 1],
             ['conv', 3, 64, 2],
             ['conv', 3, 128, 3],
-            ['csp',  3, 256, 4],
-            ['csp',  3, 512, 6],
-            ['csp',  3, 1024, 8],
-            ['csp',  3, 1024, 8],
+            ['lcsp', 3, 256, 4],
+            ['lcsp', 3, 512, 6],
+            ['lcsp', 3, 1024, 8],
+            ['lcsp', 3, 1024, 8],
             ['head', -1, -1, -1],
         ]
         return self.build_layers(layer_infos, num_output_layers, pyramid_scale)
@@ -178,14 +178,14 @@ class Model:
         x = input_layer
         for p, (method, kernel_size, channel, depth) in enumerate(layer_infos):
             depth -= 1
-            if method in ['conv', 'csp']:
+            if method in ['conv', 'lcsp']:
                 if p >= 3:
                     x = self.dropout(x)
                 if method == 'conv':
                     for _ in range(depth):
                         x = self.conv2d(x, channel, kernel_size, self.cfg.activation)
                 else:
-                    x = self.csp_block(x, channel, kernel_size, depth, self.cfg.activation)
+                    x = self.lcsp_block(x, channel, kernel_size, depth, self.cfg.activation)
                 features.append(x)
             elif method == 'head':
                 if self.cfg.p6_model:
@@ -205,7 +205,7 @@ class Model:
                 if type(x) is not list:
                     x = [x]
             else:
-                Logger.error(f'invalid layer info method : {method}, available method : [conv, csp, head]')
+                Logger.error(f'invalid layer info method : {method}, available method : [conv, lcsp, head]')
             if p < (6 if self.cfg.p6_model else 5):
                 x = self.conv2d(x, channel, kernel_size, self.cfg.activation, strides=2)
 
@@ -250,14 +250,14 @@ class Model:
             if methods[i] == 'conv':
                 for _ in range(depths[i]):
                     x = self.conv2d(x, filters[i], kernel_sizes[i], activation=activation)
-            elif methods[i] == 'csp':
-                x = self.csp_block(x, filters[i], kernel_sizes[i], depth=depths[i], activation=activation)
+            elif methods[i] == 'lcsp':
+                x = self.lcsp_block(x, filters[i], kernel_sizes[i], depth=depths[i], activation=activation)
             else:
                 Logger.error(f'invalid layer info method : {methods[i]}')
             output_layers.append(x)
         return output_layers if return_layers else x
 
-    def csp_block(self, x, filters, kernel_size, depth, activation, bn=False):
+    def lcsp_block(self, x, filters, kernel_size, depth, activation, bn=False):
         half_filters = filters // 2
         x_0 = self.conv2d(x, half_filters, 1, bn=bn, activation=activation)
         x_1 = self.conv2d(x, filters, 1, bn=bn, activation=activation)
@@ -266,6 +266,20 @@ class Model:
         x_0 = self.conv2d(x_0, filters, 1, bn=bn, activation=activation)
         x = self.add([x_0, x_1])
         x = self.bn(x)
+        x = self.conv2d(x, filters, 1, bn=bn, activation=activation)
+        return x
+
+    def csp_block(self, x, filters, kernel_size, depth, activation, bn=False):
+        x = self.conv2d(x, x.shape[-1], 1, bn=bn, activation=activation)
+        half_filters = filters // 2
+        x_half = self.conv2d(x, half_filters, 1, bn=bn, activation=activation)
+        x_half_first = x_half
+        for _ in range(depth):
+            x_half_0 = self.conv2d(x_half, half_filters, kernel_size, bn=bn, activation=activation)
+            x_half_1 = self.conv2d(x_half_0, half_filters, kernel_size, bn=bn, activation=activation)
+            x_half = self.add([x_half, x_half_1])
+        x_half = self.add([x_half, x_half_first])
+        x = self.concat([x, x_half])
         x = self.conv2d(x, filters, 1, bn=bn, activation=activation)
         return x
 
