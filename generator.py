@@ -548,7 +548,7 @@ class DataGenerator:
             new_labels.append([class_index, cx, cy, w, h])
         return img, new_labels
 
-    def random_mosaic(self, datas):
+    def augment_mosaic(self, datas):
         np.random.shuffle(datas)
         img_0 = cv2.resize(datas[0]['img'], (0, 0), fx=0.5, fy=0.5, interpolation=cv2.INTER_AREA)
         img_1 = cv2.resize(datas[1]['img'], (0, 0), fx=0.5, fy=0.5, interpolation=cv2.INTER_AREA)
@@ -580,7 +580,22 @@ class DataGenerator:
                 new_labels.append([class_index, cx, cy, w, h])
         return img, new_labels
 
-    def augment(self, img, labels, mosaic):
+    def augment_mixup(self, datas, alpha=0.5):
+        np.random.shuffle(datas)
+        img_0 = datas[0]['img']
+        img_1 = datas[1]['img']
+        img = cv2.addWeighted(img_0, alpha, img_1, 1 - alpha, 0)
+
+        new_labels = []
+        for i in range(len(datas)):
+            labels = datas[i]['labels']
+            for label in labels:
+                class_index, cx, cy, w, h = label
+                cx, cy, w, h = np.clip(np.array([cx, cy, w, h]), 0.0, 1.0)
+                new_labels.append([class_index, cx, cy, w, h])
+        return img, new_labels
+
+    def augment(self, img, labels, multi_image_augmentation):
         if self.cfg.aug_brightness > 0.0 or self.cfg.aug_contrast > 0.0:
             img = self.transform(image=img)['image']
 
@@ -590,11 +605,16 @@ class DataGenerator:
         if self.cfg.aug_scale > 0.0 and np.random.uniform() < 0.5:
             img, labels = self.augment_scale(img, labels, self.cfg.aug_scale)
 
-        if mosaic:
+        if multi_image_augmentation:
+            if self.cfg.aug_mixup > 0.0 and np.random.uniform() < self.cfg.aug_mixup:
+                mixup_data = self.load_image_with_label(size=1, multi_image_augmentation=False)
+                mixup_data.append({'img': img, 'labels': labels})
+                img, labels = self.augment_mixup(mixup_data)
+
             if self.cfg.aug_mosaic > 0.0 and np.random.uniform() < self.cfg.aug_mosaic:
-                mosaic_data = self.load_image_with_label(size=3, mosaic=False)
+                mosaic_data = self.load_image_with_label(size=3, multi_image_augmentation=False)
                 mosaic_data.append({'img': img, 'labels': labels})
-                img, labels = self.random_mosaic(mosaic_data)
+                img, labels = self.augment_mosaic(mosaic_data)
                 if self.cfg.aug_scale > 0.0 and np.random.uniform() < 0.5:
                     img, labels = self.augment_scale(img, labels, self.cfg.aug_scale)
         return img, labels
@@ -849,7 +869,7 @@ class DataGenerator:
             np.random.shuffle(self.data_paths)
         return path
 
-    def load_image_with_label(self, size, mosaic):
+    def load_image_with_label(self, size, multi_image_augmentation):
         data, fs = [], []
         for _ in range(size):
             fs.append(self.pool.submit(self.load_image, self.next_data_path(), gray=self.cfg.input_channels == 1))
@@ -861,7 +881,7 @@ class DataGenerator:
                 Logger.warn(f'label not found : {label_path}')
                 continue
             if self.training:
-                img, labels = self.augment(img, labels, mosaic=mosaic)
+                img, labels = self.augment(img, labels, multi_image_augmentation=multi_image_augmentation)
             data.append({'img': img, 'labels': labels})
         return data
 
@@ -905,7 +925,7 @@ class DataGenerator:
     def load_xy(self):
         y = [np.zeros(shape=self.output_shapes[i][1:], dtype=np.float32) for i in range(self.num_output_layers)]
         extra = [np.ones(shape=self.output_shapes[i][1:], dtype=np.float32) for i in range(self.num_output_layers)]
-        img_with_label = self.load_image_with_label(size=1, mosaic=True)
+        img_with_label = self.load_image_with_label(size=1, multi_image_augmentation=True)
         img = img_with_label[0]['img']
         labels = img_with_label[0]['labels']
         x = self.preprocess(img)

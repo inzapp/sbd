@@ -108,6 +108,7 @@ class TrainingConfig:
         d['box_weight'] = self.__get_value_from_yaml(cfg, 'box_weight', 1.0, float, required=False)
         d['aug_noise'] = self.__get_value_from_yaml(cfg, 'aug_noise', 0.0, float, required=False)
         d['aug_scale'] = self.__get_value_from_yaml(cfg, 'aug_scale', 0.5, float, required=False)
+        d['aug_mixup'] = self.__get_value_from_yaml(cfg, 'aug_mixup', 0.0, float, required=False)
         d['aug_mosaic'] = self.__get_value_from_yaml(cfg, 'aug_mosaic', 0.2, float, required=False)
         d['aug_h_flip'] = self.__get_value_from_yaml(cfg, 'aug_h_flip', False, bool, required=False)
         d['aug_v_flip'] = self.__get_value_from_yaml(cfg, 'aug_v_flip', False, bool, required=False)
