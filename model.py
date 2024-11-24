@@ -216,52 +216,52 @@ class Model:
             Logger.error(f'layer block name({name}) is invalid, available_names : {available_names}')
         return x
 
-    def hybrid_attention_block(self, x, bn=False):
+    def hybrid_attention_block(self, x):
         input_layer = x
         input_filters = input_layer.shape[-1]
         reduced_filters = max(input_filters // 16, 2)
-        x = self.conv2d(x, reduced_filters, 1, bn=bn)
-        x = self.conv2d(x, reduced_filters, 7, bn=bn)
-        x = self.conv2d(x, input_filters, 1, bn=bn, activation='sigmoid')
+        x = self.conv2d(x, reduced_filters, 1)
+        x = self.conv2d(x, reduced_filters, 7)
+        x = self.conv2d(x, input_filters, 1, activation='sigmoid')
         return self.multiply([x, input_layer])
 
-    def feature_fusion_block(self, x, layers, bn=False):
+    def feature_fusion_block(self, x, layers):
         pool_size = 2
         fusion_layers = [x]
         channels = x.shape[-1]
         for i in range(len(layers)):
             fusion_x = self.maxpooling2d(layers[i], pool_size=pool_size)
-            fusion_x = self.conv2d(fusion_x, channels, 1, bn=bn)
+            fusion_x = self.conv2d(fusion_x, channels, 1)
             fusion_layers.append(fusion_x)
             pool_size *= 2
-        return self.conv2d(self.bn(self.add(fusion_layers)), channels, 1, bn=bn)
+        return self.conv2d(self.bn(self.add(fusion_layers)), channels, 1)
 
-    def lcsp_block(self, x, filters, kernel_size, depth, bn=False):
+    def lcsp_block(self, x, filters, kernel_size, depth):
         half_filters = filters // 2
-        x_0 = self.conv2d(x, half_filters, 1, bn=bn)
-        x_1 = self.conv2d(x, filters, 1, bn=bn, activation='linear')
+        x_0 = self.conv2d(x, half_filters, 1)
+        x_1 = self.conv2d(x, filters, 1, activation='linear')
         for _ in range(depth):
-            x_0 = self.conv2d(x_0, half_filters, kernel_size, bn=bn)
-        x_0 = self.conv2d(x_0, filters, 1, bn=bn, activation='linear')
+            x_0 = self.conv2d(x_0, half_filters, kernel_size)
+        x_0 = self.conv2d(x_0, filters, 1, activation='linear')
         x = self.add([x_0, x_1])
         x = self.bn(x)
         x = self.act(x, self.cfg.activation)
-        x = self.conv2d(x, filters, 1, bn=bn)
+        x = self.conv2d(x, filters, 1)
         return x
 
-    def csp_block(self, x, filters, kernel_size, depth, bn=False):
-        x = self.conv2d(x, x.shape[-1], 1, bn=bn)
+    def csp_block(self, x, filters, kernel_size, depth):
+        x = self.conv2d(x, x.shape[-1], 1)
         half_filters = filters // 2
-        x_half = self.conv2d(x, half_filters, 1, bn=bn)
+        x_half = self.conv2d(x, half_filters, 1)
         x_half_first = x_half
         for _ in range(depth):
-            x_half_0 = self.conv2d(x_half, half_filters, kernel_size, bn=bn)
-            x_half_1 = self.conv2d(x_half_0, half_filters, kernel_size, bn=bn)
+            x_half_0 = self.conv2d(x_half, half_filters, kernel_size)
+            x_half_1 = self.conv2d(x_half_0, half_filters, kernel_size)
             x_half = self.add([x_half, x_half_1])
         x_half = self.add([x_half, x_half_first])
         x = self.concat([x, x_half])
         x = self.bn(x)
-        x = self.conv2d(x, filters, 1, bn=bn)
+        x = self.conv2d(x, filters, 1)
         return x
 
     def conv2d(self, x, filters, kernel_size, activation='auto', strides=1, bn=False):
