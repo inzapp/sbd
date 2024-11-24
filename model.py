@@ -105,200 +105,183 @@ class Model:
         return model
 
     def n(self, num_output_layers, pyramid_scale):
-        layer_infos = [
-            ['conv', 3, 8, 1],
-            ['conv', 3, 16, 1],
-            ['conv', 3, 32, 2],
-            ['lcsp', 3, 64, 3],
-            ['lcsp', 3, 128, 3],
-            ['lcsp', 3, 256, 3],
-            ['lcsp', 3, 256, 3],
-            ['head', -1, -1, -1],
+        stage_infos = [
+            ['conv', 8, 3, 1],
+            ['conv', 16, 3, 1],
+            ['conv', 32, 3, 2],
+            ['lcsp', 64, 3, 3],
+            ['lcsp', 128, 3, 3],
+            ['lcsp', 256, 3, 3],
+            ['csp', 256, 3, 1],
         ]
-        return self.build_layers(layer_infos, num_output_layers, pyramid_scale)
+        return self.build_model(stage_infos, num_output_layers, pyramid_scale)
 
     def s(self, num_output_layers, pyramid_scale):
-        layer_infos = [
-            ['conv', 3, 16, 1],
-            ['conv', 3, 32, 1],
-            ['conv', 3, 64, 2],
-            ['lcsp', 3, 128, 3],
-            ['lcsp', 3, 256, 4],
-            ['lcsp', 3, 512, 5],
-            ['lcsp', 3, 512, 5],
-            ['head', -1, -1, -1],
+        stage_infos = [
+            ['conv', 16, 3, 1],
+            ['conv', 32, 3, 1],
+            ['conv', 64, 3, 2],
+            ['lcsp', 128, 3, 3],
+            ['lcsp', 256, 3, 4],
+            ['lcsp', 512, 3, 5],
+            ['csp', 512, 3, 2],
         ]
-        return self.build_layers(layer_infos, num_output_layers, pyramid_scale)
+        return self.build_model(stage_infos, num_output_layers, pyramid_scale)
 
     def m(self, num_output_layers, pyramid_scale):
-        layer_infos = [
-            ['conv', 3, 16, 1],
-            ['conv', 3, 32, 1],
-            ['conv', 3, 96, 2],
-            ['lcsp', 3, 192, 3],
-            ['lcsp', 3, 384, 5],
-            ['lcsp', 3, 512, 7],
-            ['lcsp', 3, 512, 7],
-            ['head', -1, -1, -1],
+        stage_infos = [
+            ['conv', 16, 3, 1],
+            ['conv', 32, 3, 1],
+            ['conv', 96, 3, 2],
+            ['lcsp', 192, 3, 3],
+            ['lcsp', 384, 3, 5],
+            ['lcsp', 512, 3, 7],
+            ['csp', 512, 3, 3],
         ]
-        return self.build_layers(layer_infos, num_output_layers, pyramid_scale)
+        return self.build_model(stage_infos, num_output_layers, pyramid_scale)
 
     def l(self, num_output_layers, pyramid_scale):
-        layer_infos = [
-            ['conv', 3, 24, 1],
-            ['conv', 3, 48, 2],
-            ['conv', 3, 96, 2],
-            ['lcsp', 3, 192, 4],
-            ['lcsp', 3, 384, 6],
-            ['lcsp', 3, 768, 8],
-            ['lcsp', 3, 768, 8],
-            ['head', -1, -1, -1],
+        stage_infos = [
+            ['conv', 24, 3, 1],
+            ['conv', 48, 3, 2],
+            ['conv', 96, 3, 2],
+            ['lcsp', 192, 3, 4],
+            ['lcsp', 384, 3, 6],
+            ['lcsp', 768, 3, 8],
+            ['csp', 768, 3, 4],
         ]
-        return self.build_layers(layer_infos, num_output_layers, pyramid_scale)
+        return self.build_model(stage_infos, num_output_layers, pyramid_scale)
 
     def x(self, num_output_layers, pyramid_scale):
-        layer_infos = [
-            ['conv', 3, 32, 1],
-            ['conv', 3, 64, 2],
-            ['conv', 3, 128, 3],
-            ['lcsp', 3, 256, 4],
-            ['lcsp', 3, 512, 6],
-            ['lcsp', 3, 1024, 8],
-            ['lcsp', 3, 1024, 8],
-            ['head', -1, -1, -1],
+        stage_infos = [
+            ['conv', 32, 3, 1],
+            ['conv', 64, 3, 2],
+            ['conv', 128, 3, 3],
+            ['lcsp', 256, 3, 4],
+            ['lcsp', 512, 3, 6],
+            ['lcsp', 1024, 3, 8],
+            ['csp', 1024, 3, 4],
         ]
-        return self.build_layers(layer_infos, num_output_layers, pyramid_scale)
+        return self.build_model(stage_infos, num_output_layers, pyramid_scale)
 
-    def build_layers(self, layer_infos, num_output_layers, pyramid_scale):
-        assert len(layer_infos) == 8 and layer_infos[-1][0] == 'head'
-        features = []
-        if not self.cfg.p6_model:
-            layer_infos.pop(6)
+    def build_model(self, stage_infos, num_output_layers, pyramid_scale):
+        assert len(stage_infos) == 7
         input_layer = tf.keras.layers.Input(shape=self.input_shape, name='sbd_input')
+        final_layers = []
+        if not self.cfg.p6_model:
+            stage_infos.pop(6)
+        stages = []
         x = input_layer
-        for p, (method, kernel_size, channel, depth) in enumerate(layer_infos):
-            depth -= 1
-            if method in ['conv', 'lcsp']:
-                if p >= 3:
-                    x = self.dropout(x)
-                if method == 'conv':
-                    for _ in range(depth):
-                        x = self.conv2d(x, channel, kernel_size, self.cfg.activation)
-                else:
-                    x = self.lcsp_block(x, channel, kernel_size, depth, self.cfg.activation)
-                features.append(x)
-            elif method == 'head':
-                if self.cfg.p6_model:
-                    num_upscaling = 6 - pyramid_scale
-                    num_upscaling_spp = 4
-                else:
-                    num_upscaling = 5 - pyramid_scale
-                    num_upscaling_spp = 3
-                # x = self.feature_fusion_block(x, list(reversed(features))[1:num_upscaling_spp+1], self.cfg.activation)
-                if num_upscaling > 0:
-                    ms = list(reversed([v[0] for v in layer_infos]))[2:num_upscaling+2]
-                    ks = list(reversed([v[1] for v in layer_infos]))[2:num_upscaling+2]
-                    cs = list(reversed([v[2] for v in layer_infos]))[2:num_upscaling+2]
-                    ds = list(reversed([v[3] for v in layer_infos]))[2:num_upscaling+2]
-                    fs = list(reversed(features))[1:num_upscaling+1]
-                    x = self.fpn_block(x, ms, fs, cs, ks, ds, self.cfg.activation, return_layers=num_output_layers == 'm')
-                if type(x) is not list:
-                    x = [x]
-            else:
-                Logger.error(f'invalid layer info method : {method}, available method : [conv, lcsp, head]')
-            if p < (6 if self.cfg.p6_model else 5):
-                x = self.conv2d(x, channel, kernel_size, self.cfg.activation, strides=2)
-
+        model_p = 6 if self.cfg.p6_model else 5
+        for p, stage_info in enumerate(stage_infos):
+            if p >= 3:
+                x = self.dropout(x)
+            name, channels, kernel_size, depth = stage_info
+            if name == 'conv':
+                depth -= 1
+            x = self.layer_block(x, name, channels, kernel_size, depth)
+            stages.append(x)
+            if p < model_p:
+                x = self.conv2d(x, channels, 3, strides=2)
+        final_layers.append(stages.pop(-1))
+        for i, stage_info in enumerate(reversed(stage_infos)):
+            p = model_p - i
+            if p == model_p:
+                continue
+            name, channels, kernel_size, depth = stage_info
+            x = self.conv2d(x, channels, 1)
+            x = self.upsampling2d(x)
+            x = self.add([x, stages.pop(-1)])
+            x = self.bn(x)
+            x = self.layer_block(x, name, channels, kernel_size, depth)
+            final_layers.append(x)
+            if p == pyramid_scale:
+                break
+        final_layers = final_layers if num_output_layers == 'm' else [final_layers[-1]]
         output_layers = []
-        for i in range(len(x)):
-            output_layers.append(self.detection_layer(x[i], f'sbd_output_{i}'))
-        return tf.keras.models.Model(input_layer, output_layers if type(output_layers) is list else output_layers[0])
+        for i, final_layer in enumerate(final_layers):
+            output_layers.append(self.detection_layer(final_layer, f'sbd_output_{i}'))
+        return tf.keras.models.Model(input_layer, output_layers if num_output_layers == 'm' else output_layers[0])
 
-    def hybrid_attention_block(self, x, activation, bn=False):
+    def layer_block(self, x, name, channels, kernel_size, depth):
+        available_names = ['conv', 'lcsp', 'csp']
+        if name == 'conv':
+            for _ in range(depth):
+                x = self.conv2d(x, channels, kernel_size)
+        elif name == 'lcsp':
+            x = self.lcsp_block(x, channels, kernel_size, depth)
+        elif name == 'csp':
+            x = self.csp_block(x, channels, kernel_size, depth)
+        else:
+            Logger.error(f'layer block name({name}) is invalid, available_names : {available_names}')
+        return x
+
+    def hybrid_attention_block(self, x, bn=False):
         input_layer = x
         input_filters = input_layer.shape[-1]
         reduced_filters = max(input_filters // 16, 2)
-        x = self.conv2d(x, reduced_filters, 1, bn=bn, activation=activation)
-        x = self.conv2d(x, reduced_filters, 7, bn=bn, activation=activation)
+        x = self.conv2d(x, reduced_filters, 1, bn=bn)
+        x = self.conv2d(x, reduced_filters, 7, bn=bn)
         x = self.conv2d(x, input_filters, 1, bn=bn, activation='sigmoid')
         return self.multiply([x, input_layer])
 
-    def feature_fusion_block(self, x, layers, activation, bn=False):
+    def feature_fusion_block(self, x, layers, bn=False):
         pool_size = 2
         fusion_layers = [x]
         channels = x.shape[-1]
         for i in range(len(layers)):
             fusion_x = self.maxpooling2d(layers[i], pool_size=pool_size)
-            fusion_x = self.conv2d(fusion_x, channels, 1, bn=bn, activation=activation)
+            fusion_x = self.conv2d(fusion_x, channels, 1, bn=bn)
             fusion_layers.append(fusion_x)
             pool_size *= 2
-        return self.conv2d(self.bn(self.add(fusion_layers)), channels, 1, bn=bn, activation=activation)
+        return self.conv2d(self.bn(self.add(fusion_layers)), channels, 1, bn=bn)
 
-    def fpn_block(self, x, methods, layers, filters, kernel_sizes, depths, activation, bn=False, return_layers=False, mode='add'):
-        assert mode in ['add', 'concat']
-        output_layers = [x]
-        for i in range(len(layers)):
-            if mode == 'add':
-                x = self.conv2d(x, filters[i], 1, bn=bn, activation=activation)
-                x = self.upsampling2d(x)
-                x = self.add([x, layers[i]])
-            else:
-                x = self.upsampling2d(x)
-                x = self.concat([x, layers[i]])
-                x = self.conv2d(x, filters[i], 1, bn=bn, activation=activation)
-            x = self.bn(x)
-            if methods[i] == 'conv':
-                for _ in range(depths[i]):
-                    x = self.conv2d(x, filters[i], kernel_sizes[i], activation=activation)
-            elif methods[i] == 'lcsp':
-                x = self.lcsp_block(x, filters[i], kernel_sizes[i], depth=depths[i], activation=activation)
-            else:
-                Logger.error(f'invalid layer info method : {methods[i]}')
-            output_layers.append(x)
-        return output_layers if return_layers else x
-
-    def lcsp_block(self, x, filters, kernel_size, depth, activation, bn=False):
+    def lcsp_block(self, x, filters, kernel_size, depth, bn=False):
         half_filters = filters // 2
-        x_0 = self.conv2d(x, half_filters, 1, bn=bn, activation=activation)
-        x_1 = self.conv2d(x, filters, 1, bn=bn, activation=activation)
+        x_0 = self.conv2d(x, half_filters, 1, bn=bn)
+        x_1 = self.conv2d(x, filters, 1, bn=bn, activation='linear')
         for _ in range(depth):
-            x_0 = self.conv2d(x_0, half_filters, kernel_size, bn=bn, activation=activation)
-        x_0 = self.conv2d(x_0, filters, 1, bn=bn, activation=activation)
+            x_0 = self.conv2d(x_0, half_filters, kernel_size, bn=bn)
+        x_0 = self.conv2d(x_0, filters, 1, bn=bn, activation='linear')
         x = self.add([x_0, x_1])
         x = self.bn(x)
-        x = self.conv2d(x, filters, 1, bn=bn, activation=activation)
+        x = self.act(x, self.cfg.activation)
+        x = self.conv2d(x, filters, 1, bn=bn)
         return x
 
-    def csp_block(self, x, filters, kernel_size, depth, activation, bn=False):
-        x = self.conv2d(x, x.shape[-1], 1, bn=bn, activation=activation)
+    def csp_block(self, x, filters, kernel_size, depth, bn=False):
+        x = self.conv2d(x, x.shape[-1], 1, bn=bn)
         half_filters = filters // 2
-        x_half = self.conv2d(x, half_filters, 1, bn=bn, activation=activation)
+        x_half = self.conv2d(x, half_filters, 1, bn=bn)
         x_half_first = x_half
         for _ in range(depth):
-            x_half_0 = self.conv2d(x_half, half_filters, kernel_size, bn=bn, activation=activation)
-            x_half_1 = self.conv2d(x_half_0, half_filters, kernel_size, bn=bn, activation=activation)
+            x_half_0 = self.conv2d(x_half, half_filters, kernel_size, bn=bn)
+            x_half_1 = self.conv2d(x_half_0, half_filters, kernel_size, bn=bn)
             x_half = self.add([x_half, x_half_1])
         x_half = self.add([x_half, x_half_first])
         x = self.concat([x, x_half])
-        x = self.conv2d(x, filters, 1, bn=bn, activation=activation)
+        x = self.bn(x)
+        x = self.conv2d(x, filters, 1, bn=bn)
         return x
 
-    def conv2d(self, x, filters, kernel_size, activation, strides=1, bn=False):
+    def conv2d(self, x, filters, kernel_size, activation='auto', strides=1, bn=False):
+        if activation == 'auto':
+            activation = self.cfg.activation
         assert activation in self.available_activations, f'activation must be one of {self.available_activations}'
-        fuse_activation = False if bn else activation in self.fused_activations
+        is_fused_activation = False if bn else activation in self.fused_activations
         x = tf.keras.layers.Conv2D(
             strides=strides,
             filters=filters,
             kernel_size=kernel_size,
             kernel_initializer=self.kernel_initializer(),
             bias_initializer=self.bias_initializer(),
-            activation=activation if fuse_activation else 'linear',
+            activation=activation if is_fused_activation else 'linear',
             padding='same',
             use_bias=not bn,
             kernel_regularizer=self.kernel_regularizer())(x)
         if bn:
             x = self.bn(x)
-        if not fuse_activation:
+        if not is_fused_activation:
             x = self.act(x, activation=activation)
         return x
 
