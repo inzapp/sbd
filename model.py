@@ -239,13 +239,12 @@ class Model:
     def lcsp_block(self, x, filters, kernel_size, depth):
         half_filters = filters // 2
         x_0 = self.conv2d(x, half_filters, 1)
-        x_1 = self.conv2d(x, filters, 1, activation='linear')
+        x_1 = self.conv2d(x, filters, 1)
         for _ in range(depth):
             x_0 = self.conv2d(x_0, half_filters, kernel_size)
-        x_0 = self.conv2d(x_0, filters, 1, activation='linear')
+        x_0 = self.conv2d(x_0, filters, 1)
         x = self.add([x_0, x_1])
         x = self.bn(x)
-        x = self.act(x, self.cfg.activation)
         x = self.conv2d(x, filters, 1)
         return x
 
