@@ -177,7 +177,7 @@ class Model:
             if p >= 3:
                 x = self.dropout(x)
             name, channels, kernel_size, depth = stage_info
-            if name == 'conv':
+            if name in ['conv', 'lcsp']:
                 depth -= 1
             x = self.layer_block(x, name, channels, kernel_size, depth)
             stages.append(x)
