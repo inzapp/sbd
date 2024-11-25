@@ -606,17 +606,17 @@ class DataGenerator:
             img, labels = self.augment_scale(img, labels, self.cfg.aug_scale)
 
         if multi_image_augmentation:
-            if self.cfg.aug_mixup > 0.0 and np.random.uniform() < self.cfg.aug_mixup:
-                mixup_data = self.load_image_with_label(size=1, multi_image_augmentation=False)
-                mixup_data.append({'img': img, 'labels': labels})
-                img, labels = self.augment_mixup(mixup_data)
-
             if self.cfg.aug_mosaic > 0.0 and np.random.uniform() < self.cfg.aug_mosaic:
                 mosaic_data = self.load_image_with_label(size=3, multi_image_augmentation=False)
                 mosaic_data.append({'img': img, 'labels': labels})
                 img, labels = self.augment_mosaic(mosaic_data)
                 if self.cfg.aug_scale > 0.0 and np.random.uniform() < 0.5:
                     img, labels = self.augment_scale(img, labels, self.cfg.aug_scale)
+
+            if self.cfg.aug_mixup > 0.0 and np.random.uniform() < self.cfg.aug_mixup:
+                mixup_data = self.load_image_with_label(size=1, multi_image_augmentation=False)
+                mixup_data.append({'img': img, 'labels': labels})
+                img, labels = self.augment_mixup(mixup_data)
         return img, labels
 
     def convert_to_boxes(self, labels):
