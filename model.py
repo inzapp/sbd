@@ -179,7 +179,7 @@ class Model:
             name, channels, kernel_size, depth = stage_info
             if name in ['conv', 'lcsp']:
                 depth -= 1
-            x = self.layer_block(x, name, channels, kernel_size, depth)
+            x = self.stage_block(x, name, channels, kernel_size, depth)
             stages.append(x)
             if p < model_p:
                 x = self.conv2d(x, channels, 3, strides=2)
@@ -193,7 +193,7 @@ class Model:
             x = self.upsampling2d(x)
             x = self.add([x, stages.pop(-1)])
             x = self.bn(x)
-            x = self.layer_block(x, name, channels, kernel_size, depth)
+            x = self.stage_block(x, name, channels, kernel_size, depth)
             final_layers.append(x)
             if p == pyramid_scale:
                 break
@@ -203,7 +203,7 @@ class Model:
             output_layers.append(self.detection_layer(final_layer, f'sbd_output_{i}'))
         return tf.keras.models.Model(input_layer, output_layers if num_output_layers == 'm' else output_layers[0])
 
-    def layer_block(self, x, name, channels, kernel_size, depth):
+    def stage_block(self, x, name, channels, kernel_size, depth):
         available_names = ['conv', 'lcsp', 'csp']
         if name == 'conv':
             for _ in range(depth):
