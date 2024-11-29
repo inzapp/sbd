@@ -109,10 +109,10 @@ class Model:
             ['conv', 8, 3, 1],
             ['conv', 16, 3, 1],
             ['conv', 32, 3, 2],
-            ['lcsp', 64, 3, 3],
-            ['lcsp', 128, 3, 3],
-            ['lcsp', 256, 3, 3],
-            ['csp', 256, 3, 1],
+            ['lcsp', 64, 3, 2],
+            ['lcsp', 128, 3, 2],
+            ['lcsp', 256, 3, 2],
+            ['lcsp', 256, 3, 2],
         ]
         return self.build_model(stage_infos, num_output_layers, pyramid_scale)
 
@@ -120,47 +120,47 @@ class Model:
         stage_infos = [
             ['conv', 16, 3, 1],
             ['conv', 32, 3, 1],
-            ['conv', 64, 3, 2],
-            ['lcsp', 128, 3, 3],
-            ['lcsp', 256, 3, 4],
-            ['lcsp', 512, 3, 5],
-            ['csp', 512, 3, 2],
+            ['lcsp', 64, 3, 2],
+            ['lcsp', 128, 3, 2],
+            ['lcsp', 256, 3, 3],
+            ['lcsp', 512, 3, 4],
+            ['lcsp', 512, 3, 2],
         ]
         return self.build_model(stage_infos, num_output_layers, pyramid_scale)
 
     def m(self, num_output_layers, pyramid_scale):
         stage_infos = [
-            ['conv', 16, 3, 1],
-            ['conv', 32, 3, 1],
-            ['conv', 96, 3, 2],
+            ['conv', 24, 3, 1],
+            ['conv', 48, 3, 1],
+            ['lcsp', 96, 3, 2],
             ['lcsp', 192, 3, 3],
-            ['lcsp', 384, 3, 5],
-            ['lcsp', 512, 3, 7],
-            ['csp', 512, 3, 3],
+            ['lcsp', 384, 3, 4],
+            ['lcsp', 512, 3, 5],
+            ['lcsp', 512, 3, 3],
         ]
         return self.build_model(stage_infos, num_output_layers, pyramid_scale)
 
     def l(self, num_output_layers, pyramid_scale):
         stage_infos = [
-            ['conv', 24, 3, 1],
-            ['conv', 48, 3, 2],
-            ['conv', 96, 3, 2],
-            ['lcsp', 192, 3, 4],
-            ['lcsp', 384, 3, 6],
-            ['lcsp', 768, 3, 8],
-            ['csp', 768, 3, 4],
+            ['conv', 32, 3, 1],
+            ['conv', 64, 3, 1],
+            ['lcsp', 128, 3, 2],
+            ['lcsp', 256, 3, 3],
+            ['lcsp', 512, 3, 4],
+            ['lcsp', 512, 3, 5],
+            ['lcsp', 512, 3, 3],
         ]
         return self.build_model(stage_infos, num_output_layers, pyramid_scale)
 
     def x(self, num_output_layers, pyramid_scale):
         stage_infos = [
-            ['conv', 32, 3, 1],
-            ['conv', 64, 3, 2],
-            ['conv', 128, 3, 3],
-            ['lcsp', 256, 3, 4],
-            ['lcsp', 512, 3, 6],
-            ['lcsp', 1024, 3, 8],
-            ['csp', 1024, 3, 4],
+            ['conv', 48, 3, 1],
+            ['conv', 96, 3, 1],
+            ['lcsp', 192, 3, 3],
+            ['lcsp', 384, 3, 4],
+            ['lcsp', 768, 3, 5],
+            ['lcsp', 768, 3, 6],
+            ['lcsp', 768, 3, 4],
         ]
         return self.build_model(stage_infos, num_output_layers, pyramid_scale)
 
@@ -177,7 +177,7 @@ class Model:
             if p >= 3:
                 x = self.dropout(x)
             name, channels, kernel_size, depth = stage_info
-            if name in ['conv', 'lcsp']:
+            if name in ['conv']:
                 depth -= 1
             x = self.stage_block(x, name, channels, kernel_size, depth)
             stages.append(x)
@@ -193,7 +193,7 @@ class Model:
             x = self.upsampling2d(x)
             x = self.add([x, stages.pop(-1)])
             x = self.bn(x)
-            x = self.stage_block(x, name, channels, kernel_size, depth)
+            x = self.stage_block(x, name, channels, kernel_size, depth + 1)
             final_layers.append(x)
             if p == pyramid_scale:
                 break
