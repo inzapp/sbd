@@ -841,7 +841,7 @@ class DataGenerator:
                 print(f'allocated_count : {allocated_count}\n')
             key = cv2.waitKey(0)
             if key == 27:
-                self.signal_handler(signal.SIGINT, None)
+                self.exit()
         return allocated_count
 
     def load_image(self, path, gray=False):
@@ -921,6 +921,9 @@ class DataGenerator:
     def resume(self):
         if self.q_thread_running:
             self.q_thread_pause = False
+
+    def exit(self):
+        self.signal_handler(signal.SIGINT, None)
 
     def load_xy(self):
         y = [np.zeros(shape=self.output_shapes[i][1:], dtype=np.float32) for i in range(self.num_output_layers)]

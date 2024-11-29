@@ -382,7 +382,9 @@ class SBD(CheckpointManager):
     def build_loss_str(self, progress_str, loss_vars):
         obj_loss, box_loss, cls_loss = loss_vars
         if np.isnan(obj_loss) or np.isnan(box_loss) or np.isnan(cls_loss):
-            Logger.error(f'\ntraining exited caused by nan loss => obj_loss({obj_loss:.4f}), box_loss({box_loss:.4f}), cls_loss({cls_loss:.4f})')
+            print()
+            Logger.error(f'training exited caused by nan loss => obj_loss({obj_loss:.4f}), box_loss({box_loss:.4f}), cls_loss({cls_loss:.4f}), force exited',
+                callback=self.train_data_generator.exit)
         loss_str = f'\r{progress_str}'
         loss_str += f' obj_loss : {obj_loss:>8.4f}'
         loss_str += f', box_loss : {box_loss:>8.4f}'

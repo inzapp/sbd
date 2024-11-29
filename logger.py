@@ -45,7 +45,9 @@ class Logger:
         Logger.log(msg, header='\033[1;33m[WARNING]\033[0m', end=end)
 
     @staticmethod
-    def error(msg, end='\n'):
+    def error(msg, end='\n', callback=None):
         Logger.log(msg, header='\033[1;31m[ERROR]\033[0m', end=end)
+        if callback:
+            callback()
         exit(-1)
 
