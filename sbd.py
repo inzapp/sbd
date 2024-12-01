@@ -153,7 +153,8 @@ class SBD(CheckpointManager):
         self.cfg = cfg
 
         if self.cfg.obj_target == 'iou' and self.cfg.heatmap_scale > 0.0:
-            Logger.warn(f'heatmap_scale({self.cfg.heatmap_scale}) will be ignored with iou obj_target')
+            Logger.warn(f'binary obj target will be used with heatmap training')
+            self.cfg.set_config('obj_target', 'binary')
 
         if self.cfg.checkpoint_interval == 0:
             self.cfg.checkpoint_interval = self.cfg.iterations
