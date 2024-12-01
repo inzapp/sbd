@@ -16,6 +16,7 @@ lr: 0.001
 lrf: 0.05
 l2: 0.0005
 dropout: 0.0
+obj_target: iou
 cls_balance: 0.0
 box_weight: 7.5
 aug_noise: 0.0

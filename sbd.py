@@ -104,6 +104,7 @@ class TrainingConfig:
         d['lrf'] = self.__get_value_from_yaml(cfg, 'lrf', 0.05, float, required=False)
         d['l2'] = self.__get_value_from_yaml(cfg, 'l2', 0.0005, float, required=False)
         d['dropout'] = self.__get_value_from_yaml(cfg, 'dropout', 0.0, float, required=False)
+        d['obj_target'] = self.__get_value_from_yaml(cfg, 'obj_target', 'iou', str, required=False)
         d['cls_balance'] = self.__get_value_from_yaml(cfg, 'cls_balance', 0.0, float, required=False)
         d['box_weight'] = self.__get_value_from_yaml(cfg, 'box_weight', 1.0, float, required=False)
         d['aug_noise'] = self.__get_value_from_yaml(cfg, 'aug_noise', 0.0, float, required=False)
@@ -148,7 +149,11 @@ class SBD(CheckpointManager):
             assert cfg.input_rows % 32 == 0 and cfg.input_cols % 32 == 0, 'input_rows, input_cols must be multiple of 32'
         assert cfg.input_channels in [1, 3], 'input_channels must be in [1, 3]'
         assert cfg.max_q_size >= cfg.batch_size
+        assert cfg.obj_target in ['binary', 'iou']
         self.cfg = cfg
+
+        if self.cfg.obj_target == 'iou' and self.cfg.heatmap_scale > 0.0:
+            Logger.warn(f'heatmap_scale({self.cfg.heatmap_scale}) will be ignored with iou obj_target')
 
         if self.cfg.checkpoint_interval == 0:
             self.cfg.checkpoint_interval = self.cfg.iterations
@@ -341,7 +346,7 @@ class SBD(CheckpointManager):
 
     @tf.function
     def compute_gradient(self, args):
-        _, _, model, optimizer, loss_function, x, y_true, extra, num_output_layers, box_weight, label_smoothing = args
+        _, _, model, optimizer, loss_function, x, y_true, extra, iou_obj_target, num_output_layers, box_weight, label_smoothing = args
         with tf.GradientTape() as tape:
             y_pred = model(x, training=True)
             obj_loss, obj_pos_loss, obj_neg_loss, box_loss, cls_loss, num_pos, num_neg = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
@@ -350,7 +355,8 @@ class SBD(CheckpointManager):
                 y_pred = [y_pred]
                 extra = [extra]
             for i in range(num_output_layers):
-                _obj_pos_loss, _obj_neg_loss, _num_pos, _num_neg, _box_loss, _cls_loss = loss_function(y_true[i], y_pred[i], extra[i], box_weight, label_smoothing)
+                _obj_pos_loss, _obj_neg_loss, _num_pos, _num_neg, _box_loss, _cls_loss = loss_function(
+                    y_true[i], y_pred[i], extra[i], iou_obj_target, box_weight, label_smoothing)
                 num_pos += _num_pos
                 num_neg += _num_neg
                 if _num_pos > 0.0:
@@ -890,6 +896,7 @@ class SBD(CheckpointManager):
         self.best_annotations_csv_path = f'{self.checkpoint_path}/annotations.csv'
         self.best_predictions_csv_path = f'{self.checkpoint_path}/predictions.csv'
 
+        iou_obj_target = float(self.cfg.obj_target == 'iou')
         iteration_count = self.pretrained_iteration_count
         if len(self.cfg.devices) <= 1:
             train_step = self.compute_gradient
@@ -911,6 +918,7 @@ class SBD(CheckpointManager):
                 batch_x,
                 batch_y,
                 batch_extra,
+                iou_obj_target,
                 self.num_output_layers,
                 self.cfg.box_weight,
                 self.cfg.smoothing))

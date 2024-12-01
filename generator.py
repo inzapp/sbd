@@ -774,7 +774,7 @@ class DataGenerator:
                     offset_center_row = center_row + offset_y
                     offset_center_col = center_col + offset_x
                     if y[i][offset_center_row][offset_center_col][0] == 0.0:
-                        if 0.0 < self.cfg.heatmap_scale <= 1.0:
+                        if self.cfg.obj_target == 'binary' and 0.0 < self.cfg.heatmap_scale <= 1.0:
                             half_scale = max(self.cfg.heatmap_scale * 0.5, 1e-5)
                             object_heatmap = 1.0 - np.clip((np.abs(rr - center_row_f) / (h * half_scale)) ** 2 + (np.abs(cc - center_col_f) / (w * half_scale)) ** 2, 0.0, 1.0) ** 0.5
                             object_mask = np.where(object_heatmap == 0.0, 1.0, 0.0)
