@@ -17,6 +17,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
+import numpy as np
 import tensorflow as tf
 
 from logger import Logger
@@ -200,7 +201,7 @@ class Model:
         final_layers = final_layers if num_output_layers == 'm' else [final_layers[-1]]
         output_layers = []
         for i, final_layer in enumerate(final_layers):
-            output_layers.append(self.detection_layer(final_layer, f'sbd_output_{i}'))
+            output_layers.append(self.detection_layer(final_layer, name=f'sbd_output_{i}'))
         return tf.keras.models.Model(input_layer, output_layers if num_output_layers == 'm' else output_layers[0])
 
     def stage_block(self, x, name, channels, kernel_size, depth):
@@ -263,7 +264,7 @@ class Model:
         x = self.conv2d(x, filters, 1)
         return x
 
-    def conv2d(self, x, filters, kernel_size, activation='auto', strides=1, bn=False):
+    def conv2d(self, x, filters, kernel_size, activation='auto', strides=1, bn=False, regularizer=True, name=None):
         if activation == 'auto':
             activation = self.cfg.activation
         assert activation in self.available_activations, f'activation must be one of {self.available_activations}'
@@ -277,7 +278,8 @@ class Model:
             activation=activation if is_fused_activation else 'linear',
             padding='same',
             use_bias=not bn,
-            kernel_regularizer=self.kernel_regularizer())(x)
+            kernel_regularizer=self.kernel_regularizer() if regularizer else None,
+            name=name)(x)
         if bn:
             x = self.bn(x)
         if not is_fused_activation:
@@ -285,11 +287,23 @@ class Model:
         return x
 
     def detection_layer(self, x, name='sbd_output'):
-        return tf.keras.layers.Conv2D(
-            filters=self.num_classes + 5,
-            kernel_size=1,
-            activation='sigmoid',
-            name=name)(x)
+        x_obj = x
+        x_obj = self.conv2d(x_obj, 32, 1)
+        x_obj = self.conv2d(x_obj, 32, 3)
+        x_obj = self.conv2d(x_obj, 1, 1, activation='sigmoid', bn=False, regularizer=False)
+
+        x_box = x
+        x_box = self.conv2d(x_box, 32, 1)
+        x_box = self.conv2d(x_box, 32, 3)
+        x_box = self.conv2d(x_box, 4, 1, activation='sigmoid', bn=False, regularizer=False)
+
+        cls_channels = int(np.clip(x.shape[-1], 32, 128))
+
+        x_cls = x
+        x_cls = self.conv2d(x_cls, cls_channels, 1)
+        x_cls = self.conv2d(x_cls, cls_channels, 3)
+        x_cls = self.conv2d(x_cls, self.num_classes, 1, activation='sigmoid', bn=False, regularizer=False)
+        return self.concat([x_obj, x_box, x_cls], name=name)
 
     def act(self, x, activation='linear'):
         if activation in self.fused_activations:
@@ -338,6 +352,6 @@ class Model:
         return tf.keras.layers.Multiply()(layers)
 
     @staticmethod
-    def concat(layers):
-        return tf.keras.layers.Concatenate()(layers)
+    def concat(layers, name=None):
+        return tf.keras.layers.Concatenate(name=name)(layers)
 
