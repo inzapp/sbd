@@ -538,8 +538,8 @@ class SBD(CheckpointManager):
             x1, y1, x2, y2 = box['bbox_norm']
             x1 = int(x1 * img_width)
             y1 = int(y1 * img_height)
-            x2 = int(x2 * img_width)
-            y2 = int(y2 * img_height)
+            x2 = min(int(x2 * img_width), img_width-1)
+            y2 = min(int(y2 * img_height), img_height-1)
             l_size, baseline = cv2.getTextSize(label_text, cv2.FONT_HERSHEY_DUPLEX, font_scale, 1)
             bw, bh = l_size[0] + (padding * 2), l_size[1] + (padding * 2) + baseline
             cv2.rectangle(img, (x1, y1), (x2, y2), label_background_color, 1)
