@@ -90,7 +90,7 @@ def _compute_ap(recall, precision):
     return ap
 
 
-def _print(msg, txt_content, verbose):
+def _print(msg, txt_content, verbose=True):
     if verbose:
         print(msg)
     txt_content += f'{msg}\n'
@@ -126,6 +126,8 @@ def calculate_f1_score(num_annotations, true_positives, false_positives, scores,
     p = tp / (tp + fp + eps)
     r = tp / (obj_count + eps)
     f1 = (2.0 * p * r) / (p + r + eps)
+    beta = 2.0
+    fbeta = (1.0 + beta) * (p * r) / (beta * p + r + eps)
     tp_iou = tp_iou_sum / (tp + eps)
     tp_confidence = tp_confidence_sum / (tp + eps)
 
@@ -142,12 +144,13 @@ def calculate_f1_score(num_annotations, true_positives, false_positives, scores,
     ret['fp'] = fp
     ret['fn'] = fn
     ret['f1'] = f1
+    ret['fbeta'] = fbeta
     ret['p'] = p
     ret['r'] = r
     return ret
 
 
-def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_threshold_for_f1=0.25, exclude_not_in_annotations=False, verbose=True, find_best_threshold=False, classes_txt_path='', return_extra_data=False):
+def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_threshold_for_f1=0.25, exclude_not_in_annotations=False, verbose=True, find_best_threshold=False, classes_txt_path='', return_extra_data=False, save_excel_result=False):
     """
     :param ann: path to CSV-file with annotations or numpy array of shape (N, 6)
     :param pred: path to CSV-file with predictions (detections) or numpy array of shape (N, 7)
@@ -280,10 +283,24 @@ def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_th
         if find_best_threshold:
             best_f1 = 0.0
             patience_count = 0
+            excel_content = []
+            excel_filename = f'result_{class_index_str}.csv'
+            if save_excel_result:
+                excel_content.append('confidence_threshold,obj_count,TP,FP,FN,precision,recall,F1 score,Fbeta score\n')
             for i in range(99):
                 class_confidence_threshold = i / 100.0
                 cur_ret = calculate_f1_score(num_annotations, true_positives, false_positives, scores, tp_ious, tp_confidences, class_confidence_threshold)
                 cur_f1 = cur_ret['f1']
+                if save_excel_result:
+                    cur_obj_count = cur_ret['obj_count']
+                    cur_tp = cur_ret['tp']
+                    cur_fp = cur_ret['fp']
+                    cur_fn = cur_ret['fn']
+                    cur_p = cur_ret['p']
+                    cur_r = cur_ret['r']
+                    cur_f1 = cur_ret['f1']
+                    cur_fbeta = cur_ret['fbeta']
+                    excel_content.append(f'{class_confidence_threshold:.2f},{cur_obj_count},{cur_tp},{cur_fp},{cur_fn},{cur_p:.10f},{cur_r:.10f},{cur_f1:.10f},{cur_fbeta:.10f}\n')
                 if cur_f1 == 0.0:
                     best_ret = cur_ret
                     break
@@ -294,6 +311,10 @@ def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_th
                     patience_count += 1
                     if patience_count == 5:
                         break
+            if save_excel_result:
+                excel_path = f'result_{class_index_str}.csv'
+                with open(excel_path, 'wt') as f:
+                    f.writelines(excel_content)
 
         true_positives = ap_ret['true_positives']  # use ap_ret
         false_positives = ap_ret['false_positives']  # use ap_ret
