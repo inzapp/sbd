@@ -891,7 +891,7 @@ class SBD(CheckpointManager):
         else:
             Logger.info('start training')
 
-        self.init_checkpoint_dir(model_name=self.cfg.model_name, model_type=self.cfg.model_type, extra_function=self.init_checkpoint_dir_extra)
+        self.init_checkpoint_dir(model_name=self.cfg.model_name, extra_function=self.init_checkpoint_dir_extra)
         self.last_annotations_csv_path = f'{self.checkpoint_path}/.annotations.csv'
         self.last_predictions_csv_path = f'{self.checkpoint_path}/.predictions.csv'
         self.best_annotations_csv_path = f'{self.checkpoint_path}/annotations.csv'
