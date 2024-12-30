@@ -33,7 +33,7 @@ def _obj_loss(y_true, y_pred, pos_mask, extra, iou, iou_obj_target, eps):
     num_pos = tf.reduce_sum(pos_mask)
     num_neg = tf.reduce_sum(neg_mask)
     if iou_obj_target == 1.0:
-        obj_true = iou
+        obj_true = tf.clip_by_value(iou, 0.1, 1.0) * pos_mask
 
     obj_pos_loss = 0.0
     obj_neg_loss = 0.0
