@@ -399,7 +399,7 @@ class SBD(CheckpointManager):
         return loss_str
 
     def load_label_csv(self, image_path, unknown_class_index):
-        csv = ''
+        csv_lines = []
         label_path = f'{image_path[:-4]}.txt'
         basename = os.path.basename(image_path)
         with open(label_path, 'rt') as f:
@@ -414,41 +414,41 @@ class SBD(CheckpointManager):
             xmax = cx + w * 0.5
             ymax = cy + h * 0.5
             xmin, ymin, xmax, ymax = np.clip(np.array([xmin, ymin, xmax, ymax]), 0.0, 1.0)
-            csv += f'{basename},{class_index},{xmin:.6f},{xmax:.6f},{ymin:.6f},{ymax:.6f}\n'
-        return csv
+            csv_lines.append(f'{basename},{class_index},{xmin:.6f},{xmax:.6f},{ymin:.6f},{ymax:.6f}\n')
+        return csv_lines
 
     def make_annotations_csv(self, image_paths, unknown_class_index, csv_path):
         fs = []
         for path in image_paths:
             fs.append(self.pool.submit(self.load_label_csv, path, unknown_class_index))
-        csv = 'ImageID,LabelName,XMin,XMax,YMin,YMax\n'
+        csv_lines = ['ImageID,LabelName,XMin,XMax,YMin,YMax\n']
         for f in tqdm(fs, desc='annotations csv creation'):
-            csv += f.result()
+            csv_lines += f.result()
         with open(csv_path, 'wt') as f:
-            f.writelines(csv)
+            f.writelines(csv_lines)
 
     def convert_boxes_to_csv_lines(self, path, boxes):
-        csv = ''
+        csv_lines = []
         for b in boxes:
             basename = os.path.basename(path)
             confidence = b['confidence']
             class_index = b['class']
             xmin, ymin, xmax, ymax = b['bbox_norm']
-            csv += f'{basename},{class_index},{confidence:.6f},{xmin:.6f},{xmax:.6f},{ymin:.6f},{ymax:.6f}\n'
-        return csv
+            csv_lines.append(f'{basename},{class_index},{confidence:.6f},{xmin:.6f},{xmax:.6f},{ymin:.6f},{ymax:.6f}\n')
+        return csv_lines
 
     def make_predictions_csv(self, model, image_paths, context, csv_path):
         fs = []
         input_channel = model.input_shape[1:][-1]
         for path in image_paths:
             fs.append(self.pool.submit(self.train_data_generator.load_image, path))
-        csv = 'ImageID,LabelName,Conf,XMin,XMax,YMin,YMax\n'
+        csv_lines = ['ImageID,LabelName,Conf,XMin,XMax,YMin,YMax\n']
         for f in tqdm(fs, desc='predictions csv creation'):
             img, path = f.result()
             _, boxes = self.predict(model, img, confidence_threshold=0.001, context=context)
-            csv += self.convert_boxes_to_csv_lines(path, boxes)
+            csv_lines += self.convert_boxes_to_csv_lines(path, boxes)
         with open(csv_path, 'wt') as f:
-            f.writelines(csv)
+            f.writelines(csv_lines)
 
     def save_best_model_extra_data(self, txt_content, best_confidence_thresholds=None):
         with open(f'{self.checkpoint_path}/map.txt', 'wt') as f:
