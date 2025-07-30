@@ -798,7 +798,7 @@ class DataGenerator:
                         y[i][offset_center_row][offset_center_col][4] = h
                         for class_index in class_indexes:
                             if class_index != self.unknown_class_index:
-                                y[i][center_row][center_col][class_index+5] = 1.0
+                                y[i][offset_center_row][offset_center_col][class_index+5] = 1.0
                         is_box_allocated = True
                         allocated_count += 1
                         break

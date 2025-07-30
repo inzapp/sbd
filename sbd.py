@@ -715,7 +715,7 @@ class SBD(CheckpointManager):
         Logger.info(info_content)
         return best_confidence_thresholds
 
-    def detect(self, path='', dataset='validation', confidence_threshold=0.2, tp_iou_threshold=0.5, show_class=True, width=0, height=0, heatmap=False, thresholds_path='', save_label=False):
+    def detect(self, path='', dataset='validation', confidence_threshold=0.2, show_class=True, width=0, height=0, heatmap=False, thresholds_path='', show_gt=False):
         image_paths = []
         if path == '':
             assert dataset in ['train', 'validation']
