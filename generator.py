@@ -602,7 +602,7 @@ class DataGenerator:
         if (self.cfg.aug_h_flip or self.cfg.aug_v_flip) and np.random.uniform() < 0.5:
             img, labels = self.augment_flip(img, labels, self.cfg.aug_h_flip, self.cfg.aug_v_flip)
 
-        if self.cfg.aug_scale > 0.0 and np.random.uniform() < 0.5:
+        if self.cfg.aug_scale > 0.0:
             img, labels = self.augment_scale(img, labels, self.cfg.aug_scale)
 
         if multi_image_augmentation:
