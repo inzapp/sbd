@@ -208,7 +208,7 @@ class Model:
         available_names = ['conv', 'lcsp', 'csp']
         if name == 'conv':
             for _ in range(depth):
-                x = self.conv2d(x, channels, kernel_size, bn=True)
+                x = self.conv2d(x, channels, kernel_size)
         elif name == 'lcsp':
             x = self.lcsp_block(x, channels, kernel_size, depth)
         elif name == 'csp':
@@ -288,20 +288,20 @@ class Model:
 
     def detection_layer(self, x, name='sbd_output'):
         x_obj = x
-        x_obj = self.conv2d(x_obj, 32, 1, bn=True)
-        x_obj = self.conv2d(x_obj, 32, 3, bn=True)
+        x_obj = self.conv2d(x_obj, 32, 1)
+        x_obj = self.conv2d(x_obj, 32, 3)
         x_obj = self.conv2d(x_obj, 1, 1, activation='sigmoid', bn=False, regularizer=False)
 
         x_box = x
-        x_box = self.conv2d(x_box, 32, 1, bn=True)
-        x_box = self.conv2d(x_box, 32, 3, bn=True)
+        x_box = self.conv2d(x_box, 32, 1)
+        x_box = self.conv2d(x_box, 32, 3)
         x_box = self.conv2d(x_box, 4, 1, activation='linear', bn=False, regularizer=False)
 
         cls_channels = int(np.clip(x.shape[-1], 32, 128))
 
         x_cls = x
-        x_cls = self.conv2d(x_cls, cls_channels, 1, bn=True)
-        x_cls = self.conv2d(x_cls, cls_channels, 3, bn=True)
+        x_cls = self.conv2d(x_cls, cls_channels, 1)
+        x_cls = self.conv2d(x_cls, cls_channels, 3)
         x_cls = self.conv2d(x_cls, self.num_classes, 1, activation='sigmoid', bn=False, regularizer=False)
         return self.concat([x_obj, x_box, x_cls], name=name)
 
