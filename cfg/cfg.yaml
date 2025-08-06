@@ -8,7 +8,7 @@ input_cols: 640
 input_channels: 3
 model_name: coco
 model_type: m
-activation: leaky
+activation: silu
 p6_model: false
 optimizer: sgd
 lr_policy: step
