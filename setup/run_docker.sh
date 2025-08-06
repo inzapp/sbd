@@ -7,7 +7,7 @@ TRAIN_DATA_PATH=~/train_data
 TAG=latest
 SBD_PATH=$(pwd)/../
 REPOSITORY_NAME=inzapp/sbd-$CUDA_VERSION
-AVAILABLE_CUDA_VERSIONS=("cu102" "cu112" "cu118")
+AVAILABLE_CUDA_VERSIONS=("cu118")
 if [[ ! " ${AVAILABLE_CUDA_VERSIONS[*]} " == *" $CUDA_VERSION "* ]]; then
     echo "$CUDA_VERSION is nvalid cuda version. available cuda versions : ${AVAILABLE_CUDA_VERSIONS[*]}"
     exit
