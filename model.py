@@ -290,7 +290,6 @@ class Model:
             activation=activation if is_fused_activation else 'linear',
             padding='same',
             use_bias=not bn,
-            kernel_regularizer=self.kernel_regularizer() if regularizer else None,
             name=name)(x)
         if bn:
             x = self.bn(x)
@@ -344,9 +343,6 @@ class Model:
 
     def bias_initializer(self):
         return tf.keras.initializers.zeros()
-
-    def kernel_regularizer(self):
-        return tf.keras.regularizers.l2(l2=self.cfg.l2) if self.cfg.l2 > 0.0 else None
 
     def dropout(self, x):
         return tf.keras.layers.Dropout(self.cfg.dropout)(x) if self.cfg.dropout > 0.0 else x

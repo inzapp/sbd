@@ -102,7 +102,7 @@ class TrainingConfig:
         d['lr_policy'] = self.__get_value_from_yaml(cfg, 'lr_policy', 'step', str, required=False)
         d['lr'] = self.__get_value_from_yaml(cfg, 'lr', 0.001, float, required=False)
         d['lrf'] = self.__get_value_from_yaml(cfg, 'lrf', 0.05, float, required=False)
-        d['l2'] = self.__get_value_from_yaml(cfg, 'l2', 0.0005, float, required=False)
+        d['decay'] = self.__get_value_from_yaml(cfg, 'decay', 0.0005, float, required=False)
         d['dropout'] = self.__get_value_from_yaml(cfg, 'dropout', 0.0, float, required=False)
         d['obj_target'] = self.__get_value_from_yaml(cfg, 'obj_target', 'iou', str, required=False)
         d['cls_balance'] = self.__get_value_from_yaml(cfg, 'cls_balance', 0.0, float, required=False)
@@ -274,10 +274,16 @@ class SBD(CheckpointManager):
         lr = lr if lr_policy == 'constant' else 0.0
         with strategy.scope():
             if optimizer_str == 'sgd':
-                optimizer = tf.keras.optimizers.SGD(learning_rate=lr, momentum=momentum, nesterov=True)
+                optimizer = tf.keras.optimizers.experimental.SGD(
+                    learning_rate=lr,
+                    momentum=momentum,
+                    nesterov=True,
+                    weight_decay=self.cfg.decay)
             elif optimizer_str == 'adam':
-                optimizer = tf.keras.optimizers.Adam(learning_rate=lr, beta_1=momentum)
-                self.cfg.set_config('l2', 0.0)
+                optimizer = tf.keras.optimizers.experimental.Adam(
+                    learning_rate=lr,
+                    beta_1=momentum,
+                    weight_decay=self.cfg.decay)
         return optimizer
 
     def load_model(self, path, strategy, optimizer):
