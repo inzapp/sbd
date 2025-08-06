@@ -109,11 +109,11 @@ class Model:
         stage_infos = [
             ['conv', 8, 3, 1],
             ['conv', 16, 3, 1],
-            ['conv', 32, 3, 2],
-            ['lcsp', 64, 3, 2],
-            ['lcsp', 128, 3, 2],
-            ['lcsp', 256, 3, 2],
-            ['lcsp', 256, 3, 2],
+            ['conv', 16, 3, 2],
+            ['res', 32, 3, 2],
+            ['res', 64, 3, 4],
+            ['res', 128, 3, 4],
+            ['res', 256, 3, 4],
         ]
         return self.build_model(stage_infos, num_output_layers, pyramid_scale)
 
@@ -121,11 +121,11 @@ class Model:
         stage_infos = [
             ['conv', 16, 3, 1],
             ['conv', 32, 3, 1],
-            ['lcsp', 64, 3, 2],
-            ['lcsp', 128, 3, 2],
-            ['lcsp', 256, 3, 3],
-            ['lcsp', 512, 3, 4],
-            ['lcsp', 512, 3, 2],
+            ['res', 32, 3, 2],
+            ['res', 64, 3, 2],
+            ['res', 128, 3, 4],
+            ['res', 256, 3, 4],
+            ['res', 256, 3, 4],
         ]
         return self.build_model(stage_infos, num_output_layers, pyramid_scale)
 
@@ -133,11 +133,11 @@ class Model:
         stage_infos = [
             ['conv', 24, 3, 1],
             ['conv', 48, 3, 1],
-            ['lcsp', 96, 3, 2],
-            ['lcsp', 192, 3, 3],
-            ['lcsp', 384, 3, 4],
-            ['lcsp', 512, 3, 5],
-            ['lcsp', 512, 3, 3],
+            ['res', 48, 3, 4],
+            ['res', 96, 3, 4],
+            ['res', 192, 3, 6],
+            ['res', 384, 3, 6],
+            ['res', 384, 3, 4],
         ]
         return self.build_model(stage_infos, num_output_layers, pyramid_scale)
 
@@ -145,11 +145,11 @@ class Model:
         stage_infos = [
             ['conv', 32, 3, 1],
             ['conv', 64, 3, 1],
-            ['lcsp', 128, 3, 2],
-            ['lcsp', 256, 3, 3],
-            ['lcsp', 512, 3, 4],
-            ['lcsp', 512, 3, 5],
-            ['lcsp', 512, 3, 3],
+            ['res', 64, 3, 4],
+            ['res', 128, 3, 6],
+            ['res', 256, 3, 8],
+            ['res', 512, 3, 8],
+            ['res', 512, 3, 4],
         ]
         return self.build_model(stage_infos, num_output_layers, pyramid_scale)
 
@@ -157,11 +157,11 @@ class Model:
         stage_infos = [
             ['conv', 48, 3, 1],
             ['conv', 96, 3, 1],
-            ['lcsp', 192, 3, 3],
-            ['lcsp', 384, 3, 4],
-            ['lcsp', 768, 3, 5],
-            ['lcsp', 768, 3, 6],
-            ['lcsp', 768, 3, 4],
+            ['res', 96, 3, 4],
+            ['res', 192, 3, 6],
+            ['res', 384, 3, 8],
+            ['res', 768, 3, 8],
+            ['res', 768, 3, 4],
         ]
         return self.build_model(stage_infos, num_output_layers, pyramid_scale)
 
@@ -194,18 +194,18 @@ class Model:
             x = self.upsampling2d(x)
             x = self.add([x, stages.pop(-1)])
             x = self.bn(x)
-            x = self.stage_block(x, name, channels, kernel_size, depth + 1)
+            x = self.stage_block(x, name, channels, kernel_size, depth)
             final_layers.append(x)
             if p == pyramid_scale:
                 break
         final_layers = final_layers if num_output_layers == 'm' else [final_layers[-1]]
         output_layers = []
         for i, final_layer in enumerate(final_layers):
-            output_layers.append(self.detection_layer(final_layer, name=f'sbd_output_{i}'))
+            output_layers.append(self.head_block(final_layer, name=f'sbd_output_{i}'))
         return tf.keras.models.Model(input_layer, output_layers if num_output_layers == 'm' else output_layers[0])
 
     def stage_block(self, x, name, channels, kernel_size, depth):
-        available_names = ['conv', 'lcsp', 'csp']
+        available_names = ['conv', 'lcsp', 'csp', 'res']
         if name == 'conv':
             for _ in range(depth):
                 x = self.conv2d(x, channels, kernel_size)
@@ -213,6 +213,8 @@ class Model:
             x = self.lcsp_block(x, channels, kernel_size, depth)
         elif name == 'csp':
             x = self.csp_block(x, channels, kernel_size, depth)
+        elif name == 'res':
+            x = self.res_block(x, channels, kernel_size, depth)
         else:
             Logger.error(f'layer block name({name}) is invalid, available_names : {available_names}')
         return x
@@ -250,11 +252,12 @@ class Model:
         return x
 
     def csp_block(self, x, filters, kernel_size, depth):
+        assert depth % 2 == 0
         x = self.conv2d(x, x.shape[-1], 1)
         half_filters = filters // 2
         x_half = self.conv2d(x, half_filters, 1)
         x_half_first = x_half
-        for _ in range(depth):
+        for _ in range(depth // 2):
             x_half_0 = self.conv2d(x_half, half_filters, kernel_size)
             x_half_1 = self.conv2d(x_half_0, half_filters, kernel_size)
             x_half = self.add([x_half, x_half_1])
@@ -262,6 +265,16 @@ class Model:
         x = self.concat([x, x_half])
         x = self.bn(x)
         x = self.conv2d(x, filters, 1)
+        return x
+
+    def res_block(self, x, filters, kernel_size, depth):
+        assert depth % 2 == 0
+        if filters != x.shape[-1]:
+            x = self.conv2d(x, filters, 1)
+        for _ in range(depth // 2):
+            x0 = self.conv2d(x, filters, kernel_size)
+            x1 = self.conv2d(x0, filters, kernel_size)
+            x = self.add([x, x1])
         return x
 
     def conv2d(self, x, filters, kernel_size, activation='auto', strides=1, bn=False, regularizer=True, name=None):
@@ -286,21 +299,25 @@ class Model:
             x = self.act(x, activation=activation)
         return x
 
-    def detection_layer(self, x, name='sbd_output'):
+    def head_block(self, x, name='sbd_output'):
+        obj_channels = 32
         x_obj = x
-        x_obj = self.conv2d(x_obj, 32, 1)
-        x_obj = self.conv2d(x_obj, 32, 3)
+        x_obj = self.conv2d(x_obj, obj_channels, 1)
+        x_obj = self.conv2d(x_obj, obj_channels, 3)
+        x_obj = self.conv2d(x_obj, obj_channels, 3)
         x_obj = self.conv2d(x_obj, 1, 1, activation='sigmoid', bn=False, regularizer=False)
 
+        box_channels = 64
         x_box = x
-        x_box = self.conv2d(x_box, 32, 1)
-        x_box = self.conv2d(x_box, 32, 3)
+        x_box = self.conv2d(x_box, box_channels, 1)
+        x_box = self.conv2d(x_box, box_channels, 3)
+        x_box = self.conv2d(x_box, box_channels, 3)
         x_box = self.conv2d(x_box, 4, 1, activation='linear', bn=False, regularizer=False)
 
         cls_channels = int(np.clip(x.shape[-1], 32, 128))
-
         x_cls = x
         x_cls = self.conv2d(x_cls, cls_channels, 1)
+        x_cls = self.conv2d(x_cls, cls_channels, 3)
         x_cls = self.conv2d(x_cls, cls_channels, 3)
         x_cls = self.conv2d(x_cls, self.num_classes, 1, activation='sigmoid', bn=False, regularizer=False)
         return self.concat([x_obj, x_box, x_cls], name=name)
