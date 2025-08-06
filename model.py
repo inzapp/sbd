@@ -190,10 +190,9 @@ class Model:
             if p == model_p:
                 continue
             name, channels, kernel_size, depth = stage_info
-            x = self.conv2d(x, channels, 1)
             x = self.upsampling2d(x)
-            x = self.add([x, stages.pop(-1)])
-            x = self.bn(x)
+            x = self.concat([x, stages.pop(-1)])
+            x = self.conv2d(x, channels, 1)
             x = self.stage_block(x, name, channels, kernel_size, depth)
             final_layers.append(x)
             if p == pyramid_scale:
