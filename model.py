@@ -192,6 +192,7 @@ class Model:
             name, channels, kernel_size, depth = stage_info
             x = self.upsampling2d(x)
             x = self.concat([x, stages.pop(-1)])
+            x = self.bn(x)
             x = self.conv2d(x, channels, 1)
             x = self.stage_block(x, name, channels, kernel_size, depth)
             final_layers.append(x)
