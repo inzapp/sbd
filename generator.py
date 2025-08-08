@@ -79,11 +79,14 @@ class DataGenerator:
             A.GaussianBlur(p=0.5, blur_limit=(5, 5))
         ])
 
-    def get_data_paths(self, exts=['jpg', 'jpeg', 'JPG', 'JPEG', 'png', 'PNG']):
-        if self.training:
-            data_path = self.cfg.train_data_path
+    def get_data_paths(self, path='', exts=['jpg', 'jpeg', 'JPG', 'JPEG', 'png', 'PNG']):
+        if path == '':
+            if self.training:
+                data_path = self.cfg.train_data_path
+            else:
+                data_path = self.cfg.validation_data_path
         else:
-            data_path = self.cfg.validation_data_path
+            data_path = path
 
         if data_path.endswith('.txt'):
             with open(data_path, 'rt') as f:

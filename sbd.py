@@ -39,7 +39,6 @@ import numpy as np
 import shutil as sh
 import tensorflow as tf
 
-from glob import glob
 from tqdm import tqdm
 from model import Model
 from logger import Logger
@@ -743,7 +742,7 @@ class SBD(CheckpointManager):
                     else:
                         Logger.error('invalid extension. jpg is available extension only')
                 elif os.path.isdir(path):
-                    image_paths = glob(f'{path}/**/*.jpg', recursive=True)
+                    image_paths = self.train_data_generator.get_data_paths(path=path)
                 else:
                     Logger.error(f'invalid file format : [{path}]')
                 detect_type = 'image'
@@ -857,7 +856,7 @@ class SBD(CheckpointManager):
             else:
                 Logger.info(f'{thresholds_path} not found. confidence threshold will be {confidence_threshold:.2f}')
 
-        image_paths = glob(f'{image_path}/**/*.jpg', recursive=True)
+        image_paths = self.train_data_generator.get_data_paths(path=image_path)
         try:
             sh.copy(self.cfg.class_names_file_path, f'{image_path}/classes.txt')
         except sh.SameFileError:
