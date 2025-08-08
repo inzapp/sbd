@@ -33,6 +33,7 @@ tf.autograph.set_verbosity(3)
 import cv2
 import yaml
 import random
+import tf2onnx
 import threading
 import numpy as np
 import shutil as sh
@@ -819,6 +820,33 @@ class SBD(CheckpointManager):
                         sleep(1.0)
                     break
             cv2.destroyAllWindows()
+
+    def export(self, opset, inputs_as_nchw_flag=True, outputs_as_nchw_flag=True):
+        self.model.trainable = False
+        tf.keras.backend.set_learning_phase(0)
+
+        input_signatures = []
+        for i, input_tensor in enumerate(self.model.inputs):
+            shape = input_tensor.shape.as_list()
+            shape[0] = None  # dynamic batch
+            name = (input_tensor.name.split(":")[0]) or f"input_{i}"
+            input_signatures.append(tf.TensorSpec(shape=shape, dtype=input_tensor.dtype, name=name))
+
+        inputs_as_nchw = [t.name.split(":")[0] for t in self.model.inputs] if inputs_as_nchw_flag else None
+        outputs_as_nchw = [f'Identity:{i}' for i in range(len(self.model.outputs))] if outputs_as_nchw_flag else None
+
+        output_path = f'{self.cfg.pretrained_model_path[:-3]}.onnx'
+        onnx_model, _ = tf2onnx.convert.from_keras(
+            self.model,
+            opset=opset,
+            output_path=output_path,
+            input_signature=input_signatures,
+            inputs_as_nchw=inputs_as_nchw,
+            outputs_as_nchw=outputs_as_nchw,
+            large_model=False,
+        )
+
+        Logger.info(f'model export success to {output_path}')
 
     def auto_label(self, image_path, confidence_threshold, thresholds_path):
         input_shape = self.model.input_shape[1:]
