@@ -866,7 +866,7 @@ class SBD(CheckpointManager):
 
         fs = []
         for path in image_paths:
-            fs.append(self.pool.submit(self.is_path_valid, self.train_data_generator.label_path(path), 'file'))
+            fs.append(self.pool.submit(self.is_path_valid, self.train_data_generator.get_label_path(path), 'file'))
         label_file_count = 0
         for f in fs:
             if f.result():
@@ -895,7 +895,7 @@ class SBD(CheckpointManager):
                 cy = ymin + (h * 0.5)
                 cx, cy, w, h = np.clip(np.array([cx, cy, w, h]), 0.0, 1.0)
                 label_content += f'{class_index} {cx:.6f} {cy:.6f} {w:.6f} {h:.6f}\n'
-            with open(self.train_data_generator.label_path(path), 'wt') as f_label:
+            with open(self.train_data_generator.get_label_path(path), 'wt') as f_label:
                 f_label.write(label_content)
 
     def train(self):

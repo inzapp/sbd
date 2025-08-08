@@ -79,7 +79,7 @@ class DataGenerator:
             A.GaussianBlur(p=0.5, blur_limit=(5, 5))
         ])
 
-    def get_data_paths(self):
+    def get_data_paths(self, exts=['jpg', 'jpeg', 'JPG', 'JPEG', 'png', 'PNG']):
         if self.training:
             data_path = self.cfg.train_data_path
         else:
@@ -91,17 +91,27 @@ class DataGenerator:
             for i in range(len(data_paths)):
                 data_paths[i] = data_paths[i].replace('\n', '')
         else:
-            data_paths = glob(f'{data_path}/**/*.jpg', recursive=True)
+            data_paths = []
+            for ext in exts:
+                data_paths += glob(f'{data_path}/**/*.{ext}', recursive=True)
         return data_paths
-
-    def label_path(self, data_path):
-        return f'{data_path[:-4]}.txt'
 
     def is_label_exists(self, label_path):
         is_label_exists = False
         if os.path.exists(label_path) and os.path.isfile(label_path):
             is_label_exists = True
         return is_label_exists, label_path
+
+    def get_label_path(self, data_path):
+        name, ext = os.path.splitext(data_path)
+        same_path_label_path = name + '.txt'
+        if self.is_label_exists(same_path_label_path)[0]:
+            return same_path_label_path
+        else:
+            if name.find('/images/') > -1:
+                return name.replace('/images/', '/labels/') + '.txt'
+            else:
+                return same_path_label_path
 
     def remove_duplicate_labels(self, labels):
         unique_labels = set(tuple(label) for label in labels)
@@ -149,7 +159,7 @@ class DataGenerator:
     def check_label(self):
         fs = []
         for path in self.data_paths:
-            fs.append(self.pool.submit(self.load_label, self.label_path(path), remove_duplicate=False))
+            fs.append(self.pool.submit(self.load_label, self.get_label_path(path), remove_duplicate=False))
 
         num_classes = self.num_classes
         if self.unknown_class_index > -1:
@@ -326,7 +336,7 @@ class DataGenerator:
         if print_avg_iou:
             fs = []
             for path in self.data_paths:
-                fs.append(self.pool.submit(self.load_label, self.label_path(path)))
+                fs.append(self.pool.submit(self.load_label, self.get_label_path(path)))
             labeled_boxes = []
             for f in tqdm(fs, desc='load box data for calculating avg IoU'):
                 labels, label_path, _ = f.result()
@@ -349,7 +359,7 @@ class DataGenerator:
 
         fs = []
         for path in self.data_paths:
-            fs.append(self.pool.submit(self.load_label, self.label_path(path)))
+            fs.append(self.pool.submit(self.load_label, self.get_label_path(path)))
 
         y_true_obj_count = 0
         box_count_in_real_data = 0
@@ -876,7 +886,7 @@ class DataGenerator:
         for i in range(len(fs)):
             img, path = fs[i].result()
             img = self.resize(img, (self.cfg.input_cols, self.cfg.input_rows))
-            labels, label_path, label_exists = self.load_label(self.label_path(path))
+            labels, label_path, label_exists = self.load_label(self.get_label_path(path))
             if not label_exists:
                 Logger.warn(f'label not found : {label_path}')
                 continue
