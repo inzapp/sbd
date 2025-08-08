@@ -277,7 +277,7 @@ class Model:
             x = self.add([x, x1])
         return x
 
-    def conv2d(self, x, filters, kernel_size, activation='auto', strides=1, bn=False, name=None):
+    def conv2d(self, x, filters, kernel_size, activation='auto', strides=1, bn=True, name=None):
         if activation == 'auto':
             activation = self.cfg.activation
         assert activation in self.available_activations, f'activation must be one of {self.available_activations}'
@@ -314,7 +314,6 @@ class Model:
         cls_channels = int(np.clip(x.shape[-1], 32, 128))
         x_cls = x
         x_cls = self.conv2d(x_cls, cls_channels, 1)
-        x_cls = self.conv2d(x_cls, cls_channels, 3)
         x_cls = self.conv2d(x_cls, cls_channels, 3)
         x_cls = self.conv2d(x_cls, self.num_classes, 1, activation='sigmoid', bn=False)
         return self.concat([x_obj, x_box, x_cls], name=name)
