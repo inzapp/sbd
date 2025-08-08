@@ -103,7 +103,7 @@ class TrainingConfig:
         d['optimizer'] = self.__get_value_from_yaml(cfg, 'optimizer', 'sgd', str, required=False)
         d['lr_policy'] = self.__get_value_from_yaml(cfg, 'lr_policy', 'step', str, required=False)
         d['lr'] = self.__get_value_from_yaml(cfg, 'lr', 0.01, float, required=False)
-        d['lrf'] = self.__get_value_from_yaml(cfg, 'lrf', 0.01, float, required=False)
+        d['lrf'] = self.__get_value_from_yaml(cfg, 'lrf', 0.05, float, required=False)
         d['decay'] = self.__get_value_from_yaml(cfg, 'decay', 0.0005, float, required=False)
         d['dropout'] = self.__get_value_from_yaml(cfg, 'dropout', 0.0, float, required=False)
         d['obj_target'] = self.__get_value_from_yaml(cfg, 'obj_target', 'iou', str, required=False)
@@ -485,11 +485,10 @@ class SBD(CheckpointManager):
     def evaluate(self,
             dataset='validation',
             cached=False,
-            confidence_threshold=0.2,
+            confidence_threshold=0.0,
             tp_iou_threshold=0.5,
             annotations_csv_path='',
             predictions_csv_path='',
-            find_best_threshold=False,
             verbose=True):
         assert dataset in ['train', 'validation']
         if annotations_csv_path == '':
@@ -502,6 +501,7 @@ class SBD(CheckpointManager):
             self.make_annotations_csv(image_paths, self.unknown_class_index, annotations_csv_path)
             self.make_predictions_csv(self.model, image_paths, self.primary_context, predictions_csv_path)
 
+        find_best_threshold = confidence_threshold == 0.0
         mean_ap, txt_content, best_thresholds = mean_average_precision_for_boxes(
             ann=annotations_csv_path,
             pred=predictions_csv_path,
@@ -518,8 +518,7 @@ class SBD(CheckpointManager):
             cached=True,
             verbose=False,
             annotations_csv_path=self.best_annotations_csv_path,
-            predictions_csv_path=self.best_predictions_csv_path,
-            find_best_threshold=True)
+            predictions_csv_path=self.best_predictions_csv_path)
         self.save_best_model_extra_data(txt_content, best_confidence_thresholds=best_confidence_thresholds)
 
     def is_background_color_bright(self, bgr):
@@ -970,6 +969,7 @@ class SBD(CheckpointManager):
                     self.show_progress()
                 if iteration_count % self.cfg.checkpoint_interval == 0:
                     self.train_data_generator.pause()
+                    print()
                     mean_ap, txt_content, _ = self.evaluate()
                     best_model_path = self.save_best_model(self.model, iteration_count, metric=mean_ap, mode='max', content=f'_mAP_{mean_ap:.4f}')
                     if best_model_path:
