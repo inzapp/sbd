@@ -527,7 +527,7 @@ class SBD(CheckpointManager):
         tmp = cv2.cvtColor(tmp, cv2.COLOR_BGR2GRAY)
         return tmp[0][0] > 127
 
-    def draw_box(self, img, boxes, font_scale=0.4, show_class=True):
+    def draw_box(self, img, boxes, font_scale=0.4, show_class=True, gt=False):
         padding = 5
         if len(img.shape) == 2:
             img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
@@ -538,9 +538,18 @@ class SBD(CheckpointManager):
                 class_name = str(class_index)
             else:
                 class_name = self.class_names[class_index].replace('\n', '')
-            label_background_color = colors[class_index]
-            label_font_color = (0, 0, 0) if self.is_background_color_bright(label_background_color) else (255, 255, 255)
-            label_text = f'{class_name}({int(box["confidence"] * 100.0)}%)'
+
+            if gt:
+                label_background_color = (255, 255, 255)
+                label_font_color = (0, 0, 0) if self.is_background_color_bright(label_background_color) else (255, 255, 255)
+                label_text = f'[GT] {class_name}'
+                box_thickness = 2
+            else:
+                label_background_color = colors[class_index]
+                label_font_color = (0, 0, 0) if self.is_background_color_bright(label_background_color) else (255, 255, 255)
+                label_text = f'{class_name}({int(box["confidence"] * 100.0)}%)'
+                box_thickness = 1
+
             x1, y1, x2, y2 = box['bbox_norm']
             x1 = int(x1 * img_width)
             y1 = int(y1 * img_height)
@@ -548,10 +557,18 @@ class SBD(CheckpointManager):
             y2 = min(int(y2 * img_height), img_height-1)
             l_size, baseline = cv2.getTextSize(label_text, cv2.FONT_HERSHEY_DUPLEX, font_scale, 1)
             bw, bh = l_size[0] + (padding * 2), l_size[1] + (padding * 2) + baseline
-            cv2.rectangle(img, (x1, y1), (x2, y2), label_background_color, 1)
+            cv2.rectangle(img, (x1, y1), (x2, y2), label_background_color, box_thickness)
             if show_class:
                 cv2.rectangle(img, (x1 - 1, y1 - bh), (x1 - 1 + bw, y1), label_background_color, -1)
-                cv2.putText(img, label_text, (x1 + padding - 1, y1 - baseline - padding), cv2.FONT_HERSHEY_DUPLEX, fontScale=font_scale, color=label_font_color, thickness=1, lineType=cv2.LINE_AA)
+                cv2.putText(
+                    img,
+                    label_text,
+                    (x1 + padding - 1, y1 - baseline - padding),
+                    cv2.FONT_HERSHEY_DUPLEX,
+                    fontScale=font_scale,
+                    color=label_font_color,
+                    thickness=1,
+                    lineType=cv2.LINE_AA)
         return img
 
     def show_progress(self):
@@ -633,6 +650,28 @@ class SBD(CheckpointManager):
                 boxes.append(y_pred_copy[i])
         return boxes
 
+    def convert_vectors_to_box_dicts(self, vectors, confidence_thresholds=None, is_cxcywh_label=False):
+        if is_cxcywh_label:
+            for i in range(len(vectors)):
+                class_index, cx, cy, w, h = vectors[i]
+                x1, y1, x2, y2 = self.train_data_generator.cxcywh2x1y1x2y2(cx, cy, w, h)
+                vectors[i] = [1.0, x1, y1, x2, y2, class_index]
+
+        box_dicts = []
+        for vector in vectors:
+            confidence = float(vector[0])
+            x1, y1, x2, y2 = np.clip(np.array(list(map(float, vector[1:5]))), 0.0, 1.0)
+            class_index = int(vector[5])
+            if confidence_thresholds is not None and confidence < confidence_thresholds[class_index]:
+                continue
+            box_dicts.append({
+                'confidence': confidence,
+                'bbox_norm': [x1, y1, x2, y2],
+                'class': class_index,
+                'discard': False,
+            })
+        return box_dicts
+
     def predict(self, model, img, context, confidence_threshold=0.2, verbose=False, heatmap=True):
         input_shape = model.input_shape[1:]
         self.cfg.input_rows, self.cfg.input_cols = input_shape[:2]
@@ -656,17 +695,7 @@ class SBD(CheckpointManager):
             output_tensor = y[layer_index][0]
             proposals += list(self.decode_bounding_box(output_tensor, confidence_threshold_min).numpy())
 
-        proposal_dicts = []
-        for box in proposals:
-            confidence = float(box[0])
-            x1, y1, x2, y2 = np.clip(np.array(list(map(float, box[1:5]))), 0.0, 1.0)
-            class_index = int(box[5])
-            if confidence > confidence_thresholds[class_index]:
-                proposal_dicts.append({
-                    'confidence': confidence,
-                    'bbox_norm': [x1, y1, x2, y2],
-                    'class': class_index,
-                    'discard': False})
+        proposal_dicts = self.convert_vectors_to_box_dicts(proposals, confidence_thresholds=confidence_thresholds)
 
         boxes = self.nms(proposal_dicts)
         if verbose:
@@ -715,7 +744,7 @@ class SBD(CheckpointManager):
         Logger.info(info_content)
         return best_confidence_thresholds
 
-    def detect(self, path='', dataset='validation', confidence_threshold=0.2, show_class=True, width=0, height=0, heatmap=False, thresholds_path='', show_gt=False):
+    def detect(self, path='', dataset='validation', confidence_threshold=0.2, show_class=True, width=0, height=0, heatmap=False, thresholds_path='', gt=False):
         image_paths = []
         if path == '':
             assert dataset in ['train', 'validation']
@@ -767,7 +796,18 @@ class SBD(CheckpointManager):
                 img, _ = self.train_data_generator.load_image(path)
                 img, boxes = self.predict(self.model, img, context=self.primary_context, verbose=True, confidence_threshold=confidence_threshold, heatmap=heatmap)
                 img = self.train_data_generator.resize(img, (view_width, view_height))
-                img = self.draw_box(img, boxes, show_class=show_class)
+                if gt:
+                    label_path = self.train_data_generator.get_label_path(path)
+                    if self.train_data_generator.is_label_exists(label_path)[0]:
+                        labels = self.train_data_generator.load_label(label_path)[0]
+                        gt_boxes = self.convert_vectors_to_box_dicts(labels, is_cxcywh_label=True)
+                        img = self.draw_box(img, gt_boxes, show_class=show_class, gt=True)
+                        img = self.draw_box(img, boxes, show_class=show_class)
+                    else:
+                        Logger.warn(f'draw gt boxes failure, label not found : {path}')
+                        img = self.draw_box(img, boxes, show_class=show_class)
+                else:
+                    img = self.draw_box(img, boxes, show_class=show_class)
                 cv2.imshow('res', img)
                 key = cv2.waitKey(0)
                 if key == 27:

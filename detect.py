@@ -30,6 +30,7 @@ if __name__ == '__main__':
     parser.add_argument('--path', type=str, default='', help='image or video path for detection')
     parser.add_argument('--width', type=int, default=0, help='width for showing detection result')
     parser.add_argument('--height', type=int, default=0, help='height for showing detection result')
+    parser.add_argument('--gt', action='store_true', help='show predicted bbox with gt bbox')
     parser.add_argument('--hide-class', action='store_true', help='not showing class label with confidence score')
     parser.add_argument('--dataset', type=str, default='validation', help='dataset name for prediction. train or validation')
     parser.add_argument('--heatmap', action='store_true', help='show objectness heatmap blended image')
@@ -46,5 +47,6 @@ if __name__ == '__main__':
         width=args.width,
         height=args.height,
         heatmap=args.heatmap,
-        thresholds_path=args.thresholds)
+        thresholds_path=args.thresholds,
+        gt=args.gt)
 
