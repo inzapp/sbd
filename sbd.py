@@ -32,6 +32,7 @@ tf.autograph.set_verbosity(3)
 
 import cv2
 import yaml
+import random
 import threading
 import numpy as np
 import shutil as sh
