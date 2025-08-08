@@ -35,12 +35,14 @@ def _obj_loss(y_true, y_pred, pos_mask, extra, iou, iou_obj_target, eps):
     if iou_obj_target == 1.0:
         obj_true = tf.clip_by_value(iou, 0.1, 1.0) * pos_mask
 
+    loss = ACE()(obj_true, obj_pred)
+
     obj_pos_loss = 0.0
     obj_neg_loss = 0.0
     if num_pos > 0.0:
-        obj_pos_loss = tf.reduce_sum(ACE()(obj_true, obj_pred) * pos_mask)
+        obj_pos_loss = tf.reduce_sum(loss * pos_mask)
     if num_neg > 0.0:
-        obj_neg_loss = tf.reduce_sum(ACE()(obj_true, obj_pred) * neg_mask)
+        obj_neg_loss = tf.reduce_sum(loss * neg_mask)
     return obj_pos_loss, obj_neg_loss, num_pos, num_neg
 
 
