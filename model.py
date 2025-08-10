@@ -309,7 +309,7 @@ class Model:
         x_box = x
         x_box = self.conv2d(x_box, box_channels, 1)
         x_box = self.conv2d(x_box, box_channels, 3)
-        x_box = self.conv2d(x_box, 4, 1, activation='sigmoid', bn=False)
+        x_box = self.conv2d(x_box, 4, 1, activation='linear', bn=False)
 
         cls_channels = int(np.clip(x.shape[-1], 32, 128))
         x_cls = x

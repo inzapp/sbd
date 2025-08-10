@@ -46,7 +46,7 @@ def _obj_loss(y_true, y_pred, pos_mask, extra, iou, iou_obj_target, eps):
     return obj_pos_loss, obj_neg_loss, num_pos, num_neg
 
 
-def _box_loss(y_true, y_pred, pos_mask, box_weight, loss_type='ciou'):
+def _box_loss(y_true, y_pred, pos_mask, box_weight, input_rows, input_cols, scale_stride, loss_type='ciou'):
     num_pos = tf.reduce_sum(pos_mask)
     iou = tf.zeros_like(pos_mask)
     if num_pos == 0.0:
@@ -59,8 +59,8 @@ def _box_loss(y_true, y_pred, pos_mask, box_weight, loss_type='ciou'):
 
     cx_true = y_true[:, :, :, 1]
     cy_true = y_true[:, :, :, 2]
-    cx_pred = y_pred[:, :, :, 1]
-    cy_pred = y_pred[:, :, :, 2]
+    cx_pred = tf.sigmoid(y_pred[:, :, :, 1])
+    cy_pred = tf.sigmoid(y_pred[:, :, :, 2])
 
     cx_true = (x_grid + cx_true) / cols
     cx_pred = (x_grid + cx_pred) / cols
@@ -69,8 +69,8 @@ def _box_loss(y_true, y_pred, pos_mask, box_weight, loss_type='ciou'):
 
     w_true = y_true[:, :, :, 3]
     h_true = y_true[:, :, :, 4]
-    w_pred = y_pred[:, :, :, 3]
-    h_pred = y_pred[:, :, :, 4]
+    w_pred = tf.exp(y_pred[:, :, :, 3]) * scale_stride / input_cols
+    h_pred = tf.exp(y_pred[:, :, :, 4]) * scale_stride / input_rows
 
     if loss_type in ['l1', 'l2']:
         if loss_type == 'l1':
@@ -148,11 +148,11 @@ def _cls_loss(y_true, y_pred, pos_mask, extra, label_smoothing, eps):
     return loss
 
 
-def sbd_loss(y_true, y_pred, extra, iou_obj_target, box_weight, label_smoothing, eps=1e-7):
+def sbd_loss(y_true, y_pred, extra, iou_obj_target, input_rows, input_cols, box_weight, label_smoothing, scale_stride, eps=1e-7):
     y_pred = convert_to_tensor_v2(y_pred)
     y_true = tf.cast(y_true, y_pred.dtype)
     pos_mask = tf.where(y_true[:, :, :, 0] == 1.0, 1.0, 0.0)
-    box_loss, iou = _box_loss(y_true, y_pred, pos_mask, box_weight)
+    box_loss, iou = _box_loss(y_true, y_pred, pos_mask, box_weight, input_rows, input_cols, scale_stride)
     obj_pos_loss, obj_neg_loss, num_pos, num_neg = _obj_loss(y_true, y_pred, pos_mask, extra, iou, iou_obj_target, eps)
     cls_loss = _cls_loss(y_true, y_pred, pos_mask, extra, label_smoothing, eps)
     return obj_pos_loss, obj_neg_loss, num_pos, num_neg, box_loss, cls_loss

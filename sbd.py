@@ -199,6 +199,7 @@ class SBD(CheckpointManager):
             self.model = self.load_model(self.cfg.pretrained_model_path, self.strategy, self.optimizer)
             Logger.info(f'load model success => {self.cfg.pretrained_model_path}')
 
+        self.scale_stride = 8.0
         self.pool = ThreadPoolExecutor(8)
 
         if type(self.model.output_shape) == tuple:
@@ -354,7 +355,7 @@ class SBD(CheckpointManager):
 
     @tf.function
     def compute_gradient(self, args):
-        _, _, model, optimizer, loss_function, x, y_true, extra, iou_obj_target, num_output_layers, box_weight, label_smoothing = args
+        _, _, model, optimizer, loss_function, x, y_true, extra, iou_obj_target, input_rows, input_cols, num_output_layers, box_weight, label_smoothing, scale_stride = args
         with tf.GradientTape() as tape:
             y_pred = model(x, training=True)
             obj_loss, obj_pos_loss, obj_neg_loss, box_loss, cls_loss, num_pos, num_neg = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
@@ -364,7 +365,7 @@ class SBD(CheckpointManager):
                 extra = [extra]
             for i in range(num_output_layers):
                 _obj_pos_loss, _obj_neg_loss, _num_pos, _num_neg, _box_loss, _cls_loss = loss_function(
-                    y_true[i], y_pred[i], extra[i], iou_obj_target, box_weight, label_smoothing)
+                    y_true[i], y_pred[i], extra[i], iou_obj_target, input_rows, input_cols, box_weight, label_smoothing, scale_stride)
                 num_pos += _num_pos
                 num_neg += _num_neg
                 if _num_pos > 0.0:
@@ -589,7 +590,7 @@ class SBD(CheckpointManager):
                 cv2.destroyAllWindows()
 
     @tf.function
-    def decode_bounding_box(self, output_tensor, confidence_threshold):
+    def decode_bounding_box(self, output_tensor, confidence_threshold, input_rows, input_cols, scale_stride):
         output_shape = tf.shape(output_tensor)
         rows, cols = output_shape[0], output_shape[1]
         rows_f = tf.cast(rows, dtype=tf.float32)
@@ -601,10 +602,10 @@ class SBD(CheckpointManager):
         confidence *= max_class_score
         over_confidence_indices = tf.where(confidence > confidence_threshold)
 
-        cx = output_tensor[:, :, 1]
-        cy = output_tensor[:, :, 2]
-        w = output_tensor[:, :, 3]
-        h = output_tensor[:, :, 4]
+        cx = tf.sigmoid(output_tensor[:, :, 1])
+        cy = tf.sigmoid(output_tensor[:, :, 2])
+        w = tf.exp(output_tensor[:, :, 3]) * scale_stride / input_cols
+        h = tf.exp(output_tensor[:, :, 4]) * scale_stride / input_rows
 
         x_grid, y_grid = tf.meshgrid(tf.range(cols_f), tf.range(rows_f), indexing='xy')
 
@@ -693,7 +694,12 @@ class SBD(CheckpointManager):
         proposals = []
         for layer_index in range(num_output_layers):
             output_tensor = y[layer_index][0]
-            proposals += list(self.decode_bounding_box(output_tensor, confidence_threshold_min).numpy())
+            proposals += list(self.decode_bounding_box(
+                output_tensor,
+                confidence_threshold_min,
+                self.cfg.input_rows,
+                self.cfg.input_cols,
+                self.scale_stride).numpy())
 
         proposal_dicts = self.convert_vectors_to_box_dicts(proposals, confidence_thresholds=confidence_thresholds)
 
@@ -993,9 +999,12 @@ class SBD(CheckpointManager):
                 batch_y,
                 batch_extra,
                 iou_obj_target,
+                self.cfg.input_rows,
+                self.cfg.input_cols,
                 self.num_output_layers,
                 self.cfg.box_weight,
-                self.cfg.smoothing))
+                self.cfg.smoothing,
+                self.scale_stride))
 
             iteration_count += 1
             print(self.build_loss_str(eta_calculator.update(iteration_count), loss_vars), end='')
