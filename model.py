@@ -303,7 +303,7 @@ class Model:
         x_obj = x
         x_obj = self.conv2d(x_obj, obj_channels, 1)
         x_obj = self.conv2d(x_obj, obj_channels, 3)
-        x_obj = self.conv2d(x_obj, 1, 1, activation='sigmoid', bn=False)
+        x_obj = self.conv2d(x_obj, 1, 1, activation='linear', bn=False)
 
         box_channels = 32
         x_box = x
@@ -315,7 +315,7 @@ class Model:
         x_cls = x
         x_cls = self.conv2d(x_cls, cls_channels, 1)
         x_cls = self.conv2d(x_cls, cls_channels, 3)
-        x_cls = self.conv2d(x_cls, self.num_classes, 1, activation='sigmoid', bn=False)
+        x_cls = self.conv2d(x_cls, self.num_classes, 1, activation='linear', bn=False)
         return self.concat([x_obj, x_box, x_cls], name=name)
 
     def act(self, x, activation='linear'):

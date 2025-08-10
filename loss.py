@@ -26,7 +26,7 @@ from tensorflow.python.framework.ops import convert_to_tensor_v2
 
 def _obj_loss(y_true, y_pred, pos_mask, extra, iou, iou_obj_target, eps):
     obj_true = y_true[:, :, :, 0]
-    obj_pred = y_pred[:, :, :, 0]
+    obj_pred = tf.sigmoid(y_pred[:, :, :, 0])
 
     neg_mask = tf.ones_like(pos_mask) - pos_mask
 
@@ -46,7 +46,7 @@ def _obj_loss(y_true, y_pred, pos_mask, extra, iou, iou_obj_target, eps):
     return obj_pos_loss, obj_neg_loss, num_pos, num_neg
 
 
-def _box_loss(y_true, y_pred, pos_mask, box_weight, input_rows, input_cols, scale_stride, loss_type='ciou'):
+def _box_loss(y_true, y_pred, pos_mask, box_weight, input_rows, input_cols, loss_type='ciou'):
     num_pos = tf.reduce_sum(pos_mask)
     iou = tf.zeros_like(pos_mask)
     if num_pos == 0.0:
@@ -67,10 +67,13 @@ def _box_loss(y_true, y_pred, pos_mask, box_weight, input_rows, input_cols, scal
     cy_true = (y_grid + cy_true) / rows
     cy_pred = (y_grid + cy_pred) / rows
 
+    row_stride = input_rows / rows
+    col_stride = input_cols / cols
+
     w_true = y_true[:, :, :, 3]
     h_true = y_true[:, :, :, 4]
-    w_pred = tf.exp(y_pred[:, :, :, 3]) * scale_stride / input_cols
-    h_pred = tf.exp(y_pred[:, :, :, 4]) * scale_stride / input_rows
+    w_pred = tf.exp(y_pred[:, :, :, 3]) * col_stride / input_cols
+    h_pred = tf.exp(y_pred[:, :, :, 4]) * row_stride / input_rows
 
     if loss_type in ['l1', 'l2']:
         if loss_type == 'l1':
@@ -141,18 +144,18 @@ def _cls_loss(y_true, y_pred, pos_mask, extra, label_smoothing, eps):
         return 0.0
 
     cls_true = y_true[:, :, :, 5:]
-    cls_pred = y_pred[:, :, :, 5:]
+    cls_pred = tf.sigmoid(y_pred[:, :, :, 5:])
     cls_weight = extra[:, :, :, 5:]
 
     loss = tf.reduce_sum(tf.reduce_sum(ACE(label_smoothing=label_smoothing)(cls_true, cls_pred) * cls_weight, axis=-1) * pos_mask)
     return loss
 
 
-def sbd_loss(y_true, y_pred, extra, iou_obj_target, input_rows, input_cols, box_weight, label_smoothing, scale_stride, eps=1e-7):
+def sbd_loss(y_true, y_pred, extra, iou_obj_target, input_rows, input_cols, box_weight, label_smoothing, eps=1e-7):
     y_pred = convert_to_tensor_v2(y_pred)
     y_true = tf.cast(y_true, y_pred.dtype)
     pos_mask = tf.where(y_true[:, :, :, 0] == 1.0, 1.0, 0.0)
-    box_loss, iou = _box_loss(y_true, y_pred, pos_mask, box_weight, input_rows, input_cols, scale_stride)
+    box_loss, iou = _box_loss(y_true, y_pred, pos_mask, box_weight, input_rows, input_cols)
     obj_pos_loss, obj_neg_loss, num_pos, num_neg = _obj_loss(y_true, y_pred, pos_mask, extra, iou, iou_obj_target, eps)
     cls_loss = _cls_loss(y_true, y_pred, pos_mask, extra, label_smoothing, eps)
     return obj_pos_loss, obj_neg_loss, num_pos, num_neg, box_loss, cls_loss
