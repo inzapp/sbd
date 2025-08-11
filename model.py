@@ -303,19 +303,19 @@ class Model:
         x_obj = x
         x_obj = self.conv2d(x_obj, obj_channels, 1)
         x_obj = self.conv2d(x_obj, obj_channels, 3)
-        x_obj = self.conv2d(x_obj, 1, 1, activation='linear', bn=False)
+        x_obj = self.conv2d(x_obj, 1, 1, activation='sigmoid', bn=False)
 
         box_channels = 32
         x_box = x
         x_box = self.conv2d(x_box, box_channels, 1)
         x_box = self.conv2d(x_box, box_channels, 3)
-        x_box = self.conv2d(x_box, 4, 1, activation='linear', bn=False)
+        x_box = self.conv2d(x_box, 4, 1, activation='sigmoid', bn=False)
 
         cls_channels = int(np.clip(x.shape[-1], 32, 128))
         x_cls = x
         x_cls = self.conv2d(x_cls, cls_channels, 1)
         x_cls = self.conv2d(x_cls, cls_channels, 3)
-        x_cls = self.conv2d(x_cls, self.num_classes, 1, activation='linear', bn=False)
+        x_cls = self.conv2d(x_cls, self.num_classes, 1, activation='sigmoid', bn=False)
         return self.concat([x_obj, x_box, x_cls], name=name)
 
     def act(self, x, activation='linear'):
