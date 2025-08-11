@@ -20,57 +20,47 @@ git clone https://github.com/inzapp/sbd
 
 # local installation
 cd sbd
-python -m pip intall setup/requirements_cuda_xxx.txt
+python3 -m pip intall setup/requirements_cuda_xxx.txt
 
 # docker installation
 docker pull inzapp/sbd:cu118 # in case of cuda version 11.8
-cd sbd/setup
+cd setup
 ./run_docker.sh
 ```
 
 Train
 ```bash
-python train.py --cfg cfg/cfg.yaml
+python3 train.py --cfg cfg/cfg.yaml
 ```
 
 Detect
 ```bash
 cd checkpoint/model_name/
-python ../../detect.py # detect with validation data path in cfg.yaml
-python ../../detect.py --dataset train # detect with train data path in cfg.yaml
-python ../../detect.py --path "/your/images/path/dir" # user defined image path dir
-python ../../detect.py --path "/your/images/path/image.jpg" # one image detection
-python ../../detect.py --path "/your/video/path.mp4" # realtime video detection
-python ../../detect.py --path "rtsp://foo/bar" # rtsp stream realtime detection
-python ../../detect.py --path "rtsp://user:passsword@foo/bar" # rtsp stream case need authentication
+python3 ../../detect.py # detect with validation data path in cfg.yaml
+python3 ../../detect.py --dataset train # detect with train data path in cfg.yaml
+python3 ../../detect.py --path "/your/images/path/dir" # user defined image path dir
+python3 ../../detect.py --path "/your/images/path/image.jpg" # one image detection
+python3 ../../detect.py --path "/your/video/path.mp4" # video detection
+python3 ../../detect.py --path "rtsp://foo/bar" # rtsp stream realtime detection
+python3 ../../detect.py --path "rtsp://user:passsword@foo/bar" # rtsp stream case need authentication
 ```
 
 mAP calculation
 ```bash
 cd checkpoint/model_name/
-python ../../map.py # calculate mAP with validation data in cfg.yaml
-python ../../map.py --cached --find-best-threshold # use cached csv, calculate mAP with best confidence threshold for each class
-python ../../map.py --cached --find-best-threshold --dataset train # calculate mAP with train data in cfg.yaml
+python3 ../../map.py # calculate mAP with validation data in cfg.yaml
 ```
 
 Auto label
 ```bash
 cd checkpoint/model_name/
-python ../../auto_label.py --path "/your/image/path/dir" # save yolo style label with predicted result
-```
-
-Multi GPU training
-```yaml
-# cfg/cfg.yaml
-devices: [] # cpu training
-devices: [0] # one gpu training with device index 0
-devices: [2, 3] # 2 GPU training with device index 2, 3
-devices: [0, 1, 2, 3] # 4 GPU training with device index 0, 1, 2, 3
+python3 ../../auto_label.py --path "/your/image/path/dir" # save yolo style label with predicted result
 ```
 
 ONNX export
 ```bash
-./export.sh  # check opset version
+cd checkpoint/model_name/
+python3 ../../export.py
 ```
 
 ## Introduction
@@ -81,7 +71,7 @@ It operates without anchors and does not involve mathematical operations like ex
 
 <img src="/md/structure.png" width="1000px"><br>
 
-To leverage large-scale features, SBD use a lightweight FPN and decoupled head for efficient performance.
+To leverage large-scale features, SBD use a vanilla residual block and decoupled head for efficient performance.
 
 These features make SBD optimally suited for edge devices.
 
