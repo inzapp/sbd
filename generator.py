@@ -106,7 +106,7 @@ class DataGenerator:
         return is_label_exists, label_path
 
     def get_label_path(self, data_path):
-        name, ext = os.path.splitext(data_path)
+        name, _ = os.path.splitext(data_path)
         same_path_label_path = name + '.txt'
         if self.is_label_exists(same_path_label_path)[0]:
             return same_path_label_path

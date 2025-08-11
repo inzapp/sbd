@@ -407,7 +407,7 @@ class SBD(CheckpointManager):
 
     def load_label_csv(self, image_path, unknown_class_index):
         csv_lines = []
-        label_path = f'{image_path[:-4]}.txt'
+        label_path = self.train_data_generator.get_label_path(image_path)
         basename = os.path.basename(image_path)
         with open(label_path, 'rt') as f:
             lines = f.readlines()
