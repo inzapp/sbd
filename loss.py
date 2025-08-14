@@ -1,7 +1,7 @@
 """
 Authors : inzapp
 
-Github url : https://github.com/inzapp/sbd
+Github : https://github.com/inzapp/sbd
 """
 import numpy as np
 import tensorflow as tf
