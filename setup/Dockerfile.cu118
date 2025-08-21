@@ -18,10 +18,10 @@ RUN python3.8 -m venv /venv/sbd
 WORKDIR /venv/sbd
 
 # Copy requirements file
-COPY ./requirements_cuda_118.txt .
+COPY ./requirements_cu118_py38.txt .
 
 # Upgrade pip and install Python packages
-RUN . /venv/sbd/bin/activate && python -m pip install --upgrade pip && python -m pip install -r ./requirements_cuda_118.txt && deactivate
+RUN . /venv/sbd/bin/activate && python -m pip install --upgrade pip && python -m pip install -r ./requirements_cu118_py38.txt && deactivate
 COPY ./.bashrc /etc/bash.bashrc
 
 # Set the working directory
