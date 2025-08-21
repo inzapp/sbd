@@ -17,14 +17,13 @@
 Installation
 ```bash
 git clone https://github.com/inzapp/sbd
+cd sbd/setup
 
-# local installation
-cd sbd
-python3 -m pip intall setup/requirements_cuda_xxx.txt
+# venv installation
+./setup_venv.sh
 
 # docker installation
 docker pull inzapp/sbd:cu118 # in case of cuda version 11.8
-cd setup
 ./run_docker.sh
 ```
 
