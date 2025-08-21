@@ -383,6 +383,44 @@ class DataGenerator:
             img = cv2.resize(img, size, interpolation=cv2.INTER_LINEAR)
         return img
 
+    def resize_letterbox(self, img, labels, size):
+        img_h, img_w = img.shape[:2]
+
+        img_aspect_ratio = img_w / float(img_h)
+        target_aspect_ratio = size[0] / float(size[1])
+
+        is_lr_letterbox = False
+        letterbox_size = 0
+        img_start_ratio = 0.0
+
+        if img_aspect_ratio < target_aspect_ratio:
+            target_w = int(img_w * target_aspect_ratio / img_aspect_ratio)
+            letterbox_size = int(abs(target_w - img_w) / 2)
+            img = cv2.copyMakeBorder(img, 0, 0, letterbox_size, letterbox_size, cv2.BORDER_CONSTANT, (0, 0, 0))
+            img_start_ratio = letterbox_size / float(target_w)
+            is_lr_letterbox = True
+        else:
+            target_h = int(img_h * img_aspect_ratio / target_aspect_ratio)
+            letterbox_size = int(abs(target_h - img_h) / 2)
+            img = cv2.copyMakeBorder(img, letterbox_size, letterbox_size, 0, 0, cv2.BORDER_CONSTANT, (0, 0, 0))
+            img_start_ratio = letterbox_size / float(target_h)
+
+        img_end_ratio = 1.0 - img_start_ratio
+        img = self.resize(img, size)
+
+        new_labels = []
+        for label in labels:
+            class_index, cx, cy, w, h = label
+            img_ratio = img_end_ratio - img_start_ratio
+            if is_lr_letterbox:
+                cx = cx * img_ratio + img_start_ratio
+                w *= img_ratio
+            else:
+                cy = cy * img_ratio + img_start_ratio
+                h *= img_ratio
+            new_labels.append([class_index, cx, cy, w, h])
+        return img, new_labels, (is_lr_letterbox, img_start_ratio, img_end_ratio)
+
     def augment_noise(self, img, **kwargs):
         if self.cfg.aug_noise > 0.0:
             img = np.array(img).astype(np.float32)
@@ -874,11 +912,11 @@ class DataGenerator:
             fs.append(self.pool.submit(self.load_image, self.next_data_path(), gray=self.cfg.input_channels == 1))
         for i in range(len(fs)):
             img, path = fs[i].result()
-            img = self.resize(img, (self.cfg.input_cols, self.cfg.input_rows))
             labels, label_path, label_exists = self.load_label(self.get_label_path(path))
             if not label_exists:
                 Logger.warn(f'label not found : {label_path}')
                 continue
+            img, labels, letterbox_ret = self.resize_letterbox(img, labels, (self.cfg.input_cols, self.cfg.input_rows))
             if self.training:
                 img, labels = self.augment(img, labels, multi_image_augmentation=multi_image_augmentation)
             data.append({'img': img, 'labels': labels})
