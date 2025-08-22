@@ -323,13 +323,10 @@ class Model:
         return tf.keras.layers.BatchNormalization(beta_initializer=self.bias_initializer(), fused=True)(x)
 
     def kernel_initializer(self):
-        return tf.keras.initializers.GlorotNormal(seed=42 if self.cfg.fix_seed else None)
+        return tf.keras.initializers.GlorotNormal()
 
     def bias_initializer(self, value=0.0):
-        if value == 0.0:
-            return tf.keras.initializers.Zeros()
-        else:
-            return tf.keras.initializers.Constant(value=value)
+        return tf.keras.initializers.Constant(value=value)
 
     def dropout(self, x):
         return tf.keras.layers.Dropout(self.cfg.dropout)(x) if self.cfg.dropout > 0.0 else x
