@@ -388,8 +388,9 @@ class DataGenerator:
         w_scale = img_w / float(size_w)
         h_scale = img_h / float(size_h)
         scale = 1.0 / max(w_scale, h_scale)
-        if downscale_only and scale < 1.0:
-            img = cv2.resize(img, (0, 0), fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
+        if downscale_only:
+            if scale < 1.0:
+                img = cv2.resize(img, (0, 0), fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
         else:
             if scale >= 1.0:
                 img = cv2.resize(img, (0, 0), fx=scale, fy=scale, interpolation=cv2.INTER_LINEAR)
