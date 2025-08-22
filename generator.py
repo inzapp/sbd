@@ -383,7 +383,7 @@ class DataGenerator:
             img = cv2.resize(img, size, interpolation=cv2.INTER_LINEAR)
         return img
 
-    def resize_letterbox(self, img, labels, size):
+    def resize_letterbox(self, img, labels, size, letterbox_color=(0, 0, 0)):
         img_h, img_w = img.shape[:2]
 
         img_aspect_ratio = img_w / float(img_h)
@@ -396,22 +396,22 @@ class DataGenerator:
         if img_aspect_ratio < target_aspect_ratio:
             target_w = int(img_w * target_aspect_ratio / img_aspect_ratio)
             letterbox_size = int(abs(target_w - img_w) / 2)
-            img = cv2.copyMakeBorder(img, 0, 0, letterbox_size, letterbox_size, cv2.BORDER_CONSTANT, (0, 0, 0))
+            img = cv2.copyMakeBorder(img, 0, 0, letterbox_size, letterbox_size, cv2.BORDER_CONSTANT, letterbox_color)
             img_start_ratio = letterbox_size / float(target_w)
             is_lr_letterbox = True
         else:
             target_h = int(img_h * img_aspect_ratio / target_aspect_ratio)
             letterbox_size = int(abs(target_h - img_h) / 2)
-            img = cv2.copyMakeBorder(img, letterbox_size, letterbox_size, 0, 0, cv2.BORDER_CONSTANT, (0, 0, 0))
+            img = cv2.copyMakeBorder(img, letterbox_size, letterbox_size, 0, 0, cv2.BORDER_CONSTANT, letterbox_color)
             img_start_ratio = letterbox_size / float(target_h)
 
         img_end_ratio = 1.0 - img_start_ratio
+        img_ratio = img_end_ratio - img_start_ratio
         img = self.resize(img, size)
 
         new_labels = []
         for label in labels:
             class_index, cx, cy, w, h = label
-            img_ratio = img_end_ratio - img_start_ratio
             if is_lr_letterbox:
                 cx = cx * img_ratio + img_start_ratio
                 w *= img_ratio
@@ -419,7 +419,31 @@ class DataGenerator:
                 cy = cy * img_ratio + img_start_ratio
                 h *= img_ratio
             new_labels.append([class_index, cx, cy, w, h])
-        return img, new_labels, (is_lr_letterbox, img_start_ratio, img_end_ratio)
+        return img, new_labels, (is_lr_letterbox, img_ratio, img_start_ratio, img_end_ratio)
+
+    def rescale_bboxes_to_original_scale(self, bboxes, letterbox_info):
+        is_lr_letterbox, img_ratio, img_start_ratio, img_end_ratio = letterbox_info
+        rescaled_bboxes = []
+        for bbox in bboxes:
+            confidence, x1, y1, x2, y2, class_index = bbox
+            if is_lr_letterbox:
+                x1 = (x1 - img_start_ratio) / img_ratio
+                x2 = (x2 - img_start_ratio) / img_ratio
+            else:
+                y1 = (y1 - img_start_ratio) / img_ratio
+                y2 = (y2 - img_start_ratio) / img_ratio
+            rescaled_bboxes.append([confidence, x1, y1, x2, y2, class_index])
+        return rescaled_bboxes
+
+    def downscale_image_if_bigger_than_max_size(self, img, max_size=(1280, 720)):
+        max_w, max_h = max_size
+        img_h, img_w = img.shape[:2]
+        w_scale = img_w / float(max_w)
+        h_scale = img_h / float(max_h)
+        scale = 1.0 / max(w_scale, h_scale)
+        if scale < 1.0:
+            img = cv2.resize(img, (0, 0), fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
+        return img
 
     def augment_noise(self, img, **kwargs):
         if self.cfg.aug_noise > 0.0:
@@ -916,7 +940,7 @@ class DataGenerator:
             if not label_exists:
                 Logger.warn(f'label not found : {label_path}')
                 continue
-            img, labels, letterbox_ret = self.resize_letterbox(img, labels, (self.cfg.input_cols, self.cfg.input_rows))
+            img, labels, _ = self.resize_letterbox(img, labels, (self.cfg.input_cols, self.cfg.input_rows))
             if self.training:
                 img, labels = self.augment(img, labels, multi_image_augmentation=multi_image_augmentation)
             data.append({'img': img, 'labels': labels})

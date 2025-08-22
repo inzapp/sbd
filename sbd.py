@@ -567,6 +567,7 @@ class SBD(CheckpointManager):
                 img_path = np.random.choice(self.validation_data_generator.data_paths)
             img, _ = self.train_data_generator.load_image(img_path)
             img, boxes = self.predict(self.model, img, context=self.primary_context, heatmap=True)
+            img = self.train_data_generator.downscale_image_if_bigger_than_max_size(img)
             img = self.draw_box(img, boxes)
             cv2.imshow('progress', img)
             key = cv2.waitKey(1)
@@ -664,8 +665,8 @@ class SBD(CheckpointManager):
         output_shape = model.output_shape
         num_output_layers = 1 if type(output_shape) == tuple else len(output_shape)
 
-        img_resized = self.train_data_generator.resize(img, (self.cfg.input_cols, self.cfg.input_rows))
-        x = self.train_data_generator.preprocess(img_resized, batch_axis=True)
+        img_letterboxed, _, letterbox_info = self.train_data_generator.resize_letterbox(img, [], (self.cfg.input_cols, self.cfg.input_rows))
+        x = self.train_data_generator.preprocess(img_letterboxed, batch_axis=True)
         y = SBD.graph_forward(model, x, context)
         if num_output_layers == 1:
             y = [y]
@@ -681,6 +682,8 @@ class SBD(CheckpointManager):
             output_tensor = y[layer_index][0]
             proposals += list(self.decode_bounding_box(output_tensor, confidence_threshold_min).numpy())
 
+        if not heatmap:
+            proposals = self.train_data_generator.rescale_bboxes_to_original_scale(proposals, letterbox_info)
         proposal_dicts = self.convert_vectors_to_box_dicts(proposals, confidence_thresholds=confidence_thresholds)
 
         boxes = self.nms(proposal_dicts)
@@ -695,6 +698,7 @@ class SBD(CheckpointManager):
             print()
 
         if heatmap:
+            img = img_letterboxed
             if num_output_layers == 1:
                 objectness = y[0][:, :, :, 0][0]
                 img = self.train_data_generator.blend_heatmap(img, objectness)
@@ -762,12 +766,9 @@ class SBD(CheckpointManager):
                     Logger.error(f'invalid file format : [{path}]')
                 detect_type = 'image'
 
-        view_width, view_height = 0, 0
+        view_w, view_h = 0, 0
         if width > 0 and height > 0:
-            view_width, view_height = width, height
-        else:
-            input_height, input_width, _ = self.model.input_shape[1:]
-            view_width, view_height = input_width, input_height
+            view_w, view_h = width, height
 
         if thresholds_path != '':
             if self.is_path_valid(thresholds_path, path_type='file'):
@@ -781,8 +782,11 @@ class SBD(CheckpointManager):
                 print(f'image path : {path}')
                 img, _ = self.train_data_generator.load_image(path)
                 img, boxes = self.predict(self.model, img, context=self.primary_context, verbose=True, confidence_threshold=confidence_threshold, heatmap=heatmap)
-                img = self.train_data_generator.resize(img, (view_width, view_height))
-                if gt:
+                if view_w > 0 and view_h > 0:
+                    img = self.train_data_generator.resize(img, (view_w, view_h))
+                else:
+                    img = self.train_data_generator.downscale_image_if_bigger_than_max_size(img)
+                if gt and not heatmap:
                     label_path = self.train_data_generator.get_label_path(path)
                     if self.train_data_generator.is_label_exists(label_path)[0]:
                         labels = self.train_data_generator.load_label(label_path)[0]
@@ -806,7 +810,10 @@ class SBD(CheckpointManager):
                     Logger.info('frame not exists')
                     break
                 img, boxes = self.predict(self.model, img_bgr, context=self.primary_context, confidence_threshold=confidence_threshold, heatmap=heatmap)
-                img = self.train_data_generator.resize(img, (view_width, view_height))
+                if view_w > 0 and view_h > 0:
+                    img = self.train_data_generator.resize(img, (view_w, view_h))
+                else:
+                    img = self.train_data_generator.downscale_image_if_bigger_than_max_size(img)
                 img = self.draw_box(img, boxes, show_class=show_class)
                 cv2.imshow('video', img)
                 key = cv2.waitKey(1)
@@ -833,7 +840,10 @@ class SBD(CheckpointManager):
                     continue
 
                 img, boxes = self.predict(self.model, img_bgr, context=self.primary_context, confidence_threshold=confidence_threshold, heatmap=heatmap)
-                img = self.train_data_generator.resize(img, (view_width, view_height))
+                if view_w > 0 and view_h > 0:
+                    img = self.train_data_generator.resize(img, (view_w, view_h))
+                else:
+                    img = self.train_data_generator.downscale_image_if_bigger_than_max_size(img)
                 img = self.draw_box(img, boxes, show_class=show_class)
                 cv2.imshow('rtsp', img)
                 key = cv2.waitKey(1)
