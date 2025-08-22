@@ -400,7 +400,7 @@ class DataGenerator:
     def downscale_image_if_bigger_than_max_size(self, img, max_size=(1280, 720)):
         return self.rescale(img, size=max_size, downscale_only=True)
 
-    def resize_letterbox(self, img, labels, size, letterbox_color=(0, 0, 0)):
+    def resize_letterbox(self, img, labels, size, letterbox_color=(114, 114, 114)):
         img = self.rescale(img, size)
 
         img_h, img_w = img.shape[:2]
