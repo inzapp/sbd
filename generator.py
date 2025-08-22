@@ -187,7 +187,6 @@ class DataGenerator:
             print()
             for label_path in list(not_found_label_paths):
                 Logger.warn(f'label not found : {label_path}')
-            Logger.error(f'{len(not_found_label_paths)} labels not found')
 
         if len(duplicate_label_paths) > 0:
             print()
@@ -198,7 +197,7 @@ class DataGenerator:
             print()
             for label_path in list(invalid_label_paths):
                 print(label_path)
-            Logger.error(f'{len(invalid_label_paths)} invalid label exists fix it')
+            Logger.error(f'{len(invalid_label_paths)} invalid label exists, fix it')
 
         max_class_name_len = 0
         for name in self.class_names:
@@ -224,7 +223,7 @@ class DataGenerator:
                 class_count_txts.append(f'{class_name:{max_class_name_len}s} : {class_count}')
         Logger.info(class_count_txts)
 
-        if dataset_name == 'train' and ignored_box_count > 0:
+        if dataset_name == 'train' and ignored_box_count > 0 and self.cfg.aug_scale == 0.0:
             Logger.warn(f'Too small size (under 3 pixel) {ignored_box_count} box will not be trained\n')
         else:
             print()
@@ -383,9 +382,28 @@ class DataGenerator:
             img = cv2.resize(img, size, interpolation=cv2.INTER_LINEAR)
         return img
 
-    def resize_letterbox(self, img, labels, size, letterbox_color=(0, 0, 0)):
+    def rescale(self, img, size, downscale_only=False):
+        size_w, size_h = size
         img_h, img_w = img.shape[:2]
+        w_scale = img_w / float(size_w)
+        h_scale = img_h / float(size_h)
+        scale = 1.0 / max(w_scale, h_scale)
+        if downscale_only and scale < 1.0:
+            img = cv2.resize(img, (0, 0), fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
+        else:
+            if scale >= 1.0:
+                img = cv2.resize(img, (0, 0), fx=scale, fy=scale, interpolation=cv2.INTER_LINEAR)
+            else:
+                img = cv2.resize(img, (0, 0), fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
+        return img
 
+    def downscale_image_if_bigger_than_max_size(self, img, max_size=(1280, 720)):
+        return self.rescale(img, size=max_size, downscale_only=True)
+
+    def resize_letterbox(self, img, labels, size, letterbox_color=(0, 0, 0)):
+        img = self.rescale(img, size)
+
+        img_h, img_w = img.shape[:2]
         img_aspect_ratio = img_w / float(img_h)
         target_aspect_ratio = size[0] / float(size[1])
 
@@ -434,16 +452,6 @@ class DataGenerator:
                 y2 = (y2 - img_start_ratio) / img_ratio
             rescaled_bboxes.append([confidence, x1, y1, x2, y2, class_index])
         return rescaled_bboxes
-
-    def downscale_image_if_bigger_than_max_size(self, img, max_size=(1280, 720)):
-        max_w, max_h = max_size
-        img_h, img_w = img.shape[:2]
-        w_scale = img_w / float(max_w)
-        h_scale = img_h / float(max_h)
-        scale = 1.0 / max(w_scale, h_scale)
-        if scale < 1.0:
-            img = cv2.resize(img, (0, 0), fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
-        return img
 
     def augment_noise(self, img, **kwargs):
         if self.cfg.aug_noise > 0.0:
@@ -936,10 +944,7 @@ class DataGenerator:
             fs.append(self.pool.submit(self.load_image, self.next_data_path(), gray=self.cfg.input_channels == 1))
         for i in range(len(fs)):
             img, path = fs[i].result()
-            labels, label_path, label_exists = self.load_label(self.get_label_path(path))
-            if not label_exists:
-                Logger.warn(f'label not found : {label_path}')
-                continue
+            labels, _, _ = self.load_label(self.get_label_path(path))
             img, labels, _ = self.resize_letterbox(img, labels, (self.cfg.input_cols, self.cfg.input_rows))
             if self.training:
                 img, labels = self.augment(img, labels, multi_image_augmentation=multi_image_augmentation)
