@@ -263,7 +263,7 @@ class Model:
             x = self.add([x, x1])
         return x
 
-    def conv2d(self, x, filters, kernel_size, activation='auto', strides=1, bn=True, name=None):
+    def conv2d(self, x, filters, kernel_size, activation='auto', strides=1, bias=0.0, bn=True, name=None):
         if activation == 'auto':
             activation = self.cfg.activation
         assert activation in self.available_activations, f'activation must be one of {self.available_activations}'
@@ -273,7 +273,7 @@ class Model:
             filters=filters,
             kernel_size=kernel_size,
             kernel_initializer=self.kernel_initializer(),
-            bias_initializer=self.bias_initializer(),
+            bias_initializer=self.bias_initializer(bias),
             activation=activation if is_fused_activation else 'linear',
             padding='same',
             use_bias=not bn,
@@ -323,10 +323,13 @@ class Model:
         return tf.keras.layers.BatchNormalization(beta_initializer=self.bias_initializer(), fused=True)(x)
 
     def kernel_initializer(self):
-        return tf.keras.initializers.glorot_normal()
+        return tf.keras.initializers.GlorotNormal(seed=42 if self.cfg.fix_seed else None)
 
-    def bias_initializer(self):
-        return tf.keras.initializers.zeros()
+    def bias_initializer(self, value=0.0):
+        if value == 0.0:
+            return tf.keras.initializers.Zeros()
+        else:
+            return tf.keras.initializers.Constant(value=value)
 
     def dropout(self, x):
         return tf.keras.layers.Dropout(self.cfg.dropout)(x) if self.cfg.dropout > 0.0 else x
@@ -335,9 +338,12 @@ class Model:
     def maxpooling2d(x, pool_size=2):
         return tf.keras.layers.MaxPool2D(pool_size=(pool_size, pool_size))(x)
 
-    @staticmethod
-    def upsampling2d(x):
-        return tf.keras.layers.UpSampling2D()(x)
+    def upsampling2d(self, x, scale=2):
+        if self.cfg.fix_seed:
+            # deterministic implement : UpSampling2D layer is not deterministic
+            return tf.keras.layers.Lambda(lambda t: tf.repeat(tf.repeat(t, repeats=scale, axis=1), repeats=scale, axis=2))(x)
+        else:
+            return tf.keras.layers.UpSampling2D(size=(scale, scale), interpolation='nearest')(x)
 
     @staticmethod
     def add(layers):

@@ -65,7 +65,7 @@ class DataGenerator:
             A.GaussianBlur(p=0.5, blur_limit=(5, 5))
         ])
 
-    def get_data_paths(self, path='', exts=['jpg', 'jpeg', 'JPG', 'JPEG', 'png', 'PNG']):
+    def get_data_paths(self, path='', exts=['jpg', 'JPG', 'jpeg', 'JPEG', 'png', 'PNG']):
         if path == '':
             if self.training:
                 data_path = self.cfg.train_data_path
@@ -959,7 +959,7 @@ class DataGenerator:
         sys.exit(0)
 
     def start(self):
-        if self.debug:
+        if self.debug or self.cfg.fix_seed:
             return
         self.q_thread_running = True
         self.q_thread.start()
@@ -999,7 +999,7 @@ class DataGenerator:
         labels = img_with_label[0]['labels']
         x = self.preprocess(img)
         labeled_boxes = self.convert_to_boxes(labels)
-        self.build_gt_tensor(labeled_boxes, y, extra, img if self.debug else None)
+        self.build_gt_tensor(labeled_boxes, y, extra, img if (self.debug or self.cfg.fix_seed) else None)
         return x, y, extra
             
     def load_xy_into_q(self):
@@ -1022,7 +1022,7 @@ class DataGenerator:
             batch_e = [[] for _ in range(self.num_output_layers)]
         for i in np.random.choice(self.q_indices, self.cfg.batch_size, replace=False):
             with self.lock:
-                if self.debug:
+                if self.debug or self.cfg.fix_seed:
                     x, y, m = self.load_xy()
                 else:
                     x, y, m = self.q[i]

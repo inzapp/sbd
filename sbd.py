@@ -210,10 +210,17 @@ class SBD(CheckpointManager):
         self.best_predictions_csv_path = None
 
     def set_global_seed(self, seed=42):
+        os.environ.setdefault('PYTHONHASHSEED', str(seed))
+        os.environ.setdefault('TF_ENABLE_ONEDNN_OPTS', '0')
+        os.environ.setdefault('TF_DETERMINISTIC_OPS', '1')
+        os.environ.setdefault('TF_CUDNN_DETERMINISTIC', '1')
         random.seed(seed)
         np.random.seed(seed)
-        os.environ['PYTHONHASHSEED'] = str(seed)
         tf.random.set_seed(seed)
+        cv2.setRNGSeed(seed)
+        cv2.setNumThreads(0)
+        tf.keras.utils.set_random_seed(seed)
+        tf.config.experimental.enable_op_determinism()
         Logger.info(f'global seed fixed to {seed}')
 
     def is_path_valid(self, path, path_type):
