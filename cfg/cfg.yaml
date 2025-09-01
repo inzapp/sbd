@@ -40,3 +40,4 @@ checkpoint_interval: 0
 show_progress: false
 treat_unknown_as_class: false
 multi_classification_at_same_box: false
+fix_seed: false
