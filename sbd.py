@@ -401,20 +401,21 @@ class SBD(CheckpointManager):
     def load_label_csv(self, image_path, unknown_class_index):
         csv_lines = []
         label_path = self.train_data_generator.get_label_path(image_path)
-        basename = os.path.basename(image_path)
-        with open(label_path, 'rt') as f:
-            lines = f.readlines()
-        for line in lines:
-            class_index, cx, cy, w, h = list(map(float, line.split()))
-            class_index = int(class_index)
-            if class_index == unknown_class_index:
-                continue
-            xmin = cx - w * 0.5
-            ymin = cy - h * 0.5
-            xmax = cx + w * 0.5
-            ymax = cy + h * 0.5
-            xmin, ymin, xmax, ymax = np.clip(np.array([xmin, ymin, xmax, ymax]), 0.0, 1.0)
-            csv_lines.append(f'{basename},{class_index},{xmin:.6f},{xmax:.6f},{ymin:.6f},{ymax:.6f}\n')
+        if os.path.exists(label_path) and os.path.isfile(label_path):
+            basename = os.path.basename(image_path)
+            with open(label_path, 'rt') as f:
+                lines = f.readlines()
+            for line in lines:
+                class_index, cx, cy, w, h = list(map(float, line.split()))
+                class_index = int(class_index)
+                if class_index == unknown_class_index:
+                    continue
+                xmin = cx - w * 0.5
+                ymin = cy - h * 0.5
+                xmax = cx + w * 0.5
+                ymax = cy + h * 0.5
+                xmin, ymin, xmax, ymax = np.clip(np.array([xmin, ymin, xmax, ymax]), 0.0, 1.0)
+                csv_lines.append(f'{basename},{class_index},{xmin:.6f},{xmax:.6f},{ymin:.6f},{ymax:.6f}\n')
         return csv_lines
 
     def make_annotations_csv(self, image_paths, unknown_class_index, csv_path):
