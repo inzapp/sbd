@@ -527,8 +527,16 @@ class DataGenerator:
 
         scale_range = max(scale_range, 0.01)
         max_scale = 1.0
-        min_scale = 1.0 - scale_range
+
+        # range : (1 - scale_range) ~ (1 + scale_range)
+        is_downscale = np.random.uniform() < 0.5
+        if is_downscale:
+            min_scale = 1.0 - scale_range
+        else:
+            min_scale = 1.0 / (1.0 + scale_range)
+
         scale = np.random.uniform() * (max_scale - min_scale) + min_scale
+
         img_h, img_w = img.shape[:2]
         channels = 1
         if len(img.shape) == 3 and img.shape[-1] == 3:
@@ -546,7 +554,7 @@ class DataGenerator:
         roi_h = roi_y2 - roi_y1
 
         new_labels = []
-        if np.random.uniform() < 0.5:  # downscale
+        if is_downscale:  # downscale
             reduced_img = cv2.resize(img, (0, 0), fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
             if channels == 1:
                 background = np.zeros(shape=(self.cfg.input_rows, self.cfg.input_cols), dtype=np.uint8) + self.letterbox_color
