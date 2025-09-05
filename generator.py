@@ -514,7 +514,7 @@ class DataGenerator:
             cv2.polylines(img, [snowflake_points.astype(np.int32)], isClosed=False, color=color, thickness=thickness)
         return img
 
-    def augment_scale(self, img, labels, scale_range):
+    def augment_scale(self, img, labels, scale_range, mosaic_augmented):
         def overlay(img, overlay_img, start_x, start_y, channels):
             overlay_img_h, overlay_img_w = overlay_img.shape[:2]
             y_slice = slice(start_y, start_y + overlay_img_h)
@@ -532,8 +532,15 @@ class DataGenerator:
         is_downscale = np.random.uniform() < 0.5
         if is_downscale:
             min_scale = 1.0 - scale_range
+
+            # mosaic image is already 0.5 downscaled
+            if mosaic_augmented:
+                min_scale = np.clip(min_scale + 0.5, 0.0, 1.0)
         else:
             min_scale = 1.0 / (1.0 + scale_range)
+
+        if min_scale == 1.0:
+            return img, labels
 
         scale = np.random.uniform() * (max_scale - min_scale) + min_scale
 
@@ -690,26 +697,25 @@ class DataGenerator:
         return data
 
     def augment(self, img, labels):
+        mosaic_augmented = False
         if self.cfg.aug_mosaic > 0.0 and np.random.uniform() < self.cfg.aug_mosaic:
             mosaic_data = self.load_image_with_label(size=3, augmentation=False)
             mosaic_data.append({'img': img, 'labels': labels})
             img, labels = self.augment_mosaic(mosaic_data)
-            if self.cfg.aug_scale > 0.0 and np.random.uniform() < 0.5:
-                img, labels = self.augment_scale(img, labels, self.cfg.aug_scale)
+            mosaic_augmented = True
 
-        if self.cfg.aug_mixup > 0.0 and np.random.uniform() < self.cfg.aug_mixup:
+        if not mosaic_augmented and self.cfg.aug_mixup > 0.0 and np.random.uniform() < self.cfg.aug_mixup:
             mixup_data = self.load_image_with_label(size=1, augmentation=False)
             mixup_data.append({'img': img, 'labels': labels})
             img, labels = self.augment_mixup(mixup_data)
 
         if self.cfg.aug_scale > 0.0:
-            img, labels = self.augment_scale(img, labels, self.cfg.aug_scale)
-
-        if self.cfg.aug_brightness > 0.0 or self.cfg.aug_contrast > 0.0:
-            img = self.transform(image=img)['image']
+            img, labels = self.augment_scale(img, labels, self.cfg.aug_scale, mosaic_augmented)
 
         if (self.cfg.aug_h_flip or self.cfg.aug_v_flip) and np.random.uniform() < 0.5:
             img, labels = self.augment_flip(img, labels, self.cfg.aug_h_flip, self.cfg.aug_v_flip)
+
+        img = self.transform(image=img)['image']
         return img, labels
 
     def convert_to_boxes(self, labels):
