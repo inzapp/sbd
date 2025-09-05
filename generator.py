@@ -668,28 +668,40 @@ class DataGenerator:
                 new_labels.append([class_index, cx, cy, w, h])
         return img, new_labels
 
-    def augment(self, img, labels, multi_image_augmentation):
+    def load_image_with_label(self, size, augmentation=True):
+        data, fs = [], []
+        for _ in range(size):
+            fs.append(self.pool.submit(self.load_image, self.next_data_path(), gray=self.cfg.input_channels == 1))
+        for i in range(len(fs)):
+            img, path = fs[i].result()
+            labels, _, _ = self.load_label(self.get_label_path(path))
+            img, labels, _ = self.resize_letterbox(img, labels, (self.cfg.input_cols, self.cfg.input_rows))
+            if self.training and augmentation:
+                img, labels = self.augment(img, labels)
+            data.append({'img': img, 'labels': labels})
+        return data
+
+    def augment(self, img, labels):
+        if self.cfg.aug_mosaic > 0.0 and np.random.uniform() < self.cfg.aug_mosaic:
+            mosaic_data = self.load_image_with_label(size=3, augmentation=False)
+            mosaic_data.append({'img': img, 'labels': labels})
+            img, labels = self.augment_mosaic(mosaic_data)
+            if self.cfg.aug_scale > 0.0 and np.random.uniform() < 0.5:
+                img, labels = self.augment_scale(img, labels, self.cfg.aug_scale)
+
+        if self.cfg.aug_mixup > 0.0 and np.random.uniform() < self.cfg.aug_mixup:
+            mixup_data = self.load_image_with_label(size=1, augmentation=False)
+            mixup_data.append({'img': img, 'labels': labels})
+            img, labels = self.augment_mixup(mixup_data)
+
+        if self.cfg.aug_scale > 0.0:
+            img, labels = self.augment_scale(img, labels, self.cfg.aug_scale)
+
         if self.cfg.aug_brightness > 0.0 or self.cfg.aug_contrast > 0.0:
             img = self.transform(image=img)['image']
 
         if (self.cfg.aug_h_flip or self.cfg.aug_v_flip) and np.random.uniform() < 0.5:
             img, labels = self.augment_flip(img, labels, self.cfg.aug_h_flip, self.cfg.aug_v_flip)
-
-        if self.cfg.aug_scale > 0.0:
-            img, labels = self.augment_scale(img, labels, self.cfg.aug_scale)
-
-        if multi_image_augmentation:
-            if self.cfg.aug_mosaic > 0.0 and np.random.uniform() < self.cfg.aug_mosaic:
-                mosaic_data = self.load_image_with_label(size=3, multi_image_augmentation=False)
-                mosaic_data.append({'img': img, 'labels': labels})
-                img, labels = self.augment_mosaic(mosaic_data)
-                if self.cfg.aug_scale > 0.0 and np.random.uniform() < 0.5:
-                    img, labels = self.augment_scale(img, labels, self.cfg.aug_scale)
-
-            if self.cfg.aug_mixup > 0.0 and np.random.uniform() < self.cfg.aug_mixup:
-                mixup_data = self.load_image_with_label(size=1, multi_image_augmentation=False)
-                mixup_data.append({'img': img, 'labels': labels})
-                img, labels = self.augment_mixup(mixup_data)
         return img, labels
 
     def convert_to_boxes(self, labels):
@@ -942,19 +954,6 @@ class DataGenerator:
             np.random.shuffle(self.data_paths)
         return path
 
-    def load_image_with_label(self, size, multi_image_augmentation):
-        data, fs = [], []
-        for _ in range(size):
-            fs.append(self.pool.submit(self.load_image, self.next_data_path(), gray=self.cfg.input_channels == 1))
-        for i in range(len(fs)):
-            img, path = fs[i].result()
-            labels, _, _ = self.load_label(self.get_label_path(path))
-            img, labels, _ = self.resize_letterbox(img, labels, (self.cfg.input_cols, self.cfg.input_rows))
-            if self.training:
-                img, labels = self.augment(img, labels, multi_image_augmentation=multi_image_augmentation)
-            data.append({'img': img, 'labels': labels})
-        return data
-
     def signal_handler(self, sig, frame):
         print()
         Logger.info(f'{signal.Signals(sig).name} signal detected, please wait until the end of the thread')
@@ -998,7 +997,7 @@ class DataGenerator:
     def load_xy(self):
         y = [np.zeros(shape=self.output_shapes[i][1:], dtype=np.float32) for i in range(self.num_output_layers)]
         extra = [np.ones(shape=self.output_shapes[i][1:], dtype=np.float32) for i in range(self.num_output_layers)]
-        img_with_label = self.load_image_with_label(size=1, multi_image_augmentation=True)
+        img_with_label = self.load_image_with_label(size=1)
         img = img_with_label[0]['img']
         labels = img_with_label[0]['labels']
         x = self.preprocess(img)
