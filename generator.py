@@ -38,6 +38,7 @@ class DataGenerator:
         self.class_names = class_names
         self.unknown_class_index = unknown_class_index
         self.num_output_layers = len(self.output_shapes)
+        self.letterbox_color = 114
 
         self.data_index = 0
         self.virtual_anchor_ws = []
@@ -401,7 +402,7 @@ class DataGenerator:
     def downscale_image_if_bigger_than_max_size(self, img, max_size=(1280, 720)):
         return self.rescale(img, size=max_size, downscale_only=True)
 
-    def resize_letterbox(self, img, labels, size, letterbox_color=(114, 114, 114)):
+    def resize_letterbox(self, img, labels, size):
         img = self.rescale(img, size)
 
         img_h, img_w = img.shape[:2]
@@ -412,16 +413,18 @@ class DataGenerator:
         letterbox_size = 0
         img_start_ratio = 0.0
 
+        border_color = (self.letterbox_color, self.letterbox_color, self.letterbox_color)
+
         if img_aspect_ratio < target_aspect_ratio:
             target_w = int(img_w * target_aspect_ratio / img_aspect_ratio)
             letterbox_size = int(abs(target_w - img_w) / 2)
-            img = cv2.copyMakeBorder(img, 0, 0, letterbox_size, letterbox_size, cv2.BORDER_CONSTANT, letterbox_color)
+            img = cv2.copyMakeBorder(img, 0, 0, letterbox_size, letterbox_size, cv2.BORDER_CONSTANT, value=border_color)
             img_start_ratio = letterbox_size / float(target_w)
             is_lr_letterbox = True
         else:
             target_h = int(img_h * img_aspect_ratio / target_aspect_ratio)
             letterbox_size = int(abs(target_h - img_h) / 2)
-            img = cv2.copyMakeBorder(img, letterbox_size, letterbox_size, 0, 0, cv2.BORDER_CONSTANT, letterbox_color)
+            img = cv2.copyMakeBorder(img, letterbox_size, letterbox_size, 0, 0, cv2.BORDER_CONSTANT, value=border_color)
             img_start_ratio = letterbox_size / float(target_h)
 
         img_end_ratio = 1.0 - img_start_ratio
@@ -546,11 +549,11 @@ class DataGenerator:
         if np.random.uniform() < 0.5:  # downscale
             reduced_img = cv2.resize(img, (0, 0), fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
             if channels == 1:
-                black = np.zeros(shape=(self.cfg.input_rows, self.cfg.input_cols), dtype=np.uint8)
+                background = np.zeros(shape=(self.cfg.input_rows, self.cfg.input_cols), dtype=np.uint8) + self.letterbox_color
             else:
-                black = np.zeros(shape=(self.cfg.input_rows, self.cfg.input_cols, channels), dtype=np.uint8)
+                background = np.zeros(shape=(self.cfg.input_rows, self.cfg.input_cols, channels), dtype=np.uint8) + self.letterbox_color
 
-            scaled_img = overlay(black, reduced_img, start_x, start_y, channels)
+            scaled_img = overlay(background, reduced_img, start_x, start_y, channels)
             for label in labels:
                 class_index, cx, cy, w, h = label
                 class_index = int(class_index)
