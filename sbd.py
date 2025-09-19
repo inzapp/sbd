@@ -667,7 +667,7 @@ class SBD(CheckpointManager):
             })
         return box_dicts
 
-    def predict(self, model, img, context, confidence_threshold=0.2, verbose=False, heatmap=True):
+    def predict(self, model, img, context, confidence_threshold=0.2, verbose=False, heatmap=False):
         input_shape = model.input_shape[1:]
         self.cfg.input_rows, self.cfg.input_cols = input_shape[:2]
         output_shape = model.output_shape
