@@ -308,6 +308,9 @@ class SBD(CheckpointManager):
         class_names = []
         num_classes = 0
         unknown_class_index = -1
+        if not self.is_path_valid(class_names_file_path, path_type='file'):
+            Logger.error(f'class names file path is not valid : {class_names_file_path}')
+
         with open(class_names_file_path, 'rt') as classes_file:
             class_names = [s.replace('\n', '') for s in classes_file.readlines()]
             if not self.cfg.treat_unknown_as_class:
@@ -499,9 +502,10 @@ class SBD(CheckpointManager):
         mean_ap, txt_content, best_thresholds = mean_average_precision_for_boxes(
             ann=annotations_csv_path,
             pred=predictions_csv_path,
+            class_names=self.class_names,
+            num_classes=self.num_classes,
             confidence_threshold_for_f1=confidence_threshold,
             iou_threshold=tp_iou_threshold,
-            classes_txt_path=self.cfg.class_names_file_path,
             find_best_threshold=find_best_threshold,
             verbose=verbose)
         return mean_ap, txt_content, best_thresholds
@@ -1029,4 +1033,3 @@ class SBD(CheckpointManager):
                 self.remove_last_extra_data()
                 Logger.info('training end successfully')
                 return
-

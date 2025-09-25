@@ -4,7 +4,6 @@ URL: https://github.com/ZFTurbo
 
 Code based on: https://github.com/fizyr/keras-retinanet/blob/master/keras_retinanet/utils/eval.py
 """
-import os
 import numpy as np
 import pandas as pd
 # try:
@@ -150,29 +149,25 @@ def calculate_f1_score(num_annotations, true_positives, false_positives, scores,
     return ret
 
 
-def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_threshold_for_f1=0.25, exclude_not_in_annotations=False, verbose=True, find_best_threshold=False, classes_txt_path='', return_extra_data=False, save_excel_result=False):
+def mean_average_precision_for_boxes(ann, pred, class_names, num_classes, iou_threshold=0.5, confidence_threshold_for_f1=0.2, exclude_not_in_annotations=False, verbose=True, find_best_threshold=False, return_extra_data=False, save_excel_result=False):
     """
     :param ann: path to CSV-file with annotations or numpy array of shape (N, 6)
     :param pred: path to CSV-file with predictions (detections) or numpy array of shape (N, 7)
     :param iou_threshold: IoU between boxes which count as 'match'. Default: 0.5
+    :param class_names: class name list ordered by class index.
+    :param num_classes: number of classes considered for evaluation.
     :param exclude_not_in_annotations: exclude image IDs which are not exist in annotations. Default: False
     :param verbose: print detailed run info. Default: True
-    :param classes_txt_path: class names file for show result. Default: ''
     :return: tuple, where first value is mAP and second values is dict with AP for each class.
     """
-    class_names = []
-    max_class_name_len = 1
-    if classes_txt_path != '':
-        if os.path.exists(classes_txt_path) and os.path.isfile(classes_txt_path):
-            with open(classes_txt_path, 'rt') as f:
-                lines = f.readlines()
-            for line in lines:
-                class_name = line.replace('\n', '')
-                if len(class_name) > max_class_name_len:
-                    max_class_name_len = len(class_name)
-                class_names.append(class_name)
-    else:
-        max_class_name_len = 9
+    if class_names is None:
+        class_names = []
+    if num_classes is None:
+        num_classes = 0
+    max_class_name_len = 9
+    if len(class_names) > 0:
+        max_class_name_len = max(len(str(name)) for name in class_names)
+        max_class_name_len = max(1, max_class_name_len)
 
     if isinstance(ann, str):
         valid = pd.read_csv(ann)
@@ -190,7 +185,17 @@ def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_th
     if verbose:
         print()
     txt_content = ''
-    unique_classes = list(map(str, valid['LabelName'].unique()))
+    unique_classes = []
+    for value in valid['LabelName'].unique():
+        if pd.isna(value):
+            continue
+        class_index_str = str(value)
+        try:
+            class_index = int(class_index_str)
+        except (ValueError, TypeError):
+            continue
+        unique_classes.append((class_index, class_index_str))
+    unique_classes.sort(key=lambda item: item[0])
     txt_content = _print(f'Unique classes: {len(unique_classes)}', txt_content, verbose)
 
     txt_content = _print(f'Number of files in annotations: {len(ann_unique)}', txt_content, verbose)
@@ -217,10 +222,15 @@ def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_th
     total_fn = 0
     total_obj_count = 0
     average_precisions = {}
-    best_confidence_thresholds = []
-    for _, class_index_str in enumerate(sorted(unique_classes, key=lambda x: int(x))):
-        # Negative class
-        if str(class_index_str) == 'nan':
+
+    # set default best confidence threshold
+    if find_best_threshold:
+        best_confidence_thresholds = [0.2 for _ in range(num_classes)]
+    else:
+        best_confidence_thresholds = []
+
+    for class_index, class_index_str in unique_classes:
+        if class_index < 0:
             continue
 
         tp_ious = []
@@ -320,8 +330,8 @@ def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_th
         false_positives = ap_ret['false_positives']  # use ap_ret
 
         confidence_threshold = best_ret['confidence_threshold']
-        if find_best_threshold:
-            best_confidence_thresholds.append(confidence_threshold)
+        if find_best_threshold and class_index < num_classes:
+            best_confidence_thresholds[class_index] = confidence_threshold
         obj_count = best_ret['obj_count']
         tp_iou = best_ret['tp_iou']
         tp_iou_sum = best_ret['tp_iou_sum']
@@ -353,9 +363,8 @@ def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_th
         average_precision = _compute_ap(recall, precision)
         average_precisions[class_index_str] = average_precision, num_annotations
 
-        class_index = int(class_index_str)
         class_name = f'class {class_index_str}'
-        if len(class_names) >= class_index + 1:
+        if class_index < len(class_names):
             class_name = class_names[class_index]
         txt_content = _print(f'{class_name:{max_class_name_len}s} AP: {average_precision:.4f}, Labels: {obj_count:6d}, TP: {tp:6d}, FP: {fp:6d}, FN: {fn:6d}, P: {p:.4f}, R: {r:.4f}, F1: {f1:.4f}, IoU: {tp_iou:.4f}, Confidence: {tp_confidence:.4f}, Threshold: {confidence_threshold:.2f}', txt_content, verbose)
 
@@ -379,4 +388,3 @@ def mean_average_precision_for_boxes(ann, pred, iou_threshold=0.5, confidence_th
         return mean_ap, f1, tp_iou, total_tp, total_fp, total_obj_count - total_tp, tp_confidence, txt_content
     else:
         return mean_ap, txt_content, best_confidence_thresholds
-
