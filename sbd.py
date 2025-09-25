@@ -94,6 +94,7 @@ class TrainingConfig:
         d['obj_target'] = self.__get_value_from_yaml(cfg, 'obj_target', 'iou', str, required=False)
         d['cls_balance'] = self.__get_value_from_yaml(cfg, 'cls_balance', 0.0, float, required=False)
         d['box_weight'] = self.__get_value_from_yaml(cfg, 'box_weight', 7.5, float, required=False)
+        d['aug'] = self.__get_value_from_yaml(cfg, 'aug', True, bool, required=False)
         d['aug_noise'] = self.__get_value_from_yaml(cfg, 'aug_noise', 0.0, float, required=False)
         d['aug_scale'] = self.__get_value_from_yaml(cfg, 'aug_scale', 0.5, float, required=False)
         d['aug_mixup'] = self.__get_value_from_yaml(cfg, 'aug_mixup', 0.0, float, required=False)

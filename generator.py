@@ -697,6 +697,9 @@ class DataGenerator:
         return data
 
     def augment(self, img, labels):
+        if not self.cfg.aug:
+            return img, labels
+
         mosaic_augmented = False
         if self.cfg.aug_mosaic > 0.0 and np.random.uniform() < self.cfg.aug_mosaic:
             mosaic_data = self.load_image_with_label(size=3, augmentation=False)
