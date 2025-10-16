@@ -19,6 +19,100 @@ from collections import deque
 from concurrent.futures.thread import ThreadPoolExecutor
 
 
+class BoundingBox:
+    def __init__(self, class_index, cx, cy, w, h, confidence=0.0, clip=True):
+        self.confidence = confidence
+        self.class_index = int(class_index)
+        self.cx = cx
+        self.cy = cy
+        self.w = w
+        self.h = h
+        self.x1 = self.cx - (self.w * 0.5)
+        self.y1 = self.cy - (self.h * 0.5)
+        self.x2 = self.cx + (self.w * 0.5)
+        self.y2 = self.cy + (self.h * 0.5)
+        if clip:
+            self.x1, self.y1, self.x2, self.y2 = np.clip(np.array([self.x1, self.y1, self.x2, self.y2]), 0.0, 1.0)
+            self.w = self.x2 - self.x1
+            self.h = self.y2 - self.y1
+            self.cx = self.x1 + (self.w * 0.5)
+            self.cy = self.y1 + (self.h * 0.5)
+
+    def get_cxcywh(self):
+        return self.cx, self.cy, self.w, self.h
+
+    def get_x1y1x2y2(self):
+        return self.x1, self.y1, self.x2, self.y2
+
+    @staticmethod
+    def convert_cxcywh_to_x1y1x2y2(cx, cy, w, h):
+        x1 = cx - (w * 0.5)
+        y1 = cy - (h * 0.5)
+        x2 = cx + (w * 0.5)
+        y2 = cy + (h * 0.5)
+        return x1, y1, x2, y2
+
+    @staticmethod
+    def convert_x1y1x2y2_to_cxcywh(x1, y1, x2, y2):
+        w = x2 - x1
+        h = y2 - y1
+        cx = x1 + (w * 0.5)
+        cy = y1 + (h * 0.5)
+        return cx, cy, w, h
+
+    @staticmethod
+    def iou(box_a, box_b):
+        a_x1, a_y1, a_x2, a_y2 = box_a.get_x1y1x2y2()
+        b_x1, b_y1, b_x2, b_y2 = box_b.get_x1y1x2y2()
+        intersection_width = min(a_x2, b_x2) - max(a_x1, b_x1)
+        intersection_height = min(a_y2, b_y2) - max(a_y1, b_y1)
+        if intersection_width <= 0 or intersection_height <= 0:
+            return 0.0
+        intersection_area = intersection_width * intersection_height
+        a_area = abs((a_x2 - a_x1) * (a_y2 - a_y1))
+        b_area = abs((b_x2 - b_x1) * (b_y2 - b_y1))
+        union_area = a_area + b_area - intersection_area
+        return intersection_area / (float(union_area) + 1e-5)
+
+    @staticmethod
+    def remove_duplicate_boxes(boxes):
+        remove_flag = -1.0
+        for i in range(len(boxes)):
+            for j in range(len(boxes)):
+                if i == j:
+                    continue
+                if boxes[i].class_index != boxes[j].class_index:
+                    continue
+                if boxes[j].confidence == remove_flag:
+                    continue
+                if BoundingBox.iou(boxes[i], boxes[j]) > 0.99:
+                    boxes[j].confidence = remove_flag
+
+        new_boxes = []
+        for box in boxes:
+            if box.confidence != remove_flag:
+                new_boxes.append(box)
+        return new_boxes
+
+    @staticmethod
+    def nms(boxes, iou_threshold=0.45):
+        boxes = sorted(boxes, key=lambda x: x.confidence, reverse=True)
+        for i in range(len(boxes) - 1):
+            if boxes[i].confidence == 0.0:
+                continue
+            for j in range(i + 1, len(boxes)):
+                if boxes[j].confidence == 0.0 or boxes[i].class_index != boxes[j].class_index:
+                    continue
+                if BoundingBox.iou(boxes[i], boxes[j]) > iou_threshold:
+                    boxes[j].confidence = 0.0
+
+        nms_filtered_boxes = []
+        for box in boxes:
+            if box.confidence > 0.0:
+                nms_filtered_boxes.append(box)
+        return nms_filtered_boxes
+
+
 class DataGenerator:
     def __init__(self, cfg, output_shape, class_names, unknown_class_index, training=False, debug=False):
         assert 0.0 <= cfg.aug_noise <= 1.0
@@ -103,27 +197,25 @@ class DataGenerator:
             else:
                 return same_path_label_path
 
-    def remove_duplicate_labels(self, labels):
-        unique_labels = set(tuple(label) for label in labels)
-        return [list(label) for label in unique_labels]
-
     def load_label(self, label_path, remove_duplicate=True):
-        labels = []
+        boxes = []
         label_exists = True
         if not (os.path.exists(label_path) and os.path.isfile(label_path)):
             label_exists = False
         if label_exists:
             with open(label_path, 'rt') as f:
                 lines = f.readlines()
-            labels = [list(map(float, line.split())) for line in lines]
+            for line in lines:
+                class_index, cx, cy, w, h = list(map(float, line.split()))
+                boxes.append(BoundingBox(class_index, cx, cy, w, h))
             if remove_duplicate:
-                labels = self.remove_duplicate_labels(labels)
-        return labels, label_path, label_exists
+                boxes = BoundingBox.remove_duplicate_boxes(boxes)
+        return boxes, label_path, label_exists
 
-    def is_invalid_label(self, path, label, num_classes):
-        class_index, cx, cy, w, h = label
-        if class_index < 0 or class_index >= num_classes:
-            Logger.warn(f'\ninvalid class index {int(class_index)} in num_classs {num_classes} : [{path}]')
+    def is_invalid_label(self, path, box, num_classes):
+        cx, cy, w, h = box.get_cxcywh()
+        if box.class_index < 0 or box.class_index >= num_classes:
+            Logger.warn(f'\ninvalid class index {int(box.class_index)} in num_classs {num_classes} : [{path}]')
             return True
         elif cx <= 0.0 or cx >= 1.0 or cy <= 0.0 or cy >= 1.0:
             Logger.warn(f'\ninvalid cx or cy. cx : {cx:.6f}, cy : {cy:.6f} : [{path}]')
@@ -164,19 +256,19 @@ class DataGenerator:
 
         dataset_name = 'train' if self.training else 'validation'
         for f in tqdm(fs, desc=f'label check in {dataset_name} data'):
-            labels, label_path, exists = f.result()
+            boxes, label_path, exists = f.result()
             if not exists:
                 not_found_label_paths.add(label_path)
                 continue
 
-            unique_labels = self.remove_duplicate_labels(labels)
-            if len(unique_labels) < len(labels):
-                duplicate_label_paths.add((label_path, len(labels) - len(unique_labels)))
+            unique_boxes = BoundingBox.remove_duplicate_boxes(boxes)
+            if len(unique_boxes) < len(boxes):
+                duplicate_label_paths.add((label_path, len(boxes) - len(unique_boxes)))
 
-            for label in unique_labels:
-                class_index, cx, cy, w, h = label
-                class_counts[int(class_index)] += 1
-                if self.is_invalid_label(label_path, [class_index, cx, cy, w, h], num_classes):
+            for box in unique_boxes:
+                cx, cy, w, h = box.get_cxcywh()
+                class_counts[int(box.class_index)] += 1
+                if self.is_invalid_label(label_path, box, num_classes):
                     invalid_label_paths.add(label_path)
                 if self.is_too_small_box(w, h):
                     ignored_box_count += 1
@@ -229,40 +321,17 @@ class DataGenerator:
         else:
             print()
 
-    def iou(self, a, b):
-        a_x_min, a_y_min, a_x_max, a_y_max = a
-        b_x_min, b_y_min, b_x_max, b_y_max = b
-        intersection_width = min(a_x_max, b_x_max) - max(a_x_min, b_x_min)
-        intersection_height = min(a_y_max, b_y_max) - max(a_y_min, b_y_min)
-        if intersection_width <= 0 or intersection_height <= 0:
-            return 0.0
-        intersection_area = intersection_width * intersection_height
-        a_area = abs((a_x_max - a_x_min) * (a_y_max - a_y_min))
-        b_area = abs((b_x_max - b_x_min) * (b_y_max - b_y_min))
-        union_area = a_area + b_area - intersection_area
-        return intersection_area / (float(union_area) + 1e-5)
-
-    def cxcywh2x1y1x2y2(self, cx, cy, w, h):
-        x1 = cx - (w * 0.5)
-        y1 = cy - (h * 0.5)
-        x2 = cx + (w * 0.5)
-        y2 = cy + (h * 0.5)
-        return x1, y1, x2, y2
-
     def get_iou_with_virtual_anchors(self, box):
         if self.num_output_layers == 1 or self.cfg.va_iou_threshold == 0.0:
             return [[i, 1.0] for i in range(self.num_output_layers)]
 
-        cx, cy, w, h = box
-        x1, y1, x2, y2 = self.cxcywh2x1y1x2y2(cx, cy, w, h)
-        labeled_box = np.clip(np.asarray([x1, y1, x2, y2]), 0.0, 1.0)
+        cx, cy, _, _ = box.get_cxcywh()
         iou_with_virtual_anchors = []
         for layer_index in range(self.num_output_layers):
-            w = self.virtual_anchor_ws[layer_index]
-            h = self.virtual_anchor_hs[layer_index]
-            x1, y1, x2, y2 = self.cxcywh2x1y1x2y2(cx, cy, w, h)
-            virtual_anchor_box = np.clip(np.asarray([x1, y1, x2, y2]), 0.0, 1.0)
-            iou = self.iou(labeled_box, virtual_anchor_box)
+            vw = self.virtual_anchor_ws[layer_index]
+            vh = self.virtual_anchor_hs[layer_index]
+            virtual_anchor_box = BoundingBox(0, cx, cy, vw, vh)
+            iou = BoundingBox.iou(box, virtual_anchor_box)
             iou_with_virtual_anchors.append([layer_index, iou])
         return sorted(iou_with_virtual_anchors, key=lambda x: x[1], reverse=True)
 
@@ -312,9 +381,9 @@ class DataGenerator:
         iou_between_va_sum = 0.0
         Logger.info('IoU between virtual anchors')
         for i in range(num_cluster - 1):
-            box_a = self.cxcywh2x1y1x2y2(0.5, 0.5, self.virtual_anchor_ws[i], self.virtual_anchor_hs[i])
-            box_b = self.cxcywh2x1y1x2y2(0.5, 0.5, self.virtual_anchor_ws[i+1], self.virtual_anchor_hs[i+1])
-            iou = self.iou(box_a, box_b)
+            box_a = BoundingBox(0, 0.5, 0.5, self.virtual_anchor_ws[i], self.virtual_anchor_hs[i])
+            box_b = BoundingBox(0, 0.5, 0.5, self.virtual_anchor_ws[i+1], self.virtual_anchor_hs[i+1])
+            iou = BoundingBox.iou(box_a, box_b)
             iou_between_va_sum += iou
             Logger.info(f'va[{i}], va[{i+1}] => {iou:.4f}')
         avg_iou_between_va = iou_between_va_sum / (num_cluster - 1)
@@ -328,11 +397,11 @@ class DataGenerator:
                 fs.append(self.pool.submit(self.load_label, self.get_label_path(path)))
             labeled_boxes = []
             for f in tqdm(fs, desc='load box data for calculating avg IoU'):
-                labels, label_path, _ = f.result()
-                for label in labels:
-                    class_index, cx, cy, w, h = label
+                boxes, label_path, _ = f.result()
+                for box in boxes:
+                    cx, cy, w, h = box.get_cxcywh()
                     if not self.is_too_small_box(w, h):
-                        labeled_boxes.append([cx, cy, w, h])
+                        labeled_boxes.append(box)
 
             best_iou_sum = 0.0
             for box in tqdm(labeled_boxes, desc='average IoU with virtual anchors'):
@@ -355,10 +424,9 @@ class DataGenerator:
         for f in tqdm(fs, desc='calculating BPR(Best Possible Recall)'):
             batch_y = [np.zeros(shape=self.output_shapes[i][1:]) for i in range(self.num_output_layers)]
             batch_extra = [np.ones(shape=self.output_shapes[i][1:]) for i in range(self.num_output_layers)]
-            labels, _, _ = f.result()
-            labeled_boxes = self.convert_to_boxes(labels)
-            box_count_in_real_data += len(labeled_boxes)
-            allocated_count = self.build_gt_tensor(labeled_boxes, batch_y, batch_extra, 0)
+            boxes, _, _ = f.result()
+            box_count_in_real_data += len(boxes)
+            allocated_count = self.build_gt_tensor(boxes, batch_y, batch_extra, 0)
             y_true_obj_count += allocated_count
 
         avg_obj_count_per_image = box_count_in_real_data / float(len(self.data_paths))
@@ -402,7 +470,7 @@ class DataGenerator:
     def downscale_image_if_bigger_than_max_size(self, img, max_size=(1280, 720)):
         return self.rescale(img, size=max_size, downscale_only=True)
 
-    def resize_letterbox(self, img, labels, size):
+    def resize_letterbox(self, img, boxes, size):
         img = self.rescale(img, size)
 
         img_h, img_w = img.shape[:2]
@@ -431,31 +499,32 @@ class DataGenerator:
         img_ratio = img_end_ratio - img_start_ratio
         img = self.resize(img, size)
 
-        new_labels = []
-        for label in labels:
-            class_index, cx, cy, w, h = label
+        new_boxes = []
+        for box in boxes:
+            cx, cy, w, h = box.get_cxcywh()
             if is_lr_letterbox:
                 cx = cx * img_ratio + img_start_ratio
                 w *= img_ratio
             else:
                 cy = cy * img_ratio + img_start_ratio
                 h *= img_ratio
-            new_labels.append([class_index, cx, cy, w, h])
-        return img, new_labels, (is_lr_letterbox, img_ratio, img_start_ratio, img_end_ratio)
+            new_boxes.append(BoundingBox(box.class_index, cx, cy, w, h))
+        return img, new_boxes, (is_lr_letterbox, img_ratio, img_start_ratio, img_end_ratio)
 
-    def rescale_bboxes_to_original_scale(self, bboxes, letterbox_info):
+    def rescale_boxes_to_original_scale(self, boxes, letterbox_info):
         is_lr_letterbox, img_ratio, img_start_ratio, img_end_ratio = letterbox_info
-        rescaled_bboxes = []
-        for bbox in bboxes:
-            confidence, x1, y1, x2, y2, class_index = bbox
+        rescaled_boxes = []
+        for box in boxes:
+            x1, y1, x2, y2 = box.get_x1y1x2y2()
             if is_lr_letterbox:
                 x1 = (x1 - img_start_ratio) / img_ratio
                 x2 = (x2 - img_start_ratio) / img_ratio
             else:
                 y1 = (y1 - img_start_ratio) / img_ratio
                 y2 = (y2 - img_start_ratio) / img_ratio
-            rescaled_bboxes.append([confidence, x1, y1, x2, y2, class_index])
-        return rescaled_bboxes
+            cx, cy, w, h = BoundingBox.convert_x1y1x2y2_to_cxcywh(x1, y1, x2, y2)
+            rescaled_boxes.append(BoundingBox(box.class_index, cx, cy, w, h, confidence=box.confidence))
+        return rescaled_boxes
 
     def augment_noise(self, img, **kwargs):
         if self.cfg.aug_noise > 0.0:
@@ -514,7 +583,7 @@ class DataGenerator:
             cv2.polylines(img, [snowflake_points.astype(np.int32)], isClosed=False, color=color, thickness=thickness)
         return img
 
-    def augment_scale(self, img, labels, scale_range, mosaic_augmented):
+    def augment_scale(self, img, boxes, scale_range, mosaic_augmented):
         def overlay(img, overlay_img, start_x, start_y, channels):
             overlay_img_h, overlay_img_w = overlay_img.shape[:2]
             y_slice = slice(start_y, start_y + overlay_img_h)
@@ -540,7 +609,7 @@ class DataGenerator:
             min_scale = 1.0 / (1.0 + scale_range)
 
         if min_scale == 1.0:
-            return img, labels
+            return img, boxes
 
         scale = np.random.uniform() * (max_scale - min_scale) + min_scale
 
@@ -560,7 +629,7 @@ class DataGenerator:
         roi_w = roi_x2 - roi_x1
         roi_h = roi_y2 - roi_y1
 
-        new_labels = []
+        new_boxes = []
         if is_downscale:  # downscale
             reduced_img = cv2.resize(img, (0, 0), fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
             if channels == 1:
@@ -569,23 +638,19 @@ class DataGenerator:
                 background = np.zeros(shape=(self.cfg.input_rows, self.cfg.input_cols, channels), dtype=np.uint8) + self.letterbox_color
 
             scaled_img = overlay(background, reduced_img, start_x, start_y, channels)
-            for label in labels:
-                class_index, cx, cy, w, h = label
-                class_index = int(class_index)
+            for box in boxes:
+                cx, cy, w, h = box.get_cxcywh()
                 cx *= roi_w
                 cy *= roi_h
                 cx += roi_x1
                 cy += roi_y1
                 w *= roi_w
                 h *= roi_h
-                cx, cy, w, h = np.clip(np.array([cx, cy, w, h]), 0.0, 1.0)
-                new_labels.append([class_index, cx, cy, w, h])
+                new_boxes.append(BoundingBox(box.class_index, cx, cy, w, h))
         else:  # upscale
             scaled_img = cv2.resize(img[start_y:start_y+scaled_h, start_x:start_x+scaled_w], (img_w, img_h), cv2.INTER_LINEAR)
-            for label in labels:
-                class_index, cx, cy, w, h = label
-                class_index = int(class_index)
-                x1, y1, x2, y2 = self.cxcywh2x1y1x2y2(cx, cy, w, h)
+            for box in boxes:
+                x1, y1, x2, y2 = box.get_x1y1x2y2()
 
                 x1 = np.clip(x1, roi_x1, roi_x2)
                 y1 = np.clip(y1, roi_y1, roi_y2)
@@ -603,11 +668,10 @@ class DataGenerator:
                 if w > 0.0 and h > 0.0:
                     cx = x1 + (w * 0.5)
                     cy = y1 + (h * 0.5)
-                    cx, cy, w, h = np.clip(np.array([cx, cy, w, h]), 0.0, 1.0)
-                    new_labels.append([class_index, cx, cy, w, h])
-        return scaled_img, new_labels
+                    new_boxes.append(BoundingBox(box.class_index, cx, cy, w, h))
+        return scaled_img, new_boxes
 
-    def augment_flip(self, img, labels, aug_h_flip, aug_v_flip):
+    def augment_flip(self, img, boxes, aug_h_flip, aug_v_flip):
         method = ''
         if aug_h_flip and aug_v_flip:
             method = 'a'
@@ -624,17 +688,15 @@ class DataGenerator:
         elif aug_method == 'a':
             img = cv2.flip(img, -1)
 
-        new_labels = []
-        for label in labels:
-            class_index, cx, cy, w, h = label
-            class_index = int(class_index)
+        new_boxes = []
+        for box in boxes:
+            cx, cy, w, h = box.get_cxcywh()
             if aug_method in ['h', 'a']:
                 cx = 1.0 - cx
             if aug_method in ['v', 'a']:
                 cy = 1.0 - cy
-            cx, cy, w, h = np.clip(np.array([cx, cy, w, h]), 0.0, 1.0)
-            new_labels.append([class_index, cx, cy, w, h])
-        return img, new_labels
+            new_boxes.append(BoundingBox(box.class_index, cx, cy, w, h))
+        return img, new_boxes
 
     def augment_mosaic(self, datas):
         np.random.shuffle(datas)
@@ -644,11 +706,11 @@ class DataGenerator:
         img_3 = cv2.resize(datas[3]['img'], (0, 0), fx=0.5, fy=0.5, interpolation=cv2.INTER_AREA)
         img = np.concatenate([np.concatenate([img_0, img_1], axis=1), np.concatenate([img_2, img_3], axis=1)], axis=0)
 
-        new_labels = []
+        new_boxes = []
         for i in range(len(datas)):
-            labels = datas[i]['labels']
-            for label in labels:
-                class_index, cx, cy, w, h = label
+            boxes = datas[i]['boxes']
+            for box in boxes:
+                cx, cy, w, h = box.get_cxcywh()
                 cx *= 0.5
                 cy *= 0.5
                 w *= 0.5
@@ -665,8 +727,8 @@ class DataGenerator:
                 else:
                     Logger.warn(f'invalid mosaic index : {i}')
                 cx, cy, w, h = np.clip(np.array([cx, cy, w, h]), 0.0, 1.0)
-                new_labels.append([class_index, cx, cy, w, h])
-        return img, new_labels
+                new_boxes.append(BoundingBox(box.class_index, cx, cy, w, h))
+        return img, new_boxes
 
     def augment_mixup(self, datas, alpha=0.5):
         np.random.shuffle(datas)
@@ -674,80 +736,52 @@ class DataGenerator:
         img_1 = datas[1]['img']
         img = cv2.addWeighted(img_0, alpha, img_1, 1 - alpha, 0)
 
-        new_labels = []
+        new_boxes = []
         for i in range(len(datas)):
-            labels = datas[i]['labels']
-            for label in labels:
-                class_index, cx, cy, w, h = label
+            boxes = datas[i]['boxes']
+            for box in boxes:
+                cx, cy, w, h = box.get_cxcywh()
                 cx, cy, w, h = np.clip(np.array([cx, cy, w, h]), 0.0, 1.0)
-                new_labels.append([class_index, cx, cy, w, h])
-        return img, new_labels
+                new_boxes.append(BoundingBox(box.class_index, cx, cy, w, h))
+        return img, new_boxes
 
-    def load_image_with_label(self, size, augmentation=True):
+    def augment(self, img, boxes):
+        if not self.cfg.aug:
+            return img, boxes
+
+        mosaic_augmented = False
+        if self.cfg.aug_mosaic > 0.0 and np.random.uniform() < self.cfg.aug_mosaic:
+            mosaic_data = self.load_image_with_boxes(size=3, augmentation=False)
+            mosaic_data.append({'img': img, 'boxes': boxes})
+            img, boxes = self.augment_mosaic(mosaic_data)
+            mosaic_augmented = True
+
+        if not mosaic_augmented and self.cfg.aug_mixup > 0.0 and np.random.uniform() < self.cfg.aug_mixup:
+            mixup_data = self.load_image_with_boxes(size=1, augmentation=False)
+            mixup_data.append({'img': img, 'boxes': boxes})
+            img, boxes = self.augment_mixup(mixup_data)
+
+        if self.cfg.aug_scale > 0.0:
+            img, boxes = self.augment_scale(img, boxes, self.cfg.aug_scale, mosaic_augmented)
+
+        if (self.cfg.aug_h_flip or self.cfg.aug_v_flip) and np.random.uniform() < 0.5:
+            img, boxes = self.augment_flip(img, boxes, self.cfg.aug_h_flip, self.cfg.aug_v_flip)
+
+        img = self.transform(image=img)['image']
+        return img, boxes
+
+    def load_image_with_boxes(self, size, augmentation=True):
         data, fs = [], []
         for _ in range(size):
             fs.append(self.pool.submit(self.load_image, self.next_data_path(), gray=self.cfg.input_channels == 1))
         for i in range(len(fs)):
             img, path = fs[i].result()
-            labels, _, _ = self.load_label(self.get_label_path(path))
-            img, labels, _ = self.resize_letterbox(img, labels, (self.cfg.input_cols, self.cfg.input_rows))
+            boxes, _, _ = self.load_label(self.get_label_path(path))
+            img, boxes, _ = self.resize_letterbox(img, boxes, (self.cfg.input_cols, self.cfg.input_rows))
             if self.training and augmentation:
-                img, labels = self.augment(img, labels)
-            data.append({'img': img, 'labels': labels})
+                img, boxes = self.augment(img, boxes)
+            data.append({'img': img, 'boxes': boxes})
         return data
-
-    def augment(self, img, labels):
-        if not self.cfg.aug:
-            return img, labels
-
-        mosaic_augmented = False
-        if self.cfg.aug_mosaic > 0.0 and np.random.uniform() < self.cfg.aug_mosaic:
-            mosaic_data = self.load_image_with_label(size=3, augmentation=False)
-            mosaic_data.append({'img': img, 'labels': labels})
-            img, labels = self.augment_mosaic(mosaic_data)
-            mosaic_augmented = True
-
-        if not mosaic_augmented and self.cfg.aug_mixup > 0.0 and np.random.uniform() < self.cfg.aug_mixup:
-            mixup_data = self.load_image_with_label(size=1, augmentation=False)
-            mixup_data.append({'img': img, 'labels': labels})
-            img, labels = self.augment_mixup(mixup_data)
-
-        if self.cfg.aug_scale > 0.0:
-            img, labels = self.augment_scale(img, labels, self.cfg.aug_scale, mosaic_augmented)
-
-        if (self.cfg.aug_h_flip or self.cfg.aug_v_flip) and np.random.uniform() < 0.5:
-            img, labels = self.augment_flip(img, labels, self.cfg.aug_h_flip, self.cfg.aug_v_flip)
-
-        img = self.transform(image=img)['image']
-        return img, labels
-
-    def convert_to_boxes(self, labels):
-        def get_same_box_index(labeled_boxes, cx, cy, w, h):
-            if self.cfg.multi_classification_at_same_box:
-                box_str = f'{cx:.6f}_{cy:.6f}_{w:.6f}_{h:.6f}'
-                for i in range(len(labeled_boxes)):
-                    box_cx, box_cy, box_w, box_h = labeled_boxes[i]['cx'], labeled_boxes[i]['cy'], labeled_boxes[i]['w'], labeled_boxes[i]['h']
-                    cur_box_str = f'{box_cx:.6f}_{box_cy:.6f}_{box_w:.6f}_{box_h:.6f}'
-                    if cur_box_str == box_str:
-                        return i
-            return -1
-
-        labeled_boxes = []
-        for label in labels:
-            class_index, cx, cy, w, h = label
-            class_index = int(class_index)
-            same_box_index = get_same_box_index(labeled_boxes, cx, cy, w, h)
-            if same_box_index == -1:
-                labeled_boxes.append({
-                    'class_indexes': [class_index],
-                    'cx': cx,
-                    'cy': cy,
-                    'w': w,
-                    'h': h,
-                    'area': w * h})
-            elif not class_index in labeled_boxes[same_box_index]['class_indexes']:
-                labeled_boxes[same_box_index]['class_indexes'].append(class_index)
-        return sorted(labeled_boxes, key=lambda x: x['area'], reverse=True)
 
     def get_nearby_grids(self, rows, cols, row, col, cx_grid, cy_grid, cx_raw, cy_raw, w, h, center_only):
         positions = None
@@ -789,20 +823,11 @@ class DataGenerator:
                 if name == 'c':
                     iou = 1.0
                 else:
-                    box_origin = [
-                        cx_raw - (w * 0.5),
-                        cy_raw - (h * 0.5),
-                        cx_raw + (w * 0.5),
-                        cy_raw + (h * 0.5)]
                     cx_nearby_raw = (float(col + offset_x) + cx_nearby_grid) / float(cols)
                     cy_nearby_raw = (float(row + offset_y) + cy_nearby_grid) / float(rows)
-                    box_nearby = [
-                        cx_nearby_raw - (w * 0.5),
-                        cy_nearby_raw - (h * 0.5),
-                        cx_nearby_raw + (w * 0.5),
-                        cy_nearby_raw + (h * 0.5)]
-                    box_nearby = np.clip(np.array(box_nearby), 0.0, 1.0)
-                    iou = self.iou(box_origin, box_nearby) - 1e-4  # subtract small value for give center grid to first priority
+                    box_origin = BoundingBox(0, cx_raw, cy_raw, w, h)
+                    box_nearby = BoundingBox(0, cx_nearby_raw, cy_nearby_raw, w, h)
+                    iou = BoundingBox.iou(box_origin, box_nearby) - 1e-4  # subtract small value for give center grid to first priority
                 nearby_cells.append({
                     'offset_y': offset_y,
                     'offset_x': offset_x,
@@ -831,14 +856,15 @@ class DataGenerator:
         blended_img = cv2.addWeighted(img, alpha, heatmap, 1.0 - alpha, 0)
         return blended_img
 
-    def build_gt_tensor(self, labeled_boxes, y, extra, img=None):
+    def build_gt_tensor(self, boxes, y, extra, img=None):
         allocated_count = 0
-        for b in labeled_boxes:
-            class_indexes, cx, cy, w, h = b['class_indexes'], b['cx'], b['cy'], b['w'], b['h']
+        for box in boxes:
+            class_index = box.class_index
+            cx, cy, w, h = box.get_cxcywh()
             if self.is_too_small_box(w, h):
                 continue
 
-            best_iou_indexes = self.get_iou_with_virtual_anchors([cx, cy, w, h])
+            best_iou_indexes = self.get_iou_with_virtual_anchors(box)
             is_box_allocated = False
             for i, virtual_anchor_iou in best_iou_indexes:
                 if is_box_allocated and virtual_anchor_iou < self.cfg.va_iou_threshold:
@@ -898,9 +924,8 @@ class DataGenerator:
                         y[i][offset_center_row][offset_center_col][2] = cy_grid
                         y[i][offset_center_row][offset_center_col][3] = w
                         y[i][offset_center_row][offset_center_col][4] = h
-                        for class_index in class_indexes:
-                            if class_index != self.unknown_class_index:
-                                y[i][offset_center_row][offset_center_col][class_index+5] = 1.0
+                        if class_index != self.unknown_class_index:
+                            y[i][offset_center_row][offset_center_col][class_index+5] = 1.0
                         is_box_allocated = True
                         allocated_count += 1
                         break
@@ -915,8 +940,8 @@ class DataGenerator:
             print(f'img.shape : {img.shape}')
             cv2.imshow('img', img)
             img_boxed = np.array(img)
-            for bb in labeled_boxes:
-                x1, y1, x2, y2 = self.cxcywh2x1y1x2y2(bb['cx'], bb['cy'], bb['w'], bb['h'])
+            for box in boxes:
+                x1, y1, x2, y2 = box.get_x1y1x2y2()
                 x1 = int(x1 * self.cfg.input_cols)
                 y1 = int(y1 * self.cfg.input_rows)
                 x2 = min(int(x2 * self.cfg.input_cols), self.cfg.input_cols-1)
@@ -1014,12 +1039,11 @@ class DataGenerator:
     def load_xy(self):
         y = [np.zeros(shape=self.output_shapes[i][1:], dtype=np.float32) for i in range(self.num_output_layers)]
         extra = [np.ones(shape=self.output_shapes[i][1:], dtype=np.float32) for i in range(self.num_output_layers)]
-        img_with_label = self.load_image_with_label(size=1)
-        img = img_with_label[0]['img']
-        labels = img_with_label[0]['labels']
+        img_with_boxes = self.load_image_with_boxes(size=1)
+        img = img_with_boxes[0]['img']
+        boxes = img_with_boxes[0]['boxes']
         x = self.preprocess(img)
-        labeled_boxes = self.convert_to_boxes(labels)
-        self.build_gt_tensor(labeled_boxes, y, extra, img if (self.debug or self.cfg.fix_seed) else None)
+        self.build_gt_tensor(boxes, y, extra, img if (self.debug or self.cfg.fix_seed) else None)
         return x, y, extra
             
     def load_xy_into_q(self):

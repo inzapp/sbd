@@ -32,6 +32,7 @@ from loss import sbd_loss
 from eta import ETACalculator
 from box_colors import colors
 from keras_flops import get_flops
+from generator import BoundingBox
 from generator import DataGenerator
 from lr_scheduler import LRScheduler
 from ckpt_manager import CheckpointManager
@@ -116,7 +117,6 @@ class TrainingConfig:
         d['checkpoint_interval'] = self.__get_value_from_yaml(cfg, 'checkpoint_interval', 0, int, required=False)
         d['show_progress'] = self.__get_value_from_yaml(cfg, 'show_progress', False, bool, required=False)
         d['treat_unknown_as_class'] = self.__get_value_from_yaml(cfg, 'treat_unknown_as_class', False, bool, required=False)
-        d['multi_classification_at_same_box'] = self.__get_value_from_yaml(cfg, 'multi_classification_at_same_box', False, bool, required=False)
         d['fix_seed'] = self.__get_value_from_yaml(cfg, 'fix_seed', False, bool, required=False)
         return d
 
@@ -405,21 +405,14 @@ class SBD(CheckpointManager):
     def load_label_csv(self, image_path, unknown_class_index):
         csv_lines = []
         label_path = self.train_data_generator.get_label_path(image_path)
-        if os.path.exists(label_path) and os.path.isfile(label_path):
+        boxes, label_path, label_exists = self.train_data_generator.load_label(label_path)
+        if label_exists:
             basename = os.path.basename(image_path)
-            with open(label_path, 'rt') as f:
-                lines = f.readlines()
-            for line in lines:
-                class_index, cx, cy, w, h = list(map(float, line.split()))
-                class_index = int(class_index)
-                if class_index == unknown_class_index:
+            for box in boxes:
+                if box.class_index == unknown_class_index:
                     continue
-                xmin = cx - w * 0.5
-                ymin = cy - h * 0.5
-                xmax = cx + w * 0.5
-                ymax = cy + h * 0.5
-                xmin, ymin, xmax, ymax = np.clip(np.array([xmin, ymin, xmax, ymax]), 0.0, 1.0)
-                csv_lines.append(f'{basename},{class_index},{xmin:.6f},{xmax:.6f},{ymin:.6f},{ymax:.6f}\n')
+                x1, y1, x2, y2 = box.get_x1y1x2y2()
+                csv_lines.append(f'{basename},{box.class_index},{x1:.6f},{x2:.6f},{y1:.6f},{y2:.6f}\n')
         return csv_lines
 
     def make_annotations_csv(self, image_paths, unknown_class_index, csv_path):
@@ -434,12 +427,12 @@ class SBD(CheckpointManager):
 
     def convert_boxes_to_csv_lines(self, path, boxes):
         csv_lines = []
-        for b in boxes:
+        for box in boxes:
             basename = os.path.basename(path)
-            confidence = b['confidence']
-            class_index = b['class']
-            xmin, ymin, xmax, ymax = b['bbox_norm']
-            csv_lines.append(f'{basename},{class_index},{confidence:.6f},{xmin:.6f},{xmax:.6f},{ymin:.6f},{ymax:.6f}\n')
+            confidence = box.confidence
+            class_index = box.class_index
+            x1, y1, x2, y2 = box.get_x1y1x2y2()
+            csv_lines.append(f'{basename},{class_index},{confidence:.6f},{x1:.6f},{x2:.6f},{y1:.6f},{y2:.6f}\n')
         return csv_lines
 
     def make_predictions_csv(self, model, image_paths, context, csv_path):
@@ -532,7 +525,7 @@ class SBD(CheckpointManager):
             img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
         img_height, img_width = img.shape[:2]
         for i, box in enumerate(boxes):
-            class_index = int(box['class'])
+            class_index = box.class_index
             if len(self.class_names) == 0:
                 class_name = str(class_index)
             else:
@@ -546,14 +539,14 @@ class SBD(CheckpointManager):
             else:
                 label_background_color = colors[class_index]
                 label_font_color = (0, 0, 0) if self.is_background_color_bright(label_background_color) else (255, 255, 255)
-                label_text = f'{class_name}({int(box["confidence"] * 100.0)}%)'
+                label_text = f'{class_name}({int(box.confidence * 100.0)}%)'
                 box_thickness = 1
 
-            x1, y1, x2, y2 = box['bbox_norm']
+            x1, y1, x2, y2 = box.get_x1y1x2y2()
             x1 = int(x1 * img_width)
             y1 = int(y1 * img_height)
-            x2 = min(int(x2 * img_width), img_width-1)
-            y2 = min(int(y2 * img_height), img_height-1)
+            x2 = min(int(x2 * img_width), img_width - 1)
+            y2 = min(int(y2 * img_height), img_height - 1)
             l_size, baseline = cv2.getTextSize(label_text, cv2.FONT_HERSHEY_DUPLEX, font_scale, 1)
             bw, bh = l_size[0] + (padding * 2), l_size[1] + (padding * 2) + baseline
             cv2.rectangle(img, (x1, y1), (x2, y2), label_background_color, box_thickness)
@@ -616,13 +609,18 @@ class SBD(CheckpointManager):
         xmax = tf.clip_by_value(cx + (w * 0.5), 0.0, 1.0)
         ymax = tf.clip_by_value(cy + (h * 0.5), 0.0, 1.0)
 
+        w = xmax - xmin
+        h = ymax - ymin
+        cx = xmin + (w * 0.5)
+        cy = ymin + (h * 0.5)
+
         confidence = tf.expand_dims(confidence, axis=-1)
-        xmin = tf.expand_dims(xmin, axis=-1)
-        ymin = tf.expand_dims(ymin, axis=-1)
-        xmax = tf.expand_dims(xmax, axis=-1)
-        ymax = tf.expand_dims(ymax, axis=-1)
+        cx = tf.expand_dims(cx, axis=-1)
+        cy = tf.expand_dims(cy, axis=-1)
+        w = tf.expand_dims(w, axis=-1)
+        h = tf.expand_dims(h, axis=-1)
         max_class_index = tf.expand_dims(max_class_index, axis=-1)
-        result_tensor = tf.concat([confidence, xmin, ymin, xmax, ymax, max_class_index], axis=-1)
+        result_tensor = tf.concat([max_class_index, cx, cy, w, h, confidence], axis=-1)
         boxes_before_nms = tf.gather_nd(result_tensor, over_confidence_indices)
         return boxes_before_nms
 
@@ -631,46 +629,6 @@ class SBD(CheckpointManager):
     def graph_forward(model, x, context):
         with context:
             return model(x, training=False)
-
-    def nms(self, boxes, nms_iou_threshold=0.45):
-        boxes = sorted(boxes, key=lambda x: x['confidence'], reverse=True)
-        for i in range(len(boxes) - 1):
-            if boxes[i]['discard']:
-                continue
-            for j in range(i + 1, len(boxes)):
-                if boxes[j]['discard'] or boxes[i]['class'] != boxes[j]['class']:
-                    continue
-                if self.train_data_generator.iou(boxes[i]['bbox_norm'], boxes[j]['bbox_norm']) > nms_iou_threshold:
-                    boxes[j]['discard'] = True
-
-        y_pred_copy = np.asarray(boxes.copy())
-        boxes = []
-        for i in range(len(y_pred_copy)):
-            if not y_pred_copy[i]['discard']:
-                boxes.append(y_pred_copy[i])
-        return boxes
-
-    def convert_vectors_to_box_dicts(self, vectors, confidence_thresholds=None, is_cxcywh_label=False):
-        if is_cxcywh_label:
-            for i in range(len(vectors)):
-                class_index, cx, cy, w, h = vectors[i]
-                x1, y1, x2, y2 = self.train_data_generator.cxcywh2x1y1x2y2(cx, cy, w, h)
-                vectors[i] = [1.0, x1, y1, x2, y2, class_index]
-
-        box_dicts = []
-        for vector in vectors:
-            confidence = float(vector[0])
-            x1, y1, x2, y2 = np.clip(np.array(list(map(float, vector[1:5]))), 0.0, 1.0)
-            class_index = int(vector[5])
-            if confidence_thresholds is not None and confidence < confidence_thresholds[class_index]:
-                continue
-            box_dicts.append({
-                'confidence': confidence,
-                'bbox_norm': [x1, y1, x2, y2],
-                'class': class_index,
-                'discard': False,
-            })
-        return box_dicts
 
     def predict(self, model, img, context, confidence_threshold=0.2, verbose=False, heatmap=False):
         input_shape = model.input_shape[1:]
@@ -690,24 +648,29 @@ class SBD(CheckpointManager):
             confidence_thresholds = [confidence_threshold for _ in range(self.num_classes)]
         confidence_threshold_min = min(confidence_thresholds)
 
-        proposals = []
+        proposal_boxes = []
         for layer_index in range(num_output_layers):
             output_tensor = y[layer_index][0]
-            proposals += list(self.decode_bounding_box(output_tensor, confidence_threshold_min).numpy())
+            raw_boxes = self.decode_bounding_box(output_tensor, confidence_threshold_min).numpy()
+            for raw_box  in raw_boxes:
+                class_index, cx, cy, w, h, confidence = raw_box
+                proposal_boxes.append(BoundingBox(class_index, cx, cy, w, h, confidence=confidence))
 
         if not heatmap:
-            proposals = self.train_data_generator.rescale_bboxes_to_original_scale(proposals, letterbox_info)
-        proposal_dicts = self.convert_vectors_to_box_dicts(proposals, confidence_thresholds=confidence_thresholds)
+            proposal_boxes = self.train_data_generator.rescale_boxes_to_original_scale(proposal_boxes, letterbox_info)
 
-        boxes = self.nms(proposal_dicts)
+        over_threshold_boxes = []
+        for box in proposal_boxes:
+            if box.confidence >= confidence_thresholds[box.class_index]:
+                over_threshold_boxes.append(box)
+
+        boxes = BoundingBox.nms(over_threshold_boxes)
         if verbose:
-            print(f'before nms box count : {len(proposal_dicts)}')
+            print(f'before nms box count : {len(over_threshold_boxes)}')
             print(f'after  nms box count : {len(boxes)}')
-            for box_info in boxes:
-                class_index = box_info['class']
-                confidence = box_info['confidence']
-                x1, y1, x2, y2 = box_info['bbox_norm']
-                print(f'confidence({confidence:.4f}), bbox({x1:.6f}, {y1:.6f}, {x2:.6f}, {y2:.6f}), class({self.class_names[class_index]})')
+            for box in boxes:
+                x1, y1, x2, y2 = box.get_x1y1x2y2()
+                print(f'confidence({box.confidence:.4f}), box({x1:.6f}, {y1:.6f}, {x2:.6f}, {y2:.6f}), class({self.class_names[box.class_index]})')
             print()
 
         if heatmap:
@@ -715,7 +678,6 @@ class SBD(CheckpointManager):
             if num_output_layers == 1:
                 objectness = y[0][:, :, :, 0][0]
                 img = self.train_data_generator.blend_heatmap(img, objectness)
-
         return img, boxes
 
     def read_video_frame_into_q(self, video_path, frame_queue, read_flag_list, thread_end_flag_list, lock):
@@ -802,8 +764,7 @@ class SBD(CheckpointManager):
                 if gt and not heatmap:
                     label_path = self.train_data_generator.get_label_path(path)
                     if self.train_data_generator.is_label_exists(label_path)[0]:
-                        labels = self.train_data_generator.load_label(label_path)[0]
-                        gt_boxes = self.convert_vectors_to_box_dicts(labels, is_cxcywh_label=True)
+                        gt_boxes = self.train_data_generator.load_label(label_path)[0]
                         img = self.draw_box(img, gt_boxes, show_class=show_class, gt=True)
                         img = self.draw_box(img, boxes, show_class=show_class)
                     else:
@@ -931,15 +892,11 @@ class SBD(CheckpointManager):
         for f in tqdm(fs):
             img, path = f.result()
             _, boxes = self.predict(self.model, img, self.primary_context, confidence_threshold=confidence_threshold)
-            boxes = sorted(boxes, key=lambda x: ((x['bbox_norm'][2] - x['bbox_norm'][0]) * (x['bbox_norm'][3] - x['bbox_norm'][1])), reverse=True)  # sort by area desc
+            boxes = sorted(boxes, key=lambda x: ((x.x2 - x.x1) * (x.y2 - x.y1)), reverse=True)  # sort by area desc
             label_content = ''
             for box in boxes:
-                class_index = box['class']
-                xmin, ymin, xmax, ymax = box['bbox_norm']
-                w = xmax - xmin
-                h = ymax - ymin
-                cx = xmin + (w * 0.5)
-                cy = ymin + (h * 0.5)
+                class_index = box.class_index
+                cx, cy, w, h = box.get_cxcywh()
                 cx, cy, w, h = np.clip(np.array([cx, cy, w, h]), 0.0, 1.0)
                 label_content += f'{class_index} {cx:.6f} {cy:.6f} {w:.6f} {h:.6f}\n'
             with open(self.train_data_generator.get_label_path(path), 'wt') as f_label:
