@@ -30,9 +30,8 @@ from model import Model
 from logger import Logger
 from loss import sbd_loss
 from eta import ETACalculator
-from box_colors import colors
+from bbox import BoundingBox
 from keras_flops import get_flops
-from generator import BoundingBox
 from generator import DataGenerator
 from lr_scheduler import LRScheduler
 from ckpt_manager import CheckpointManager
@@ -537,7 +536,7 @@ class SBD(CheckpointManager):
                 label_text = f'[GT] {class_name}'
                 box_thickness = 2
             else:
-                label_background_color = colors[class_index]
+                label_background_color = BoundingBox.get_color(class_index)
                 label_font_color = (0, 0, 0) if self.is_background_color_bright(label_background_color) else (255, 255, 255)
                 label_text = f'{class_name}({int(box.confidence * 100.0)}%)'
                 box_thickness = 1
